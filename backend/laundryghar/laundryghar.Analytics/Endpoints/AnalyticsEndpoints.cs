@@ -141,8 +141,11 @@ public static class AnalyticsEndpoints
             var today   = DateOnly.FromDateTime(DateTime.UtcNow);
             var monthStart = new DateOnly(today.Year, today.Month, 1);
 
+            // NOTE: these three queries are awaited SEQUENTIALLY. They share one
+            // scoped DbContext, which is not thread-safe — running them concurrently
+            // (Task.WhenAll) throws "A second operation was started on this context".
             // Today's revenue totals from mv_daily_store_revenue
-            var todayRevTask = db.DailyStoreRevenues
+            var todayRev = await db.DailyStoreRevenues
                 .AsNoTracking()
                 .Where(x => x.BrandId == brandId && x.RevenueDate == today)
                 .GroupBy(_ => 1)
@@ -156,7 +159,7 @@ public static class AnalyticsEndpoints
                 .FirstOrDefaultAsync(ct);
 
             // This-month totals from mv_monthly_franchise_revenue
-            var monthRevTask = db.MonthlyFranchiseRevenues
+            var monthRev = await db.MonthlyFranchiseRevenues
                 .AsNoTracking()
                 .Where(x => x.BrandId == brandId && x.RevenueMonth == monthStart)
                 .GroupBy(_ => 1)
@@ -169,7 +172,7 @@ public static class AnalyticsEndpoints
                 .FirstOrDefaultAsync(ct);
 
             // Top 5 customers by lifetime revenue
-            var topCustomersTask = db.CustomerLtvs
+            var topCustomers = await db.CustomerLtvs
                 .AsNoTracking()
                 .Where(x => x.BrandId == brandId)
                 .OrderByDescending(x => x.LifetimeRevenue)
@@ -177,24 +180,22 @@ public static class AnalyticsEndpoints
                 .Select(x => new { x.CustomerId, x.CustomerSegment, x.LifetimeRevenue, x.LifetimeOrders })
                 .ToListAsync(ct);
 
-            await Task.WhenAll(todayRevTask, monthRevTask, topCustomersTask);
-
             var dashboard = new
             {
                 Today = new
                 {
-                    OrdersCount     = todayRevTask.Result?.OrdersCount ?? 0,
-                    GrossRevenue    = todayRevTask.Result?.GrossRevenue ?? 0,
-                    CollectedAmount = todayRevTask.Result?.CollectedAmount ?? 0,
-                    UniqueCustomers = todayRevTask.Result?.UniqueCustomers ?? 0,
+                    OrdersCount     = todayRev?.OrdersCount ?? 0,
+                    GrossRevenue    = todayRev?.GrossRevenue ?? 0,
+                    CollectedAmount = todayRev?.CollectedAmount ?? 0,
+                    UniqueCustomers = todayRev?.UniqueCustomers ?? 0,
                 },
                 ThisMonth = new
                 {
-                    OrdersCount  = monthRevTask.Result?.OrdersCount ?? 0,
-                    GrossRevenue = monthRevTask.Result?.GrossRevenue ?? 0,
-                    NetRevenue   = monthRevTask.Result?.NetRevenue ?? 0,
+                    OrdersCount  = monthRev?.OrdersCount ?? 0,
+                    GrossRevenue = monthRev?.GrossRevenue ?? 0,
+                    NetRevenue   = monthRev?.NetRevenue ?? 0,
                 },
-                TopCustomersByLtv = topCustomersTask.Result,
+                TopCustomersByLtv = topCustomers,
             };
 
             return Results.Ok(new { Status = true, Data = dashboard });

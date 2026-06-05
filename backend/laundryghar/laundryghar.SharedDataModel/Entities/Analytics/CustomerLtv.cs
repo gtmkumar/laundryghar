@@ -8,7 +8,7 @@ public sealed class CustomerLtv
 {
     public Guid BrandId               { get; set; }
     public Guid CustomerId            { get; set; }
-    public string CustomerSegment     { get; set; } = null!;
+    public string? CustomerSegment    { get; set; }   // nullable: customers may have no segment assigned
     public long LifetimeOrders        { get; set; }
     public decimal LifetimeRevenue    { get; set; }
     public decimal AvgOrderValue      { get; set; }
