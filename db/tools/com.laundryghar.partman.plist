@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd agent: runs partman maintenance daily at 02:30 local time.
+
+  ENABLE:
+    cp db/tools/com.laundryghar.partman.plist ~/Library/LaunchAgents/
+    launchctl load -w ~/Library/LaunchAgents/com.laundryghar.partman.plist
+
+  DISABLE:
+    launchctl unload -w ~/Library/LaunchAgents/com.laundryghar.partman.plist
+    rm ~/Library/LaunchAgents/com.laundryghar.partman.plist
+
+  RUN ONCE NOW (test):
+    launchctl start com.laundryghar.partman
+
+  Logs go to: db/tools/partman_maintenance.log
+
+  Note: this plist hard-codes the project path. If you move the repo,
+  re-copy it and re-load.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.laundryghar.partman</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/gtmkumar/Documents/source/laundryghar/db/tools/run_partman_maintenance.sh</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/gtmkumar/Documents/source/laundryghar/db/tools/partman_launchd.stdout</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/gtmkumar/Documents/source/laundryghar/db/tools/partman_launchd.stderr</string>
+</dict>
+</plist>

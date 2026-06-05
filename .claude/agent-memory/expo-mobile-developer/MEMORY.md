@@ -1,0 +1,2 @@
+- [Customer Mobile scaffold](project-customer-mobile.md) — Expo SDK 52 app at customer-mobile/; service ports, OTP auth flow, envelope shape, route structure, all first-slice screens
+- [Rider Mobile scaffold](project-rider-mobile.md) — Expo SDK 52 rider app at rider-mobile/; password auth, green brand, 4 API endpoints wired, tsc clean

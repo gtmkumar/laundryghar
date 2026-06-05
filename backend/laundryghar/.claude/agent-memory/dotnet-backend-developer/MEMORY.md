@@ -1,0 +1,2 @@
+- [Retry strategy for transactions](project-retry-strategy.md) — NpgsqlRetryingExecutionStrategy blocks BeginTransactionAsync; use CreateExecutionStrategy().ExecuteAsync wrapper in all handlers that open manual transactions
+- [BC-8 Engagement/CMS decisions](project-bc8-engagement.md) — anonymous brand resolution via IBrandResolver (no RLS), verified enum values, PaginatedList factory-only pattern, outbox retry approach

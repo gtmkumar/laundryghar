@@ -1,0 +1,2 @@
+- [Wave-0 RLS & Auth Validation](project_wave0_rls.md) — Exit gate passed; app_user LOGIN fix needed; legacy public-role policies have unsafe uuid cast
+- [BC-3 Catalog QA Gate](project_bc3_catalog.md) — Exit gate passed; IDOR proof, pricing rules verified; request_source CHECK error exposed raw; published PL edit returns 500 not 4xx

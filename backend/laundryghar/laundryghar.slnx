@@ -1,0 +1,16 @@
+<Solution>
+  <Project Path="laundryghar.ServiceDefaults/laundryghar.ServiceDefaults.csproj" />
+  <Project Path="laundryghar.AppHost/laundryghar.AppHost.csproj" />
+  <Project Path="laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
+  <Project Path="laundryghar.Utilities/laundryghar.Utilities.csproj" />
+  <Project Path="laundryghar.Identity/laundryghar.Identity.csproj" />
+  <Project Path="laundryghar.Catalog/laundryghar.Catalog.csproj" />
+  <Project Path="laundryghar.Orders/laundryghar.Orders.csproj" />
+  <Project Path="laundryghar.Warehouse/laundryghar.Warehouse.csproj" />
+  <Project Path="laundryghar.Logistics/laundryghar.Logistics.csproj" />
+  <Project Path="laundryghar.Commerce/laundryghar.Commerce.csproj" />
+  <Project Path="laundryghar.Finance/laundryghar.Finance.csproj" />
+  <Project Path="laundryghar.Engagement/laundryghar.Engagement.csproj" />
+  <Project Path="laundryghar.Analytics/laundryghar.Analytics.csproj" />
+  <Project Path="laundryghar.Worker/laundryghar.Worker.csproj" />
+</Solution>

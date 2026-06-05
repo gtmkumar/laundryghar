@@ -1,0 +1,1 @@
+- [Admin-web scaffold](project-admin-web-scaffold.md) — Initial React 19 + Vite scaffold at repo root admin-web/; build passes clean; auth + 3 screens wired to real API contracts

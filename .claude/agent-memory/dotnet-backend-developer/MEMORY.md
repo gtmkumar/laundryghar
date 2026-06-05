@@ -1,0 +1,8 @@
+- [SharedDataModel project context](project-shared-data-model.md) — DB-first EF Core 10 library: package versions, RLS interceptor, soft-delete filter choices, cross-BC FK policy, geography types, audit_logs composite PK
+- [Identity service context](project-identity-service.md) — refresh_tokens self-referential FK workaround, roles scope_type constraint, dev admin creds, MediatR 12 API change
+- [Catalog service context](project-catalog-service.md) — DB CHECK constraints, jsonb fields, platform admin X-Brand-Id pattern, price_lists status lifecycle, seeded data natural keys, customer self-filtering
+- [Orders service context](project-orders-service.md) — composite PK orders, Npgsql retry+transaction pattern, order_addons no brand_id, state machine, atomic slot booking, order number scheme, seeder creates franchise+store
+- [Logistics BC context](project-logistics-bc.md) — BC-5 logistics: interface choices per table, composite PK on pings, geography columns, cross-BC FK ON DELETE behaviours, enum values, column surprises
+- [BC-9 Analytics Service](project-bc9-analytics.md) — MV brand-id guard (no RLS on MVs), CONCURRENTLY fallback, permission model, type mappings
+- [Aspire AppHost setup](project-aspire-apphost.md) — SDK 13.4.2 quirks, connection string injection via literal env var (not AddConnectionString), port pinning, ASPIRE002 benign warning
+- [Worker service context](project-worker-service.md) — outbox drain design, RLS bypass via WorkerCurrentTenant, verified enum values, two-transaction per-row pattern, backoff formula, Aspire no-HTTP registration

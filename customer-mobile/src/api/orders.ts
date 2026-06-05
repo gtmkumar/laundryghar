@@ -1,0 +1,82 @@
+/**
+ * Orders API — maps to CustomerOrderEndpoints.cs (Orders service)
+ * Endpoint prefix: {Orders}/api/v1/customer/
+ */
+import { ordersClient, unwrapList, unwrapPaginated, unwrapSingle } from '@/api/client';
+import type {
+  CreatePickupRequestRequest,
+  DeliverySlotDto,
+  ListResponse,
+  OrderDto,
+  OrderStatusHistoryDto,
+  PaginatedListResponse,
+  PickupRequestDto,
+  SingleResponse,
+} from '@/types/api';
+
+// ── Orders ───────────────────────────────────────────────────────────────────
+
+/** GET /api/v1/customer/orders?page=&pageSize= */
+export async function getMyOrders(
+  page = 1,
+  pageSize = 20,
+): Promise<{ list: OrderDto[]; hasPreviousPage: boolean; hasNextPage: boolean }> {
+  const res = await ordersClient.get<PaginatedListResponse<OrderDto>>(
+    '/customer/orders/',
+    { params: { page, pageSize } },
+  );
+  return unwrapPaginated(res.data);
+}
+
+/** GET /api/v1/customer/orders/{id} */
+export async function getOrderById(id: string): Promise<OrderDto> {
+  const res = await ordersClient.get<SingleResponse<OrderDto>>(
+    `/customer/orders/${id}`,
+  );
+  return unwrapSingle(res.data);
+}
+
+/** GET /api/v1/customer/orders/{id}/tracking */
+export async function getOrderTracking(
+  id: string,
+): Promise<OrderStatusHistoryDto[]> {
+  const res = await ordersClient.get<ListResponse<OrderStatusHistoryDto>>(
+    `/customer/orders/${id}/tracking`,
+  );
+  return unwrapList(res.data);
+}
+
+/** POST /api/v1/customer/orders/{id}/cancel */
+export async function cancelOrder(id: string): Promise<OrderDto> {
+  const res = await ordersClient.post<SingleResponse<OrderDto>>(
+    `/customer/orders/${id}/cancel`,
+  );
+  return unwrapSingle(res.data);
+}
+
+// ── Pickup scheduling ─────────────────────────────────────────────────────────
+
+/** POST /api/v1/customer/pickup-requests */
+export async function schedulePickup(
+  req: CreatePickupRequestRequest,
+): Promise<PickupRequestDto> {
+  const res = await ordersClient.post<SingleResponse<PickupRequestDto>>(
+    '/customer/pickup-requests/',
+    req,
+  );
+  return unwrapSingle(res.data);
+}
+
+// ── Delivery slots ────────────────────────────────────────────────────────────
+
+/** GET /api/v1/customer/delivery-slots?storeId=&date= */
+export async function getDeliverySlots(
+  storeId?: string,
+  date?: string,
+): Promise<DeliverySlotDto[]> {
+  const res = await ordersClient.get<ListResponse<DeliverySlotDto>>(
+    '/customer/delivery-slots/',
+    { params: { ...(storeId && { storeId }), ...(date && { date }) } },
+  );
+  return unwrapList(res.data);
+}

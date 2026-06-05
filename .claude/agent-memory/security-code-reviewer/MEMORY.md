@@ -1,0 +1,2 @@
+- [Identity Service Security Posture](project_identity_service.md) — key findings from initial review of laundryghar.Identity: JWT algo, RLS pool risk, missing rate limiting, CORS, seeder defaults
+- [Catalog Service Security Posture (BC-3)](project_catalog_service.md) — brand isolation relies on RLS (not enforced under superuser); customer IDOR handled via sub claim; OTP brand-binding gap

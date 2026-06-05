@@ -1,0 +1,45 @@
+-- ===========================================================================
+-- REVIEW NEEDED — polymorphic / unresolved columns (NO ALTER STATEMENTS)
+-- ===========================================================================
+-- These columns intentionally have no single FK target. Decide per case:
+--   a) add a *_type discriminator column + CHECK constraint
+--   b) keep opaque (current convention) — no action
+--   c) introduce a missing parent table (e.g. garment_locations)
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- POLYMORPHIC
+-- ---------------------------------------------------------------------------
+-- commerce.loyalty_points_ledger.reference_id  (src 06_bc6_commerce.sql:186)  — polymorphic (paired with *_type)
+-- commerce.package_usage_ledger.reference_id  (src 06_bc6_commerce.sql:126)  — polymorphic (paired with *_type)
+-- commerce.wallet_transactions.reference_id  (src 06_bc6_commerce.sql:488)  — polymorphic (paired with *_type)
+-- engagement_cms.notifications_log.recipient_id  (src 08_bc8_engagement_cms.sql:155)  — polymorphic (paired with *_type)
+-- engagement_cms.notifications_log.reference_id  (src 08_bc8_engagement_cms.sql:168)  — polymorphic (paired with *_type)
+-- engagement_cms.notifications_outbox.correlation_id  (src 08_bc8_engagement_cms.sql:118)  — polymorphic (paired with *_type)
+-- engagement_cms.notifications_outbox.recipient_id  (src 08_bc8_engagement_cms.sql:105)  — polymorphic (paired with *_type)
+-- engagement_cms.notifications_outbox.reference_id  (src 08_bc8_engagement_cms.sql:117)  — polymorphic (paired with *_type)
+-- engagement_cms.whatsapp_message_log.reference_id  (src 08_bc8_engagement_cms.sql:201)  — polymorphic (paired with *_type)
+-- finance_royalty.cash_book_entries.reference_id  (src 07_bc7_finance_royalty.sql:87)  — polymorphic (paired with *_type)
+-- identity_access.audit_logs.correlation_id  (src 02_bc2_identity_access.sql:318)  — polymorphic (paired with *_type)
+-- identity_access.audit_logs.request_id  (src 02_bc2_identity_access.sql:317)  — polymorphic (paired with *_type)
+-- identity_access.audit_logs.resource_id  (src 02_bc2_identity_access.sql:310)  — polymorphic (paired with *_type)
+-- identity_access.otp_codes.reference_id  (src 02_bc2_identity_access.sql:221)  — polymorphic (paired with *_type)
+-- identity_access.user_scope_memberships.scope_id  (src 02_bc2_identity_access.sql:101)  — polymorphic (paired with *_type)
+-- kernel.file_attachments.owner_id  (src 00_kernel.sql:137)  — polymorphic (paired with *_type)
+-- kernel.outbox_events.aggregate_id  (src 00_kernel.sql:181)  — polymorphic (paired with *_type)
+-- kernel.outbox_events.causation_id  (src 00_kernel.sql:187)  — polymorphic (paired with *_type)
+-- kernel.outbox_events.correlation_id  (src 00_kernel.sql:186)  — polymorphic (paired with *_type)
+-- order_lifecycle.garment_inspections.location_id  (src 04_bc4_order_lifecycle.sql:507)  — polymorphic (paired with *_type)
+-- order_lifecycle.garments.current_location_id  (src 04_bc4_order_lifecycle.sql:428)  — polymorphic (paired with *_type)
+-- order_lifecycle.stock_reconciliation_items.expected_location_id  (src 04_bc4_order_lifecycle.sql:780)  — polymorphic (paired with *_type)
+-- order_lifecycle.stock_reconciliation_items.found_location_id  (src 04_bc4_order_lifecycle.sql:783)  — polymorphic (paired with *_type)
+-- order_lifecycle.stock_reconciliation_items.last_known_holder_id  (src 04_bc4_order_lifecycle.sql:787)  — polymorphic (paired with *_type)
+-- tenancy_org.holidays.scope_id  (src 01_bc1_tenancy_org.sql:409)  — polymorphic (paired with *_type)
+-- tenancy_org.operating_hours.scope_id  (src 01_bc1_tenancy_org.sql:381)  — polymorphic (paired with *_type)
+
+-- ---------------------------------------------------------------------------
+-- UNRESOLVED
+-- ---------------------------------------------------------------------------
+-- commerce.customer_packages.purchase_order_id  (src 06_bc6_commerce.sql:80)  — no known target table for this column
+-- identity_access.refresh_tokens.family_id  (src 02_bc2_identity_access.sql:243)  — no known target table for this column
+

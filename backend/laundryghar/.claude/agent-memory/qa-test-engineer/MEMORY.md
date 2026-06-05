@@ -1,0 +1,1 @@
+- [BC-6 Commerce QA findings](project-commerce-bc6.md) — 3 critical defects fixed; DB constraint values; IDOR/separation patterns confirmed

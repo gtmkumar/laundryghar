@@ -1,0 +1,27 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.4.2">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>laundryghar.AppHost</RootNamespace>
+    <AssemblyName>laundryghar.AppHost</AssemblyName>
+    <UserSecretsId>laundryghar-apphost-secrets</UserSecretsId>
+  </PropertyGroup>
+
+  <!-- 9 service projects - each becomes an Aspire orchestrated resource -->
+  <ItemGroup>
+    <ProjectReference Include="..\laundryghar.Identity\laundryghar.Identity.csproj" />
+    <ProjectReference Include="..\laundryghar.Catalog\laundryghar.Catalog.csproj" />
+    <ProjectReference Include="..\laundryghar.Orders\laundryghar.Orders.csproj" />
+    <ProjectReference Include="..\laundryghar.Warehouse\laundryghar.Warehouse.csproj" />
+    <ProjectReference Include="..\laundryghar.Logistics\laundryghar.Logistics.csproj" />
+    <ProjectReference Include="..\laundryghar.Commerce\laundryghar.Commerce.csproj" />
+    <ProjectReference Include="..\laundryghar.Finance\laundryghar.Finance.csproj" />
+    <ProjectReference Include="..\laundryghar.Engagement\laundryghar.Engagement.csproj" />
+    <ProjectReference Include="..\laundryghar.Analytics\laundryghar.Analytics.csproj" />
+    <ProjectReference Include="..\laundryghar.Worker\laundryghar.Worker.csproj" />
+  </ItemGroup>
+
+</Project>

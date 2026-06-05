@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>laundryghar.Worker</RootNamespace>
+    <AssemblyName>laundryghar.Worker</AssemblyName>
+    <UserSecretsId>laundryghar-worker-secrets</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\laundryghar.ServiceDefaults\laundryghar.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Health checks for the Aspire dashboard liveness probe -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.0" />
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

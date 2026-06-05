@@ -1,0 +1,29 @@
+namespace laundryghar.SharedDataModel.Entities.IdentityAccess;
+
+/// <summary>OTP code record (identity_access.otp_codes).
+/// Has created_at only — no updated_at, no version, no deleted_at.</summary>
+public class OtpCode
+{
+    public Guid Id { get; set; }
+    public string Purpose { get; set; } = null!;
+    public string Identifier { get; set; } = null!;
+    public string IdentifierType { get; set; } = null!;
+    public string CodeHash { get; set; } = null!;
+    public Guid? UserId { get; set; }
+
+    /// <summary>FK to customer_catalog.customers — cross-BC, scalar only.</summary>
+    public Guid? CustomerId { get; set; }
+
+    public Guid? ReferenceId { get; set; }
+    public string? ReferenceType { get; set; }
+    public short Attempts { get; set; }
+    public short MaxAttempts { get; set; }
+    public DateTimeOffset? VerifiedAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public IPAddress? IpAddress { get; set; }
+    public string? UserAgent { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+
+    // Navigations
+    public User? User { get; set; }
+}

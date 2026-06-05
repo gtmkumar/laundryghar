@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.75rem;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    /* Improve touch experience */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent overscroll bounce on iOS for POS tablet usage */
+    overscroll-behavior: none;
+  }
+
+  #root {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Touch-friendly: ensure interactive elements are large enough */
+  button, a, [role="button"] {
+    min-height: 36px;
+  }
+}

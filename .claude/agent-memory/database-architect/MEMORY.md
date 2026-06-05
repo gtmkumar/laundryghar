@@ -1,0 +1,2 @@
+- [RLS Activation State](project_rls_state.md) — which BC-1/BC-2 tables have RLS enabled vs deferred, and why (as of 2026-06-05)
+- [DB Patch History](project_db_patch_history.md) — chronological patch waves applied to laundry_ghar_db with FK/trigger/RLS counts
