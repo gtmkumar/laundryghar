@@ -14,7 +14,12 @@ var builder = DistributedApplication.CreateBuilder(args);
 // ── Resolve the shared Postgres connection string from AppHost config ───────────────────
 // Source priority: env var (ConnectionStrings__Default) > appsettings.Development.json > appsettings.json > literal fallback
 // The literal fallback is only used when no config value is present (should not happen in normal dev flow).
+// Default = non-superuser app_user (RLS ENFORCED at runtime).
 var connStr = builder.Configuration["ConnectionStrings:Default"]
+    ?? "Host=localhost;Port=5432;Database=laundry_ghar_db;Username=app_user;Password=app_user";
+
+// Admin = postgres/superuser, injected for Development seeding only (bypasses RLS natively).
+var adminConnStr = builder.Configuration["ConnectionStrings:Admin"]
     ?? "Host=localhost;Port=5432;Database=laundry_ghar_db;Username=postgres;Password=postgres";
 
 // ── 9 microservices — ports are FIXED (clients + appsettings hard-reference them) ─────
@@ -23,60 +28,70 @@ builder
     .AddProject<Projects.laundryghar_Identity>("identity")
     .WithHttpEndpoint(port: 5050, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 builder
     .AddProject<Projects.laundryghar_Catalog>("catalog")
     .WithHttpEndpoint(port: 5001, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 builder
     .AddProject<Projects.laundryghar_Orders>("orders")
     .WithHttpEndpoint(port: 5002, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 builder
     .AddProject<Projects.laundryghar_Warehouse>("warehouse")
     .WithHttpEndpoint(port: 5003, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 builder
     .AddProject<Projects.laundryghar_Logistics>("logistics")
     .WithHttpEndpoint(port: 5004, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 builder
     .AddProject<Projects.laundryghar_Commerce>("commerce")
     .WithHttpEndpoint(port: 5005, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 builder
     .AddProject<Projects.laundryghar_Finance>("finance")
     .WithHttpEndpoint(port: 5006, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 builder
     .AddProject<Projects.laundryghar_Engagement>("engagement")
     .WithHttpEndpoint(port: 5007, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 builder
     .AddProject<Projects.laundryghar_Analytics>("analytics")
     .WithHttpEndpoint(port: 5008, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 // ── Worker — no HTTP endpoint; drains notifications_outbox + outbox_events ──────────
 builder
     .AddProject<Projects.laundryghar_Worker>("worker")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__Default", connStr);
+    .WithEnvironment("ConnectionStrings__Default", connStr)
+    .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 builder.Build().Run();

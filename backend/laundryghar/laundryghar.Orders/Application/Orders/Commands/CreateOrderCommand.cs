@@ -103,6 +103,7 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             addonEntities.Add(new OrderAddon
             {
                 Id                = Guid.NewGuid(),
+                BrandId           = brandId,
                 OrderItemId       = parentItemId,
                 AddonId           = aReq.AddonId,
                 AddonNameSnapshot = addon.Name,
@@ -143,8 +144,8 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
         }
 
         // ── Order number: LG-{yyyy}-{storeCode}-{seq} ───────────────────────
-        // Use a DB sequence per store-year key to avoid collisions
-        var orderNumber = await GenerateOrderNumberAsync(store.Code, now, ct);
+        // Atomic per-(brand,store,year) allocator — race-free under concurrency.
+        var orderNumber = await GenerateOrderNumberAsync(brandId, req.StoreId, store.Code, now.Year, ct);
 
         // ── Insert Order ────────────────────────────────────────────────────
         var order = new Order
@@ -270,15 +271,17 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
     }
 
     private async Task<string> GenerateOrderNumberAsync(
-        string storeCode, DateTimeOffset now, CancellationToken ct)
+        Guid brandId, Guid storeId, string storeCode, int year, CancellationToken ct)
     {
-        // Count existing orders this year for this store to derive a seq
-        var year = now.Year;
-        var count = await _db.Orders
-            .IgnoreQueryFilters()
-            .CountAsync(o => o.StoreId != Guid.Empty
-                          && o.OrderNumber.StartsWith($"LG-{year}-{storeCode}-"), ct);
-        return $"LG-{year}-{storeCode}-{(count + 1):D6}";
+        // Delegates to order_lifecycle.next_order_number(...) which atomically
+        // increments a per-(brand,store,year) counter (INSERT ... ON CONFLICT DO
+        // UPDATE ... RETURNING). This eliminates the COUNT(*)+1 race where two
+        // concurrent CreateOrder requests minted identical order numbers.
+        // Runs on the request connection, so RLS sees the caller's brand context.
+        return await _db.Database
+            .SqlQuery<string>(
+                $"SELECT order_lifecycle.next_order_number({brandId}, {storeId}, {storeCode}, {year}) AS \"Value\"")
+            .SingleAsync(ct);
     }
 
     internal static OrderDto ToDto(

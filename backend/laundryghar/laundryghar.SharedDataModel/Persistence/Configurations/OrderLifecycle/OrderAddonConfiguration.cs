@@ -12,6 +12,7 @@ public sealed class OrderAddonConfiguration : IEntityTypeConfiguration<OrderAddo
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+        b.Property(e => e.BrandId).HasColumnName("brand_id").IsRequired();
         b.Property(e => e.OrderId).HasColumnName("order_id").IsRequired();
         b.Property(e => e.OrderCreatedAt).HasColumnName("order_created_at").IsRequired();
         b.Property(e => e.OrderItemId).HasColumnName("order_item_id");

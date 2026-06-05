@@ -9,6 +9,9 @@ public class OrderAddon
 {
     public Guid Id { get; set; }
 
+    /// <summary>Brand owner — drives Row-Level Security (order_addons.brand_id).</summary>
+    public Guid BrandId { get; set; }
+
     /// <summary>Part of composite FK to orders(id, created_at).</summary>
     public Guid OrderId { get; set; }
 

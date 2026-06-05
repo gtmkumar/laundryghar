@@ -188,7 +188,11 @@ if (runSeed)
             "--seed is not permitted outside Development. Use a controlled bootstrap process.");
 
     using var scope = app.Services.CreateScope();
-    var seeder = scope.ServiceProvider.GetRequiredService<IdentitySeeder>();
+    // Seed on the privileged Admin (postgres) connection — runtime uses app_user (RLS-enforced),
+    // which would reject cross-brand bootstrap INSERTs that carry no request tenant context.
+    using var seedDb = laundryghar.SharedDataModel.SeedingSupport.CreatePrivilegedContext(
+        app.Configuration.GetConnectionString("Admin") ?? connStr);
+    var seeder = ActivatorUtilities.CreateInstance<IdentitySeeder>(scope.ServiceProvider, seedDb);
     await seeder.SeedAsync();
 }
 

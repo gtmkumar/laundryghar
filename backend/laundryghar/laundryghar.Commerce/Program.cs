@@ -118,7 +118,12 @@ if (runSeed)
     if (!app.Environment.IsDevelopment())
         throw new InvalidOperationException("--seed is not permitted outside Development.");
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<CommerceSeeder>().SeedAsync();
+    // Seed on the privileged Admin (postgres) connection — runtime uses app_user (RLS-enforced),
+    // which would reject cross-brand bootstrap INSERTs that carry no request tenant context.
+    using var seedDb = laundryghar.SharedDataModel.SeedingSupport.CreatePrivilegedContext(
+        app.Configuration.GetConnectionString("Admin") ?? connStr);
+    var seeder = ActivatorUtilities.CreateInstance<CommerceSeeder>(scope.ServiceProvider, seedDb);
+    await seeder.SeedAsync();
 }
 
 // ─── Middleware pipeline ────────────────────────────────────────────────────
