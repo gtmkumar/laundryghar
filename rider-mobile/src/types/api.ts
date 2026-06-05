@@ -160,6 +160,39 @@ export interface PingBatchResponse {
 // Engagement / CMS DTOs — mirrors PublicEngagementEndpoints + EngagementDtos.cs
 // ---------------------------------------------------------------------------
 
+/** Mirrors AppBannerDto */
+export interface AppBannerDto {
+  id: string;
+  brandId: string;
+  appType: string;
+  placement: string;
+  title?: string | null;
+  titleLocalized: string;
+  subtitle?: string | null;
+  subtitleLocalized: string;
+  imageUrl: string;
+  imageDarkUrl?: string | null;
+  ctaText?: string | null;
+  ctaDeeplink?: string | null;
+  externalUrl?: string | null;
+  promotionId?: string | null;
+  couponId?: string | null;
+  backgroundColor?: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  showFrom?: string | null;
+  showUntil?: string | null;
+  targetAudience?: string | null;
+  targetSegments?: string[] | null;
+  targetCities?: string[] | null;
+  impressionsCount: number;
+  clicksCount: number;
+  minAppVersion?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Mirrors OnboardingSlideDto */
 export interface OnboardingSlideDto {
   id: string;

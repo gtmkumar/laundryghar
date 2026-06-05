@@ -197,6 +197,17 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
     }
 });
 
+// Anonymous public CMS endpoints have no JWT, so no tenant context, but run as the
+// non-superuser app_user where RLS is active. They resolve the brand explicitly
+// (BrandResolver) and add an explicit brand_id predicate to every query, so they
+// bypass RLS for the request and rely on that explicit predicate as the guard.
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Path.StartsWithSegments("/api/v1/public"))
+        ctx.Items["bypass_rls"] = true;
+    await next(ctx);
+});
+
 // ─── API route groups ──────────────────────────────────────────────────────────
 
 var v1 = app.MapGroup("/api/v1");

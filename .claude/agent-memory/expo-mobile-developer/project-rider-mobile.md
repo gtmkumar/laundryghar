@@ -14,12 +14,14 @@ metadata:
 Key facts:
 - Brand color: green (#15803D) vs customer blue (#1D4ED8)
 - Rider auth = password login (NOT OTP): `POST {Identity}/api/v1/auth/password/login` body `{ identifier, password }`
-- Identity service: localhost:5000; Logistics service: localhost:5004
+- Identity service: localhost:5000; Logistics service: localhost:5004; Engagement service: localhost:5007
 - Rider self-service prefix: `{Logistics}/api/v1/rider/*` (RiderOnly policy = bearer with user_type=rider)
 - Four API endpoints wired: GET /rider/me, GET /rider/assignments/today, PATCH /rider/assignments/{id}/status, POST /rider/location/ping
+- Engagement: `GET {Engagement}/api/v1/public/banners?placement=home_top&brandCode=LG-MAIN` — anonymous, flat ListResponse<AppBannerDto>. AppBannerDto has id, title, subtitle, imageUrl, ctaText, ctaDeeplink, externalUrl, backgroundColor.
 - GPS: foreground one-shot ping via expo-location. Background tracking deferred (needs expo-task-manager + native build).
 - SecureStore keys: `lg_rider_access_token`, `lg_rider_refresh_token`
-- Tab routes: assignments (today's jobs), location (GPS ping), profile
+- Tab routes: assignments (today's jobs — has home_top banner carousel at top), location (GPS ping), profile
 - Stack route: /(app)/assignments/[id] (assignment detail + status update)
+- Banner fallback: renders nothing (returns null) when API fails or returns empty — never crashes
 
 [[project-customer-mobile]]

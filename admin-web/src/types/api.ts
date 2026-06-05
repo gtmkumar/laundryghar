@@ -304,3 +304,361 @@ export interface OrderListParams extends PaginationParams {
   dateFrom?: string
   dateTo?: string
 }
+
+// ── CMS / Engagement ─────────────────────────────────────────────────────────
+
+export interface NotificationTemplateDto {
+  id: string
+  brandId: string
+  code: string
+  name: string
+  description: string | null
+  channel: string
+  category: string
+  locale: string
+  subjectTemplate: string | null
+  bodyTemplate: string
+  smsSenderId: string | null
+  whatsAppTemplateName: string | null
+  whatsAppTemplateId: string | null
+  pushTitleTemplate: string | null
+  pushActionDeeplink: string | null
+  variables: string
+  versionNumber: number
+  isTransactional: boolean
+  isActive: boolean
+  approvedAt: string | null
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateNotificationTemplateRequest {
+  code: string
+  name: string
+  description?: string | null
+  channel: string
+  category: string
+  locale: string
+  subjectTemplate?: string | null
+  bodyTemplate: string
+  smsSenderId?: string | null
+  whatsAppTemplateName?: string | null
+  whatsAppTemplateId?: string | null
+  whatsAppLangCode?: string | null
+  whatsAppNamespace?: string | null
+  pushTitleTemplate?: string | null
+  pushActionDeeplink?: string | null
+  pushIconUrl?: string | null
+  pushSound?: string | null
+  variables: string
+  versionNumber: number
+  isTransactional: boolean
+  isActive: boolean
+}
+
+export interface UpdateNotificationTemplateRequest {
+  name: string
+  description?: string | null
+  subjectTemplate?: string | null
+  bodyTemplate: string
+  smsSenderId?: string | null
+  whatsAppTemplateName?: string | null
+  whatsAppTemplateId?: string | null
+  whatsAppLangCode?: string | null
+  whatsAppNamespace?: string | null
+  pushTitleTemplate?: string | null
+  pushActionDeeplink?: string | null
+  pushIconUrl?: string | null
+  pushSound?: string | null
+  variables: string
+  isTransactional: boolean
+  isActive: boolean
+  status: string
+}
+
+export interface OnboardingSlideDto {
+  id: string
+  brandId: string
+  appType: string
+  title: string
+  titleLocalized: string
+  description: string | null
+  descriptionLocalized: string
+  imageUrl: string
+  imageDarkUrl: string | null
+  animationUrl: string | null
+  ctaText: string | null
+  ctaDeeplink: string | null
+  backgroundColor: string | null
+  textColor: string | null
+  displayOrder: number
+  isActive: boolean
+  showFrom: string | null
+  showUntil: string | null
+  minAppVersion: string | null
+  maxAppVersion: string | null
+  targetSegments: string[] | null
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateOnboardingSlideRequest {
+  appType: string
+  title: string
+  titleLocalized: string
+  description?: string | null
+  descriptionLocalized: string
+  imageUrl: string
+  imageDarkUrl?: string | null
+  animationUrl?: string | null
+  ctaText?: string | null
+  ctaDeeplink?: string | null
+  backgroundColor?: string | null
+  textColor?: string | null
+  displayOrder: number
+  isActive: boolean
+  showFrom?: string | null
+  showUntil?: string | null
+  minAppVersion?: string | null
+  maxAppVersion?: string | null
+  targetSegments?: string[] | null
+}
+
+export interface UpdateOnboardingSlideRequest {
+  appType: string
+  title: string
+  titleLocalized: string
+  description?: string | null
+  descriptionLocalized: string
+  imageUrl: string
+  imageDarkUrl?: string | null
+  animationUrl?: string | null
+  ctaText?: string | null
+  ctaDeeplink?: string | null
+  backgroundColor?: string | null
+  textColor?: string | null
+  displayOrder: number
+  isActive: boolean
+  showFrom?: string | null
+  showUntil?: string | null
+  minAppVersion?: string | null
+  maxAppVersion?: string | null
+  targetSegments?: string[] | null
+  status: string
+}
+
+export interface AppBannerDto {
+  id: string
+  brandId: string
+  appType: string
+  placement: string
+  title: string | null
+  titleLocalized: string
+  subtitle: string | null
+  subtitleLocalized: string
+  imageUrl: string
+  imageDarkUrl: string | null
+  ctaText: string | null
+  ctaDeeplink: string | null
+  externalUrl: string | null
+  promotionId: string | null
+  couponId: string | null
+  backgroundColor: string | null
+  displayOrder: number
+  isActive: boolean
+  showFrom: string | null
+  showUntil: string | null
+  targetAudience: string | null
+  targetSegments: string[] | null
+  targetCities: string[] | null
+  impressionsCount: number
+  clicksCount: number
+  minAppVersion: string | null
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateAppBannerRequest {
+  appType: string
+  placement: string
+  title?: string | null
+  titleLocalized: string
+  subtitle?: string | null
+  subtitleLocalized: string
+  imageUrl: string
+  imageDarkUrl?: string | null
+  ctaText?: string | null
+  ctaDeeplink?: string | null
+  externalUrl?: string | null
+  promotionId?: string | null
+  couponId?: string | null
+  backgroundColor?: string | null
+  displayOrder: number
+  isActive: boolean
+  showFrom?: string | null
+  showUntil?: string | null
+  targetAudience?: string | null
+  targetSegments?: string[] | null
+  targetCities?: string[] | null
+  minAppVersion?: string | null
+}
+
+export interface UpdateAppBannerRequest {
+  appType: string
+  placement: string
+  title?: string | null
+  titleLocalized: string
+  subtitle?: string | null
+  subtitleLocalized: string
+  imageUrl: string
+  imageDarkUrl?: string | null
+  ctaText?: string | null
+  ctaDeeplink?: string | null
+  externalUrl?: string | null
+  promotionId?: string | null
+  couponId?: string | null
+  backgroundColor?: string | null
+  displayOrder: number
+  isActive: boolean
+  showFrom?: string | null
+  showUntil?: string | null
+  targetAudience?: string | null
+  targetSegments?: string[] | null
+  targetCities?: string[] | null
+  minAppVersion?: string | null
+  status: string
+}
+
+export interface MobileAppConfigDto {
+  id: string
+  brandId: string
+  appType: string
+  platform: string
+  configKey: string
+  configValue: string
+  description: string | null
+  isForceUpdate: boolean
+  minAppVersion: string | null
+  maxAppVersion: string | null
+  targetSegments: string[] | null
+  rolloutPercent: number | null
+  isActive: boolean
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateMobileAppConfigRequest {
+  appType: string
+  platform: string
+  configKey: string
+  configValue: string
+  description?: string | null
+  isForceUpdate: boolean
+  minAppVersion?: string | null
+  maxAppVersion?: string | null
+  targetSegments?: string[] | null
+  rolloutPercent?: number | null
+  isActive: boolean
+}
+
+export interface UpdateMobileAppConfigRequest {
+  appType: string
+  platform: string
+  configKey: string
+  configValue: string
+  description?: string | null
+  isForceUpdate: boolean
+  minAppVersion?: string | null
+  maxAppVersion?: string | null
+  targetSegments?: string[] | null
+  rolloutPercent?: number | null
+  isActive: boolean
+  status: string
+}
+
+export interface NotificationOutboxDto {
+  id: string
+  brandId: string
+  templateId: string | null
+  templateCode: string
+  channel: string
+  locale: string
+  recipientType: string
+  recipientId: string | null
+  recipientPhone: string | null
+  recipientEmail: string | null
+  body: string
+  subject: string | null
+  priority: number
+  scheduledAt: string
+  expiresAt: string | null
+  attempts: number
+  maxAttempts: number
+  lastAttemptAt: string | null
+  lastError: string | null
+  sentAt: string | null
+  provider: string | null
+  providerMessageId: string | null
+  status: string
+  suppressionReason: string | null
+  createdAt: string
+}
+
+export interface NotificationLogDto {
+  id: string
+  sentAt: string
+  brandId: string
+  outboxId: string | null
+  channel: string
+  templateCode: string | null
+  recipientType: string
+  recipientId: string | null
+  recipientAddress: string | null
+  provider: string | null
+  providerMessageId: string | null
+  status: string
+  deliveredAt: string | null
+  readAt: string | null
+  clickedAt: string | null
+  failureCode: string | null
+  failureMessage: string | null
+  cost: number | null
+  referenceType: string | null
+  referenceId: string | null
+  createdAt: string
+}
+
+export interface WhatsAppMessageLogDto {
+  id: string
+  brandId: string
+  direction: string
+  customerId: string | null
+  userId: string | null
+  phoneE164: string
+  provider: string
+  waMessageId: string | null
+  waConversationId: string | null
+  templateName: string | null
+  messageType: string | null
+  bodyText: string | null
+  referenceType: string | null
+  referenceId: string | null
+  status: string | null
+  sentAt: string
+  deliveredAt: string | null
+  readAt: string | null
+  failedAt: string | null
+  errorCode: string | null
+  errorMessage: string | null
+  createdAt: string
+}
+
+export interface CmsListParams extends PaginationParams {
+  status?: string
+  channel?: string
+  direction?: string
+}

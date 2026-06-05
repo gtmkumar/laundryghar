@@ -11,6 +11,7 @@
 import axios from 'axios';
 import { CONFIG } from '@/constants/config';
 import type {
+  AppBannerDto,
   ListResponse,
   MobileAppConfigDto,
   OnboardingSlideDto,
@@ -48,6 +49,22 @@ export async function getOnboardingSlides(
   const envelope = res.data;
   if (!envelope.status) {
     throw new Error(envelope.message?.responseMessage ?? 'Failed to load onboarding slides');
+  }
+  return envelope.data ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/public/banners?placement=home_top
+// ---------------------------------------------------------------------------
+
+export async function getHomeBanners(placement: string): Promise<AppBannerDto[]> {
+  const res = await engagementClient.get<ListResponse<AppBannerDto>>(
+    '/public/banners',
+    { params: brandParams({ placement }) },
+  );
+  const envelope = res.data;
+  if (!envelope.status) {
+    throw new Error(envelope.message?.responseMessage ?? 'Failed to load banners');
   }
   return envelope.data ?? [];
 }

@@ -5,7 +5,7 @@
  */
 import { Platform } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { getOnboardingSlides, getAppConfig } from '@/api/engagement';
+import { getOnboardingSlides, getHomeBanners, getAppConfig } from '@/api/engagement';
 
 // ---------------------------------------------------------------------------
 // Query keys
@@ -13,6 +13,8 @@ import { getOnboardingSlides, getAppConfig } from '@/api/engagement';
 export const engagementKeys = {
   onboardingSlides: (appType: 'customer' | 'rider') =>
     ['engagement', 'onboarding-slides', appType] as const,
+  banners: (placement: string) =>
+    ['engagement', 'banners', placement] as const,
   appConfig: (platform: 'ios' | 'android') =>
     ['engagement', 'app-config', platform] as const,
 } as const;
@@ -29,6 +31,19 @@ export function useOnboardingSlides(appType: 'customer' | 'rider') {
     queryFn:  () => getOnboardingSlides(appType),
     staleTime: STALE_10_MIN,
     // Keep previous data while refetching so the carousel never flashes empty
+    placeholderData: (prev) => prev,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useHomeBanners
+// ---------------------------------------------------------------------------
+
+export function useHomeBanners(placement: string) {
+  return useQuery({
+    queryKey: engagementKeys.banners(placement),
+    queryFn:  () => getHomeBanners(placement),
+    staleTime: STALE_10_MIN,
     placeholderData: (prev) => prev,
   });
 }

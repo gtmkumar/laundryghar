@@ -13,6 +13,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { TenancyPage } from '@/pages/tenancy/TenancyPage'
 import { CatalogPage } from '@/pages/catalog/CatalogPage'
 import { OrdersPage } from '@/pages/orders/OrdersPage'
+import { CmsPage } from '@/pages/cms/CmsPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,7 @@ const router = createBrowserRouter([
           { path: 'tenancy', element: <TenancyPage /> },
           { path: 'catalog', element: <CatalogPage /> },
           { path: 'orders', element: <OrdersPage /> },
+          { path: 'cms', element: <CmsPage /> },
           { path: '*', element: <Navigate to="/" replace /> },
         ],
       },

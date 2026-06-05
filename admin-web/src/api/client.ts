@@ -23,6 +23,7 @@ import { useBrandStore } from '@/stores/brandStore'
 const IDENTITY_URL = import.meta.env.VITE_IDENTITY_URL as string
 const CATALOG_URL = import.meta.env.VITE_CATALOG_URL as string
 const ORDERS_URL = import.meta.env.VITE_ORDERS_URL as string
+const ENGAGEMENT_URL = import.meta.env.VITE_ENGAGEMENT_URL as string
 
 // ── Token refresh state ───────────────────────────────────────────────────────
 
@@ -157,6 +158,7 @@ function createInstance(baseURL: string): AxiosInstance {
 export const identityClient = createInstance(IDENTITY_URL)
 export const catalogClient = createInstance(CATALOG_URL)
 export const ordersClient = createInstance(ORDERS_URL)
+export const engagementClient = createInstance(ENGAGEMENT_URL)
 
 // ── Response envelope helpers ─────────────────────────────────────────────────
 

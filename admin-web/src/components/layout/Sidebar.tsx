@@ -8,6 +8,7 @@ import {
   Truck,
   Users,
   Tag,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +17,7 @@ const navItems = [
   { label: 'Tenancy', to: '/tenancy', icon: Building2 },
   { label: 'Catalog & Pricing', to: '/catalog', icon: Package },
   { label: 'Orders', to: '/orders', icon: ShoppingCart },
+  { label: 'CMS & Engagement', to: '/cms', icon: Bell },
   { label: 'Logistics', to: '/logistics', icon: Truck },
   { label: 'Users', to: '/users', icon: Users },
   { label: 'Promotions', to: '/promotions', icon: Tag },

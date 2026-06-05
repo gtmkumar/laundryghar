@@ -237,6 +237,21 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 
 // ─── API route groups ──────────────────────────────────────────────────────
 
+// Pre-auth customer flows (OTP send/verify, token refresh) resolve the brand by
+// code and look up the customer BEFORE any token exists. The service runs as the
+// non-superuser app_user where RLS is active, so these tenant-context-less reads
+// would return zero rows. They legitimately bypass RLS for the request and rely on
+// the handlers' explicit brand_id + phone predicates as the isolation guard.
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Path.StartsWithSegments("/api/v1/customer/auth")
+        && ctx.User.Identity?.IsAuthenticated != true)
+    {
+        ctx.Items["bypass_rls"] = true;
+    }
+    await next(ctx);
+});
+
 var v1 = app.MapGroup("/api/v1");
 
 // System user auth (staff / admin / rider)
