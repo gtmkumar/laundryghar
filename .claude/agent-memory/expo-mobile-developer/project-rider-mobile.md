@@ -14,7 +14,8 @@ metadata:
 Key facts:
 - Brand color: green (#15803D) vs customer blue (#1D4ED8)
 - Rider auth = password login (NOT OTP): `POST {Identity}/api/v1/auth/password/login` body `{ identifier, password }`
-- Identity service: localhost:5000; Logistics service: localhost:5004; Engagement service: localhost:5007
+- Identity service: **localhost:5050** (not 5000); Logistics service: localhost:5004; Engagement service: localhost:5007
+- **No seeded riders** (verified 2026-06-06): `logistics.riders` table is empty; no `user_type='rider'` users in identity seeder. End-to-end rider login cannot be tested without first creating a rider via the admin/ops API or direct DB seed.
 - Rider self-service prefix: `{Logistics}/api/v1/rider/*` (RiderOnly policy = bearer with user_type=rider)
 - Four API endpoints wired: GET /rider/me, GET /rider/assignments/today, PATCH /rider/assignments/{id}/status, POST /rider/location/ping
 - Engagement: `GET {Engagement}/api/v1/public/banners?placement=home_top&brandCode=LG-MAIN` — anonymous, flat ListResponse<AppBannerDto>. AppBannerDto has id, title, subtitle, imageUrl, ctaText, ctaDeeplink, externalUrl, backgroundColor.

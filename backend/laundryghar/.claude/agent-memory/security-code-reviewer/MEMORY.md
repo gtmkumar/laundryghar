@@ -1,0 +1,1 @@
+- [LaundryGhar security patterns](project-security-patterns.md) — secrets abstraction, JWT/JWKS, token storage, banner deep-link trust boundary, open gaps

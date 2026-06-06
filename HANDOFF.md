@@ -109,11 +109,38 @@ Aspire command and was last validated green across every service under the `app_
 
 ## 6. Remaining backlog (prod-hardening)
 
-- **Secrets → a real manager** (Key Vault / SSM): currently `ConnectionStrings__Default`,
-  `Jwt__PrivateKey` (Identity), `Jwt__Authority` (services) come from env. See `backend/laundryghar/PRODUCTION_ENV.md`.
-- **Remove AutoMapper 13.0.1** — flagged CVE (NU1903); it is unused (inline projections everywhere), so a low-risk delete.
-- Possible follow-ups: deeper customer/rider mobile E2E; promotion/coupon linking in CMS banners;
-  surface more analytics endpoints in admin-web.
+- ~~**Secrets → a real manager**~~ ✅ DONE (2026-06-06, cloud-agnostic abstraction): added
+  `ISecretsProvider` in `laundryghar.ServiceDefaults/Secrets/` (`EnvironmentSecretsProvider`
+  = no-op default, `FileSecretsProvider` = Docker/k8s secret-mount dir with `__`→`:` keys +
+  64 KiB size guard), selected by `Secrets:Provider` (`env`|`file`), layered into config inside
+  `AddServiceDefaults` (all 10 projects, zero per-service edits). Documented seams (throw, no SDK
+  added) for `azure-keyvault`/`aws-secretsmanager`/`vault` in `SecretsProviderFactory` + PRODUCTION_ENV.md.
+  Dev is byte-for-byte unchanged (env no-op). 7 xUnit tests in `laundryghar.ServiceDefaults.Tests`.
+  **To go live on a cloud:** implement the seam, set `Secrets__Provider` + provider config in prod env.
+- ~~**Remove AutoMapper 13.0.1** (CVE NU1903)~~ ✅ DONE (2026-06-06): removed from all 8 csprojs,
+  6 `AddAutoMapper` calls, 2 global usings, and the dead `ProjectToListAsync` helper. Build 0 errors.
+- ~~**Analytics in admin-web**~~ ✅ DONE: `/analytics` section (dashboard + daily/monthly revenue,
+  warehouse throughput, customer LTV, rider performance) + "Refresh MVs" button. (Fixed a latent
+  Analytics 500: `mv_warehouse_throughput.avg_tat_hours` is NULL when nothing has completed a
+  turnaround — entity `AvgTatHours` made `decimal?`, admin-web table guards null.)
+- ~~**CMS banner ↔ promotion/coupon linking**~~ ✅ DONE: backend was already modelled (FKs, entity,
+  commands); added admin-web promotion/coupon pickers in the banner form + a customer-mobile **Offers**
+  screen (`app/(app)/offers.tsx`, lists `GET /customer/coupons`) that banner taps deep-link into.
+- ~~**Deeper mobile E2E**~~ ✅ DONE: live-API E2E in the simulator fixed **6 latent customer-mobile
+  runtime bugs** (tsc-clean but broken) — DTO field drift on `CouponDto`/`CustomerMeResponse`/
+  `PriceListItemDto`/service+category, a broken price-list category filter, and the banner
+  custom-scheme deep-link being dropped. Both apps bundle for iOS.
+
+### Still open
+- **admin-web stores the refresh token in `localStorage`** (`src/stores/authStore.ts`) — XSS→token-theft
+  risk (security review Medium). Proper fix = move the refresh token to an `HttpOnly; Secure; SameSite`
+  cookie set by Identity's `/auth/refresh`, and stop persisting it client-side. Not yet done (touches
+  Identity auth contract). Mobile already uses `expo-secure-store` correctly.
+- **No seeded riders** → rider-mobile login can't be E2E-tested. Seed a `user_type='rider'` user +
+  `logistics.riders` row (rider-mobile code + DTOs are verified correct).
+- Banner link targets are now allowlist-validated server-side (`AppBannerRules`: relative path /
+  http(s) / `laundryghar://` only; create **and** update) and the mobile only hands the app's own
+  `laundryghar://` scheme to `Linking.openURL`.
 
 ## 7. Git policy
 
