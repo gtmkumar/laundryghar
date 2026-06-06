@@ -48,7 +48,7 @@ builder.Services.Configure<JwtSettings>(jwtSection);
 
 builder.Services.AddSingleton<IPaymentGateway, DevPaymentGateway>();
 
-// ─── MediatR + FluentValidation + AutoMapper ────────────────────────────────
+// ─── MediatR + FluentValidation ─────────────────────────────────────────────
 
 builder.Services.AddMediatR(cfg =>
 {
@@ -56,7 +56,6 @@ builder.Services.AddMediatR(cfg =>
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
 });
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
-builder.Services.AddAutoMapper(typeof(Program).Assembly);
 
 // ─── JWT Authentication (validate-only; tokens issued by Identity) ──────────
 

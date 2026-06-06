@@ -79,10 +79,6 @@ builder.Services.AddMediatR(cfg =>
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
-// ─── AutoMapper ─────────────────────────────────────────────────────────────
-
-builder.Services.AddAutoMapper(typeof(Program).Assembly);
-
 // ─── JWT Authentication ────────────────────────────────────────────────────
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

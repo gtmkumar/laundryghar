@@ -1,7 +1,5 @@
 // Global using directives shared across the laundryghar.Utilities project.
 
-global using AutoMapper;
-global using AutoMapper.QueryableExtensions;
 global using MailKit.Net.Smtp;
 global using MailKit.Security;
 global using Microsoft.AspNetCore.Hosting;

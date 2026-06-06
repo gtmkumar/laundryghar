@@ -58,10 +58,6 @@ builder.Services.AddMediatR(cfg =>
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
-// ─── AutoMapper ──────────────────────────────────────────────────────────────
-
-builder.Services.AddAutoMapper(typeof(Program).Assembly);
-
 // ─── Finance Seeder ──────────────────────────────────────────────────────────
 
 builder.Services.AddScoped<FinanceSeeder>();

@@ -63,10 +63,6 @@ builder.Services.AddMediatR(cfg =>
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
-// ─── AutoMapper ─────────────────────────────────────────────────────────────
-
-builder.Services.AddAutoMapper(typeof(Program).Assembly);
-
 // ─── JWT Authentication (validate-only; does NOT issue tokens) ────────────
 // Pinned algorithm: HmacSha256 — rejects algorithm-confusion attacks.
 

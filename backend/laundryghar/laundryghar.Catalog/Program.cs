@@ -61,10 +61,6 @@ builder.Services.AddMediatR(cfg =>
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
-// ─── AutoMapper ─────────────────────────────────────────────────────────────
-
-builder.Services.AddAutoMapper(typeof(Program).Assembly);
-
 // ─── JWT Authentication ────────────────────────────────────────────────────
 // Validates tokens issued by laundryghar.Identity — same signing key, issuer, audience.
 // Does NOT issue tokens (Catalog is a resource service only).
