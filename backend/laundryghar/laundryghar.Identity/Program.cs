@@ -29,15 +29,13 @@ var jwtSection = builder.Configuration.GetSection(JwtSettings.SectionName);
 var jwtSettings = jwtSection.Get<JwtSettings>()
     ?? throw new InvalidOperationException("Jwt section is required.");
 
-// H4 fail-fast: signing key must be present and non-empty in non-Development.
-// In Development the appsettings.Development.json value is used; prod must inject it via env/secrets.
-if (!builder.Environment.IsDevelopment()
-    && string.IsNullOrWhiteSpace(jwtSettings.SigningKey))
-{
-    throw new InvalidOperationException(
-        "Jwt:SigningKey must be set via environment variable or secrets manager in non-Development environments. " +
-        "Never hard-code a production signing key.");
-}
+// RS256 signing key provider. Constructed eagerly so the same key instance backs
+// both token issuance (JwtTokenService) and Identity's own local validation below.
+// In Development it auto-generates+persists a key; outside Development it FAILS CLOSED
+// unless Jwt:PrivateKey / Jwt:PrivateKeyPath is supplied.
+var keyProvider = new laundryghar.Identity.Infrastructure.Auth.RsaJwtKeyProvider(
+    jwtSettings, builder.Environment);
+builder.Services.AddSingleton<laundryghar.Identity.Infrastructure.Auth.IJwtKeyProvider>(keyProvider);
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 
@@ -98,12 +96,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer              = jwtSettings.Issuer,
             ValidAudience            = jwtSettings.Audience,
-            IssuerSigningKey         = new SymmetricSecurityKey(
-                                           Encoding.UTF8.GetBytes(jwtSettings.SigningKey)),
+            // RS256: Identity validates its own tokens with the in-process public key.
+            IssuerSigningKey         = keyProvider.SigningKey,
             ClockSkew                = TimeSpan.FromSeconds(30),
-            // M1: pin to HS256 — reject tokens signed with any other algorithm (e.g. "none").
-            // Keeps Identity consistent with the Catalog service's validation parameters.
-            ValidAlgorithms          = [SecurityAlgorithms.HmacSha256]
+            // Pin to RS256 — reject "none" and HMAC algorithm-confusion attacks.
+            ValidAlgorithms          = [SecurityAlgorithms.RsaSha256]
         };
     });
 
@@ -251,6 +248,9 @@ app.Use(async (ctx, next) =>
     }
     await next(ctx);
 });
+
+// OIDC discovery + JWKS (anonymous, app root) — services fetch the RS256 public key here.
+app.MapWellKnownEndpoints();
 
 var v1 = app.MapGroup("/api/v1");
 

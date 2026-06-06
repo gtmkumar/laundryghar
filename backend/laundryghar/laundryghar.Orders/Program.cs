@@ -27,12 +27,9 @@ var jwtSection = builder.Configuration.GetSection(JwtSettings.SectionName);
 var jwtSettings = jwtSection.Get<JwtSettings>()
     ?? throw new InvalidOperationException("Jwt section is required.");
 
-if (!builder.Environment.IsDevelopment()
-    && string.IsNullOrWhiteSpace(jwtSettings.SigningKey))
+if (string.IsNullOrWhiteSpace(jwtSettings.Authority))
     throw new InvalidOperationException(
-        "Jwt:SigningKey must be set via environment variable or secrets manager in non-Development.");
-
-// ─── Data ──────────────────────────────────────────────────────────────────
+        "Jwt:Authority (the Identity issuer base URL whose JWKS publishes the RS256 public key) is required.");// ─── Data ──────────────────────────────────────────────────────────────────
 
 builder.Services.AddSharedDataModel(connStr);
 
@@ -76,6 +73,10 @@ builder.Services.AddAutoMapper(typeof(Program).Assembly);
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opts =>
     {
+        // RS256: signing keys fetched from Identity JWKS (no shared secret).
+        opts.Authority            = jwtSettings.Authority;
+        opts.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+
         opts.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer           = true,
@@ -84,10 +85,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer              = jwtSettings.Issuer,
             ValidAudience            = jwtSettings.Audience,
-            IssuerSigningKey         = new SymmetricSecurityKey(
-                                           Encoding.UTF8.GetBytes(jwtSettings.SigningKey)),
             ClockSkew                = TimeSpan.FromSeconds(30),
-            ValidAlgorithms          = new[] { SecurityAlgorithms.HmacSha256 }
+            ValidAlgorithms          = new[] { SecurityAlgorithms.RsaSha256 }
         };
     });
 

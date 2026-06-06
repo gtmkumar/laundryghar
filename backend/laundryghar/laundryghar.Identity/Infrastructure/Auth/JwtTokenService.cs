@@ -13,17 +13,19 @@ namespace laundryghar.Identity.Infrastructure.Auth;
 /// </summary>
 public sealed class JwtTokenService : IJwtTokenService
 {
-    private readonly JwtSettings _settings;
+    private readonly JwtSettings     _settings;
+    private readonly IJwtKeyProvider _keys;
 
-    public JwtTokenService(IOptions<JwtSettings> options)
+    public JwtTokenService(IOptions<JwtSettings> options, IJwtKeyProvider keys)
     {
         _settings = options.Value;
+        _keys     = keys;
     }
 
     public string CreateAccessToken(TokenClaims claims)
     {
-        var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.SigningKey));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        // RS256 — signed with the RSA private key; the kid travels in the JWT header.
+        var creds = new SigningCredentials(_keys.SigningKey, SecurityAlgorithms.RsaSha256);
 
         var claimsList = new List<Claim>
         {
@@ -57,8 +59,7 @@ public sealed class JwtTokenService : IJwtTokenService
 
     public string CreateCustomerAccessToken(CustomerTokenClaims claims)
     {
-        var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.SigningKey));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var creds = new SigningCredentials(_keys.SigningKey, SecurityAlgorithms.RsaSha256);
 
         // Pinned contract (Catalog service depends on exact claim names):
         //   sub=customer_id, token_use=customer, brand_id, phone
