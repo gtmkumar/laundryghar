@@ -662,3 +662,180 @@ export interface CmsListParams extends PaginationParams {
   channel?: string
   direction?: string
 }
+
+// ── Analytics ────────────────────────────────────────────────────────────────
+
+export interface DailyStoreRevenueDto {
+  brandId: string
+  franchiseId: string
+  storeId: string
+  revenueDate: string          // DateOnly serializes as "YYYY-MM-DD"
+  ordersCount: number
+  deliveredOrders: number
+  cancelledOrders: number
+  expressOrders: number
+  grossRevenue: number
+  collectedAmount: number
+  outstandingAmount: number
+  refundAmount: number
+  totalDiscount: number
+  totalTax: number
+  avgOrderValue: number
+  uniqueCustomers: number
+}
+
+export interface MonthlyFranchiseRevenueDto {
+  brandId: string
+  franchiseId: string
+  revenueMonth: string         // DateOnly "YYYY-MM-DD"
+  ordersCount: number
+  uniqueCustomers: number
+  grossRevenue: number
+  netRevenue: number
+  collectedAmount: number
+  refundAmount: number
+  totalTax: number
+  avgOrderValue: number
+  expressOrders: number
+}
+
+export interface WarehouseThroughputDto {
+  brandId: string
+  warehouseId: string
+  throughputDate: string       // DateOnly "YYYY-MM-DD"
+  garmentsReceived: number
+  garmentsDelivered: number
+  issuesCount: number
+  rewashCount: number
+  avgTatHours: number | null   // null when no garments have completed a turnaround yet
+}
+
+export interface CustomerLtvDto {
+  brandId: string
+  customerId: string
+  customerSegment: string | null
+  lifetimeOrders: number
+  lifetimeRevenue: number
+  avgOrderValue: number
+  firstOrderAt: string
+  lastOrderAt: string
+  daysSinceLastOrder: number
+  expressOrders: number
+  cancelledOrders: number
+  activePackages: number
+  loyaltyPointsBalance: number
+  walletBalance: number
+}
+
+export interface RiderPerformanceDto {
+  brandId: string
+  franchiseId: string
+  riderId: string
+  riderCode: string
+  perfDate: string             // DateOnly "YYYY-MM-DD"
+  assignmentsTotal: number
+  assignmentsCompleted: number
+  assignmentsFailed: number
+  pickupsDone: number
+  deliveriesDone: number
+  totalKm: number
+  avgDurationMin: number
+  ratingAverage: number
+  completionRate: number
+}
+
+export interface AnalyticsDashboardToday {
+  ordersCount: number
+  grossRevenue: number
+  collectedAmount: number
+  uniqueCustomers: number
+}
+
+export interface AnalyticsDashboardThisMonth {
+  ordersCount: number
+  grossRevenue: number
+  netRevenue: number
+}
+
+export interface AnalyticsDashboardTopCustomer {
+  customerId: string
+  customerSegment: string | null
+  lifetimeRevenue: number
+  lifetimeOrders: number
+}
+
+export interface AnalyticsDashboard {
+  today: AnalyticsDashboardToday
+  thisMonth: AnalyticsDashboardThisMonth
+  topCustomersByLtv: AnalyticsDashboardTopCustomer[]
+}
+
+export interface RefreshResultItem {
+  view: string
+  success: boolean
+  error: string | null
+}
+
+export interface AnalyticsListParams extends PaginationParams {
+  storeId?: string
+  franchiseId?: string
+  warehouseId?: string
+  from?: string
+  to?: string
+  year?: number
+}
+
+// ── Commerce (Promotions / Coupons — for banner picker) ──────────────────────
+
+export interface PromotionDto {
+  id: string
+  brandId: string
+  code: string
+  name: string
+  description: string | null
+  promotionType: string
+  targetAudience: string
+  eligibleSegments: string[] | null
+  rules: string
+  rewardConfig: string
+  couponId: string | null
+  bannerImageUrl: string | null
+  deeplinkUrl: string | null
+  validFrom: string
+  validUntil: string | null
+  totalBudget: number | null
+  spentBudget: number
+  redemptionsCount: number
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CouponDto {
+  id: string
+  brandId: string
+  code: string
+  name: string
+  description: string | null
+  couponType: string
+  discountValue: number
+  maxDiscountAmount: number | null
+  minOrderValue: number
+  applicableServices: string[]
+  applicableStores: string[]
+  applicableFranchises: string[]
+  customerEligibility: string
+  isFirstOrderOnly: boolean
+  isSingleUsePerCust: boolean
+  maxTotalUses: number | null
+  maxUsesPerCustomer: number
+  currentUsageCount: number
+  isStackable: boolean
+  isPublic: boolean
+  isAutoApply: boolean
+  validFrom: string
+  validUntil: string | null
+  status: string
+  createdAt: string
+  updatedAt: string
+}

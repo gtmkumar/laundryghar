@@ -9,6 +9,7 @@ import {
   Users,
   Tag,
   Bell,
+  BarChart2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +19,7 @@ const navItems = [
   { label: 'Catalog & Pricing', to: '/catalog', icon: Package },
   { label: 'Orders', to: '/orders', icon: ShoppingCart },
   { label: 'CMS & Engagement', to: '/cms', icon: Bell },
+  { label: 'Analytics', to: '/analytics', icon: BarChart2 },
   { label: 'Logistics', to: '/logistics', icon: Truck },
   { label: 'Users', to: '/users', icon: Users },
   { label: 'Promotions', to: '/promotions', icon: Tag },

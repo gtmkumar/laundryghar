@@ -5,6 +5,7 @@ import {
   useUpdateAppBanner,
   useDeleteAppBanner,
 } from '@/hooks/useCms'
+import { usePromotions, useCoupons } from '@/hooks/useCommerce'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { Pagination } from '@/components/shared/Pagination'
@@ -82,6 +83,8 @@ type FormFields = {
   targetAudience: string
   minAppVersion: string
   status: string
+  promotionId: string
+  couponId: string
 }
 
 function defaultFields(b?: AppBannerDto | null): FormFields {
@@ -103,6 +106,8 @@ function defaultFields(b?: AppBannerDto | null): FormFields {
     targetAudience: b?.targetAudience ?? '',
     minAppVersion: b?.minAppVersion ?? '',
     status: b?.status ?? 'active',
+    promotionId: b?.promotionId ?? '',
+    couponId: b?.couponId ?? '',
   }
 }
 
@@ -129,6 +134,11 @@ function FormModal({ initial, onClose }: FormModalProps) {
   const updateMutation = useUpdateAppBanner(initial?.id ?? '')
   const isPending = createMutation.isPending || updateMutation.isPending
 
+  const { data: promotionsData } = usePromotions()
+  const { data: couponsData } = useCoupons()
+  const promotions = promotionsData?.list ?? []
+  const coupons = couponsData?.list ?? []
+
   function set(key: keyof FormFields, value: string | boolean) {
     setFields((f) => ({ ...f, [key]: value }))
   }
@@ -149,6 +159,8 @@ function FormModal({ initial, onClose }: FormModalProps) {
       ctaText: fields.ctaText || null,
       ctaDeeplink: fields.ctaDeeplink || null,
       externalUrl: fields.externalUrl || null,
+      promotionId: fields.promotionId || null,
+      couponId: fields.couponId || null,
       backgroundColor: fields.backgroundColor || null,
       displayOrder: parseInt(fields.displayOrder, 10) || 0,
       isActive: fields.isActive,
@@ -305,6 +317,38 @@ function FormModal({ initial, onClose }: FormModalProps) {
               </FormField>
             </div>
 
+            {/* ── Offer linking (optional) ── */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Link Promotion">
+                <select
+                  className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm"
+                  value={fields.promotionId}
+                  onChange={(e) => set('promotionId', e.target.value)}
+                >
+                  <option value="">— None —</option>
+                  {promotions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.code})
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label="Link Coupon">
+                <select
+                  className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm"
+                  value={fields.couponId}
+                  onChange={(e) => set('couponId', e.target.value)}
+                >
+                  <option value="">— None —</option>
+                  {coupons.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            </div>
+
             <FormField label="Target Audience">
               <Input
                 value={fields.targetAudience}
@@ -379,6 +423,16 @@ export function AppBannersTab() {
   const { data, isLoading, isError, error, refetch } = useAppBanners({ page, pageSize: 20 })
   const deleteMutation = useDeleteAppBanner()
 
+  // Preload offer lists so the table can resolve names
+  const { data: promotionsData } = usePromotions()
+  const { data: couponsData } = useCoupons()
+  const promoMap = Object.fromEntries(
+    (promotionsData?.list ?? []).map((p) => [p.id, `${p.name} (${p.code})`]),
+  )
+  const couponMap = Object.fromEntries(
+    (couponsData?.list ?? []).map((c) => [c.id, `${c.name} (${c.code})`]),
+  )
+
   function handleEdit(row: AppBannerDto) {
     setEditTarget(row)
     setShowForm(true)
@@ -421,6 +475,29 @@ export function AppBannersTab() {
       accessor: (r) => (
         <span className="tabular-nums text-gray-600">{r.clicksCount.toLocaleString()}</span>
       ),
+    },
+    {
+      header: 'Linked Offer',
+      accessor: (r) => {
+        const promo = r.promotionId ? promoMap[r.promotionId] : null
+        const coupon = r.couponId ? couponMap[r.couponId] : null
+        if (!promo && !coupon) return <span className="text-gray-300">—</span>
+        return (
+          <div className="flex flex-col gap-0.5">
+            {promo && (
+              <span className="text-xs bg-blue-50 text-blue-700 rounded px-1.5 py-0.5 truncate max-w-[140px]" title={promo}>
+                P: {promo}
+              </span>
+            )}
+            {coupon && (
+              <span className="text-xs bg-purple-50 text-purple-700 rounded px-1.5 py-0.5 truncate max-w-[140px]" title={coupon}>
+                C: {coupon}
+              </span>
+            )}
+          </div>
+        )
+      },
+      className: 'w-48',
     },
     { header: 'Status', accessor: (r) => <StatusBadge status={r.status} /> },
     { header: 'Updated', accessor: (r) => formatDate(r.updatedAt) },

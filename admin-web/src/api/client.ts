@@ -24,6 +24,8 @@ const IDENTITY_URL = import.meta.env.VITE_IDENTITY_URL as string
 const CATALOG_URL = import.meta.env.VITE_CATALOG_URL as string
 const ORDERS_URL = import.meta.env.VITE_ORDERS_URL as string
 const ENGAGEMENT_URL = import.meta.env.VITE_ENGAGEMENT_URL as string
+const ANALYTICS_URL = import.meta.env.VITE_ANALYTICS_URL as string
+const COMMERCE_URL = import.meta.env.VITE_COMMERCE_URL as string
 
 // ── Token refresh state ───────────────────────────────────────────────────────
 
@@ -159,6 +161,8 @@ export const identityClient = createInstance(IDENTITY_URL)
 export const catalogClient = createInstance(CATALOG_URL)
 export const ordersClient = createInstance(ORDERS_URL)
 export const engagementClient = createInstance(ENGAGEMENT_URL)
+export const analyticsClient = createInstance(ANALYTICS_URL)
+export const commerceClient = createInstance(COMMERCE_URL)
 
 // ── Response envelope helpers ─────────────────────────────────────────────────
 
