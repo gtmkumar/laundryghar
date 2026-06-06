@@ -1,4 +1,6 @@
+using laundryghar.ServiceDefaults.Secrets;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -28,6 +30,18 @@ public static class Extensions
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
     {
+        // ── Secrets abstraction ────────────────────────────────────────────────────────
+        // Layer provider-sourced secrets into IConfiguration before the rest of the
+        // pipeline reads them. The EnvironmentSecretsProvider (default) contributes
+        // nothing, so Development config is byte-for-byte unchanged. File / cloud
+        // providers are activated only when Secrets:Provider is explicitly set.
+        //
+        // Ordering: this config source is appended AFTER appsettings / appsettings.{env},
+        // but the host builder re-adds environment variables AFTER Build() is called,
+        // so env vars still win over any value this source supplies — which is the
+        // correct precedence (env vars / Aspire-injected vars always take priority).
+        builder.AddSecretsConfiguration();
+
         builder.ConfigureOpenTelemetry();
         builder.AddDefaultHealthChecks();
 
@@ -122,5 +136,26 @@ public static class Extensions
         }
 
         return app;
+    }
+
+    /// <summary>
+    /// Adds the secrets abstraction layer to <paramref name="builder"/>'s configuration
+    /// pipeline. The active provider is selected by <c>Secrets:Provider</c>:
+    /// <list type="bullet">
+    ///   <item><c>env</c> (default) — no-op; existing config sources are unaffected.</item>
+    ///   <item><c>file</c> — reads secret files from the directory at <c>Secrets:FilePath</c>.</item>
+    ///   <item><c>azure-keyvault</c> / <c>aws-secretsmanager</c> / <c>vault</c> — reserved seams; throw <see cref="NotSupportedException"/> until wired.</item>
+    /// </list>
+    /// Called automatically by <see cref="AddServiceDefaults{TBuilder}"/>; no per-service
+    /// call is needed.
+    /// </summary>
+    public static TBuilder AddSecretsConfiguration<TBuilder>(this TBuilder builder)
+        where TBuilder : IHostApplicationBuilder
+    {
+        var provider = SecretsProviderFactory.Create(builder.Configuration);
+        // IConfigurationManager implements IConfigurationBuilder; .Add() is the standard
+        // method to append a new IConfigurationSource.
+        ((IConfigurationBuilder)builder.Configuration).Add(new SecretsConfigurationSource(provider));
+        return builder;
     }
 }
