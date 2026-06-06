@@ -37,6 +37,15 @@ export default function AppLayout() {
           presentation: 'card',
         }}
       />
+      <Stack.Screen
+        name="offers"
+        options={{
+          headerShown: true,
+          headerTitle: 'Offers',
+          headerBackTitle: 'Back',
+          presentation: 'card',
+        }}
+      />
     </Stack>
   );
 }

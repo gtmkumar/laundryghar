@@ -14,26 +14,25 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useCategories, usePriceList } from '@/hooks/useCatalog';
+import { useCategories, usePriceList, useServices } from '@/hooks/useCatalog';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import type { PriceListItemDto } from '@/types/api';
 
 function PriceRow({ item }: { item: PriceListItemDto }) {
+  // displayLabel is the human-readable name the admin sets; fall back to item/service IDs if absent
+  const label = item.displayLabel ?? `Item ${item.itemId.slice(0, 8)}`;
   return (
     <View className="flex-row items-center justify-between border-b border-gray-100 py-3">
       <View className="flex-1 mr-4">
-        <Text className="text-sm font-semibold text-gray-900">{item.itemName}</Text>
-        <Text className="text-xs text-gray-500">
-          {[item.categoryName, item.serviceName, item.fabricTypeName]
-            .filter(Boolean)
-            .join(' · ')}
-        </Text>
+        <Text className="text-sm font-semibold text-gray-900">{label}</Text>
+        {item.notes ? (
+          <Text className="text-xs text-gray-500">{item.notes}</Text>
+        ) : null}
       </View>
       <Text className="text-base font-bold text-brand-700">
-        ₹{item.price.toFixed(0)}
-        {item.unit ? <Text className="text-xs font-normal text-gray-400"> /{item.unit}</Text> : null}
+        ₹{item.basePrice.toFixed(0)}
       </Text>
     </View>
   );
@@ -41,6 +40,7 @@ function PriceRow({ item }: { item: PriceListItemDto }) {
 
 export default function PriceListScreen() {
   const { data: categories, isLoading: catsLoading, isError: catsError, refetch: refetchCats } = useCategories();
+  const { data: services } = useServices();
   const { data: priceList,  isLoading: plLoading,   isError: plError,   refetch: refetchPl   } = usePriceList();
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -49,23 +49,34 @@ export default function PriceListScreen() {
   const isLoading = catsLoading || plLoading;
   const isError   = catsError || plError;
 
+  // Build a set of serviceIds that belong to the selected category using the
+  // services list as the bridging table (service has categoryId; price item has serviceId)
+  const serviceIdsForCategory = useMemo<Set<string> | null>(() => {
+    if (!selectedCategoryId || !services) return null;
+    return new Set(
+      services
+        .filter((s) => s.categoryId === selectedCategoryId)
+        .map((s) => s.id),
+    );
+  }, [selectedCategoryId, services]);
+
   const filtered = useMemo(() => {
     if (!priceList) return [];
+    // Backend already filters for isActive=true in GetPublishedPriceListHandler,
+    // but we guard here too in case data arrives from cache
     let items = priceList.filter((i) => i.isActive);
-    if (selectedCategoryId) {
-      items = items.filter((i) => i.categoryId === selectedCategoryId);
+    if (serviceIdsForCategory) {
+      items = items.filter((i) => serviceIdsForCategory.has(i.serviceId));
     }
     if (search.trim()) {
       const q = search.toLowerCase();
-      items = items.filter(
-        (i) =>
-          i.itemName.toLowerCase().includes(q) ||
-          i.serviceName.toLowerCase().includes(q) ||
-          i.categoryName?.toLowerCase().includes(q),
+      items = items.filter((i) =>
+        (i.displayLabel ?? '').toLowerCase().includes(q) ||
+        (i.notes ?? '').toLowerCase().includes(q),
       );
     }
     return items;
-  }, [priceList, selectedCategoryId, search]);
+  }, [priceList, serviceIdsForCategory, search]);
 
   if (isLoading) return <ScreenLoader />;
   if (isError) {

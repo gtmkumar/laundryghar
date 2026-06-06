@@ -24,6 +24,61 @@ import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import type { AppBannerDto, ServiceDto } from '@/types/api';
 
+// ---------------------------------------------------------------------------
+// Banner deep-link helper
+// Priority:
+//   1. couponId  → /(app)/offers?couponId=<id>
+//   2. promotionId (no customer endpoint) → /(app)/offers (list)
+//   3. ctaDeeplink starting with '/'  → in-app push
+//   4. ctaDeeplink / externalUrl http(s) → Linking.openURL
+// ---------------------------------------------------------------------------
+
+function resolveBannerPress(
+  item: AppBannerDto,
+  push: ReturnType<typeof useRouter>['push'],
+): void {
+  if (item.couponId) {
+    push({
+      pathname: '/(app)/offers' as never,
+      params: { couponId: item.couponId },
+    });
+    return;
+  }
+
+  if (item.promotionId) {
+    push('/(app)/offers' as never);
+    return;
+  }
+
+  const deeplink = item.ctaDeeplink ?? null;
+  if (deeplink) {
+    if (deeplink.startsWith('/')) {
+      // In-app relative route, e.g. "/(app)/price-list"
+      push(deeplink as never);
+      return;
+    }
+    if (/^https?:\/\//i.test(deeplink)) {
+      // External http(s) URL — open in browser
+      void Linking.openURL(deeplink).catch(() => undefined);
+      return;
+    }
+    // Only the app's OWN registered scheme is handed to the OS. Banner fields
+    // come from the CMS DB (admin-controlled), so we refuse arbitrary schemes
+    // (intent://, file://, content://, tel:, …) that Linking.openURL would
+    // otherwise honour — an open-redirect / unsafe-intent guard. Unknown
+    // schemes are dropped (no-op) rather than invoked.
+    if (/^laundryghar:\/\//i.test(deeplink)) {
+      void Linking.openURL(deeplink).catch(() => undefined);
+      return;
+    }
+  }
+
+  const external = item.externalUrl ?? null;
+  if (external && /^https?:\/\//i.test(external)) {
+    void Linking.openURL(external).catch(() => undefined);
+  }
+}
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ---------------------------------------------------------------------------
@@ -79,15 +134,9 @@ interface BannerCardProps {
 function BannerCard({ item }: BannerCardProps) {
   const hasImage = !!item.imageUrl;
   const bgColor = item.backgroundColor ?? '#1D4ED8';
+  const router = useRouter();
 
-  const handlePress = () => {
-    if (item.ctaDeeplink) {
-      // Deep link handled by Expo's linking; silently ignore if unsupported
-      void Linking.openURL(item.ctaDeeplink).catch(() => undefined);
-    } else if (item.externalUrl) {
-      void Linking.openURL(item.externalUrl).catch(() => undefined);
-    }
-  };
+  const handlePress = () => resolveBannerPress(item, router.push);
 
   return (
     <Pressable

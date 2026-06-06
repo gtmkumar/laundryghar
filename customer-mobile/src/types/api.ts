@@ -70,9 +70,11 @@ export interface LogoutRequest {
 }
 
 export interface CustomerMeResponse {
-  id: string;
+  /** Backend field name — maps to CustomerId in CustomerMeResponse.cs */
+  customerId: string;
   brandId: string;
-  phoneE164: string;
+  /** Backend field name — maps to Phone in CustomerMeResponse.cs */
+  phone: string;
   firstName?: string;
   lastName?: string;
   displayName?: string;
@@ -88,35 +90,46 @@ export interface ServiceCategoryDto {
   name: string;
   nameLocalized?: string;
   iconUrl?: string;
-  sortOrder: number;
-  isActive: boolean;
+  imageUrl?: string;
+  /** Backend field name — maps to displayOrder in ServiceCategoryDtos.cs */
+  displayOrder: number;
+  /** Backend field name — category is active when status === 'active' */
+  status: string;
 }
 
 export interface ServiceDto {
   id: string;
   categoryId: string;
-  categoryName?: string;
   name: string;
   nameLocalized?: string;
   description?: string;
   iconUrl?: string;
-  sortOrder: number;
-  isActive: boolean;
+  /** Backend field name — maps to displayOrder in ServiceDtos.cs */
+  displayOrder: number;
+  /** Backend field name — service is active when status === 'active' */
+  status: string;
 }
 
 export interface PriceListItemDto {
   id: string;
-  itemId: string;
-  itemName: string;
-  itemGroupName?: string;
+  priceListId: string;
+  brandId: string;
   serviceId: string;
-  serviceName: string;
-  categoryId: string;
-  categoryName?: string;
-  fabricTypeName?: string;
-  price: number;
-  unit?: string;
+  itemId: string;
+  itemVariantId?: string;
+  fabricTypeId?: string;
+  itemGroupId?: string;
+  /** Backend field name — maps to basePrice in PricingDtos.cs */
+  basePrice: number;
+  expressPrice?: number;
+  minimumQuantity: number;
+  taxRatePercent: number;
+  isTaxable: boolean;
+  /** Optional display label; used as the item name when present */
+  displayLabel?: string;
+  notes?: string;
   isActive: boolean;
+  status: string;
 }
 
 export interface CustomerProfileDto {
@@ -319,12 +332,16 @@ export interface WalletTransactionDto {
 export interface CouponDto {
   id: string;
   code: string;
+  name?: string;
   description?: string;
-  discountType: 'flat' | 'percent';
+  /** Backend field name — maps to couponType in CommerceDtos.cs */
+  couponType: 'flat' | 'percent';
   discountValue: number;
-  maxDiscount?: number;
+  /** Backend field name — maps to maxDiscountAmount in CommerceDtos.cs */
+  maxDiscountAmount?: number;
   minOrderValue?: number;
-  expiresAt?: string;
+  /** Backend field name — maps to validUntil in CommerceDtos.cs */
+  validUntil?: string;
 }
 
 export interface PaymentDto {

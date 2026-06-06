@@ -73,13 +73,13 @@ export default function ProfileScreen() {
             {profile?.displayName ?? profile?.firstName ?? 'Customer'}
           </Text>
           <Text className="mt-1 text-sm text-brand-200">
-            {profile?.phoneE164 ?? ''}
+            {profile?.phone ?? ''}
           </Text>
         </View>
 
         {/* Details card */}
         <View className="mx-6 mt-6 rounded-2xl bg-white px-4 shadow-sm" style={{ elevation: 2 }}>
-          <ProfileRow label="Phone"  value={profile?.phoneE164} />
+          <ProfileRow label="Phone"  value={profile?.phone} />
           <ProfileRow label="Name"   value={profile?.displayName ?? profile?.firstName} />
           <ProfileRow label="Status" value={profile?.status} />
         </View>
