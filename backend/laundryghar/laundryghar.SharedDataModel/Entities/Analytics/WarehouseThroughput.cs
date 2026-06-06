@@ -13,5 +13,8 @@ public sealed class WarehouseThroughput
     public long GarmentsDelivered   { get; set; }
     public long IssuesCount         { get; set; }
     public long RewashCount         { get; set; }
-    public decimal AvgTatHours      { get; set; }
+
+    /// <summary>Nullable: avg_tat_hours is NULL when no garments have completed a turnaround
+    /// yet (received but not delivered) — AVG over zero rows yields NULL in the MV.</summary>
+    public decimal? AvgTatHours     { get; set; }
 }
