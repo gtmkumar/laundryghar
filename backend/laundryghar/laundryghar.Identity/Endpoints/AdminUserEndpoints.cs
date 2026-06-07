@@ -1,3 +1,6 @@
+using laundryghar.Identity.Application.AccessControl.Commands;
+using laundryghar.Identity.Application.AccessControl.Dtos;
+using laundryghar.Identity.Application.AccessControl.Queries;
 using laundryghar.Identity.Application.Users.Commands;
 using laundryghar.Identity.Infrastructure.Services;
 using MediatR;
@@ -93,6 +96,46 @@ public static class AdminUserEndpoints
             var r = await sender.Send(new RevokeMembershipCommand(req, u.UserId), ct);
             return r ? Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.Response { Status = true }) : Results.NotFound();
         }).WithName("RevokeMembership").RequireAuthorization("permission:memberships.revoke");
+
+        // Data-driven navigator — the signed-in user's sidebar menu.
+        group.MapGet("/navigator", async (ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetNavigatorQuery(), ct);
+            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<NavigatorDto> { Status = true, Data = r });
+        }).WithName("GetNavigator").RequireAuthorization();
+
+        // ── Access Control console (People / Roles & Permissions / Franchises) ──
+        var ac = group.MapGroup("/access-control").WithTags("Admin - Access Control").RequireAuthorization();
+
+        ac.MapGet("/people", async (string? search, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetAccessPeopleQuery(search), ct);
+            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<AccessPeopleDto> { Status = true, Data = r });
+        }).WithName("GetAccessPeople").RequireAuthorization("permission:users.list");
+
+        ac.MapGet("/roles", async (ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetAccessRolesQuery(), ct);
+            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<AccessRolesDto> { Status = true, Data = r });
+        }).WithName("GetAccessRoles").RequireAuthorization("permission:roles.list");
+
+        ac.MapGet("/franchises", async (ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetAccessFranchisesQuery(), ct);
+            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<AccessFranchisesDto> { Status = true, Data = r });
+        }).WithName("GetAccessFranchises").RequireAuthorization("permission:franchises.list");
+
+        ac.MapPost("/invite", async (InviteUserRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new InviteUserCommand(req, u), ct);
+            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<UserDto> { Status = true, Data = r });
+        }).WithName("InviteUser").RequireAuthorization("permission:users.create");
+
+        ac.MapPost("/role-cell", async (SetRoleCellRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var ok = await sender.Send(new SetRoleCellCommand(req, u.UserId), ct);
+            return ok ? Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.Response { Status = true }) : Results.NotFound();
+        }).WithName("SetRoleCell").RequireAuthorization("permission:permissions.assign");
 
         return group;
     }

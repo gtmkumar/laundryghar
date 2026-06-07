@@ -904,3 +904,107 @@ export interface WarehouseBoard {
   summary: WarehouseBoardSummary
   columns: WarehouseStageColumn[]
 }
+
+// ── Access Control console ──────────────────────────────────────────────────────
+
+export interface AccessPerson {
+  id: string
+  name: string
+  email: string
+  initials: string
+  roleCode: string
+  roleName: string
+  scopeLabel: string
+  tier: string // "enterprise" | "franchise"
+  status: string // "active" | "invited" | ...
+  lastActiveAt: string | null
+}
+
+export interface AccessPeopleCounts {
+  all: number
+  hqEmployees: number
+  franchiseOwners: number
+  franchiseStaff: number
+}
+
+export interface AccessPeople {
+  counts: AccessPeopleCounts
+  people: AccessPerson[]
+}
+
+export interface MatrixModule {
+  key: string
+  label: string
+}
+
+export interface AccessRoleSummary {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  scopeType: string
+  isSystem: boolean
+  memberCount: number
+  onCells: string[] // "module:action" cells that are enabled
+}
+
+export interface AccessRoleGroup {
+  tier: string
+  tierLabel: string
+  roles: AccessRoleSummary[]
+}
+
+export interface AccessRoles {
+  modules: MatrixModule[]
+  actions: string[]
+  groups: AccessRoleGroup[]
+}
+
+export interface AccessFranchise {
+  id: string
+  name: string
+  ownershipType: string // "franchise" | "company"
+  location: string
+  sinceYear: number
+  ownerName: string | null
+  ownerInitials: string | null
+  storeCount: number
+  staffCount: number
+  riderCount: number
+  revenueMonthly: number
+  status: string // "Active" | "Onboarding"
+}
+
+export interface AccessFranchises {
+  franchises: AccessFranchise[]
+}
+
+export interface InviteUserPayload {
+  email: string
+  phone?: string
+  firstName?: string
+  lastName?: string
+  userType: string
+  roleId: string
+  scopeType: string
+  scopeId?: string | null
+  password?: string
+}
+
+// ── Navigator (data-driven sidebar menu) ────────────────────────────────────────
+
+export interface NavItem {
+  key: string
+  label: string
+  icon: string | null
+  route: string | null
+}
+
+export interface NavSection {
+  section: string
+  items: NavItem[]
+}
+
+export interface Navigator {
+  sections: NavSection[]
+}

@@ -53,6 +53,7 @@ public class LaundryGharDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<AppModule> Modules => Set<AppModule>();
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<LoginHistory> LoginHistories => Set<LoginHistory>();
