@@ -28,10 +28,14 @@ export function AccessControlPage() {
   const roles = useAccessRoles()
   const franchises = useAccessFranchises()
 
+  // Flatten the infinite-query pages for the count badge and the invite picker.
+  const franchiseList = franchises.data?.pages.flatMap((p) => p.list) ?? []
+  const franchiseTotal = franchises.data?.pages[0]?.totalCount ?? franchiseList.length
+
   const counts: Record<TabKey, number | undefined> = {
     people: people.data?.counts.all,
     roles: roles.data?.groups.reduce((n, g) => n + g.roles.length, 0),
-    franchises: franchises.data?.franchises.length,
+    franchises: franchises.data ? franchiseTotal : undefined,
   }
 
   return (
@@ -107,7 +111,7 @@ export function AccessControlPage() {
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         roles={roles.data}
-        franchises={franchises.data}
+        franchises={franchiseList}
       />
     </div>
   )

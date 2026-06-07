@@ -24,6 +24,8 @@ export interface PaginatedList<T> {
   list: T[]
   hasPreviousPage: boolean
   hasNextPage: boolean
+  totalCount?: number
+  pageNumber?: number
 }
 
 export type PaginatedResponse<T> = ApiResponse<PaginatedList<T>>

@@ -3,9 +3,10 @@ namespace laundryghar.Utilities.Common;
 public class PaginatedList<T>
 {
     public IReadOnlyList<T> List { get; }
-    private int PageNumber { get; }
-    private int PageCount { get; }
-    private int TotalCount { get; }
+    public int PageNumber { get; }
+    public int PageCount { get; }
+    public int TotalCount { get; }
+    private int PageSize { get; }
 
     private PaginatedList(IReadOnlyList<T> items, int totalCount, int pageNumber, int pageSize)
     {
@@ -17,6 +18,7 @@ public class PaginatedList<T>
         List = items;
         TotalCount = totalCount;
         PageNumber = pageNumber;
+        PageSize = pageSize;
         PageCount = (int)Math.Ceiling(totalCount / (double)pageSize);
     }
 
@@ -38,5 +40,17 @@ public class PaginatedList<T>
             .ToListAsync(cancellationToken);
 
         return new PaginatedList<T>(items, count, pageNumber, pageSize);
+    }
+
+    /// <summary>
+    /// Projects each item to a new shape while preserving pagination metadata.
+    /// Use when a page must be paginated in SQL (on the raw entity) but the
+    /// response DTO needs in-memory work (JSON parsing, joins) that can't run in the query.
+    /// </summary>
+    public PaginatedList<TResult> Map<TResult>(Func<T, TResult> selector)
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        var mapped = List.Select(selector).ToList();
+        return new PaginatedList<TResult>(mapped, TotalCount, PageNumber, PageSize);
     }
 }

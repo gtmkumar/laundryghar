@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getAccessPeople,
   getAccessRoles,
@@ -29,11 +29,15 @@ export function useAccessRoles() {
   })
 }
 
+const FRANCHISE_PAGE_SIZE = 100
+
 export function useAccessFranchises() {
   const brandId = useEffectiveBrandId()
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['access', 'franchises', brandId],
-    queryFn: getAccessFranchises,
+    queryFn: ({ pageParam }) => getAccessFranchises({ page: pageParam, pageSize: FRANCHISE_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => (lastPage.hasNextPage ? allPages.length + 1 : undefined),
     enabled: !!brandId,
   })
 }

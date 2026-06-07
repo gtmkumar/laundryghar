@@ -2,13 +2,13 @@ import { useMemo, useState, useEffect } from 'react'
 import { X, Loader2, UserPlus, MailCheck, ShieldCheck } from 'lucide-react'
 import { useInviteUser } from '@/hooks/useAccessControl'
 import { useSettings } from '@/hooks/useSettings'
-import type { AccessRoles, AccessFranchises, InviteUserPayload } from '@/types/api'
+import type { AccessRoles, AccessFranchise, InviteUserPayload } from '@/types/api'
 
 interface Props {
   open: boolean
   onClose: () => void
   roles?: AccessRoles
-  franchises?: AccessFranchises
+  franchises?: AccessFranchise[]
 }
 
 function userTypeForRole(code: string, scopeType: string): string {
@@ -119,7 +119,7 @@ export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
             <Field label="Franchise">
               <select value={franchiseId} onChange={(e) => setFranchiseId(e.target.value)} className={inputCls}>
                 <option value="">Select a franchise…</option>
-                {franchises?.franchises.map((f) => (
+                {franchises?.map((f) => (
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>

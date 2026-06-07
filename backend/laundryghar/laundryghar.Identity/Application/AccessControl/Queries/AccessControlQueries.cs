@@ -2,6 +2,7 @@ using System.Text.Json;
 using laundryghar.Identity.Application.AccessControl.Dtos;
 using laundryghar.Identity.Infrastructure.Services;
 using laundryghar.SharedDataModel.Persistence;
+using laundryghar.Utilities.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -193,38 +194,44 @@ public sealed class GetNavigatorHandler : IRequestHandler<GetNavigatorQuery, Nav
 }
 
 // ── Franchises ──────────────────────────────────────────────────────────────
-public sealed record GetAccessFranchisesQuery : IRequest<AccessFranchisesDto>;
+public sealed record GetAccessFranchisesQuery(int Page, int PageSize) : IRequest<PaginatedList<FranchiseCardDto>>;
 
-public sealed class GetAccessFranchisesHandler : IRequestHandler<GetAccessFranchisesQuery, AccessFranchisesDto>
+public sealed class GetAccessFranchisesHandler : IRequestHandler<GetAccessFranchisesQuery, PaginatedList<FranchiseCardDto>>
 {
     private readonly LaundryGharDbContext _db;
     private readonly ICurrentUser _user;
     public GetAccessFranchisesHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
-    public async Task<AccessFranchisesDto> Handle(GetAccessFranchisesQuery q, CancellationToken ct)
+    // Raw page row materialised from SQL before the in-memory card mapping.
+    private sealed record Row(Guid Id, string Name, string OnboardingStatus, string Status, string Metadata, Guid? OwnerUserId, int StoreCount);
+
+    public async Task<PaginatedList<FranchiseCardDto>> Handle(GetAccessFranchisesQuery q, CancellationToken ct)
     {
         var brandId = _user.BrandId; // null for platform_admin (resolves all under RLS bypass)
 
         var baseQuery = _db.Franchises.AsNoTracking().Where(f => f.DeletedAt == null);
         if (brandId.HasValue) baseQuery = baseQuery.Where(f => f.BrandId == brandId.Value);
 
-        var rows = await baseQuery
-            .Select(f => new
-            {
-                f.Id, Name = f.DisplayName ?? f.LegalName, f.OnboardingStatus, f.Status, f.Metadata, f.OwnerUserId,
-                StoreCount = _db.Stores.Count(s => s.FranchiseId == f.Id && s.DeletedAt == null),
-            })
-            .ToListAsync(ct);
+        // Newest activity first: UpdatedAt is touched on every edit, CreatedAt breaks ties.
+        // Ordering happens in SQL before Skip/Take so paging is stable.
+        var ordered = baseQuery
+            .OrderByDescending(f => f.UpdatedAt)
+            .ThenByDescending(f => f.CreatedAt)
+            .Select(f => new Row(
+                f.Id, f.DisplayName ?? f.LegalName, f.OnboardingStatus, f.Status, f.Metadata, f.OwnerUserId,
+                _db.Stores.Count(s => s.FranchiseId == f.Id && s.DeletedAt == null)));
 
-        // Owner names
-        var ownerIds = rows.Where(r => r.OwnerUserId != null).Select(r => r.OwnerUserId!.Value).Distinct().ToList();
+        var page = await PaginatedList<Row>.CreateAsync(ordered, q.Page, q.PageSize, ct);
+
+        // Owner names — only for the rows on this page.
+        var ownerIds = page.List.Where(r => r.OwnerUserId != null).Select(r => r.OwnerUserId!.Value).Distinct().ToList();
         var owners = await _db.Users.AsNoTracking()
             .Where(u => ownerIds.Contains(u.Id))
             .Select(u => new { u.Id, Name = (u.Profile != null ? (u.Profile.DisplayName ?? (u.Profile.FirstName + " " + u.Profile.LastName)) : u.Email) })
             .ToListAsync(ct);
         var ownerMap = owners.ToDictionary(o => o.Id, o => (o.Name ?? "").Trim());
 
-        var cards = rows.Select(r =>
+        return page.Map(r =>
         {
             int sinceYear = 0, staff = 0, rider = 0; long rev = 0; string location = "—", ownership = "franchise";
             try
@@ -248,10 +255,6 @@ public sealed class GetAccessFranchisesHandler : IRequestHandler<GetAccessFranch
                 r.Id, r.Name, ownership, location, sinceYear,
                 ownerName, ownerName is null ? null : AccessHelpers.Initials(ownerName),
                 r.StoreCount, staff, rider, rev, status);
-        })
-        .OrderByDescending(c => c.RevenueMonthly)
-        .ToList();
-
-        return new AccessFranchisesDto(cards);
+        });
     }
 }

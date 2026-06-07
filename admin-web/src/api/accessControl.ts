@@ -1,9 +1,11 @@
-import { identityClient, unwrap } from './client'
+import { identityClient, unwrap, unwrapPaginated } from './client'
 import type {
   ApiResponse,
+  PaginatedList,
+  PaginationParams,
   AccessPeople,
   AccessRoles,
-  AccessFranchises,
+  AccessFranchise,
   InviteUserPayload,
   SetPersonStatusResult,
 } from '@/types/api'
@@ -24,9 +26,14 @@ export async function getAccessRoles(): Promise<AccessRoles> {
   return unwrap(data)
 }
 
-export async function getAccessFranchises(): Promise<AccessFranchises> {
-  const { data } = await identityClient.get<ApiResponse<AccessFranchises>>(`${BASE}/franchises`)
-  return unwrap(data)
+export async function getAccessFranchises(
+  params: PaginationParams = {},
+): Promise<PaginatedList<AccessFranchise>> {
+  const { data } = await identityClient.get<ApiResponse<PaginatedList<AccessFranchise>>>(
+    `${BASE}/franchises`,
+    { params: { page: 1, pageSize: 100, ...params } },
+  )
+  return unwrapPaginated(data)
 }
 
 export async function inviteUser(payload: InviteUserPayload): Promise<void> {

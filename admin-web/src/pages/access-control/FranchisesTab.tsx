@@ -1,10 +1,18 @@
 import { Loader2, ShieldCheck, Store, Users, Bike, ArrowRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { AccessFranchises, AccessFranchise } from '@/types/api'
+import type { PaginatedList, AccessFranchise } from '@/types/api'
 import { useOnboardingUi } from '@/stores/onboardingStore'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 
 interface Props {
-  query: { data?: AccessFranchises; isLoading: boolean; isError: boolean }
+  query: {
+    data?: { pages: PaginatedList<AccessFranchise>[] }
+    isLoading: boolean
+    isError: boolean
+    hasNextPage: boolean
+    isFetchingNextPage: boolean
+    fetchNextPage: () => void
+  }
 }
 
 function rupeesLakh(v: number): string {
@@ -82,9 +90,11 @@ function FranchiseCard({ f, onOpen }: { f: AccessFranchise; onOpen: (id: string)
 }
 
 export function FranchisesTab({ query }: Props) {
-  const { data, isLoading, isError } = query
+  const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage } = query
   const openOnboarding = useOnboardingUi((s) => s.openOnboarding)
   const workspaceOpen = useOnboardingUi((s) => s.open)
+
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   if (isLoading) {
     return (
@@ -97,11 +107,14 @@ export function FranchisesTab({ query }: Props) {
     return <div className="py-24 text-center text-sm text-red-600">Couldn’t load franchises.</div>
   }
 
+  const franchises = data.pages.flatMap((p) => p.list)
+  const total = data.pages[0]?.totalCount ?? franchises.length
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-gray-500">{data.franchises.length} franchise{data.franchises.length === 1 ? '' : 's'}</p>
+        <p className="text-sm text-gray-500">{total} franchise{total === 1 ? '' : 's'}</p>
         <button
           type="button"
           onClick={() => openOnboarding(null)}
@@ -122,10 +135,18 @@ export function FranchisesTab({ query }: Props) {
 
       {/* Cards — reflow to a single column in workspace mode so they stay readable */}
       <div className={cn('grid gap-4', workspaceOpen ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3')}>
-        {data.franchises.map((f) => (
+        {franchises.map((f) => (
           <FranchiseCard key={f.id} f={f} onOpen={openOnboarding} />
         ))}
       </div>
+
+      {/* Infinite-scroll sentinel + loading-more indicator */}
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
+        </div>
+      )}
     </div>
   )
 }

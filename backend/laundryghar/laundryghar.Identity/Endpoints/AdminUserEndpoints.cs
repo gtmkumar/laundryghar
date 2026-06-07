@@ -119,10 +119,10 @@ public static class AdminUserEndpoints
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<AccessRolesDto> { Status = true, Data = r });
         }).WithName("GetAccessRoles").RequireAuthorization("permission:roles.list");
 
-        ac.MapGet("/franchises", async (ISender sender, CancellationToken ct) =>
+        ac.MapGet("/franchises", async (ISender sender, CancellationToken ct, int page = 1, int pageSize = 100) =>
         {
-            var r = await sender.Send(new GetAccessFranchisesQuery(), ct);
-            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<AccessFranchisesDto> { Status = true, Data = r });
+            var r = await sender.Send(new GetAccessFranchisesQuery(page < 1 ? 1 : page, pageSize < 1 ? 100 : pageSize), ct);
+            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.PaginatedListResponse<FranchiseCardDto> { Status = true, Data = r });
         }).WithName("GetAccessFranchises").RequireAuthorization("permission:franchises.list");
 
         ac.MapPost("/invite", async (InviteUserRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
