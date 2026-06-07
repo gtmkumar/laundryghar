@@ -5,7 +5,10 @@ import type {
   AccessRoles,
   AccessFranchises,
   InviteUserPayload,
+  SetPersonStatusResult,
 } from '@/types/api'
+
+export type PersonStatusAction = 'activate' | 'suspend' | 'reactivate'
 
 const BASE = '/api/v1/admin/access-control'
 
@@ -32,4 +35,16 @@ export async function inviteUser(payload: InviteUserPayload): Promise<void> {
 
 export async function setRoleCell(roleId: string, cellKey: string, enabled: boolean): Promise<void> {
   await identityClient.post(`${BASE}/role-cell`, { roleId, cellKey, enabled })
+}
+
+export async function setPersonStatus(
+  userId: string,
+  action: PersonStatusAction,
+  password?: string,
+): Promise<SetPersonStatusResult> {
+  const { data } = await identityClient.post<ApiResponse<SetPersonStatusResult>>(
+    `${BASE}/people/${userId}/status`,
+    { action, password },
+  )
+  return unwrap(data)
 }

@@ -137,6 +137,14 @@ public static class AdminUserEndpoints
             return ok ? Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.Response { Status = true }) : Results.NotFound();
         }).WithName("SetRoleCell").RequireAuthorization("permission:permissions.assign");
 
+        ac.MapPost("/people/{id:guid}/status", async (Guid id, SetPersonStatusRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new SetPersonStatusCommand(id, req, u.UserId), ct);
+            return r is null
+                ? Results.NotFound()
+                : Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<SetPersonStatusResult> { Status = true, Data = r });
+        }).WithName("SetPersonStatus").RequireAuthorization("permission:users.update");
+
         return group;
     }
 }

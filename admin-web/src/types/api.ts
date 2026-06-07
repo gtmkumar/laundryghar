@@ -927,6 +927,11 @@ export interface AccessPeopleCounts {
   franchiseStaff: number
 }
 
+export interface SetPersonStatusResult {
+  status: string
+  mustChangePassword: boolean
+}
+
 export interface AccessPeople {
   counts: AccessPeopleCounts
   people: AccessPerson[]

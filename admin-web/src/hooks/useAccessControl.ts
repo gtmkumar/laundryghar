@@ -5,6 +5,8 @@ import {
   getAccessFranchises,
   inviteUser,
   setRoleCell,
+  setPersonStatus,
+  type PersonStatusAction,
 } from '@/api/accessControl'
 import type { InviteUserPayload } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
@@ -50,5 +52,14 @@ export function useSetRoleCell() {
     mutationFn: (v: { roleId: string; cellKey: string; enabled: boolean }) =>
       setRoleCell(v.roleId, v.cellKey, v.enabled),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'roles'] }),
+  })
+}
+
+export function useSetPersonStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { userId: string; action: PersonStatusAction; password?: string }) =>
+      setPersonStatus(v.userId, v.action, v.password),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'people'] }),
   })
 }

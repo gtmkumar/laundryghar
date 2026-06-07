@@ -42,6 +42,16 @@ public sealed record InviteUserRequest(
 /// <summary>Toggle a whole matrix cell (assigns/removes all permissions it maps to).</summary>
 public sealed record SetRoleCellRequest(Guid RoleId, string CellKey, bool Enabled);
 
+/// <summary>
+/// Change a person's account status. <c>Action</c> is one of
+/// <c>activate</c> (invited → active, sets the temp password),
+/// <c>suspend</c> (active → suspended) or <c>reactivate</c> (suspended → active).
+/// </summary>
+public sealed record SetPersonStatusRequest(string Action, string? Password);
+
+/// <summary>Result of a status change — the new status plus whether a first-login reset is required.</summary>
+public sealed record SetPersonStatusResult(string Status, bool MustChangePassword);
+
 // ── Navigator (data-driven sidebar menu, gated by the user's permissions) ────
 public sealed record NavItemDto(string Key, string Label, string? Icon, string? Route);
 public sealed record NavSectionDto(string Section, IReadOnlyList<NavItemDto> Items);

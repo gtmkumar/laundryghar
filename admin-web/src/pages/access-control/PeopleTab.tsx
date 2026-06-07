@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AccessPeople, AccessPerson } from '@/types/api'
+import { PersonRowActions } from './PersonRowActions'
 
 interface Props {
   query: { data?: AccessPeople; isLoading: boolean; isError: boolean }
@@ -114,6 +115,7 @@ export function PeopleTab({ query }: Props) {
               <th className="px-5 py-3">Type</th>
               <th className="px-5 py-3">Status</th>
               <th className="px-5 py-3 text-right">Last active</th>
+              <th className="px-5 py-3 w-12"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -144,10 +146,11 @@ export function PeopleTab({ query }: Props) {
                   </span>
                 </td>
                 <td className="px-5 py-3 text-right text-gray-400">{timeAgo(p.lastActiveAt)}</td>
+                <td className="px-5 py-3 text-right"><PersonRowActions person={p} /></td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">No people match this filter.</td></tr>
+              <tr><td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-400">No people match this filter.</td></tr>
             )}
           </tbody>
         </table>
