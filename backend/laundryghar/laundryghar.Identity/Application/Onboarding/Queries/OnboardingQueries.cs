@@ -49,7 +49,9 @@ public static class OnboardingState
         var billing = ParseAddress(f.BillingAddress);
         var operational = ParseAddress(f.OperationalAddress);
 
-        var detailsDone = !string.IsNullOrWhiteSpace(f.Gstin) && !string.IsNullOrWhiteSpace(f.Pan)
+        // KYC is "done" once we have a tax id (GSTIN) and a billing address line.
+        // PAN is optional on the form, so it must not gate step completion.
+        var detailsDone = !string.IsNullOrWhiteSpace(f.Gstin)
                           && billing is not null && !string.IsNullOrWhiteSpace(billing.Line1);
         var commercialsDone = f.FranchiseAgreementId is not null;
         var ownerDone = f.OwnerUserId is not null;

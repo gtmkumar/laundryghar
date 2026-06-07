@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   X, Check, Loader2, ChevronDown, Building2, Percent, UserPlus, Store, Rocket, CheckCircle2,
 } from 'lucide-react'
@@ -244,7 +244,7 @@ function DetailsForm({ state }: { state: OnboardingState }) {
         <Field label="Pincode"><input value={pin} onChange={(e) => setPin(e.target.value)} className={inputCls} /></Field>
       </div>
       {err && <p className="text-sm text-red-600">{err}</p>}
-      <SaveButton busy={save.isPending} onClick={submit} />
+      <SaveButton busy={save.isPending} saved={save.isSuccess} onClick={submit} />
     </div>
   )
 }
@@ -277,7 +277,7 @@ function CommercialsForm({ state }: { state: OnboardingState }) {
         <Field label="Term (years)"><input type="number" value={term} onChange={(e) => setTerm(Number(e.target.value))} className={inputCls} /></Field>
       </div>
       {err && <p className="text-sm text-red-600">{err}</p>}
-      <SaveButton busy={save.isPending} onClick={submit} label={state.agreementCreated ? 'Update agreement' : 'Create agreement'} />
+      <SaveButton busy={save.isPending} saved={save.isSuccess} onClick={submit} label={state.agreementCreated ? 'Update agreement' : 'Create agreement'} />
     </div>
   )
 }
@@ -321,7 +321,7 @@ function OwnerForm({ state }: { state: OnboardingState }) {
         <Field label="Last name"><input value={last} onChange={(e) => setLast(e.target.value)} className={inputCls} /></Field>
       </div>
       {err && <p className="text-sm text-red-600">{err}</p>}
-      <SaveButton busy={invite.isPending} onClick={submit} label="Invite owner" icon={<UserPlus className="h-4 w-4" />} />
+      <SaveButton busy={invite.isPending} saved={invite.isSuccess} onClick={submit} label="Invite owner" icon={<UserPlus className="h-4 w-4" />} />
     </div>
   )
 }
@@ -359,7 +359,7 @@ function StoresForm({ state, onNext }: { state: OnboardingState; onNext: () => v
         <Field label="Pincode"><input value={pin} onChange={(e) => setPin(e.target.value)} className={inputCls} /></Field>
       </div>
       {err && <p className="text-sm text-red-600">{err}</p>}
-      <SaveButton busy={add.isPending} onClick={submit} label="Add store" icon={<Store className="h-4 w-4" />} />
+      <SaveButton busy={add.isPending} saved={add.isSuccess} onClick={submit} label="Add store" icon={<Store className="h-4 w-4" />} />
     </div>
   )
 }
@@ -374,10 +374,32 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <label className="block"><span className="mb-1 block text-xs font-medium text-gray-500">{label}</span>{children}</label>
 }
 
-function SaveButton({ busy, onClick, label = 'Save', icon }: { busy: boolean; onClick: () => void; label?: string; icon?: React.ReactNode }) {
+function SaveButton({ busy, saved, onClick, label = 'Save', icon }: { busy: boolean; saved?: boolean; onClick: () => void; label?: string; icon?: React.ReactNode }) {
+  // Flash a "Saved" confirmation on the falling edge of `busy` after a success.
+  const [showSaved, setShowSaved] = useState(false)
+  const wasBusy = useRef(false)
+  useEffect(() => {
+    if (wasBusy.current && !busy && saved) {
+      setShowSaved(true)
+      const t = setTimeout(() => setShowSaved(false), 2500)
+      wasBusy.current = busy
+      return () => clearTimeout(t)
+    }
+    wasBusy.current = busy
+  }, [busy, saved])
+
   return (
-    <button type="button" onClick={onClick} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60">
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : icon} {label}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-60',
+        showSaved ? 'bg-emerald-600' : 'bg-lg-green hover:bg-[var(--lg-green-hover)]',
+      )}
+    >
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : showSaved ? <Check className="h-4 w-4" /> : icon}
+      {busy ? 'Saving…' : showSaved ? 'Saved' : label}
     </button>
   )
 }
