@@ -24,10 +24,11 @@ export const analyticsKeys = {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export function useAnalyticsDashboard() {
+export function useAnalyticsDashboard(enabled = true) {
   return useQuery({
     queryKey: analyticsKeys.dashboard(),
     queryFn: getAnalyticsDashboard,
+    enabled,
   })
 }
 
@@ -35,10 +36,12 @@ export function useAnalyticsDashboard() {
 
 export function useDailyStoreRevenue(
   params: Pick<AnalyticsListParams, 'storeId' | 'from' | 'to'> = {},
+  enabled = true,
 ) {
   return useQuery({
     queryKey: analyticsKeys.dailyStoreRevenue(params),
     queryFn: () => getDailyStoreRevenue(params),
+    enabled,
   })
 }
 

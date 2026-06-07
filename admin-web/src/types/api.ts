@@ -785,6 +785,36 @@ export interface AnalyticsListParams extends PaginationParams {
   year?: number
 }
 
+// ── Catalog Admin Customers ──────────────────────────────────────────────────
+
+export interface AdminCustomerDto {
+  id: string
+  brandId: string
+  customerCode: string
+  phoneE164: string
+  email: string | null
+  firstName: string | null
+  lastName: string | null
+  displayName: string | null
+  gender: string | null
+  locale: string
+  timezone: string
+  lifetimeOrders: number
+  lifetimeSpend: number
+  loyaltyPointsBalance: number
+  walletBalance: number
+  customerSegment: string | null
+  riskFlag: string | null
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminCustomerListParams extends PaginationParams {
+  status?: string
+  search?: string
+}
+
 // ── Commerce (Promotions / Coupons — for banner picker) ──────────────────────
 
 export interface PromotionDto {

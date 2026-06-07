@@ -15,6 +15,7 @@ import { CatalogPage } from '@/pages/catalog/CatalogPage'
 import { OrdersPage } from '@/pages/orders/OrdersPage'
 import { CmsPage } from '@/pages/cms/CmsPage'
 import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage'
+import { ComingSoonPage } from '@/pages/ComingSoonPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,13 +38,20 @@ const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { index: true, element: <DashboardPage /> },
-          { path: 'tenancy', element: <TenancyPage /> },
-          { path: 'catalog', element: <CatalogPage /> },
-          { path: 'orders', element: <OrdersPage /> },
-          { path: 'cms', element: <CmsPage /> },
-          { path: 'analytics', element: <AnalyticsPage /> },
-          { path: '*', element: <Navigate to="/" replace /> },
+          { index: true,           element: <DashboardPage /> },
+          { path: 'tenancy',       element: <TenancyPage /> },
+          { path: 'catalog',       element: <CatalogPage /> },
+          { path: 'orders',        element: <OrdersPage /> },
+          { path: 'cms',           element: <CmsPage /> },
+          { path: 'analytics',     element: <AnalyticsPage /> },
+          // New sidebar routes that don't have pages yet — lightweight placeholders
+          { path: 'customers',     element: <ComingSoonPage name="Customers" /> },
+          { path: 'riders',        element: <ComingSoonPage name="Riders" /> },
+          { path: 'packages',      element: <ComingSoonPage name="Packages" /> },
+          { path: 'coupons',       element: <ComingSoonPage name="Coupons" /> },
+          { path: 'cashbook',      element: <ComingSoonPage name="Cash Book" /> },
+          { path: 'expenses',      element: <ComingSoonPage name="Expenses" /> },
+          { path: '*',             element: <Navigate to="/" replace /> },
         ],
       },
     ],

@@ -7,10 +7,12 @@ export const orderKeys = {
   detail: (id: string) => ['orders', 'detail', id] as const,
 }
 
-export function useOrders(params: OrderListParams = {}) {
+export function useOrders(params: OrderListParams = {}, refetchInterval?: number, enabled = true) {
   return useQuery({
     queryKey: orderKeys.list(params),
     queryFn: () => getOrders(params),
+    refetchInterval,
+    enabled,
   })
 }
 

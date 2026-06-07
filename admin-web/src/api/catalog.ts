@@ -7,6 +7,8 @@ import type {
   ItemDto,
   PriceListDto,
   PaginationParams,
+  AdminCustomerDto,
+  AdminCustomerListParams,
 } from '@/types/api'
 
 const ADMIN = '/api/v1/admin'
@@ -71,4 +73,16 @@ export async function getPriceListById(id: string): Promise<PriceListDto> {
     `${ADMIN}/price-lists/${id}`,
   )
   return unwrap(data)
+}
+
+// ── Admin Customers ───────────────────────────────────────────────────────────
+
+export async function getAdminCustomers(
+  params: AdminCustomerListParams = {},
+): Promise<PaginatedList<AdminCustomerDto>> {
+  const { data } = await catalogClient.get<ApiResponse<PaginatedList<AdminCustomerDto>>>(
+    `${ADMIN}/customers`,
+    { params: { page: 1, pageSize: 100, ...params } },
+  )
+  return unwrapPaginated(data)
 }
