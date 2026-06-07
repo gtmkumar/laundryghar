@@ -199,6 +199,8 @@ function OnboardingBody({ state, onActivated }: { state: OnboardingState; onActi
 // ── Step 1: details ─────────────────────────────────────────────────────────
 function DetailsForm({ state }: { state: OnboardingState }) {
   const save = useSaveDetails(state.id)
+  // Already-persisted details → the button reads "Update" instead of "Save".
+  const detailsSaved = state.steps.find((s) => s.key === 'details')?.done ?? false
   const [legalName, setLegalName] = useState(state.legalName)
   const [displayName, setDisplayName] = useState(state.displayName ?? '')
   const [gstin, setGstin] = useState(state.gstin ?? '')
@@ -244,7 +246,7 @@ function DetailsForm({ state }: { state: OnboardingState }) {
         <Field label="Pincode"><input value={pin} onChange={(e) => setPin(e.target.value)} className={inputCls} /></Field>
       </div>
       {err && <p className="text-sm text-red-600">{err}</p>}
-      <SaveButton busy={save.isPending} saved={save.isSuccess} onClick={submit} />
+      <SaveButton busy={save.isPending} saved={save.isSuccess} onClick={submit} label={detailsSaved ? 'Update' : 'Save'} />
     </div>
   )
 }
