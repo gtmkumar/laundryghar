@@ -230,14 +230,26 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 
 // ─── API route groups ──────────────────────────────────────────────────────
 
-// Pre-auth customer flows (OTP send/verify, token refresh) resolve the brand by
-// code and look up the customer BEFORE any token exists. The service runs as the
-// non-superuser app_user where RLS is active, so these tenant-context-less reads
-// would return zero rows. They legitimately bypass RLS for the request and rely on
-// the handlers' explicit brand_id + phone predicates as the isolation guard.
+// Pre-auth / token-issuance flows resolve a user's tenant scope BEFORE a usable
+// token exists. The service runs as the non-superuser app_user where RLS is active,
+// so these tenant-context-less reads would return zero rows:
+//   • Customer OTP flows resolve the brand by code and look up the customer.
+//   • System (staff/rider/admin) login + refresh run ScopeResolver, which reads the
+//     user's own membership and then the referenced store/franchise/warehouse to
+//     derive brand_id. stores/franchises/warehouses are RLS-protected, so without a
+//     bypass a Store/Franchise/Warehouse-scoped user (rider, store staff) would get
+//     NO brand_id claim and every brand-scoped call afterwards would fail.
+// These legitimately bypass RLS for the request; the isolation guard is that each
+// query is keyed to the requesting user's own id / their own membership's scope.
+static bool IsScopeResolvingAuthPath(PathString path) =>
+    path.StartsWithSegments("/api/v1/customer/auth")
+    || path.StartsWithSegments("/api/v1/auth/password/login")
+    || path.StartsWithSegments("/api/v1/auth/otp")
+    || path.StartsWithSegments("/api/v1/auth/refresh");
+
 app.Use(async (ctx, next) =>
 {
-    if (ctx.Request.Path.StartsWithSegments("/api/v1/customer/auth")
+    if (IsScopeResolvingAuthPath(ctx.Request.Path)
         && ctx.User.Identity?.IsAuthenticated != true)
     {
         ctx.Items["bypass_rls"] = true;
