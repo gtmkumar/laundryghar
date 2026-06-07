@@ -165,9 +165,25 @@ function Field({ label, children, className }: { label: string; children: React.
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
-    <button type="button" onClick={() => onChange(!checked)} className="inline-flex items-center gap-2.5">
-      <span className={cn('relative inline-block h-6 w-11 shrink-0 rounded-full transition-colors', checked ? 'bg-lg-green' : 'bg-gray-300')}>
-        <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[22px]' : 'translate-x-0.5')} />
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="inline-flex items-center gap-2.5"
+    >
+      <span
+        className={cn(
+          'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors',
+          checked ? 'bg-lg-green' : 'bg-gray-300',
+        )}
+      >
+        <span
+          className={cn(
+            'h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ease-out',
+            checked ? 'translate-x-5' : 'translate-x-0',
+          )}
+        />
       </span>
       {label && <span className="whitespace-nowrap text-sm font-medium text-gray-600">{label}</span>}
     </button>
