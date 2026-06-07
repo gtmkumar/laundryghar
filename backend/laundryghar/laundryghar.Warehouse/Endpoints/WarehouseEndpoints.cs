@@ -1,3 +1,5 @@
+using laundryghar.Warehouse.Application.Board.Dtos;
+using laundryghar.Warehouse.Application.Board.Queries;
 using laundryghar.Warehouse.Application.Batches.Commands;
 using laundryghar.Warehouse.Application.Batches.Dtos;
 using laundryghar.Warehouse.Application.Batches.Queries;
@@ -28,6 +30,13 @@ public static class WarehouseEndpoints
 
         // ── Garments ──────────────────────────────────────────────────────────
         var garments = admin.MapGroup("/garments").WithTags("Admin - Garments");
+
+        // Warehouse kanban read model (per-stage cards + header metrics).
+        garments.MapGet("/board", async (ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetWarehouseBoardQuery(), ct);
+            return Results.Ok(new SingleResponse<WarehouseBoardDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:garment.read");
 
         garments.MapGet("/", async (
             [FromServices] ISender sender, CancellationToken ct,

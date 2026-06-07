@@ -23,8 +23,21 @@ const HERO_STATS = [
   { value: '247', label: 'orders today' },
 ]
 
+/** Route each role to a screen it can actually use after login. */
+function landingPath(userType: string | undefined): string {
+  switch (userType) {
+    case 'warehouse_staff':
+      return '/warehouse/board' // operator kanban
+    case 'store_admin':
+    case 'staff':
+      return '/orders' // store ops (no analytics.read → skip the dashboard)
+    default:
+      return '/' // platform/brand admins → analytics console home
+  }
+}
+
 export function LoginPage() {
-  const { accessToken, setTokens } = useAuthStore()
+  const { accessToken, user, setTokens } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
   const [serverError, setServerError] = useState<string | null>(null)
@@ -45,14 +58,16 @@ export function LoginPage() {
     },
   })
 
-  if (accessToken) return <Navigate to="/" replace />
+  if (accessToken) return <Navigate to={landingPath(user?.user_type)} replace />
 
   async function onSubmit(values: LoginFormValues) {
     setServerError(null)
     try {
       const tokens = await passwordLogin({ identifier: values.identifier, password: values.password })
       setTokens(tokens.accessToken, tokens.refreshToken)
-      navigate(from, { replace: true })
+      // Respect an explicit redirect target; otherwise route by role.
+      const dest = from !== '/' ? from : landingPath(useAuthStore.getState().user?.user_type)
+      navigate(dest, { replace: true })
     } catch (err) {
       setServerError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.')
     }

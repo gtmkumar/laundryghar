@@ -869,3 +869,38 @@ export interface CouponDto {
   createdAt: string
   updatedAt: string
 }
+
+// ── Warehouse kanban board ─────────────────────────────────────────────────────
+
+export interface WarehouseGarmentCard {
+  id: string
+  tagCode: string
+  itemName: string
+  fabricName: string
+  customerName: string
+  stage: string
+  lastScannedAt: string | null
+  isFlagged: boolean
+}
+
+export interface WarehouseStageColumn {
+  stage: string
+  label: string
+  count: number
+  cards: WarehouseGarmentCard[]
+}
+
+export interface WarehouseBoardSummary {
+  warehouseId: string | null
+  warehouseName: string
+  warehouseCode: string
+  inFlightCount: number
+  capacityPct: number
+  throughputTarget: number
+  throughputToday: number
+}
+
+export interface WarehouseBoard {
+  summary: WarehouseBoardSummary
+  columns: WarehouseStageColumn[]
+}

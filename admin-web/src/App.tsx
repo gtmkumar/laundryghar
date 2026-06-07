@@ -15,6 +15,7 @@ import { CatalogPage } from '@/pages/catalog/CatalogPage'
 import { OrdersPage } from '@/pages/orders/OrdersPage'
 import { CmsPage } from '@/pages/cms/CmsPage'
 import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage'
+import { WarehouseBoardPage } from '@/pages/warehouse/WarehouseBoardPage'
 import { ComingSoonPage } from '@/pages/ComingSoonPage'
 
 const queryClient = new QueryClient({
@@ -35,6 +36,8 @@ const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
+      // Full-screen operator board — no admin sidebar/topbar shell.
+      { path: 'warehouse/board', element: <WarehouseBoardPage /> },
       {
         element: <AppShell />,
         children: [

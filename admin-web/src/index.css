@@ -1,6 +1,19 @@
 @import url("https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap");
 @import "tailwindcss";
 
+/* Register LG brand colors as Tailwind theme tokens so opacity modifiers
+   (bg-lg-green/10), fill-/border-/text- variants all generate correctly. */
+@theme {
+  --color-lg-cream:        #F7F5EF;
+  --color-lg-green:        #5C6E2E;
+  --color-lg-green-hover:  #4B5A26;
+  --color-lg-green-deep:   #36431A;
+  --color-lg-amber:        #E6A23C;
+  --color-lg-amber-hover:  #D08F28;
+  --color-lg-sidebar:      #11160F;
+  --color-lg-sidebar-pill: #1E2618;
+}
+
 @layer base {
   :root {
     /* ── LG design tokens ───────────────────────────────────────── */

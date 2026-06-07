@@ -12,6 +12,7 @@ import {
   BookOpen,
   Sun,
   Receipt,
+  Warehouse,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -120,6 +121,7 @@ export function Sidebar() {
         { label: 'Dashboard', to: '/',          icon: LayoutDashboard, end: true },
         { label: 'Stores',    to: '/tenancy',   icon: Building2,       badge: storeCount },
         { label: 'Orders',    to: '/orders',    icon: ShoppingCart,    badge: null },
+        { label: 'Warehouse', to: '/warehouse/board', icon: Warehouse },
         { label: 'Customers', to: '/customers', icon: Users },
         { label: 'Riders',    to: '/riders',    icon: Bike },
       ],
