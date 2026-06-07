@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Building2,
@@ -31,13 +31,56 @@ const ICONS: Record<string, React.ElementType> = {
   BarChart2, BookOpen, Receipt, Warehouse, ShieldCheck, Network, Coins, Monitor, Settings,
 }
 
+type NavItem = { key: string; label: string; icon: string | null; route: string | null }
+
+/**
+ * Active-link matching that is query-string aware.
+ *
+ * `NavLink` matches on pathname only, so two rows that share a pathname but
+ * differ by query (e.g. `/access-control` vs `/access-control?tab=franchises`)
+ * both light up at once. We resolve that here: a row that pins a `tab` query is
+ * active only when that tab is current; a plain row sharing the pathname is
+ * active only when the current tab is NOT one claimed by a sibling row.
+ */
+function useActiveMatcher(items: NavItem[]) {
+  const loc = useLocation()
+  const currentTab = new URLSearchParams(loc.search).get('tab')
+
+  // pathname → set of `tab` values claimed by sibling rows.
+  const claimedTabs = new Map<string, Set<string>>()
+  for (const item of items) {
+    if (!item.route) continue
+    const [path, qs] = item.route.split('?')
+    const tab = qs && new URLSearchParams(qs).get('tab')
+    if (tab) {
+      if (!claimedTabs.has(path)) claimedTabs.set(path, new Set())
+      claimedTabs.get(path)!.add(tab)
+    }
+  }
+
+  return (route: string | null): boolean => {
+    if (!route) return false
+    const [path, qs] = route.split('?')
+    const pathMatches = path === '/' ? loc.pathname === '/' : loc.pathname === path || loc.pathname.startsWith(path + '/')
+    if (!pathMatches) return false
+
+    const wantTab = qs && new URLSearchParams(qs).get('tab')
+    if (wantTab) return currentTab === wantTab
+    // Plain row: defer to a sibling that explicitly owns the current tab.
+    const siblings = claimedTabs.get(path)
+    if (siblings && currentTab && siblings.has(currentTab)) return false
+    return true
+  }
+}
+
 function SidebarNav({
   sections,
   storeCount,
 }: {
-  sections: { section: string; items: { key: string; label: string; icon: string | null; route: string | null }[] }[]
+  sections: { section: string; items: NavItem[] }[]
   storeCount: number
 }) {
+  const isActive = useActiveMatcher(sections.flatMap((s) => s.items))
   return (
     <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
       {sections.map((group) => (
@@ -49,38 +92,31 @@ function SidebarNav({
             {group.items.map((item) => {
               const Icon = (item.icon && ICONS[item.icon]) || LayoutGrid
               const to = item.route ?? '#'
-              const end = to === '/'
               const badge = item.key === 'stores' ? storeCount : null
+              const active = isActive(item.route)
               return (
-                <NavLink
+                <Link
                   key={item.key}
                   to={to}
-                  end={end}
-                  className={({ isActive }) =>
-                    cn(
-                      'relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors select-none',
-                      isActive
-                        ? 'sidebar-active-item text-white'
-                        : 'text-gray-400 hover:text-gray-100 hover:bg-white/5',
-                    )
-                  }
-                  style={({ isActive }) => (isActive ? { background: 'var(--lg-sidebar-pill)' } : {})}
-                >
-                  {({ isActive }) => (
-                    <>
-                      <Icon className="h-4 w-4 shrink-0" style={{ color: isActive ? 'var(--lg-green)' : undefined }} />
-                      <span className="flex-1">{item.label}</span>
-                      {badge != null && badge > 0 && (
-                        <span
-                          className="ml-auto text-xs font-bold tabular px-1.5 py-0.5 rounded-full"
-                          style={{ background: 'var(--lg-amber)', color: '#11160F', minWidth: 20, textAlign: 'center' }}
-                        >
-                          {badge}
-                        </span>
-                      )}
-                    </>
+                  className={cn(
+                    'relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors select-none',
+                    active
+                      ? 'sidebar-active-item text-white'
+                      : 'text-gray-400 hover:text-gray-100 hover:bg-white/5',
                   )}
-                </NavLink>
+                  style={active ? { background: 'var(--lg-sidebar-pill)' } : {}}
+                >
+                  <Icon className="h-4 w-4 shrink-0" style={{ color: active ? 'var(--lg-green)' : undefined }} />
+                  <span className="flex-1">{item.label}</span>
+                  {badge != null && badge > 0 && (
+                    <span
+                      className="ml-auto text-xs font-bold tabular px-1.5 py-0.5 rounded-full"
+                      style={{ background: 'var(--lg-amber)', color: '#11160F', minWidth: 20, textAlign: 'center' }}
+                    >
+                      {badge}
+                    </span>
+                  )}
+                </Link>
               )
             })}
           </div>
