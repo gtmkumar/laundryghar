@@ -85,16 +85,32 @@ function createInstance(baseURL: string): AxiosInstance {
     return config
   })
 
-  // Response: handle 401 with refresh + retry (once)
+  // Response: handle 401 with refresh + retry (once).
+  // IMPORTANT: Some endpoints return 401 for "brand context required" (X-Brand-Id missing).
+  // These are authorization-context errors, NOT expired-token errors. Attempting a token
+  // refresh in that case would waste a token rotation and leave the app stuck in a retry loop.
+  // We detect the backend's known error code for this case and skip the refresh path.
   instance.interceptors.response.use(
     (response) => response,
     async (error: unknown) => {
       const axiosError = error as {
-        response?: { status: number }
+        response?: {
+          status: number
+          data?: { message?: { errorMessage?: Record<string, string[]> } }
+        }
         config: AxiosRequestConfig & { _retried?: boolean }
       }
 
       if (axiosError.response?.status !== 401 || axiosError.config._retried) {
+        return Promise.reject(error)
+      }
+
+      // Brand-context 401: skip refresh, propagate the error as-is.
+      const errorMessages = axiosError.response?.data?.message?.errorMessage ?? {}
+      const isBrandContextError = Object.values(errorMessages).flat().some(
+        (msg) => typeof msg === 'string' && msg.toLowerCase().includes('brand context'),
+      )
+      if (isBrandContextError) {
         return Promise.reject(error)
       }
 
