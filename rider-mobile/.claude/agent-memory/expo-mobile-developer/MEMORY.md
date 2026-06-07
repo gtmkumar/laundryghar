@@ -1,0 +1,2 @@
+- [enabled guard on auth queries](feedback_enabled_guard.md) — all useQuery hooks hitting authenticated endpoints need `enabled: !!accessToken` or isLoading never settles
+- [tailwind fontFamily must match loaded fonts](feedback_tailwind_font.md) — unloaded named fonts in tailwind.config.js break emoji rendering on iOS 26 + Hermes

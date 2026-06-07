@@ -70,6 +70,16 @@ metadata:
 - Updated_at triggers: 6 tables with updated_at column all already have triggers from global script. notifications_log and notifications_outbox have NO updated_at — append-only logs, correct.
 - Verified: brand A/B isolation on app_banners + onboarding_slides, empty-brand→0 rows NO error (NULLIF-safe), cleanup complete.
 
+**2026-06-07 (Wave 10 — Demo seed data):**
+- db/patches/seed_demo_data.sql applied (idempotent, ON CONFLICT DO NOTHING)
+- 6 active stores: Mumbai store renamed → "Laundry Ghar Sector 45" (code LGG-S45-001), 5 new Gurgaon stores added (LGG-S14-002, LGG-DLF-003, LGG-SL-004, LGG-S56-005, LGG-PV-006)
+- 25 customers (18 new, 7 pre-existing) with realistic Indian names/phones (+91 E.164)
+- 14 riders total (13 new: identity_access.users + user_profiles + logistics.riders; 1 pre-existed)
+- 327 orders (285 past: 2026-05-25..2026-06-06; 42 today: mixed in-flight statuses), each with 1 order_item
+- 5 analytics MVs refreshed CONCURRENTLY
+- Verified: dashboard today.ordersCount=42, grossRevenue=24805.49; daily-store-revenue=84 rows (14 days x 6 stores); out_for_delivery=8; placed=8; in_process=4; stores=6; riders=14
+- All UUIDs use valid hex format (b2, c3, d4 prefixes); seed uses deterministic md5() for order IDs → fully idempotent
+
 **Still outstanding:**
 - order_lifecycle.order_addons: needs brand_id denormalization OR EXISTS-subquery RLS policy to be lockable (schema-design decision)
 - BC-9 analytics (materialized views — no RLS applicable)

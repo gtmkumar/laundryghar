@@ -1,2 +1,3 @@
 - [Admin-web scaffold](project-admin-web-scaffold.md) — Initial React 19 + Vite scaffold at repo root admin-web/; build passes clean; auth + 3 screens wired to real API contracts
 - [POS Web scaffold](project-pos-web-scaffold.md) — Touch-tablet POS at pos-web/; build + typecheck clean; staff auth + walk-in order + orders + cash book wired to real contracts
+- [Dashboard redesign](project-dashboard-redesign.md) — Warm LG theme: login + dashboard redesigned; enabled-gate pattern for brand-scoped queries; auto brand select in AppShell
