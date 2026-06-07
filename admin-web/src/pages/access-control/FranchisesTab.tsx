@@ -1,6 +1,7 @@
-import { Loader2, ShieldCheck, Store, Users, Bike, ArrowRight } from 'lucide-react'
+import { Loader2, ShieldCheck, Store, Users, Bike, ArrowRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AccessFranchises, AccessFranchise } from '@/types/api'
+import { useOnboardingUi } from '@/stores/onboardingStore'
 
 interface Props {
   query: { data?: AccessFranchises; isLoading: boolean; isError: boolean }
@@ -12,7 +13,7 @@ function rupeesLakh(v: number): string {
   return `₹${v.toLocaleString('en-IN')}`
 }
 
-function FranchiseCard({ f }: { f: AccessFranchise }) {
+function FranchiseCard({ f, onOpen }: { f: AccessFranchise; onOpen: (id: string) => void }) {
   const onboarding = f.status === 'Onboarding'
   const company = f.ownershipType === 'company'
   return (
@@ -65,8 +66,15 @@ function FranchiseCard({ f }: { f: AccessFranchise }) {
           <span className={cn('h-1.5 w-1.5 rounded-full', onboarding ? 'bg-amber-500' : 'bg-emerald-500')} />
           <span className={onboarding ? 'text-amber-700' : 'text-emerald-700'}>{f.status}</span>
         </span>
-        <button type="button" className="inline-flex items-center gap-1 text-xs font-semibold text-lg-green hover:gap-1.5 transition-all">
-          Manage team <ArrowRight className="h-3.5 w-3.5" />
+        <button
+          type="button"
+          onClick={() => onOpen(f.id)}
+          className={cn(
+            'inline-flex items-center gap-1 text-xs font-semibold transition-all hover:gap-1.5',
+            onboarding ? 'text-amber-700' : 'text-lg-green',
+          )}
+        >
+          {onboarding ? 'Continue onboarding' : 'Manage team'} <ArrowRight className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
@@ -75,6 +83,8 @@ function FranchiseCard({ f }: { f: AccessFranchise }) {
 
 export function FranchisesTab({ query }: Props) {
   const { data, isLoading, isError } = query
+  const openOnboarding = useOnboardingUi((s) => s.openOnboarding)
+  const workspaceOpen = useOnboardingUi((s) => s.open)
 
   if (isLoading) {
     return (
@@ -89,6 +99,18 @@ export function FranchisesTab({ query }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-gray-500">{data.franchises.length} franchise{data.franchises.length === 1 ? '' : 's'}</p>
+        <button
+          type="button"
+          onClick={() => openOnboarding(null)}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-lg-green px-3.5 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)]"
+        >
+          <Plus className="h-4 w-4" /> Onboard franchise
+        </button>
+      </div>
+
       {/* Two-tier banner */}
       <div className="flex items-start gap-3 rounded-2xl border border-lg-green/20 bg-lg-green/5 px-4 py-3">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-lg-green" />
@@ -98,10 +120,10 @@ export function FranchisesTab({ query }: Props) {
         </p>
       </div>
 
-      {/* Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {/* Cards — reflow to a single column in workspace mode so they stay readable */}
+      <div className={cn('grid gap-4', workspaceOpen ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3')}>
         {data.franchises.map((f) => (
-          <FranchiseCard key={f.id} f={f} />
+          <FranchiseCard key={f.id} f={f} onOpen={openOnboarding} />
         ))}
       </div>
     </div>

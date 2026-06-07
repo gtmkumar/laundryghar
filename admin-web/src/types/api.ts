@@ -981,6 +981,96 @@ export interface InvitePreview {
   name: string | null
 }
 
+// ── Franchise onboarding ────────────────────────────────────────────────────
+export interface OnboardingStep {
+  key: string
+  title: string
+  description: string
+  done: boolean
+  summary: string | null
+}
+
+export interface OnboardingAddress {
+  line1: string
+  city: string
+  state: string
+  pincode: string
+}
+
+export interface OnboardingOwner {
+  userId: string | null
+  name: string | null
+  email: string | null
+  status: string | null
+}
+
+export interface OnboardingState {
+  id: string
+  code: string
+  legalName: string
+  displayName: string | null
+  gstin: string | null
+  pan: string | null
+  contactPhone: string
+  contactEmail: string | null
+  billingAddress: OnboardingAddress | null
+  operationalAddress: OnboardingAddress | null
+  royaltyPercent: number
+  marketingFeePercent: number
+  initialFranchiseFee: number
+  termYears: number
+  agreementCreated: boolean
+  agreementNumber: string | null
+  owner: OnboardingOwner
+  storeCount: number
+  onboardingStatus: string
+  isActive: boolean
+  progressPct: number
+  canActivate: boolean
+  steps: OnboardingStep[]
+}
+
+export interface StartOnboardingPayload {
+  legalName: string
+  displayName?: string
+  contactPhone: string
+  contactEmail?: string
+}
+
+export interface SaveDetailsPayload {
+  legalName: string
+  displayName?: string
+  gstin?: string
+  pan?: string
+  contactPhone: string
+  contactEmail?: string
+  billingAddress?: OnboardingAddress
+  operationalAddress?: OnboardingAddress
+}
+
+export interface SaveCommercialsPayload {
+  royaltyPercent: number
+  marketingFeePercent: number
+  initialFranchiseFee: number
+  termYears: number
+}
+
+export interface InviteOwnerPayload {
+  email: string
+  firstName?: string
+  lastName?: string
+  phone?: string
+}
+
+export interface AddStorePayload {
+  name: string
+  code?: string
+  addressLine1: string
+  city: string
+  state: string
+  pincode: string
+}
+
 export interface AccessPeople {
   counts: AccessPeopleCounts
   people: AccessPerson[]

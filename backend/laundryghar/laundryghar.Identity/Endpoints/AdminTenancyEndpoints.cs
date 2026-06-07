@@ -1,5 +1,9 @@
+using laundryghar.Identity.Application.Onboarding.Commands;
+using laundryghar.Identity.Application.Onboarding.Dtos;
+using laundryghar.Identity.Application.Onboarding.Queries;
 using laundryghar.Identity.Application.TenancyOrg.Commands;
 using laundryghar.Identity.Infrastructure.Services;
+using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using MediatR;
 
 namespace laundryghar.Identity.Endpoints;
@@ -69,6 +73,49 @@ public static class AdminTenancyEndpoints
             var r = await sender.Send(new DeleteFranchiseCommand(id, u.UserId), ct);
             return r ? Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.Response { Status = true }) : Results.NotFound();
         }).WithName("DeleteFranchise").RequireAuthorization("permission:franchises.delete");
+
+        // ── Franchise onboarding (guided, stage-gated) ──────────────────────────
+        franchises.MapPost("/onboarding/start", async (StartOnboardingRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new StartOnboardingCommand(req, u), ct);
+            return Results.Ok(new SingleResponse<OnboardingStateDto> { Status = true, Data = r });
+        }).WithName("StartOnboarding").RequireAuthorization("permission:franchises.create");
+
+        franchises.MapGet("/{id:guid}/onboarding", async (Guid id, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetOnboardingStateQuery(id), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<OnboardingStateDto> { Status = true, Data = r });
+        }).WithName("GetOnboardingState").RequireAuthorization("permission:franchises.read");
+
+        franchises.MapPut("/{id:guid}/onboarding/details", async (Guid id, SaveDetailsRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new SaveDetailsCommand(id, req, u), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<OnboardingStateDto> { Status = true, Data = r });
+        }).WithName("SaveOnboardingDetails").RequireAuthorization("permission:franchises.update");
+
+        franchises.MapPut("/{id:guid}/onboarding/commercials", async (Guid id, SaveCommercialsRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new SaveCommercialsCommand(id, req, u), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<OnboardingStateDto> { Status = true, Data = r });
+        }).WithName("SaveOnboardingCommercials").RequireAuthorization("permission:franchises.update");
+
+        franchises.MapPost("/{id:guid}/onboarding/owner", async (Guid id, InviteOwnerRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new InviteOwnerCommand(id, req, u), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<OnboardingStateDto> { Status = true, Data = r });
+        }).WithName("InviteFranchiseOwner").RequireAuthorization("permission:franchises.update");
+
+        franchises.MapPost("/{id:guid}/onboarding/store", async (Guid id, AddStoreRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new AddStoreCommand(id, req, u), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<OnboardingStateDto> { Status = true, Data = r });
+        }).WithName("AddOnboardingStore").RequireAuthorization("permission:stores.create");
+
+        franchises.MapPost("/{id:guid}/onboarding/activate", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ActivateFranchiseCommand(id, u), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<OnboardingStateDto> { Status = true, Data = r });
+        }).WithName("ActivateFranchise").RequireAuthorization("permission:franchises.update");
 
         // Stores
         var stores = group.MapGroup("/stores").WithTags("Admin - Stores").RequireAuthorization();
