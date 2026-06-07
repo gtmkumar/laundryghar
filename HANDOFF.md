@@ -1,6 +1,6 @@
 # LaundryGhar OLMS — Handoff
 
-_Last updated: 2026-06-06_
+_Last updated: 2026-06-08_
 
 ## 1. What this is
 
@@ -66,7 +66,42 @@ All 9 backend bounded contexts are built, security/QA-gated, and verified live e
 All 4 clients build/typecheck; mobile apps bundle for iOS. The full stack runs from one
 Aspire command and was last validated green across every service under the `app_user` runtime.
 
-## 4. What changed in the latest session (2026-06-06)
+## 4. What changed in the latest session (2026-06-07 → 08)
+
+Focus: franchise-onboarding polish + a **list pagination / infinite-scroll** sweep across
+admin-web. Commits on `main` (newest first):
+
+1. **Pagination + infinite scroll across admin lists** (`31b3059`) — every admin-web list now
+   loads 100 rows then fetches the next page on scroll, via a reusable
+   `useInfiniteScroll` hook (IntersectionObserver sentinel, prefetches ~400px early) +
+   `useInfiniteQuery`. Converted: Access-Control **Franchises** & **People**, **Orders**,
+   **Catalog** (categories/services/price-lists), **Tenancy** (stores/franchises), **CMS**
+   (templates/slides/banners/app-config/outbox/notification-logs/whatsapp-logs). Backend:
+   `access-control/franchises` now paginated + **newest-first** (`UpdatedAt desc, CreatedAt desc`);
+   `access-control/people` returns `{ counts, people: PaginatedList<PersonDto> }` so chip counts
+   stay full-set accurate while the table pages. `PaginatedList<T>` util gained `Map()` (project a
+   page while keeping metadata), in-memory `Create()`, and public `TotalCount`/`PageNumber`.
+   Frontend conversions were **additive** — new `*Infinite` hooks alongside the flat ones, so
+   Sidebar/Topbar/Dashboard (which read `useStores`/`useOrders` for counts/charts) are untouched.
+   Verified live: Orders 100→300 rows on scroll; People 27 total with correct chips.
+2. **Onboarding "Update" label** (`304839b`) — DetailsForm Save button reads **Update** once the
+   step has saved data, **Save** otherwise.
+3. **SaveButton success state + KYC completion** (`9d15727`) — Save buttons flash **Saved ✓**; the
+   "Business & KYC" step is now done on **GSTIN + address** (PAN is optional, no longer gates it →
+   progress advances on save).
+4. **Toggle accessibility/layout fix** (`d1a1692`) — rewrote the Email/SMTP toggle as a flex switch
+   (no more absolute-positioned knob overlapping its label) + `role="switch"`/`aria-checked`.
+
+### What was deliberately NOT paginated (don't "fix" these)
+- **Analytics tables** (daily/monthly revenue, warehouse throughput) — they also feed the Dashboard
+  revenue **chart**, which needs the full date range; they're already date-bounded.
+- **Roles tab** — a permission **matrix**, not a scrollable list.
+- **`admin/roles`, `admin/roles/permissions`, `admin/orders/{id}/notes`** — no consumers in any client.
+- **Customer/rider list endpoints** (catalog, packages, coupons, addresses, slots, tracking) — consumed
+  by `customer-mobile`/`rider-mobile`; changing their response shape to `PaginatedList` is a breaking
+  change that needs coordinated mobile updates. See backlog.
+
+### Prior session (2026-06-06)
 
 5 commits on `main` (newest first):
 
@@ -106,6 +141,16 @@ Aspire command and was last validated green across every service under the `app_
 - **Order creation is admin/POS only** (`POST :5002/api/v1/admin/orders`, `permission:orders.create`,
   needs brand context). Customers create via pickup requests, not direct orders.
 - **Brand "Brand Two" is soft-deleted** (EF `DeletedAt` filter hides it) — APIs showing 1 brand is correct.
+- **Backend code changes need a FULL AppHost restart.** Aspire's dcp does **not** auto-restart a
+  manually-killed resource (the public port is a dcp reverse-proxy, so the port stays "held" while
+  returning errors). To pick up a `.cs` change: stop the AppHost launcher + orphaned dcp procs, then
+  relaunch with the detached command in §2. Vite (admin-web) hot-reloads on its own.
+- **List pagination pattern.** Backend list endpoints return `PaginatedList<T>` →
+  `{ list, hasPreviousPage, hasNextPage, totalCount, pageNumber }` wrapped in `PaginatedListResponse<T>`;
+  build it with `PaginatedList<T>.CreateAsync(query, page, pageSize, ct)` (or `.Create(list, …)` for
+  in-memory sets, `.Map(selector)` to shape DTOs after paging). Admin-web consumes these with
+  `useInfiniteQuery` (`getNextPageParam` from `hasNextPage`) + the `useInfiniteScroll` hook
+  (`src/hooks/useInfiniteScroll.ts`); see `useAccessFranchises`/`FranchisesTab` as the reference.
 
 ## 6. Remaining backlog (prod-hardening)
 
@@ -138,6 +183,10 @@ Aspire command and was last validated green across every service under the `app_
   Identity auth contract). Mobile already uses `expo-secure-store` correctly.
 - **No seeded riders** → rider-mobile login can't be E2E-tested. Seed a `user_type='rider'` user +
   `logistics.riders` row (rider-mobile code + DTOs are verified correct).
+- **Customer/rider + pos-web list pagination** not yet done — the admin-web sweep (§4) stopped at the
+  admin clients because the customer/rider list endpoints back the Expo apps and a shape change is
+  breaking. To finish "paginate every list": convert those endpoints to `PaginatedList<T>` **and**
+  update `customer-mobile`/`rider-mobile`/`pos-web` consumers in lockstep (verify each app bundles).
 - Banner link targets are now allowlist-validated server-side (`AppBannerRules`: relative path /
   http(s) / `laundryghar://` only; create **and** update) and the mobile only hands the app's own
   `laundryghar://` scheme to `Linking.openURL`.
