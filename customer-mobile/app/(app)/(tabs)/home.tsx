@@ -113,7 +113,11 @@ function ServiceCard({ item }: { item: ServiceDto }) {
       className="mb-3 mr-3 w-[44%] items-center rounded-2xl bg-white p-4 shadow-sm active:opacity-70"
       style={{ elevation: 2 }}
     >
-      <Text className="mb-2 text-4xl" accessibilityElementsHidden>
+      <Text
+        style={{ fontSize: 36, marginBottom: 8 }}
+        allowFontScaling={false}
+        accessibilityElementsHidden
+      >
         {serviceIcon(item.name)}
       </Text>
       <Text className="text-center text-sm font-semibold text-gray-800" numberOfLines={2}>
@@ -251,7 +255,7 @@ function QuickAction({ emoji, label, href }: { emoji: string; label: string; hre
       accessibilityLabel={label}
       className="flex-1 flex-row items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 active:opacity-70"
     >
-      <Text className="text-2xl" accessibilityElementsHidden>{emoji}</Text>
+      <Text style={{ fontSize: 24 }} allowFontScaling={false} accessibilityElementsHidden>{emoji}</Text>
       <Text className="font-semibold text-gray-800">{label}</Text>
     </Pressable>
   );
@@ -276,9 +280,14 @@ export default function HomeScreen() {
         {/* Header */}
         <View className="bg-brand-700 px-6 pb-8 pt-6">
           <Text className="text-sm font-medium text-brand-200">Good day,</Text>
-          <Text className="text-2xl font-bold text-white">
-            Hi, {displayName} 👋
-          </Text>
+          <View className="flex-row items-center gap-1">
+            <Text className="text-2xl font-bold text-white">
+              Hi, {displayName}
+            </Text>
+            <Text style={{ fontSize: 22 }} allowFontScaling={false} accessibilityElementsHidden>
+              {'\u{1F44B}'}
+            </Text>
+          </View>
           <Text className="mt-1 text-sm text-brand-200">
             What would you like to clean today?
           </Text>

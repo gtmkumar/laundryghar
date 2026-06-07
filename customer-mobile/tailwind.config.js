@@ -37,9 +37,9 @@ module.exports = {
         info:    '#0284C7',
       },
       fontFamily: {
-        sans:   ['Inter', 'System'],
-        medium: ['Inter-Medium', 'System'],
-        bold:   ['Inter-Bold', 'System'],
+        sans:   ['System'],
+        medium: ['System'],
+        bold:   ['System'],
       },
     },
   },

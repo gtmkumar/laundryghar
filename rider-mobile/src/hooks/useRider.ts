@@ -9,6 +9,7 @@ import {
   updateAssignmentStatus,
   postLocationPings,
 } from '@/api/rider';
+import { useAuthStore } from '@/store/authStore';
 import type { LocationPingInput, RiderAssignmentStatus } from '@/types/api';
 
 // ---------------------------------------------------------------------------
@@ -24,10 +25,12 @@ export const riderKeys = {
 // GET /api/v1/rider/me
 // ---------------------------------------------------------------------------
 export function useMyRiderProfile() {
+  const accessToken = useAuthStore((s) => s.accessToken);
   return useQuery({
     queryKey: riderKeys.me(),
     queryFn:  getMyRiderProfile,
     staleTime: 5 * 60_000,
+    enabled:  !!accessToken,
   });
 }
 
@@ -35,12 +38,14 @@ export function useMyRiderProfile() {
 // GET /api/v1/rider/assignments/today
 // ---------------------------------------------------------------------------
 export function useTodaysAssignments() {
+  const accessToken = useAuthStore((s) => s.accessToken);
   return useQuery({
     queryKey: riderKeys.assignments(),
     queryFn:  getMyAssignmentsToday,
     // Poll every 60 s so status stays fresh without manual refresh
     refetchInterval: 60_000,
     staleTime:        30_000,
+    enabled:         !!accessToken,
   });
 }
 
