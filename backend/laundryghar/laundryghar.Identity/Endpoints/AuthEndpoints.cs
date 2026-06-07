@@ -121,6 +121,24 @@ public static class AuthEndpoints
         .WithName("ResetPassword")
         .AllowAnonymous();
 
+        // GET /api/v1/auth/invite/{token} — validate an invitation, return who it's for
+        auth.MapGet("/invite/{token}", async (string token, ISender sender, CancellationToken ct) =>
+        {
+            var preview = await sender.Send(new GetInvitePreviewQuery(token), ct);
+            return Results.Ok(new SingleResponse<InvitePreviewDto> { Status = true, Data = preview });
+        })
+        .WithName("GetInvitePreview")
+        .AllowAnonymous();
+
+        // POST /api/v1/auth/accept-invite — set password + activate via invitation token
+        auth.MapPost("/accept-invite", async (AcceptInviteRequest req, ISender sender, CancellationToken ct) =>
+        {
+            await sender.Send(new AcceptInviteCommand(req), ct);
+            return Results.Ok(new Response { Status = true, Message = new Message { ResponseMessage = "Your account is now active. You can sign in." } });
+        })
+        .WithName("AcceptInvite")
+        .AllowAnonymous();
+
         return group;
     }
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
-import { X, Loader2, UserPlus } from 'lucide-react'
+import { X, Loader2, UserPlus, MailCheck, ShieldCheck } from 'lucide-react'
 import { useInviteUser } from '@/hooks/useAccessControl'
+import { useSettings } from '@/hooks/useSettings'
 import type { AccessRoles, AccessFranchises, InviteUserPayload } from '@/types/api'
 
 interface Props {
@@ -22,6 +23,9 @@ function userTypeForRole(code: string, scopeType: string): string {
 
 export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
   const invite = useInviteUser()
+  const settings = useSettings()
+  const selfService = settings.data?.provisioning.mode === 'self_service'
+  const emailEnabled = settings.data?.email.enabled ?? false
   const allRoles = useMemo(() => roles?.groups.flatMap((g) => g.roles) ?? [], [roles])
 
   const [firstName, setFirstName] = useState('')
@@ -121,6 +125,21 @@ export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
               </select>
             </Field>
           )}
+
+          {/* What happens after inviting, driven by the provisioning setting */}
+          <div className="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2.5 text-xs text-gray-600">
+            {selfService ? <MailCheck className="mt-0.5 h-4 w-4 shrink-0 text-lg-green" /> : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />}
+            <span>
+              {selfService ? (
+                <>The user gets an email with a secure link to set their own password and activate.</>
+              ) : (
+                <>The user is created as <span className="font-medium">Invited</span>. Activate them from the people list to set a temporary password.</>
+              )}
+              {!emailEnabled && (
+                <> {' '}<span className="text-amber-600">Email is off — configure it in Settings → Email to deliver invites.</span></>
+              )}
+            </span>
+          </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>

@@ -58,6 +58,7 @@ builder.Services.Configure<OtpSettings>(
 
 builder.Services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<laundryghar.Identity.Infrastructure.Email.ISettingsMailer, laundryghar.Identity.Infrastructure.Email.SettingsMailer>();
 
 // C4: Register OTP sender conditionally — DevLogOtpSender only in Development.
 // In all other environments the Msg91 stub throws NotImplemented at call-time, preventing
@@ -273,6 +274,7 @@ var admin = v1.MapGroup("/admin").RequireAuthorization();
 admin.MapBrandEndpoints();
 admin.MapTenancyEndpoints();
 admin.MapUserEndpoints();
+admin.MapSettingsEndpoints();
 
 // ─── Aspire default health endpoints (/health + /alive, Development only) ─────────────
 app.MapDefaultEndpoints();

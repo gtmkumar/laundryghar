@@ -9,7 +9,9 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { LoginPage } from '@/pages/auth/LoginPage'
+import { AcceptInvitePage } from '@/pages/auth/AcceptInvitePage'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { TenancyPage } from '@/pages/tenancy/TenancyPage'
 import { CatalogPage } from '@/pages/catalog/CatalogPage'
 import { OrdersPage } from '@/pages/orders/OrdersPage'
@@ -35,6 +37,10 @@ const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
+    path: '/accept-invite',
+    element: <AcceptInvitePage />,
+  },
+  {
     element: <ProtectedRoute />,
     children: [
       // Full-screen operator board — no admin sidebar/topbar shell.
@@ -49,6 +55,7 @@ const router = createBrowserRouter([
           { path: 'cms',           element: <CmsPage /> },
           { path: 'analytics',     element: <AnalyticsPage /> },
           { path: 'access-control', element: <AccessControlPage /> },
+          { path: 'settings',      element: <SettingsPage /> },
           // New sidebar routes that don't have pages yet — lightweight placeholders
           { path: 'customers',     element: <ComingSoonPage name="Customers" /> },
           { path: 'riders',        element: <ComingSoonPage name="Riders" /> },

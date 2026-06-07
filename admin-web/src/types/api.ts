@@ -932,6 +932,55 @@ export interface SetPersonStatusResult {
   mustChangePassword: boolean
 }
 
+// ── Settings ────────────────────────────────────────────────────────────────
+export interface EmailSettingsView {
+  enabled: boolean
+  host: string
+  port: number
+  secure: boolean
+  username: string
+  passwordSet: boolean
+  fromEmail: string
+  fromName: string
+}
+
+export interface ProvisioningView {
+  mode: string // "admin_activate" | "self_service"
+}
+
+export interface AppUrlsView {
+  adminBaseUrl: string
+}
+
+export interface AdminSettings {
+  email: EmailSettingsView
+  provisioning: ProvisioningView
+  app: AppUrlsView
+}
+
+export interface UpdateEmailPayload {
+  enabled: boolean
+  host: string
+  port: number
+  secure: boolean
+  username: string
+  password?: string // omit/blank to keep the stored password
+  fromEmail: string
+  fromName: string
+}
+
+export interface TestEmailResult {
+  sent: boolean
+  error: string | null
+}
+
+// ── Invite acceptance (public) ──────────────────────────────────────────────
+export interface InvitePreview {
+  valid: boolean
+  email: string | null
+  name: string | null
+}
+
 export interface AccessPeople {
   counts: AccessPeopleCounts
   people: AccessPerson[]
