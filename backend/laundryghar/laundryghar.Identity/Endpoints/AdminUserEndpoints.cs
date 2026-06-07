@@ -107,10 +107,10 @@ public static class AdminUserEndpoints
         // ── Access Control console (People / Roles & Permissions / Franchises) ──
         var ac = group.MapGroup("/access-control").WithTags("Admin - Access Control").RequireAuthorization();
 
-        ac.MapGet("/people", async (string? search, ISender sender, CancellationToken ct) =>
+        ac.MapGet("/people", async (string? search, ISender sender, CancellationToken ct, int page = 1, int pageSize = 100) =>
         {
-            var r = await sender.Send(new GetAccessPeopleQuery(search), ct);
-            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<AccessPeopleDto> { Status = true, Data = r });
+            var r = await sender.Send(new GetAccessPeopleQuery(search, page < 1 ? 1 : page, pageSize < 1 ? 100 : pageSize), ct);
+            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<AccessPeoplePageDto> { Status = true, Data = r });
         }).WithName("GetAccessPeople").RequireAuthorization("permission:users.list");
 
         ac.MapGet("/roles", async (ISender sender, CancellationToken ct) =>

@@ -33,7 +33,7 @@ export function AccessControlPage() {
   const franchiseTotal = franchises.data?.pages[0]?.totalCount ?? franchiseList.length
 
   const counts: Record<TabKey, number | undefined> = {
-    people: people.data?.counts.all,
+    people: people.data?.pages[0]?.counts.all,
     roles: roles.data?.groups.reduce((n, g) => n + g.roles.length, 0),
     franchises: franchises.data ? franchiseTotal : undefined,
   }

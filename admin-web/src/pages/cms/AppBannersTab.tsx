@@ -1,14 +1,15 @@
 import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import {
-  useAppBanners,
+  useAppBannersInfinite,
   useCreateAppBanner,
   useUpdateAppBanner,
   useDeleteAppBanner,
 } from '@/hooks/useCms'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { usePromotions, useCoupons } from '@/hooks/useCommerce'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
-import { Pagination } from '@/components/shared/Pagination'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -415,13 +416,23 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function AppBannersTab() {
-  const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<AppBannerDto | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AppBannerDto | null>(null)
 
-  const { data, isLoading, isError, error, refetch } = useAppBanners({ page, pageSize: 20 })
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useAppBannersInfinite()
   const deleteMutation = useDeleteAppBanner()
+
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   // Preload offer lists so the table can resolve names
   const { data: promotionsData } = usePromotions()
@@ -535,27 +546,32 @@ export function AppBannersTab() {
   if (isLoading) return <LoadingState message="Loading app banners..." />
   if (isError) return <ErrorState error={error as Error} onRetry={() => void refetch()} />
 
+  const items = data?.pages.flatMap((p) => p.list) ?? []
+  const total = data?.pages[0]?.totalCount
+
   return (
     <div>
-      <div className="flex justify-end px-4 pt-3 pb-2">
-        <Button size="sm" onClick={() => setShowForm(true)}>
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        {total !== undefined && (
+          <p className="text-sm text-gray-500">{total} banner{total === 1 ? '' : 's'}</p>
+        )}
+        <Button size="sm" onClick={() => setShowForm(true)} className="ml-auto">
           + New Banner
         </Button>
       </div>
 
       <DataTable
         columns={columns}
-        data={data?.list ?? []}
+        data={items}
         keyFn={(r) => r.id}
         emptyMessage="No app banners found."
       />
-      <Pagination
-        page={page}
-        hasPrevious={data?.hasPreviousPage ?? false}
-        hasNext={data?.hasNextPage ?? false}
-        onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-        onNext={() => setPage((p) => p + 1)}
-      />
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
+        </div>
+      )}
 
       {showForm && <FormModal initial={editTarget} onClose={handleCloseForm} />}
 

@@ -10,6 +10,11 @@ public sealed record PeopleCountsDto(int All, int HqEmployees, int FranchiseOwne
 
 public sealed record AccessPeopleDto(PeopleCountsDto Counts, IReadOnlyList<PersonDto> People);
 
+/// <summary>Paged people response: aggregate counts (full set) + the current page of people.</summary>
+public sealed record AccessPeoplePageDto(
+    PeopleCountsDto Counts,
+    laundryghar.Utilities.Common.PaginatedList<PersonDto> People);
+
 // ── Roles & Permissions tab ─────────────────────────────────────────────────
 public sealed record MatrixModuleDto(string Key, string Label);
 

@@ -11,11 +11,15 @@ import {
 import type { InviteUserPayload } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
 
+const PEOPLE_PAGE_SIZE = 100
+
 export function useAccessPeople(search?: string) {
   const brandId = useEffectiveBrandId()
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['access', 'people', search ?? '', brandId],
-    queryFn: () => getAccessPeople(search),
+    queryFn: ({ pageParam }) => getAccessPeople({ search, page: pageParam, pageSize: PEOPLE_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => (lastPage.people.hasNextPage ? allPages.length + 1 : undefined),
     enabled: !!brandId,
   })
 }

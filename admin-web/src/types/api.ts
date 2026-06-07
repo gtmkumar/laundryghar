@@ -1078,6 +1078,12 @@ export interface AccessPeople {
   people: AccessPerson[]
 }
 
+/** Paged people response: aggregate counts (full set) + the current page of people. */
+export interface AccessPeoplePage {
+  counts: AccessPeopleCounts
+  people: PaginatedList<AccessPerson>
+}
+
 export interface MatrixModule {
   key: string
   label: string

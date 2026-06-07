@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { useOrders } from '@/hooks/useOrders'
+import { Loader2 } from 'lucide-react'
+import { useOrdersInfinite } from '@/hooks/useOrders'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
-import { Pagination } from '@/components/shared/Pagination'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -137,50 +138,46 @@ function OrderFilters({ status, onStatusChange }: FiltersProps) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function OrdersPage() {
-  const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('all')
 
-  const { data, isLoading, isError, error, refetch } = useOrders({
-    page,
-    pageSize: 20,
-    status: statusFilter === 'all' ? undefined : statusFilter,
-  })
+  const { data, isLoading, isError, error, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useOrdersInfinite({
+      status: statusFilter === 'all' ? undefined : statusFilter,
+    })
 
-  function handleStatusChange(s: string) {
-    setStatusFilter(s)
-    setPage(1)
-  }
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
+
+  const orders = data?.pages.flatMap((p) => p.list) ?? []
+  const total = data?.pages[0]?.totalCount
 
   return (
     <div>
       <PageHeader
         title="Orders"
-        description="View and manage customer orders across all stores."
+        description={total !== undefined ? `${total} order${total === 1 ? '' : 's'} · View and manage customer orders across all stores.` : 'View and manage customer orders across all stores.'}
       />
 
-      <OrderFilters status={statusFilter} onStatusChange={handleStatusChange} />
+      <OrderFilters status={statusFilter} onStatusChange={setStatusFilter} />
 
       <Card className="overflow-hidden">
         {isLoading && <LoadingState message="Loading orders..." />}
         {isError && <ErrorState error={error as Error} onRetry={() => void refetch()} />}
         {!isLoading && !isError && (
-          <>
-            <DataTable
-              columns={orderColumns}
-              data={data?.list ?? []}
-              keyFn={(r) => r.id}
-              emptyMessage="No orders match the selected filters."
-            />
-            <Pagination
-              page={page}
-              hasPrevious={data?.hasPreviousPage ?? false}
-              hasNext={data?.hasNextPage ?? false}
-              onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => p + 1)}
-            />
-          </>
+          <DataTable
+            columns={orderColumns}
+            data={orders}
+            keyFn={(r) => r.id}
+            emptyMessage="No orders match the selected filters."
+          />
         )}
       </Card>
+
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more orders…
+        </div>
+      )}
     </div>
   )
 }

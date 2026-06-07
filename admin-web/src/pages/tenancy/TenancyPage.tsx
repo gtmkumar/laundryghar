@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useStores, useFranchises } from '@/hooks/useTenancy'
+import { Loader2 } from 'lucide-react'
+import { useStoresInfinite, useFranchisesInfinite } from '@/hooks/useTenancy'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useBrandStore } from '@/stores/brandStore'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
-import { Pagination } from '@/components/shared/Pagination'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -61,34 +62,34 @@ function StatusBadge({ status }: { status: string }) {
 
 function StoresTab() {
   const { activeBrandId } = useBrandStore()
-  const [page, setPage] = useState(1)
 
-  const { data, isLoading, isError, error, refetch } = useStores({
-    brandId: activeBrandId ?? undefined,
-    page,
-    pageSize: 20,
-  })
+  const { data, isLoading, isError, error, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useStoresInfinite(activeBrandId ?? undefined)
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   if (isLoading) return <LoadingState message="Loading stores..." />
   if (isError) return <ErrorState error={error as Error} onRetry={() => void refetch()} />
 
-  const stores = data?.list ?? []
+  const stores = data?.pages.flatMap((p) => p.list) ?? []
+  const total = data?.pages[0]?.totalCount
 
   return (
     <div>
+      {total !== undefined && (
+        <p className="text-sm text-gray-500 px-4 pt-3">{total} store{total === 1 ? '' : 's'}</p>
+      )}
       <DataTable
         columns={storeColumns}
         data={stores}
         keyFn={(r) => r.id}
         emptyMessage="No stores found. Select a brand or add stores."
       />
-      <Pagination
-        page={page}
-        hasPrevious={data?.hasPreviousPage ?? false}
-        hasNext={data?.hasNextPage ?? false}
-        onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-        onNext={() => setPage((p) => p + 1)}
-      />
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
+        </div>
+      )}
     </div>
   )
 }
@@ -97,34 +98,34 @@ function StoresTab() {
 
 function FranchisesTab() {
   const { activeBrandId } = useBrandStore()
-  const [page, setPage] = useState(1)
 
-  const { data, isLoading, isError, error, refetch } = useFranchises({
-    brandId: activeBrandId ?? undefined,
-    page,
-    pageSize: 20,
-  })
+  const { data, isLoading, isError, error, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useFranchisesInfinite(activeBrandId ?? undefined)
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   if (isLoading) return <LoadingState message="Loading franchises..." />
   if (isError) return <ErrorState error={error as Error} onRetry={() => void refetch()} />
 
-  const franchises = data?.list ?? []
+  const franchises = data?.pages.flatMap((p) => p.list) ?? []
+  const total = data?.pages[0]?.totalCount
 
   return (
     <div>
+      {total !== undefined && (
+        <p className="text-sm text-gray-500 px-4 pt-3">{total} franchise{total === 1 ? '' : 's'}</p>
+      )}
       <DataTable
         columns={franchiseColumns}
         data={franchises}
         keyFn={(r) => r.id}
         emptyMessage="No franchises found."
       />
-      <Pagination
-        page={page}
-        hasPrevious={data?.hasPreviousPage ?? false}
-        hasNext={data?.hasNextPage ?? false}
-        onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-        onNext={() => setPage((p) => p + 1)}
-      />
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
+        </div>
+      )}
     </div>
   )
 }

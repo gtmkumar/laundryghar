@@ -3,7 +3,7 @@ import type {
   ApiResponse,
   PaginatedList,
   PaginationParams,
-  AccessPeople,
+  AccessPeoplePage,
   AccessRoles,
   AccessFranchise,
   InviteUserPayload,
@@ -14,9 +14,11 @@ export type PersonStatusAction = 'activate' | 'suspend' | 'reactivate'
 
 const BASE = '/api/v1/admin/access-control'
 
-export async function getAccessPeople(search?: string): Promise<AccessPeople> {
-  const { data } = await identityClient.get<ApiResponse<AccessPeople>>(`${BASE}/people`, {
-    params: search ? { search } : undefined,
+export async function getAccessPeople(
+  params: PaginationParams & { search?: string } = {},
+): Promise<AccessPeoplePage> {
+  const { data } = await identityClient.get<ApiResponse<AccessPeoplePage>>(`${BASE}/people`, {
+    params: { page: 1, pageSize: 100, ...params },
   })
   return unwrap(data)
 }

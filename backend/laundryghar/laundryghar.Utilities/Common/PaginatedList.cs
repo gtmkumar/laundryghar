@@ -43,6 +43,21 @@ public class PaginatedList<T>
     }
 
     /// <summary>
+    /// Paginates an already-materialised in-memory list. Use when the page must be
+    /// computed in memory (aggregation/joins that can't run in SQL) but the response
+    /// should still carry pagination metadata.
+    /// </summary>
+    public static PaginatedList<T> Create(IReadOnlyList<T> source, int pageNumber, int pageSize)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        var items = source
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+        return new PaginatedList<T>(items, source.Count, pageNumber, pageSize);
+    }
+
+    /// <summary>
     /// Projects each item to a new shape while preserving pagination metadata.
     /// Use when a page must be paginated in SQL (on the raw entity) but the
     /// response DTO needs in-memory work (JSON parsing, joins) that can't run in the query.

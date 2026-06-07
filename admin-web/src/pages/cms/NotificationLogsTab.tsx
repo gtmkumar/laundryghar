@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useNotificationLogs, useWhatsAppLogs } from '@/hooks/useCms'
+import { Loader2 } from 'lucide-react'
+import { useNotificationLogsInfinite, useWhatsAppLogsInfinite } from '@/hooks/useCms'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
-import { Pagination } from '@/components/shared/Pagination'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -42,14 +43,22 @@ function DeliveryStatusBadge({ status }: { status: string }) {
 }
 
 function DeliveryLogsSection() {
-  const [page, setPage] = useState(1)
   const [channelFilter, setChannelFilter] = useState('all')
 
-  const { data, isLoading, isError, error, refetch } = useNotificationLogs({
-    page,
-    pageSize: 20,
-    channel: channelFilter === 'all' ? undefined : channelFilter,
-  })
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useNotificationLogsInfinite(
+    channelFilter === 'all' ? undefined : channelFilter,
+  )
+
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   const columns: Column<NotificationLogDto>[] = [
     {
@@ -89,17 +98,13 @@ function DeliveryLogsSection() {
     },
   ]
 
+  const items = data?.pages.flatMap((p) => p.list) ?? []
+
   return (
     <div>
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <span className="text-sm text-gray-500">Channel:</span>
-        <Select
-          value={channelFilter}
-          onValueChange={(v) => {
-            setChannelFilter(v)
-            setPage(1)
-          }}
-        >
+        <Select value={channelFilter} onValueChange={setChannelFilter}>
           <SelectTrigger className="w-40 h-8 text-sm">
             <SelectValue placeholder="All" />
           </SelectTrigger>
@@ -117,21 +122,19 @@ function DeliveryLogsSection() {
       {isLoading && <LoadingState message="Loading notification logs..." />}
       {isError && <ErrorState error={error as Error} onRetry={() => void refetch()} />}
       {!isLoading && !isError && (
-        <>
-          <DataTable
-            columns={columns}
-            data={data?.list ?? []}
-            keyFn={(r) => r.id}
-            emptyMessage="No notification logs found."
-          />
-          <Pagination
-            page={page}
-            hasPrevious={data?.hasPreviousPage ?? false}
-            hasNext={data?.hasNextPage ?? false}
-            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() => setPage((p) => p + 1)}
-          />
-        </>
+        <DataTable
+          columns={columns}
+          data={items}
+          keyFn={(r) => r.id}
+          emptyMessage="No notification logs found."
+        />
+      )}
+
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
+        </div>
       )}
     </div>
   )
@@ -158,14 +161,22 @@ function WhatsAppStatusBadge({ status }: { status: string | null }) {
 }
 
 function WhatsAppLogsSection() {
-  const [page, setPage] = useState(1)
   const [directionFilter, setDirectionFilter] = useState('all')
 
-  const { data, isLoading, isError, error, refetch } = useWhatsAppLogs({
-    page,
-    pageSize: 20,
-    direction: directionFilter === 'all' ? undefined : directionFilter,
-  })
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useWhatsAppLogsInfinite(
+    directionFilter === 'all' ? undefined : directionFilter,
+  )
+
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   const columns: Column<WhatsAppMessageLogDto>[] = [
     {
@@ -211,17 +222,13 @@ function WhatsAppLogsSection() {
     },
   ]
 
+  const items = data?.pages.flatMap((p) => p.list) ?? []
+
   return (
     <div>
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <span className="text-sm text-gray-500">Direction:</span>
-        <Select
-          value={directionFilter}
-          onValueChange={(v) => {
-            setDirectionFilter(v)
-            setPage(1)
-          }}
-        >
+        <Select value={directionFilter} onValueChange={setDirectionFilter}>
           <SelectTrigger className="w-40 h-8 text-sm">
             <SelectValue placeholder="All" />
           </SelectTrigger>
@@ -239,21 +246,19 @@ function WhatsAppLogsSection() {
       {isLoading && <LoadingState message="Loading WhatsApp logs..." />}
       {isError && <ErrorState error={error as Error} onRetry={() => void refetch()} />}
       {!isLoading && !isError && (
-        <>
-          <DataTable
-            columns={columns}
-            data={data?.list ?? []}
-            keyFn={(r) => r.id}
-            emptyMessage="No WhatsApp logs found."
-          />
-          <Pagination
-            page={page}
-            hasPrevious={data?.hasPreviousPage ?? false}
-            hasNext={data?.hasNextPage ?? false}
-            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() => setPage((p) => p + 1)}
-          />
-        </>
+        <DataTable
+          columns={columns}
+          data={items}
+          keyFn={(r) => r.id}
+          emptyMessage="No WhatsApp logs found."
+        />
+      )}
+
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
+        </div>
       )}
     </div>
   )

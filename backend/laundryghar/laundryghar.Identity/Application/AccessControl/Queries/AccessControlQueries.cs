@@ -24,14 +24,14 @@ internal static class AccessHelpers
 }
 
 // ── People ──────────────────────────────────────────────────────────────────
-public sealed record GetAccessPeopleQuery(string? Search) : IRequest<AccessPeopleDto>;
+public sealed record GetAccessPeopleQuery(string? Search, int Page, int PageSize) : IRequest<AccessPeoplePageDto>;
 
-public sealed class GetAccessPeopleHandler : IRequestHandler<GetAccessPeopleQuery, AccessPeopleDto>
+public sealed class GetAccessPeopleHandler : IRequestHandler<GetAccessPeopleQuery, AccessPeoplePageDto>
 {
     private readonly LaundryGharDbContext _db;
     public GetAccessPeopleHandler(LaundryGharDbContext db) => _db = db;
 
-    public async Task<AccessPeopleDto> Handle(GetAccessPeopleQuery q, CancellationToken ct)
+    public async Task<AccessPeoplePageDto> Handle(GetAccessPeopleQuery q, CancellationToken ct)
     {
         // Org users (exclude pure riders — they live on the Riders screen).
         var users = await _db.Users
@@ -39,7 +39,11 @@ public sealed class GetAccessPeopleHandler : IRequestHandler<GetAccessPeopleQuer
             .Where(u => u.Status != "deleted" && u.UserType != "rider")
             .Select(u => new
             {
-                u.Id, u.Email, u.Status, u.LastActiveAt, u.LastLoginAt,
+                u.Id,
+                u.Email,
+                u.Status,
+                u.LastActiveAt,
+                u.LastLoginAt,
                 First = u.Profile != null ? u.Profile.FirstName : null,
                 Last = u.Profile != null ? u.Profile.LastName : null,
                 Display = u.Profile != null ? u.Profile.DisplayName : null,
@@ -103,7 +107,9 @@ public sealed class GetAccessPeopleHandler : IRequestHandler<GetAccessPeopleQuer
             FranchiseOwners: people.Count(p => p.RoleCode == "franchise_owner"),
             FranchiseStaff: people.Count(p => p.Tier == "franchise" && p.RoleCode != "franchise_owner"));
 
-        return new AccessPeopleDto(counts, people);
+        // Counts reflect the full (search-filtered) set; the list itself is paged.
+        var pagedPeople = PaginatedList<PersonDto>.Create(people, q.Page, q.PageSize);
+        return new AccessPeoplePageDto(counts, pagedPeople);
     }
 }
 
@@ -123,7 +129,13 @@ public sealed class GetAccessRolesHandler : IRequestHandler<GetAccessRolesQuery,
             .Where(r => r.DeletedAt == null && r.Status == "active")
             .Select(r => new
             {
-                r.Id, r.Code, r.Name, r.Description, r.ScopeType, r.IsSystem, r.Priority,
+                r.Id,
+                r.Code,
+                r.Name,
+                r.Description,
+                r.ScopeType,
+                r.IsSystem,
+                r.Priority,
                 PermCodes = r.RolePermissions.Select(rp => rp.Permission.Code).ToList(),
                 MemberCount = r.UserScopeMemberships.Count(m => m.RevokedAt == null),
             })

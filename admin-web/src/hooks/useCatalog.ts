@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import {
   getServiceCategories,
@@ -11,11 +11,16 @@ import type { PaginationParams, AdminCustomerListParams } from '@/types/api'
 
 export const catalogKeys = {
   categories: (params?: object) => ['catalog', 'categories', params] as const,
+  categoriesInfinite: (params?: object) => ['catalog', 'categories', 'infinite', params] as const,
   services: (params?: object) => ['catalog', 'services', params] as const,
+  servicesInfinite: (params?: object) => ['catalog', 'services', 'infinite', params] as const,
   items: (params?: object) => ['catalog', 'items', params] as const,
   priceLists: (params?: object) => ['catalog', 'priceLists', params] as const,
+  priceListsInfinite: (params?: object) => ['catalog', 'priceLists', 'infinite', params] as const,
   adminCustomers: (params?: object) => ['catalog', 'adminCustomers', params] as const,
 }
+
+const CATALOG_PAGE_SIZE = 100
 
 export function useServiceCategories(params: PaginationParams = {}) {
   return useQuery({
@@ -24,10 +29,32 @@ export function useServiceCategories(params: PaginationParams = {}) {
   })
 }
 
+export function useServiceCategoriesInfinite() {
+  return useInfiniteQuery({
+    queryKey: catalogKeys.categoriesInfinite(),
+    queryFn: ({ pageParam }) =>
+      getServiceCategories({ page: pageParam, pageSize: CATALOG_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasNextPage ? allPages.length + 1 : undefined,
+  })
+}
+
 export function useServices(params: PaginationParams & { categoryId?: string } = {}) {
   return useQuery({
     queryKey: catalogKeys.services(params),
     queryFn: () => getServices(params),
+  })
+}
+
+export function useServicesInfinite() {
+  return useInfiniteQuery({
+    queryKey: catalogKeys.servicesInfinite(),
+    queryFn: ({ pageParam }) =>
+      getServices({ page: pageParam, pageSize: CATALOG_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasNextPage ? allPages.length + 1 : undefined,
   })
 }
 
@@ -42,6 +69,17 @@ export function usePriceLists(params: PaginationParams = {}) {
   return useQuery({
     queryKey: catalogKeys.priceLists(params),
     queryFn: () => getPriceLists(params),
+  })
+}
+
+export function usePriceListsInfinite() {
+  return useInfiniteQuery({
+    queryKey: catalogKeys.priceListsInfinite(),
+    queryFn: ({ pageParam }) =>
+      getPriceLists({ page: pageParam, pageSize: CATALOG_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasNextPage ? allPages.length + 1 : undefined,
   })
 }
 

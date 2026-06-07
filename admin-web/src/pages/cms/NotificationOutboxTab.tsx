@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useNotificationOutbox, useRetryNotificationOutbox } from '@/hooks/useCms'
+import { Loader2 } from 'lucide-react'
+import { useNotificationOutboxInfinite, useRetryNotificationOutbox } from '@/hooks/useCms'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
-import { Pagination } from '@/components/shared/Pagination'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -37,21 +38,23 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function NotificationOutboxTab() {
-  const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('all')
 
-  const { data, isLoading, isError, error, refetch } = useNotificationOutbox({
-    page,
-    pageSize: 20,
-    status: statusFilter === 'all' ? undefined : statusFilter,
-  })
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useNotificationOutboxInfinite(
+    statusFilter === 'all' ? undefined : statusFilter,
+  )
 
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
   const retryMutation = useRetryNotificationOutbox()
-
-  function handleStatusChange(s: string) {
-    setStatusFilter(s)
-    setPage(1)
-  }
 
   const columns: Column<NotificationOutboxDto>[] = [
     {
@@ -115,11 +118,14 @@ export function NotificationOutboxTab() {
     },
   ]
 
+  const items = data?.pages.flatMap((p) => p.list) ?? []
+  const total = data?.pages[0]?.totalCount
+
   return (
     <div>
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <span className="text-sm text-gray-500">Status:</span>
-        <Select value={statusFilter} onValueChange={handleStatusChange}>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40 h-8 text-sm">
             <SelectValue placeholder="All" />
           </SelectTrigger>
@@ -132,26 +138,27 @@ export function NotificationOutboxTab() {
             ))}
           </SelectContent>
         </Select>
+        {total !== undefined && (
+          <span className="ml-auto text-sm text-gray-400">{total} item{total === 1 ? '' : 's'}</span>
+        )}
       </div>
 
       {isLoading && <LoadingState message="Loading outbox..." />}
       {isError && <ErrorState error={error as Error} onRetry={() => void refetch()} />}
       {!isLoading && !isError && (
-        <>
-          <DataTable
-            columns={columns}
-            data={data?.list ?? []}
-            keyFn={(r) => r.id}
-            emptyMessage="No outbox entries found."
-          />
-          <Pagination
-            page={page}
-            hasPrevious={data?.hasPreviousPage ?? false}
-            hasNext={data?.hasNextPage ?? false}
-            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() => setPage((p) => p + 1)}
-          />
-        </>
+        <DataTable
+          columns={columns}
+          data={items}
+          keyFn={(r) => r.id}
+          emptyMessage="No outbox entries found."
+        />
+      )}
+
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
+        </div>
       )}
     </div>
   )

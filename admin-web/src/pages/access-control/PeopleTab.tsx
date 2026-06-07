@@ -1,12 +1,22 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { AccessPeople, AccessPerson } from '@/types/api'
+import type { AccessPeoplePage, AccessPerson, AccessPeopleCounts } from '@/types/api'
 import { PersonRowActions } from './PersonRowActions'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 
 interface Props {
-  query: { data?: AccessPeople; isLoading: boolean; isError: boolean }
+  query: {
+    data?: { pages: AccessPeoplePage[] }
+    isLoading: boolean
+    isError: boolean
+    hasNextPage: boolean
+    isFetchingNextPage: boolean
+    fetchNextPage: () => void
+  }
 }
+
+const EMPTY_COUNTS: AccessPeopleCounts = { all: 0, hqEmployees: 0, franchiseOwners: 0, franchiseStaff: 0 }
 
 type ChipKey = 'all' | 'hq' | 'owners' | 'staff'
 
@@ -61,7 +71,9 @@ function matchesChip(p: AccessPerson, chip: ChipKey): boolean {
 
 export function PeopleTab({ query }: Props) {
   const [chip, setChip] = useState<ChipKey>('all')
-  const { data, isLoading, isError } = query
+  const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage } = query
+
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   if (isLoading) {
     return (
@@ -74,13 +86,16 @@ export function PeopleTab({ query }: Props) {
     return <div className="py-24 text-center text-sm text-red-600">Couldn’t load people.</div>
   }
 
+  const counts = data.pages[0]?.counts ?? EMPTY_COUNTS
+  const people = data.pages.flatMap((p) => p.people.list)
+
   const chips: { key: ChipKey; label: string; count: number }[] = [
-    { key: 'all', label: 'All', count: data.counts.all },
-    { key: 'hq', label: 'HQ employees', count: data.counts.hqEmployees },
-    { key: 'owners', label: 'Franchise owners', count: data.counts.franchiseOwners },
-    { key: 'staff', label: 'Franchise staff', count: data.counts.franchiseStaff },
+    { key: 'all', label: 'All', count: counts.all },
+    { key: 'hq', label: 'HQ employees', count: counts.hqEmployees },
+    { key: 'owners', label: 'Franchise owners', count: counts.franchiseOwners },
+    { key: 'staff', label: 'Franchise staff', count: counts.franchiseStaff },
   ]
-  const rows = data.people.filter((p) => matchesChip(p, chip))
+  const rows = people.filter((p) => matchesChip(p, chip))
 
   return (
     <div className="space-y-4">
@@ -155,6 +170,14 @@ export function PeopleTab({ query }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* Infinite-scroll sentinel + loading-more indicator */}
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
+        </div>
+      )}
     </div>
   )
 }
