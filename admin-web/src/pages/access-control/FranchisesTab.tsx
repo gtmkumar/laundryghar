@@ -1,8 +1,14 @@
+import { useState } from 'react'
 import { Loader2, ShieldCheck, Store, Users, Bike, ArrowRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PaginatedList, AccessFranchise } from '@/types/api'
 import { useOnboardingUi } from '@/stores/onboardingStore'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
+import { FranchiseStatTile } from './FranchiseStatTile'
+import { FranchiseTeamDrawer } from './FranchiseTeamDrawer'
+import type { TeamScope } from '@/api/franchiseTeam'
+
+type TeamTarget = { id: string; name: string; scope: TeamScope }
 
 interface Props {
   query: {
@@ -21,7 +27,15 @@ function rupeesLakh(v: number): string {
   return `₹${v.toLocaleString('en-IN')}`
 }
 
-function FranchiseCard({ f, onOpen }: { f: AccessFranchise; onOpen: (id: string) => void }) {
+function FranchiseCard({
+  f,
+  onOpen,
+  onOpenTeam,
+}: {
+  f: AccessFranchise
+  onOpen: (id: string) => void
+  onOpenTeam: (target: TeamTarget) => void
+}) {
   const onboarding = f.status === 'Onboarding'
   const company = f.ownershipType === 'company'
   return (
@@ -53,18 +67,22 @@ function FranchiseCard({ f, onOpen }: { f: AccessFranchise; onOpen: (id: string)
         <p className="ml-auto text-right text-sm font-bold text-gray-900">{rupeesLakh(f.revenueMonthly)}<span className="block text-[10px] font-normal text-gray-400">rev/mo</span></p>
       </div>
 
-      {/* Stats */}
+      {/* Stats — hover to preview, click to open the team drawer */}
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-        {[
-          { icon: Store, label: 'stores', value: f.storeCount },
-          { icon: Users, label: 'staff', value: f.staffCount },
-          { icon: Bike, label: 'riders', value: f.riderCount },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-gray-100 py-2">
-            <s.icon className="mx-auto mb-0.5 h-3.5 w-3.5 text-gray-400" />
-            <p className="text-base font-bold leading-none text-gray-900">{s.value}</p>
-            <p className="text-[11px] text-gray-400">{s.label}</p>
-          </div>
+        {([
+          { icon: Store, scope: 'stores' as const, value: f.storeCount, rowIcon: <Store className="h-3.5 w-3.5" /> },
+          { icon: Users, scope: 'staff' as const, value: f.staffCount, rowIcon: <Users className="h-3.5 w-3.5" /> },
+          { icon: Bike, scope: 'riders' as const, value: f.riderCount, rowIcon: <Bike className="h-3.5 w-3.5" /> },
+        ]).map((s) => (
+          <FranchiseStatTile
+            key={s.scope}
+            icon={s.icon}
+            value={s.value}
+            scope={s.scope}
+            franchiseId={f.id}
+            rowIcon={s.rowIcon}
+            onOpen={(scope) => onOpenTeam({ id: f.id, name: f.name, scope })}
+          />
         ))}
       </div>
 
@@ -95,6 +113,8 @@ export function FranchisesTab({ query }: Props) {
   const workspaceOpen = useOnboardingUi((s) => s.open)
 
   const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
+
+  const [team, setTeam] = useState<TeamTarget | null>(null)
 
   if (isLoading) {
     return (
@@ -136,7 +156,7 @@ export function FranchisesTab({ query }: Props) {
       {/* Cards — reflow to a single column in workspace mode so they stay readable */}
       <div className={cn('grid gap-4', workspaceOpen ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3')}>
         {franchises.map((f) => (
-          <FranchiseCard key={f.id} f={f} onOpen={openOnboarding} />
+          <FranchiseCard key={f.id} f={f} onOpen={openOnboarding} onOpenTeam={setTeam} />
         ))}
       </div>
 
@@ -147,6 +167,14 @@ export function FranchisesTab({ query }: Props) {
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
         </div>
       )}
+
+      <FranchiseTeamDrawer
+        open={team !== null}
+        franchiseId={team?.id ?? null}
+        franchiseName={team?.name ?? ''}
+        scope={team?.scope ?? 'stores'}
+        onClose={() => setTeam(null)}
+      />
     </div>
   )
 }

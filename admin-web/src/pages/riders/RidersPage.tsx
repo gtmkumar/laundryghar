@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Loader2,
   Plus,
@@ -84,6 +85,18 @@ export function RidersPage() {
   const [onboardOpen, setOnboardOpen] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
   const [editRider, setEditRider] = useState<RiderDto | null>(null)
+
+  // Deep link: `/riders?rider=<id>` opens that rider's detail once, then drops
+  // the param so closing the drawer doesn't immediately reopen it.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const rid = searchParams.get('rider')
+    if (!rid) return
+    setDetailId(rid)
+    const next = new URLSearchParams(searchParams)
+    next.delete('rider')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   // Toggle sort on a column: first click → ascending, second → descending.
   const toggleSort = (key: RiderSortKey) => {

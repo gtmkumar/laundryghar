@@ -24,7 +24,7 @@ internal static class AccessHelpers
 }
 
 // ── People ──────────────────────────────────────────────────────────────────
-public sealed record GetAccessPeopleQuery(string? Search, int Page, int PageSize) : IRequest<AccessPeoplePageDto>;
+public sealed record GetAccessPeopleQuery(string? Search, int Page, int PageSize, Guid? FranchiseId = null) : IRequest<AccessPeoplePageDto>;
 
 public sealed class GetAccessPeopleHandler : IRequestHandler<GetAccessPeopleQuery, AccessPeoplePageDto>
 {
@@ -54,6 +54,20 @@ public sealed class GetAccessPeopleHandler : IRequestHandler<GetAccessPeopleQuer
                     .FirstOrDefault(),
             })
             .ToListAsync(ct);
+
+        // Franchise-scoped staff view: keep only members of this franchise (its
+        // own scope or a store within it), excluding the owner (shown separately).
+        if (q.FranchiseId is Guid fid)
+        {
+            var storeIds = (await _db.Stores.AsNoTracking()
+                .Where(s => s.FranchiseId == fid && s.DeletedAt == null)
+                .Select(s => s.Id).ToListAsync(ct)).ToHashSet();
+            users = users.Where(u => u.Membership != null
+                && u.Membership.RoleCode != "franchise_owner"
+                && ((u.Membership.ScopeType == "franchise" && u.Membership.ScopeId == fid)
+                    || (u.Membership.ScopeType == "store" && u.Membership.ScopeId != null && storeIds.Contains(u.Membership.ScopeId.Value))))
+                .ToList();
+        }
 
         // Scope-name lookups (batch)
         var franchises = await _db.Franchises.AsNoTracking()
@@ -215,7 +229,7 @@ public sealed class GetAccessFranchisesHandler : IRequestHandler<GetAccessFranch
     public GetAccessFranchisesHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
     // Raw page row materialised from SQL before the in-memory card mapping.
-    private sealed record Row(Guid Id, string Name, string OnboardingStatus, string Status, string Metadata, Guid? OwnerUserId, int StoreCount);
+    private sealed record Row(Guid Id, string Name, string OnboardingStatus, string Status, string Metadata, Guid? OwnerUserId, int StoreCount, int StaffCount, int RiderCount);
 
     public async Task<PaginatedList<FranchiseCardDto>> Handle(GetAccessFranchisesQuery q, CancellationToken ct)
     {
@@ -231,7 +245,18 @@ public sealed class GetAccessFranchisesHandler : IRequestHandler<GetAccessFranch
             .ThenByDescending(f => f.CreatedAt)
             .Select(f => new Row(
                 f.Id, f.DisplayName ?? f.LegalName, f.OnboardingStatus, f.Status, f.Metadata, f.OwnerUserId,
-                _db.Stores.Count(s => s.FranchiseId == f.Id && s.DeletedAt == null)));
+                _db.Stores.Count(s => s.FranchiseId == f.Id && s.DeletedAt == null),
+                // Staff: users whose PRIMARY membership is scoped to this franchise (or a store
+                // within it), excluding the owner and riders — same definition the team drawer uses.
+                _db.Users.Count(u => u.Status != "deleted" && u.UserType != "rider"
+                    && u.ScopeMemberships
+                        .Where(m => m.RevokedAt == null)
+                        .OrderByDescending(m => m.IsPrimary)
+                        .Take(1)
+                        .Any(m => m.Role.Code != "franchise_owner"
+                            && ((m.ScopeType == "franchise" && m.ScopeId == f.Id)
+                                || (m.ScopeType == "store" && _db.Stores.Any(s => s.Id == m.ScopeId && s.FranchiseId == f.Id && s.DeletedAt == null))))),
+                _db.Riders.Count(rd => rd.FranchiseId == f.Id && rd.DeletedAt == null)));
 
         var page = await PaginatedList<Row>.CreateAsync(ordered, q.Page, q.PageSize, ct);
 
@@ -245,14 +270,12 @@ public sealed class GetAccessFranchisesHandler : IRequestHandler<GetAccessFranch
 
         return page.Map(r =>
         {
-            int sinceYear = 0, staff = 0, rider = 0; long rev = 0; string location = "—", ownership = "franchise";
+            int sinceYear = 0; long rev = 0; string location = "—", ownership = "franchise";
             try
             {
                 using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(r.Metadata) ? "{}" : r.Metadata);
                 var root = doc.RootElement;
                 if (root.TryGetProperty("sinceYear", out var sy) && sy.TryGetInt32(out var syi)) sinceYear = syi;
-                if (root.TryGetProperty("staffCount", out var sc) && sc.TryGetInt32(out var sci)) staff = sci;
-                if (root.TryGetProperty("riderCount", out var rc) && rc.TryGetInt32(out var rci)) rider = rci;
                 if (root.TryGetProperty("revenueMonthly", out var rm) && rm.TryGetInt64(out var rmi)) rev = rmi;
                 if (root.TryGetProperty("location", out var loc) && loc.ValueKind == JsonValueKind.String) location = loc.GetString()!;
                 if (root.TryGetProperty("ownershipType", out var ot) && ot.ValueKind == JsonValueKind.String) ownership = ot.GetString()!;
@@ -263,10 +286,12 @@ public sealed class GetAccessFranchisesHandler : IRequestHandler<GetAccessFranch
             var status = r.OnboardingStatus is "onboarding" or "pending" or "in_progress" or "setup" or "draft"
                 ? "Onboarding" : "Active";
 
+            // staff/rider counts are now REAL (from SQL), not seeded metadata — so the
+            // tile matches the hovercard/drawer. storeCount was already real.
             return new FranchiseCardDto(
                 r.Id, r.Name, ownership, location, sinceYear,
                 ownerName, ownerName is null ? null : AccessHelpers.Initials(ownerName),
-                r.StoreCount, staff, rider, rev, status);
+                r.StoreCount, r.StaffCount, r.RiderCount, rev, status);
         });
     }
 }

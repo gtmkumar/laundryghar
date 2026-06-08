@@ -15,7 +15,7 @@ export type PersonStatusAction = 'activate' | 'suspend' | 'reactivate'
 const BASE = '/api/v1/admin/access-control'
 
 export async function getAccessPeople(
-  params: PaginationParams & { search?: string } = {},
+  params: PaginationParams & { search?: string; franchiseId?: string } = {},
 ): Promise<AccessPeoplePage> {
   const { data } = await identityClient.get<ApiResponse<AccessPeoplePage>>(`${BASE}/people`, {
     params: { page: 1, pageSize: 100, ...params },
