@@ -60,17 +60,28 @@ public sealed record CreateRiderRequest(
     decimal ServiceRadiusKm);
 
 /// <summary>
-/// Request body for updating a rider profile (status / capacity / vehicle info).
-/// KYC status is intentionally NOT settable here — it only transitions through the
-/// dedicated verify/reject endpoints (gated by permission:rider.verify).
+/// Request body for updating a rider profile (status / employment / vehicle / KYC
+/// documents / payout / capacity). Every field is optional — only the non-null ones
+/// are applied, so a partial form never clobbers the fields it didn't send.
+/// KYC <em>status</em> is intentionally NOT settable here — it only transitions through
+/// the dedicated verify/reject endpoints (gated by permission:rider.verify). The KYC
+/// <em>document</em> fields (Aadhaar/PAN/DL) remain editable so operators can correct them.
 /// </summary>
 public sealed record UpdateRiderRequest(
     string? Status,
+    string? EmploymentType,
+    string? VehicleType,
     string? VehicleNumber,
     string? VehicleModel,
     string? DrivingLicenseNumber,
     DateOnly? DlExpiryDate,
+    string? AadhaarNumberMasked,
+    string? PanNumber,
     DateOnly? InsuranceExpiryDate,
+    string? BankAccountNumber,
+    string? BankIfsc,
+    string? BankAccountName,
+    string? UpiId,
     int?    DailyPickupCapacity,
     int?    DailyDeliveryCapacity,
     decimal? ServiceRadiusKm,

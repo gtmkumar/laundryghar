@@ -204,11 +204,19 @@ public sealed class UpdateRiderHandler : IRequestHandler<UpdateRiderCommand, Rid
         var now = DateTimeOffset.UtcNow;
 
         if (req.Status             is not null) rider.Status               = req.Status;
+        if (req.EmploymentType     is not null) rider.EmploymentType       = req.EmploymentType;
+        if (req.VehicleType        is not null) rider.VehicleType          = req.VehicleType;
         if (req.VehicleNumber      is not null) rider.VehicleNumber        = req.VehicleNumber;
         if (req.VehicleModel       is not null) rider.VehicleModel         = req.VehicleModel;
         if (req.DrivingLicenseNumber is not null) rider.DrivingLicenseNumber = req.DrivingLicenseNumber;
         if (req.DlExpiryDate       is not null) rider.DlExpiryDate        = req.DlExpiryDate;
+        if (req.AadhaarNumberMasked is not null) rider.AadhaarNumberMasked = req.AadhaarNumberMasked;
+        if (req.PanNumber          is not null) rider.PanNumber            = req.PanNumber;
         if (req.InsuranceExpiryDate is not null) rider.InsuranceExpiryDate = req.InsuranceExpiryDate;
+        if (req.BankAccountNumber  is not null) rider.BankAccountNumber    = req.BankAccountNumber;
+        if (req.BankIfsc           is not null) rider.BankIfsc             = req.BankIfsc;
+        if (req.BankAccountName    is not null) rider.BankAccountName      = req.BankAccountName;
+        if (req.UpiId              is not null) rider.UpiId                = req.UpiId;
         if (req.DailyPickupCapacity is not null) rider.DailyPickupCapacity = req.DailyPickupCapacity.Value;
         if (req.DailyDeliveryCapacity is not null) rider.DailyDeliveryCapacity = req.DailyDeliveryCapacity.Value;
         if (req.ServiceRadiusKm    is not null) rider.ServiceRadiusKm     = req.ServiceRadiusKm.Value;
@@ -379,6 +387,14 @@ public sealed class UpdateRiderValidator : AbstractValidator<UpdateRiderCommand>
             .Must(s => new[] { RiderStatus.Active, RiderStatus.Suspended, RiderStatus.Terminated }.Contains(s))
             .When(x => x.Request.Status is not null)
             .WithMessage("Invalid status.");
+        RuleFor(x => x.Request.EmploymentType)
+            .Must(t => new[] { RiderEmploymentType.Employee, RiderEmploymentType.Contractor, RiderEmploymentType.Gig, RiderEmploymentType.Outsourced }.Contains(t))
+            .When(x => x.Request.EmploymentType is not null)
+            .WithMessage("Invalid employment_type.");
+        RuleFor(x => x.Request.VehicleType)
+            .Must(t => new[] { RiderVehicleType.TwoWheeler, RiderVehicleType.ThreeWheeler, RiderVehicleType.FourWheeler, RiderVehicleType.Cycle, RiderVehicleType.Foot }.Contains(t))
+            .When(x => x.Request.VehicleType is not null)
+            .WithMessage("Invalid vehicle_type.");
         RuleFor(x => x.Request.DailyPickupCapacity).GreaterThanOrEqualTo(0).When(x => x.Request.DailyPickupCapacity is not null);
         RuleFor(x => x.Request.DailyDeliveryCapacity).GreaterThanOrEqualTo(0).When(x => x.Request.DailyDeliveryCapacity is not null);
         RuleFor(x => x.Request.ServiceRadiusKm).GreaterThan(0).When(x => x.Request.ServiceRadiusKm is not null);

@@ -1226,14 +1226,27 @@ export interface InviteRiderUserPayload {
   franchiseId: string
 }
 
-/** Edit subset accepted by PUT /riders/{id} — every field optional. */
+/**
+ * Edit subset accepted by PUT /riders/{id} — every field optional. Only the keys
+ * actually sent are applied server-side, so omitting a field leaves it unchanged
+ * (this is how the sensitive KYC/payout fields — never returned in RiderDto — are
+ * "leave blank to keep" rather than cleared). KYC *status* is NOT editable here.
+ */
 export interface UpdateRiderPayload {
   status?: string
+  employmentType?: RiderEmploymentType
+  vehicleType?: RiderVehicleType
   vehicleNumber?: string
   vehicleModel?: string
   drivingLicenseNumber?: string
   dlExpiryDate?: string | null
+  aadhaarNumberMasked?: string
+  panNumber?: string
   insuranceExpiryDate?: string | null
+  bankAccountNumber?: string
+  bankIfsc?: string
+  bankAccountName?: string
+  upiId?: string
   dailyPickupCapacity?: number
   dailyDeliveryCapacity?: number
   serviceRadiusKm?: number

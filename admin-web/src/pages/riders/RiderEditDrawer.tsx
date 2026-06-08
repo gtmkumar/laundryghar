@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { X, Loader2, Bike, Save, AlertTriangle } from 'lucide-react'
+import { X, Loader2, Bike, Save, AlertTriangle, ShieldAlert } from 'lucide-react'
 import { useStores } from '@/hooks/useTenancy'
 import { useEffectiveBrandId } from '@/hooks/useBrandContext'
 import { useUpdateRider } from '@/hooks/useRiders'
-import type { RiderDto, UpdateRiderPayload } from '@/types/api'
+import type { RiderDto, RiderEmploymentType, RiderVehicleType, UpdateRiderPayload } from '@/types/api'
 
 interface Props {
   rider: RiderDto | null
@@ -12,6 +12,21 @@ interface Props {
 }
 
 const STATUS_OPTIONS = ['active', 'suspended', 'terminated']
+
+const EMPLOYMENT_TYPES: { value: RiderEmploymentType; label: string }[] = [
+  { value: 'employee', label: 'Employee' },
+  { value: 'contractor', label: 'Contractor' },
+  { value: 'gig', label: 'Gig' },
+  { value: 'outsourced', label: 'Outsourced' },
+]
+
+const VEHICLE_TYPES: { value: RiderVehicleType; label: string }[] = [
+  { value: 'two_wheeler', label: 'Two-wheeler' },
+  { value: 'three_wheeler', label: 'Three-wheeler' },
+  { value: 'four_wheeler', label: 'Four-wheeler' },
+  { value: 'cycle', label: 'Cycle' },
+  { value: 'foot', label: 'On foot' },
+]
 
 /** ISO timestamp → yyyy-MM-dd for <input type="date">. Empty string when null. */
 function toDateInput(iso: string | null): string {
@@ -28,11 +43,21 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
   const [form, setForm] = useState({
     status: '',
     primaryStoreId: '',
+    employmentType: 'employee' as RiderEmploymentType,
+    vehicleType: 'two_wheeler' as RiderVehicleType,
     vehicleNumber: '',
     vehicleModel: '',
     drivingLicenseNumber: '',
     dlExpiryDate: '',
+    // Sensitive — never returned by the API, so these start blank and only
+    // overwrite when the operator actually types something (see submit()).
+    aadhaarNumberMasked: '',
+    panNumber: '',
     insuranceExpiryDate: '',
+    bankAccountNumber: '',
+    bankIfsc: '',
+    bankAccountName: '',
+    upiId: '',
     dailyPickupCapacity: '',
     dailyDeliveryCapacity: '',
     serviceRadiusKm: '',
@@ -45,11 +70,19 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
       setForm({
         status: rider.status,
         primaryStoreId: rider.primaryStoreId ?? '',
+        employmentType: (rider.employmentType as RiderEmploymentType) || 'employee',
+        vehicleType: (rider.vehicleType as RiderVehicleType) || 'two_wheeler',
         vehicleNumber: rider.vehicleNumber ?? '',
         vehicleModel: rider.vehicleModel ?? '',
         drivingLicenseNumber: rider.drivingLicenseNumber ?? '',
         dlExpiryDate: toDateInput(rider.dlExpiryDate),
+        aadhaarNumberMasked: '',
+        panNumber: '',
         insuranceExpiryDate: toDateInput(rider.insuranceExpiryDate),
+        bankAccountNumber: '',
+        bankIfsc: '',
+        bankAccountName: '',
+        upiId: '',
         dailyPickupCapacity: String(rider.dailyPickupCapacity),
         dailyDeliveryCapacity: String(rider.dailyDeliveryCapacity),
         serviceRadiusKm: String(rider.serviceRadiusKm),
@@ -71,14 +104,25 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
 
   const submit = async () => {
     setError(null)
+    // `undefined` for blank text means "don't change" (the server only applies
+    // non-null fields). This keeps the sensitive KYC/payout fields intact when
+    // left blank, instead of wiping them.
     const payload: UpdateRiderPayload = {
       status: form.status,
       primaryStoreId: form.primaryStoreId || null,
+      employmentType: form.employmentType,
+      vehicleType: form.vehicleType,
       vehicleNumber: form.vehicleNumber.trim() || undefined,
       vehicleModel: form.vehicleModel.trim() || undefined,
       drivingLicenseNumber: form.drivingLicenseNumber.trim() || undefined,
       dlExpiryDate: form.dlExpiryDate || null,
+      aadhaarNumberMasked: form.aadhaarNumberMasked.trim() || undefined,
+      panNumber: form.panNumber.trim() || undefined,
       insuranceExpiryDate: form.insuranceExpiryDate || null,
+      bankAccountNumber: form.bankAccountNumber.trim() || undefined,
+      bankIfsc: form.bankIfsc.trim() || undefined,
+      bankAccountName: form.bankAccountName.trim() || undefined,
+      upiId: form.upiId.trim() || undefined,
       dailyPickupCapacity: Number(form.dailyPickupCapacity) || 0,
       dailyDeliveryCapacity: Number(form.dailyDeliveryCapacity) || 0,
       serviceRadiusKm: Number(form.serviceRadiusKm) || 0,
@@ -122,7 +166,7 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
         {/* Body */}
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
           <section className="space-y-3">
-            <SectionTitle>Status</SectionTitle>
+            <SectionTitle>Status &amp; assignment</SectionTitle>
             <Field label="Rider status">
               <select value={form.status} onChange={(e) => set('status', e.target.value)} className={inputCls}>
                 {STATUS_OPTIONS.map((s) => (
@@ -149,7 +193,19 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
           </section>
 
           <section className="space-y-3">
-            <SectionTitle>Vehicle &amp; documents</SectionTitle>
+            <SectionTitle>Employment &amp; vehicle</SectionTitle>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Employment type">
+                <select value={form.employmentType} onChange={(e) => set('employmentType', e.target.value as RiderEmploymentType)} className={inputCls}>
+                  {EMPLOYMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </Field>
+              <Field label="Vehicle type">
+                <select value={form.vehicleType} onChange={(e) => set('vehicleType', e.target.value as RiderVehicleType)} className={inputCls}>
+                  {VEHICLE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </Field>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Vehicle number">
                 <input value={form.vehicleNumber} onChange={(e) => set('vehicleNumber', e.target.value)} className={inputCls} placeholder="HR26 AB 1234" />
@@ -158,6 +214,10 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
                 <input value={form.vehicleModel} onChange={(e) => set('vehicleModel', e.target.value)} className={inputCls} placeholder="Honda Activa" />
               </Field>
             </div>
+          </section>
+
+          <section className="space-y-3">
+            <SectionTitle>KYC documents</SectionTitle>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Driving licence no.">
                 <input value={form.drivingLicenseNumber} onChange={(e) => set('drivingLicenseNumber', e.target.value)} className={inputCls} />
@@ -166,9 +226,42 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
                 <input value={form.dlExpiryDate} onChange={(e) => set('dlExpiryDate', e.target.value)} type="date" className={inputCls} />
               </Field>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Aadhaar (masked)">
+                <input value={form.aadhaarNumberMasked} onChange={(e) => set('aadhaarNumberMasked', e.target.value)} className={inputCls} placeholder="Leave blank to keep" />
+              </Field>
+              <Field label="PAN">
+                <input value={form.panNumber} onChange={(e) => set('panNumber', e.target.value)} className={inputCls} placeholder="Leave blank to keep" />
+              </Field>
+            </div>
             <Field label="Insurance expiry">
               <input value={form.insuranceExpiryDate} onChange={(e) => set('insuranceExpiryDate', e.target.value)} type="date" className={inputCls} />
             </Field>
+          </section>
+
+          <section className="space-y-3">
+            <SectionTitle>Payout details</SectionTitle>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Bank account no.">
+                <input value={form.bankAccountNumber} onChange={(e) => set('bankAccountNumber', e.target.value)} className={inputCls} placeholder="Leave blank to keep" />
+              </Field>
+              <Field label="IFSC">
+                <input value={form.bankIfsc} onChange={(e) => set('bankIfsc', e.target.value)} className={inputCls} placeholder="HDFC0001234" />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Account holder name">
+                <input value={form.bankAccountName} onChange={(e) => set('bankAccountName', e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="UPI ID">
+                <input value={form.upiId} onChange={(e) => set('upiId', e.target.value)} className={inputCls} placeholder="rider@upi" />
+              </Field>
+            </div>
+            <p className="flex items-start gap-1.5 text-xs text-gray-400">
+              <ShieldAlert className="mt-0.5 h-3 w-3 shrink-0" />
+              For privacy, the current Aadhaar, PAN and bank details aren't shown. Leave a
+              field blank to keep it unchanged; type a new value to overwrite it.
+            </p>
           </section>
 
           <section className="space-y-3">
