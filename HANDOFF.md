@@ -113,8 +113,18 @@ overlay (stopped fabricating a customer rating). `RiderTask` gained `requiresOtp
   refresh failures reject cleanly → `onAuthFailure` → `logout` → guard redirects to login.
   Verified live: a stale token now lands on the login screen. (`logout` also clears local state
   before the best-effort network revoke.)
-- **Android dev base URL** — `config.ts` is now platform-aware (`10.0.2.2` on Android emulator,
-  `localhost` on iOS sim); physical devices still use the `*_API_URL` env overrides.
+- **Android dev base URL** (two bugs) — `config.ts` now derives the dev API host from how the
+  device reached Metro (`Constants.expoConfig.hostUri` → `localhost` on iOS sim, `10.0.2.2` on the
+  Android emulator, LAN IP on a physical device). Traps fixed: (a) do **not** import
+  `react-native`'s `Platform` in that early module — it crashes Android New-Arch with a
+  "[runtime not ready] PlatformConstants" redbox; (b) `app.config.ts` must **not** hardcode
+  `extra.identityApiUrl='http://localhost:5050'` (it always won over the derived host, so Android
+  hit `localhost` → Network Error) — those are now env-only. Backend binds loopback-only, so the
+  emulator must use `10.0.2.2` (LAN IP wouldn't reach it).
+- **Verified on Android emulator** (`snap_pixel`, Expo Go SDK52): full OTP login via
+  `http://10.0.2.2:5050` (send + verify 200) → home + task list with real data, order-number
+  ellipsis + OTP/COD badges render cleanly, Go-on-duty location prompt. iOS verified the
+  pickup + delivery server-OTP confirm end-to-end (no spinner hang).
 
 **Verified — full live E2E in the iOS sim** (idb-driven, real backend): fresh OTP login →
 home shows real rider + "4 tasks · Sector 45 · ₹58 avg" → tasks list (sequenced, OTP/COD tags)

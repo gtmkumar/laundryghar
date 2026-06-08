@@ -38,10 +38,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   },
   extra: {
-    // Service base URLs — override via EAS secrets / .env.local in dev
-    identityApiUrl:   process.env.IDENTITY_API_URL   ?? 'http://localhost:5050',
-    logisticsApiUrl:  process.env.LOGISTICS_API_URL  ?? 'http://localhost:5004',
-    engagementApiUrl: process.env.ENGAGEMENT_API_URL ?? 'http://localhost:5007',
+    // Service base URLs — set ONLY from explicit env overrides (EAS secrets /
+    // .env.local / prod). Leave undefined in plain dev so src/constants/config.ts
+    // derives the host from how the device reached Metro (localhost on iOS sim,
+    // 10.0.2.2 on the Android emulator, LAN IP on a physical device). Hardcoding
+    // localhost here would always win over that and break the Android emulator.
+    identityApiUrl:   process.env.IDENTITY_API_URL,
+    logisticsApiUrl:  process.env.LOGISTICS_API_URL,
+    engagementApiUrl: process.env.ENGAGEMENT_API_URL,
     defaultBrandCode: process.env.DEFAULT_BRAND_CODE ?? 'LG-MAIN',
     eas: {
       projectId: 'laundryghar-rider',

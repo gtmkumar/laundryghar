@@ -1,14 +1,19 @@
-import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 // expo-constants surfaces app.config.ts `extra` at runtime
 const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, string>;
 
-// Dev host differs per platform: the Android emulator can't see the host's
-// `localhost` — it reaches the host machine via the 10.0.2.2 alias. iOS sim
-// shares the host loopback, so `localhost` works there. (A physical device
-// would need the LAN IP via the *_API_URL env overrides.)
-const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+// Derive the dev host from however *this device* reached the Metro dev server.
+// That host is correct for the API too: iOS sim → "localhost", Android emulator
+// → "10.0.2.2", a physical device → the dev machine's LAN IP. No react-native
+// import (importing `Platform` into this early-loaded module pulls RN core init
+// forward and crashes Android's New Architecture with a "runtime not ready"
+// PlatformConstants error). Falls back to localhost (and *_API_URL overrides win).
+const hostUri =
+  Constants.expoConfig?.hostUri ??
+  Constants.expoGoConfig?.debuggerHost ??
+  '';
+const DEV_HOST = hostUri.split(':')[0] || 'localhost';
 
 export const CONFIG = {
   identityApiUrl:   extra['identityApiUrl']   ?? `http://${DEV_HOST}:5050`,
