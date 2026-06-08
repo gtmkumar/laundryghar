@@ -17,8 +17,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { useRiderTask } from '@/hooks/useRiderTasks';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRiderTask, taskKeys } from '@/hooks/useRiderTasks';
 import { useTaskOverrideStore } from '@/store/taskOverrideStore';
+import { updateTaskStatus, verifyTaskOtp } from '@/api/tasks';
+import { FEATURES } from '@/constants/config';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Button } from '@/components/ui/Button';
@@ -58,37 +61,54 @@ function MapPreview({ km, eta }: { km: number; eta?: number }) {
 
 export default function TaskDetailScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { task, isLoading } = useRiderTask(id);
   const complete = useTaskOverrideStore((s) => s.complete);
 
   const [code, setCode] = useState('');
-  const [otpError, setOtpError] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   if (isLoading) return <ScreenLoader />;
   if (!task) return <ErrorState message="This task could not be found." />;
 
-  const isDelivery  = task.legType === 'delivery';
+  const isDelivery  = task.legType === 'delivery' || task.legType === 'return';
   const isCompleted = task.status === 'completed';
-  const needsOtp    = isDelivery && !!task.deliveryOtp && !isCompleted;
+  // OTP applies to BOTH legs — collecting at pickup and handing over at delivery.
+  // Real API tells us via requiresOtp; demo set only carries an OTP on deliveries.
+  const needsOtp    = (task.requiresOtp ?? (isDelivery && !!task.deliveryOtp)) && !isCompleted;
   const title = isCompleted
     ? `#${task.orderNumber}`
     : `${isDelivery ? 'Delivering' : 'Picking up'} #${task.orderNumber}`;
 
-  function confirm() {
-    if (!task) return;
-    if (needsOtp) {
-      if (code !== task.deliveryOtp) {
-        setOtpError(true);
+  async function confirm() {
+    if (!task || busy) return;
+    setBusy(true);
+    setOtpError('');
+    try {
+      if (FEATURES.riderTasksApi) {
+        // Real flow: server verifies the OTP, then we mark the leg completed.
+        if (needsOtp) await verifyTaskOtp(task.id, code);
+        await updateTaskStatus(task.id, 'completed');
+      } else if (needsOtp && code !== task.deliveryOtp) {
+        setOtpError("That code didn't match. Ask the customer again.");
         setCode('');
+        setBusy(false);
         return;
       }
+      // Optimistic overlay so the list/summary update instantly; refetch reconciles.
+      complete(task.id);
+      void queryClient.invalidateQueries({ queryKey: taskKeys.today() });
+      router.replace(`/(app)/delivered?id=${task.id}`);
+    } catch (e) {
+      setOtpError(e instanceof Error ? e.message : 'Could not confirm. Try again.');
+      setCode('');
+      setBusy(false);
     }
-    complete(task.id);
-    router.replace(`/(app)/delivered?id=${task.id}`);
   }
 
-  const canConfirm = !needsOtp || code.length === 4;
+  const canConfirm = (!needsOtp || code.length === 4) && !busy;
 
   return (
     <View className="flex-1 bg-cream">
@@ -140,13 +160,13 @@ export default function TaskDetailScreen() {
           {needsOtp ? (
             <View className="mt-4 rounded-3xl bg-gold-50 p-5">
               <Text className="text-center text-xs font-bold uppercase tracking-widest text-gold-700">
-                Delivery OTP
+                {isDelivery ? 'Delivery OTP' : 'Pickup OTP'}
               </Text>
               <View className="mt-3">
-                <OtpInput value={code} onChangeText={(t) => { setOtpError(false); setCode(t); }} length={4} accent="gold" hasError={otpError} autoFocus />
+                <OtpInput value={code} onChangeText={(t) => { setOtpError(''); setCode(t); }} length={4} accent="gold" hasError={!!otpError} autoFocus />
               </View>
-              <Text className="mt-3 text-center text-xs text-ink-muted">
-                {otpError ? "That code didn't match. Ask the customer again." : 'Ask the customer for the 4-digit code to confirm delivery.'}
+              <Text className={`mt-3 text-center text-xs ${otpError ? 'text-danger' : 'text-ink-muted'}`}>
+                {otpError || `Ask the customer for the 4-digit code to confirm ${isDelivery ? 'delivery' : 'pickup'}.`}
               </Text>
             </View>
           ) : null}
@@ -180,14 +200,20 @@ export default function TaskDetailScreen() {
         {/* Confirm */}
         {!isCompleted ? (
           <View className="px-5 pb-3 pt-1">
+            {otpError && !needsOtp ? (
+              <Text className="mb-2 text-center text-xs text-danger" accessibilityRole="alert">
+                {otpError}
+              </Text>
+            ) : null}
             <Button
               title={isDelivery ? 'Confirm delivered' : 'Confirm pickup'}
               iconLeft="checkmark"
               variant="confirm"
               size="lg"
               fullWidth
+              loading={busy}
               disabled={!canConfirm}
-              onPress={confirm}
+              onPress={() => void confirm()}
             />
           </View>
         ) : null}

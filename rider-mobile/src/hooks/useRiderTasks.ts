@@ -30,8 +30,10 @@ export function useRiderTasks() {
     queryKey: taskKeys.today(),
     queryFn:  fetchRiderTasks,
     enabled:  !!accessToken,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 15_000,
+    // Poll while the screen is mounted so newly dispatched tasks auto-populate.
+    refetchInterval: 30_000,
+    refetchOnMount: 'always',
   });
 
   const merged = useMemo<RiderTask[]>(() => {
@@ -39,7 +41,7 @@ export function useRiderTasks() {
     return base.map((t) => {
       const o = overrides[t.id];
       if (!o) return t;
-      return { ...t, status: o.status, completedAt: o.completedAt, rating: o.rating };
+      return { ...t, status: o.status, completedAt: o.completedAt, rating: o.rating ?? t.rating };
     });
   }, [query.data, overrides]);
 

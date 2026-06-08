@@ -12,6 +12,8 @@ public sealed record MembershipDto(Guid Id, Guid UserId, string ScopeType, Guid?
 public sealed record AssignPermissionRequest(Guid RoleId, Guid PermissionId);
 public sealed record GrantMembershipRequest(Guid UserId, string ScopeType, Guid? ScopeId, Guid RoleId, bool IsPrimary = false);
 public sealed record RevokeMembershipRequest(Guid MembershipId, string? Reason = null);
+/// <summary>Replace a user's PRIMARY role: grant the new one as primary, revoke the old primary.</summary>
+public sealed record ChangeRoleRequest(Guid RoleId, string ScopeType, Guid? ScopeId);
 
 // ─── Commands ─────────────────────────────────────────────────────────────
 
@@ -21,6 +23,7 @@ public sealed record AssignPermissionCommand(AssignPermissionRequest Request, Gu
 /// <summary>ActorContext carries the calling user's identity for privilege-escalation checks.</summary>
 public sealed record GrantMembershipCommand(GrantMembershipRequest Request, Guid? ActorId, ICurrentUser Actor)  : IRequest<MembershipDto>;
 public sealed record RevokeMembershipCommand(RevokeMembershipRequest Request, Guid? ActorId) : IRequest<bool>;
+public sealed record ChangePrimaryRoleCommand(Guid UserId, ChangeRoleRequest Request, ICurrentUser Actor, Guid? ActorId) : IRequest<MembershipDto>;
 
 // ─── Handlers ─────────────────────────────────────────────────────────────
 
@@ -185,5 +188,39 @@ public sealed class RevokeMembershipHandler : IRequestHandler<RevokeMembershipCo
         m.RevokedAt = DateTimeOffset.UtcNow; m.RevokedBy = cmd.ActorId; m.RevokedReason = cmd.Request.Reason;
         await _db.SaveChangesAsync(ct);
         return true;
+    }
+}
+
+/// <summary>
+/// Fix a wrongly-assigned role: grant the new role as the user's PRIMARY membership, then
+/// revoke the previous primary one ("replace" semantics — the person ends with one primary).
+/// Privilege checks (rank / brand-scope / platform-admin) are enforced by GrantMembership and
+/// run BEFORE anything is revoked, so an unauthorized attempt changes nothing.
+/// </summary>
+public sealed class ChangePrimaryRoleHandler : IRequestHandler<ChangePrimaryRoleCommand, MembershipDto>
+{
+    private readonly LaundryGharDbContext _db;
+    private readonly ISender _sender;
+    public ChangePrimaryRoleHandler(LaundryGharDbContext db, ISender sender) { _db = db; _sender = sender; }
+
+    public async Task<MembershipDto> Handle(ChangePrimaryRoleCommand cmd, CancellationToken ct)
+    {
+        // Snapshot the current primary membership(s) before changing anything.
+        var oldPrimaryIds = await _db.UserScopeMemberships
+            .Where(m => m.UserId == cmd.UserId && m.IsPrimary && m.RevokedAt == null)
+            .Select(m => m.Id)
+            .ToListAsync(ct);
+
+        // Grant the new role as primary (reuses every guard; throws before we revoke if denied).
+        var dto = await _sender.Send(new GrantMembershipCommand(
+            new GrantMembershipRequest(cmd.UserId, cmd.Request.ScopeType, cmd.Request.ScopeId, cmd.Request.RoleId, IsPrimary: true),
+            cmd.ActorId, cmd.Actor), ct);
+
+        // Replace: revoke the old primary membership(s), skipping the one we just created.
+        foreach (var id in oldPrimaryIds.Where(id => id != dto.Id))
+            await _sender.Send(new RevokeMembershipCommand(
+                new RevokeMembershipRequest(id, "Replaced via change-role"), cmd.ActorId), ct);
+
+        return dto;
     }
 }

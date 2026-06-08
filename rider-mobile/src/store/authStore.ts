@@ -52,14 +52,17 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   logout: async () => {
     const { refreshToken } = get();
-    try {
-      if (refreshToken) await apiLogout(refreshToken);
-    } catch {
-      // best-effort — proceed regardless
-    }
-    await SecureStore.deleteItemAsync(KEY_ACCESS_TOKEN);
-    await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN);
+    // Clear the local session FIRST so the (app) auth guard redirects to login
+    // immediately — even if the network revoke below hangs or 401s (which is
+    // exactly the case when the token has already expired/been invalidated).
     set({ accessToken: null, refreshToken: null, rider: null });
+    await SecureStore.deleteItemAsync(KEY_ACCESS_TOKEN).catch(() => undefined);
+    await SecureStore.deleteItemAsync(KEY_REFRESH_TOKEN).catch(() => undefined);
+    // Best-effort server-side revoke (tokens already cleared locally, so a
+    // failure here is harmless and can't loop back through the interceptor).
+    if (refreshToken) {
+      try { await apiLogout(refreshToken); } catch { /* ignore */ }
+    }
   },
 
   hydrate: async () => {

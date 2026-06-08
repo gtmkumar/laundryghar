@@ -170,7 +170,7 @@ export interface RiderAssignmentStatusUpdateRequest {
 // ships, src/api/tasks.ts serves a labelled demo set. See HANDOFF backlog.
 // ---------------------------------------------------------------------------
 
-export type TaskLegType    = 'pickup' | 'delivery';
+export type TaskLegType    = 'pickup' | 'delivery' | 'return';
 export type RiderTaskStatus =
   | 'assigned'   // waiting for the rider to start
   | 'started'    // en route
@@ -197,8 +197,18 @@ export interface RiderTask {
   garmentCount:  number;
   amountDue:     number;        // 0 when prepaid
   isPaid:        boolean;
-  /** 4-digit code the customer reads out to confirm a delivery. */
+  /**
+   * DEMO ONLY: the 4-digit code, present in the local demo set so the demo flow
+   * can validate client-side. The real API never sends the code — it sets
+   * `requiresOtp` and verifies what the rider types via POST /tasks/{id}/verify-otp.
+   */
   deliveryOtp?:  string;
+  /** Real API: this leg needs a customer OTP to complete (the code itself is never sent). */
+  requiresOtp?:  boolean;
+  /** Real API: whether the OTP has already been verified on the server. */
+  otpVerified?:  boolean;
+  /** Route order within the rider's queue. */
+  sequenceNumber?: number;
   payout:        number;        // rider earning for this leg (₹)
   lat?:          number;
   lng?:          number;

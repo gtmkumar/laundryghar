@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { X, Loader2, Pencil, Mail, Phone, Shield, MapPin, Clock, Check, Briefcase, CreditCard, IdCard, BadgeCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useUser, useUpdateUser } from '@/hooks/useUsers'
+import { useUser, useUpdateUser, useChangeUserRole } from '@/hooks/useUsers'
+import { useAccessRoles, useAccessFranchises } from '@/hooks/useAccessControl'
+import { usePermissions } from '@/hooks/usePermissions'
 import { statusTone } from './FranchiseTeamShared'
 import type { UserEmploymentType, UserKycStatus } from '@/types/api'
 
@@ -53,6 +55,20 @@ function fmtDate(iso?: string | null): string {
 export function PersonDetailDrawer({ person, open, onClose }: Props) {
   const { data: user, isLoading } = useUser(open ? person?.id ?? null : null)
   const update = useUpdateUser()
+  const changeRole = useChangeUserRole()
+  const { hasPermission } = usePermissions()
+  const rolesQ = useAccessRoles()
+  const franchisesQ = useAccessFranchises()
+  const allRoles = rolesQ.data?.groups.flatMap((g) => g.roles) ?? []
+  const franchises = franchisesQ.data?.pages.flatMap((p) => p.list) ?? []
+  const canChangeRole = hasPermission('memberships.grant')
+
+  const [roleEditing, setRoleEditing] = useState(false)
+  const [newRoleId, setNewRoleId] = useState('')
+  const [newFranchiseId, setNewFranchiseId] = useState('')
+  const [roleErr, setRoleErr] = useState<string | null>(null)
+  // After a successful change the `person` prop is stale, so show the new role locally.
+  const [roleOverride, setRoleOverride] = useState<{ name: string; scope: string } | null>(null)
 
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
@@ -79,12 +95,42 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
     }
   }, [user])
   useEffect(() => {
-    if (!open) { setEditing(false); setErr(null); setSavedAt(null) }
+    if (!open) {
+      setEditing(false); setErr(null); setSavedAt(null)
+      setRoleEditing(false); setRoleErr(null); setRoleOverride(null); setNewRoleId(''); setNewFranchiseId('')
+    }
   }, [open])
 
   if (!open || !person) return null
 
   const tone = statusTone(person.status)
+  const roleName = roleOverride?.name ?? person.roleName
+  const scopeLabel = roleOverride?.scope ?? person.scopeLabel
+
+  const selectedRole = allRoles.find((r) => r.id === newRoleId)
+  const roleIsFranchiseScoped = selectedRole ? selectedRole.scopeType !== 'platform' && selectedRole.scopeType !== 'brand' : false
+
+  const saveRole = async () => {
+    setRoleErr(null)
+    const role = allRoles.find((r) => r.id === newRoleId)
+    if (!role) { setRoleErr('Pick a role.'); return }
+    const franchiseScoped = role.scopeType !== 'platform' && role.scopeType !== 'brand'
+    if (franchiseScoped && !newFranchiseId) { setRoleErr('Pick a franchise for this role.'); return }
+    try {
+      await changeRole.mutateAsync({
+        id: person.id,
+        payload: {
+          roleId: role.id,
+          scopeType: franchiseScoped ? 'franchise' : 'brand',
+          scopeId: franchiseScoped ? newFranchiseId : null,
+        },
+      })
+      setRoleOverride({ name: role.name, scope: franchiseScoped ? (franchises.find((f) => f.id === newFranchiseId)?.name ?? 'Franchise') : 'All / brand' })
+      setRoleEditing(false); setNewRoleId(''); setNewFranchiseId('')
+    } catch (e) {
+      setRoleErr(e instanceof Error ? e.message : 'Could not change role.')
+    }
+  }
 
   const save = async () => {
     setErr(null)
@@ -156,13 +202,13 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                   <span className={cn('h-1.5 w-1.5 rounded-full', tone.dot)} />
                   <span className={tone.text}>{person.status}</span>
                 </span>
-                {person.roleName && (
-                  <span className="rounded-full bg-lg-green/10 px-2.5 py-1 text-xs font-medium text-lg-green">{person.roleName}</span>
+                {roleName && (
+                  <span className="rounded-full bg-lg-green/10 px-2.5 py-1 text-xs font-medium text-lg-green">{roleName}</span>
                 )}
-                {person.scopeLabel && (
+                {scopeLabel && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-xs text-gray-500">
                     <MapPin className="h-3 w-3" />
-                    {person.scopeLabel}
+                    {scopeLabel}
                   </span>
                 )}
                 {user?.kycStatus && (
@@ -171,6 +217,68 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                   </span>
                 )}
               </div>
+
+              {/* Role & access — change a wrongly-assigned role (replace primary) */}
+              <Section title="Role &amp; access">
+                {roleEditing ? (
+                  <div className="space-y-3">
+                    <Field label="New role">
+                      <select value={newRoleId} onChange={(e) => setNewRoleId(e.target.value)} className={inputCls}>
+                        <option value="">Select a role…</option>
+                        {rolesQ.data?.groups.map((g) => (
+                          <optgroup key={g.tier} label={g.tierLabel}>
+                            {g.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </Field>
+                    {roleIsFranchiseScoped && (
+                      <Field label="Franchise">
+                        <select value={newFranchiseId} onChange={(e) => setNewFranchiseId(e.target.value)} className={inputCls}>
+                          <option value="">Select a franchise…</option>
+                          {franchises.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                      </Field>
+                    )}
+                    {roleErr && <p className="text-sm text-red-600">{roleErr}</p>}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={saveRole}
+                        disabled={changeRole.isPending}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
+                      >
+                        {changeRole.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Replace role
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setRoleEditing(false); setRoleErr(null) }}
+                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400">Revokes the current role and grants the new one as primary.</p>
+                  </div>
+                ) : (
+                  <>
+                    <dl className="space-y-2.5">
+                      <DetailRow icon={<Shield className="h-4 w-4" />} label="Role" value={roleName ?? '—'} />
+                      <DetailRow icon={<MapPin className="h-4 w-4" />} label="Scope" value={scopeLabel ?? '—'} />
+                    </dl>
+                    {roleOverride && <p className="mt-2 text-xs text-lg-green">Role updated.</p>}
+                    {canChangeRole && (
+                      <button
+                        type="button"
+                        onClick={() => { setRoleEditing(true); setNewRoleId(''); setNewFranchiseId(''); setRoleErr(null) }}
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-lg-green"
+                      >
+                        <Pencil className="h-3.5 w-3.5" /> Change role
+                      </button>
+                    )}
+                  </>
+                )}
+              </Section>
 
               {/* Identity */}
               <Section title="Identity">
@@ -263,7 +371,7 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                   <DetailRow icon={<Clock className="h-4 w-4" />} label="Last active" value={fmtDate(user?.lastLoginAt)} />
                   <DetailRow icon={<Clock className="h-4 w-4" />} label="Member since" value={fmtDate(user?.createdAt)} />
                 </dl>
-                {!editing && <p className="mt-2 text-xs text-gray-400">Role &amp; status changes are managed from the row’s ⋯ menu.</p>}
+                {!editing && <p className="mt-2 text-xs text-gray-400">Status changes (activate / suspend) are in the row’s ⋯ menu.</p>}
                 {savedAt && !editing && <p className="mt-2 text-xs text-lg-green">Saved at {savedAt}</p>}
               </Section>
             </>

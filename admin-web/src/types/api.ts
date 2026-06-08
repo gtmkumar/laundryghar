@@ -1204,6 +1204,24 @@ export interface UpdateUserPayload {
   upiId?: string | null
 }
 
+/** Replace a user's primary role (POST /admin/users/{id}/change-role). */
+export interface ChangeRolePayload {
+  roleId: string
+  scopeType: string // "franchise" | "brand"
+  scopeId: string | null
+}
+
+export interface MembershipDto {
+  id: string
+  userId: string
+  scopeType: string
+  scopeId: string | null
+  roleId: string
+  roleCode: string
+  isPrimary: boolean
+  grantedAt: string
+}
+
 export type RiderEmploymentType = 'employee' | 'contractor' | 'gig' | 'outsourced'
 export type RiderVehicleType = 'two_wheeler' | 'three_wheeler' | 'four_wheeler' | 'cycle' | 'foot'
 

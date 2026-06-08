@@ -13,7 +13,7 @@ import { create } from 'zustand';
 export interface TaskOverride {
   status:      'completed';
   completedAt: string;   // ISO
-  rating:      number;   // simulated customer rating
+  rating?:     number;   // real rating arrives from the server on refetch, not fabricated here
 }
 
 interface TaskOverrideState {
@@ -28,7 +28,6 @@ export const useTaskOverrideStore = create<TaskOverrideState>()((set, get) => ({
     const override: TaskOverride = {
       status:      'completed',
       completedAt: new Date().toISOString(),
-      rating:      5,
     };
     set({ overrides: { ...get().overrides, [taskId]: override } });
     return override;

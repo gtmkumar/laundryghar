@@ -154,7 +154,16 @@ function createAxiosInstance(baseURL: string): AxiosInstance {
         _retried?: boolean;
       };
 
-      if (error.response?.status === 401 && !originalRequest._retried) {
+      // Never run the refresh-on-401 dance for /auth/* calls. The refresh request
+      // itself goes through this very interceptor; if it 401s and we tried to
+      // refresh again, it would await the same shared `refreshPromise` it is part
+      // of — a circular self-await that hangs forever (stuck spinners/loaders).
+      // A 401 on an auth call must reject straight through so refreshAccessToken
+      // throws → onAuthFailure → logout.
+      const url = originalRequest?.url ?? '';
+      const isAuthCall = url.includes('/auth/');
+
+      if (error.response?.status === 401 && !originalRequest._retried && !isAuthCall) {
         originalRequest._retried = true;
 
         try {

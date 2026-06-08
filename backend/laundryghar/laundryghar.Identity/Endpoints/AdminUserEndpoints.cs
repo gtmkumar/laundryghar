@@ -64,6 +64,14 @@ public static class AdminUserEndpoints
             return r ? Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.Response { Status = true }) : Results.NotFound();
         }).WithName("SetUserType").RequireAuthorization("permission:users.set_type");
 
+        // Replace a user's primary role (fix a wrongly-assigned role). Grants the new role as
+        // primary and revokes the old primary; guarded the same as a membership grant.
+        users.MapPost("/{id:guid}/change-role", async (Guid id, ChangeRoleRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ChangePrimaryRoleCommand(id, req, u, u.UserId), ct);
+            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<MembershipDto> { Status = true, Data = r });
+        }).WithName("ChangeUserRole").RequireAuthorization("permission:memberships.grant");
+
         // Roles & permissions
         var roles = group.MapGroup("/roles").WithTags("Admin - Roles").RequireAuthorization();
 

@@ -38,30 +38,29 @@ function LegIcon({ legType, size = 16 }: { legType: RiderTask['legType']; size?:
   );
 }
 
-function Tag({ task }: { task: RiderTask }) {
-  if (task.legType === 'delivery' && task.deliveryOtp) {
-    return (
-      <View className="flex-row items-center gap-1 rounded-lg bg-olive-100 px-2 py-1">
-        <Ionicons name="key-outline" size={12} color="#4A552A" />
-        <Text className="text-[11px] font-bold text-olive-800">OTP</Text>
-      </View>
-    );
-  }
-  if (task.isExpress) {
-    return (
-      <View className="rounded-lg bg-gold-100 px-2 py-1">
-        <Text className="text-[11px] font-bold text-gold-700">Express</Text>
-      </View>
-    );
-  }
-  if (!task.isPaid && task.amountDue > 0) {
-    return (
-      <View className="rounded-lg bg-danger/10 px-2 py-1">
-        <Text className="text-[11px] font-bold text-danger">COD ₹{task.amountDue}</Text>
-      </View>
-    );
-  }
-  return null;
+/** Right-aligned status badges. OTP applies to both legs; payment/express shown alongside. */
+function Tags({ task }: { task: RiderTask }) {
+  const hasOtp = task.requiresOtp ?? (task.legType !== 'pickup' && !!task.deliveryOtp);
+  const cod    = !task.isPaid && task.amountDue > 0;
+  return (
+    <View className="shrink-0 flex-row items-center gap-1.5">
+      {hasOtp ? (
+        <View className="flex-row items-center gap-1 rounded-lg bg-olive-100 px-2 py-1">
+          <Ionicons name="key-outline" size={12} color="#4A552A" />
+          <Text className="text-[11px] font-bold text-olive-800">OTP</Text>
+        </View>
+      ) : null}
+      {cod ? (
+        <View className="rounded-lg bg-danger/10 px-2 py-1">
+          <Text className="text-[11px] font-bold text-danger">COD ₹{task.amountDue}</Text>
+        </View>
+      ) : task.isExpress ? (
+        <View className="rounded-lg bg-gold-100 px-2 py-1">
+          <Text className="text-[11px] font-bold text-gold-700">Express</Text>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 function CardShell({ children, onPress }: { children: React.ReactNode; onPress: () => void }) {
@@ -78,17 +77,22 @@ function CardShell({ children, onPress }: { children: React.ReactNode; onPress: 
 
 function CardHeader({ task }: { task: RiderTask }) {
   return (
-    <View className="mb-2 flex-row items-center justify-between">
-      <View className="flex-row items-center gap-2">
-        <View className="h-6 w-6 items-center justify-center rounded-lg bg-gold-100">
-          <LegIcon legType={task.legType} />
-        </View>
-        <Text className="text-sm font-bold text-ink-soft">
-          {task.legType === 'delivery' ? 'Deliver' : 'Pickup'}
-        </Text>
-        <Text className="text-sm font-semibold text-ink-faint">#{task.orderNumber}</Text>
+    <View className="mb-2 flex-row items-center gap-2">
+      <View className="h-6 w-6 items-center justify-center rounded-lg bg-gold-100">
+        <LegIcon legType={task.legType} />
       </View>
-      <Tag task={task} />
+      <Text className="text-sm font-bold text-ink-soft">
+        {task.legType === 'pickup' ? 'Pickup' : 'Deliver'}
+      </Text>
+      {/* flex-1 + middle ellipsis so long order numbers never collide with the badges */}
+      <Text
+        numberOfLines={1}
+        ellipsizeMode="middle"
+        className="flex-1 text-sm font-semibold text-ink-faint"
+      >
+        #{task.orderNumber}
+      </Text>
+      <Tags task={task} />
     </View>
   );
 }

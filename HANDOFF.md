@@ -72,7 +72,63 @@ on `user_profiles`, editable from the Access-control person drawer (see §4).
 
 ## 4. What changed in recent sessions
 
-### 2026-06-08 (latest) — people employment + KYC + bank details
+### 2026-06-08 (latest) — rider per-order tasks API (live data for rider-mobile v2)
+
+Closed the "rider tasks API" backlog item: the rider task list is no longer demo data.
+
+**Backend (Logistics, new `RiderSelf/RiderTaskQueries.cs` + `LogisticsEndpoints.cs`):**
+- `GET /api/v1/rider/tasks/today` → the rider's `order_lifecycle.delivery_assignments`
+  joined to orders/customers/addresses, mapped to a `RiderTaskDto`, ordered by
+  `sequence_number` then window (completed sink to the bottom; open work + today's completed).
+- `PATCH /api/v1/rider/tasks/{id}/status` → `started|arrived|completed|failed` (stamps the
+  matching timestamp).
+- `POST /api/v1/rider/tasks/{id}/verify-otp` → **server-side** OTP check against the order's
+  `delivery_otp`/`pickup_otp`.
+- **Security:** the OTP value is **never returned to the device** — the DTO carries only
+  `requiresOtp`/`otpVerified`. A delivery/return leg with an OTP is **blocked from `completed`
+  until `otp_verified=true`** (returns 400 "Delivery OTP must be verified before completing").
+  Wrong code → 400. All self-filtered by rider id + brand (cross-rider → 404).
+- `payout` is a transparent server-side **estimate** (₹40 + ₹7/km, +₹20 express, nearest ₹5) —
+  there is no real per-leg payout model yet.
+
+**App (rider-mobile):** `FEATURES.riderTasksApi=true`; `src/api/tasks.ts` maps the DTO and adds
+`verifyTaskOtp`/`updateTaskStatus`; `tasks/[id]` confirm flow now verifies server-side
+(`verifyTaskOtp` → `updateTaskStatus('completed')`) instead of client-comparing; list polls
+every 30s + pull-to-refresh for auto-populate; `taskOverrideStore` is now just an optimistic
+overlay (stopped fabricating a customer rating). `RiderTask` gained `requiresOtp`/`otpVerified`/
+`sequenceNumber`; `TaskLegType` gained `return`.
+
+**Follow-up fixes (same day, after first test pass):**
+- **OTP now required for BOTH legs** (pickup *and* delivery) — the customer reads the code at
+  each handoff. `requiresOtp` is true for any leg whose order has the matching
+  `pickup_otp`/`delivery_otp`; the complete-gate + app OTP field/labels updated accordingly.
+- **Fixed long-order-number ↔ badge overlap** in the task cards — order number now `flex-1`
+  with `ellipsizeMode="middle"` (`#LG-20…002314`), badges are `shrink-0`; OTP + COD/Express
+  render side-by-side.
+- **Fixed the auth refresh deadlock** (root cause of stuck spinners/loaders): `refreshPromise`
+  is shared module-wide and `refreshAccessToken` hits `/auth/refresh` through the same axios
+  instance whose interceptor awaits `refreshPromise` — so a 401 on refresh made the refresh
+  await *itself* → infinite hang (expired-token requests never settled; "Confirm" spun forever;
+  no bounce to login). `client.ts` now **skips the 401-refresh dance for any `/auth/*` URL**, so
+  refresh failures reject cleanly → `onAuthFailure` → `logout` → guard redirects to login.
+  Verified live: a stale token now lands on the login screen. (`logout` also clears local state
+  before the best-effort network revoke.)
+- **Android dev base URL** — `config.ts` is now platform-aware (`10.0.2.2` on Android emulator,
+  `localhost` on iOS sim); physical devices still use the `*_API_URL` env overrides.
+
+**Verified — full live E2E in the iOS sim** (idb-driven, real backend): fresh OTP login →
+home shows real rider + "4 tasks · Sector 45 · ₹58 avg" → tasks list (sequenced, OTP/COD tags)
+→ pickup confirm (no OTP, `PATCH 200`) → "Picked up!" (earnings recompute, count decrements) →
+delivery: enter OTP `4283` → `POST verify-otp 200` then `PATCH completed 200` → "Delivered!"
+(₹410 total, next task shown, 2 left). Backend also curl-validated incl. the security gate.
+`tsc` clean; Logistics built clean; AppHost restarted (healthy). **Not yet committed.**
+
+> ⚠️ Seeding test tasks needs explicit DB authorization (the auto-classifier blocks writes to
+> the shared dev DB) — script at `/tmp/seed_rider_tasks.sql` seeds 9 assignments for rider
+> `+919800000001` (5 open + 4 completed) and the orders' OTP/addresses. Re-runnable.
+> Rider-mobile runs **two Metros**; point Expo Go at the `--offline` one (`exp://127.0.0.1:8081`).
+
+### 2026-06-08 — people employment + KYC + bank details
 
 People (HQ employees, franchise owners, franchise staff) are employees too, so they now
 carry the same **employment / KYC / payout** shape Riders already had. All fields are
@@ -307,12 +363,14 @@ service-to-service plumbing). Commits on `main` (newest first):
   custom-scheme deep-link being dropped. Both apps bundle for iOS.
 
 ### Still open
-- **Rider per-order task API (unblocks rider-mobile v2 live data).** Add a rider-facing
-  route group in Logistics: `GET /api/v1/rider/tasks/today` (delivery_assignments ⋈ order for
-  the authed rider, returning the `RiderTask` shape in `rider-mobile/src/types/api.ts`),
-  `POST /rider/tasks/{id}/start|arrive`, and a `POST /rider/tasks/{id}/complete` that verifies
-  the customer's `delivery_otp`. Also a rider duty toggle (`POST /rider/duty`). Then flip
-  `FEATURES.riderTasksApi=true` in rider-mobile. Until then the app shows labelled demo tasks.
+- ~~**Rider per-order task API**~~ ✅ DONE (2026-06-08, see §4): `GET /rider/tasks/today`,
+  `PATCH /rider/tasks/{id}/status`, `POST /rider/tasks/{id}/verify-otp` shipped + flag flipped,
+  live-verified. **Still open follow-ups:** (a) **auto-dispatcher** — assignments are still
+  created manually by admin/store staff; no order→rider matching or capacity enforcement
+  (`Rider.CurrentLoad`/`DailyDeliveryCapacity` exist but are unused). (b) a **rider duty toggle**
+  endpoint (going on/off duty is still client-side in `dutyStore` + a shift-status PATCH).
+  (c) a **real per-leg payout** model (currently a server-side estimate). (d) proof-of-delivery
+  photo/signature upload (`DeliveryAssignment` has the S3 columns, no endpoint).
 - **rider-mobile live map** — `tasks/[id]` uses a stylised map placeholder; a real map needs
   `react-native-maps` (dev build + Maps key, not Expo Go).
 - **admin-web stores the refresh token in `localStorage`** (`src/stores/authStore.ts`) — XSS→token-theft

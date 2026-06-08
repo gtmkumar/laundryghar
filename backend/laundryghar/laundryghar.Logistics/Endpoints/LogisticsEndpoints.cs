@@ -263,7 +263,57 @@ public static class LogisticsEndpoints
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderAssignmentDto> { Status = true, Data = result });
         });
+
+        // ── Per-order tasks (pickup/delivery legs) ────────────────────────────
+        // GET /api/v1/rider/tasks/today
+        riderSelf.MapGet("/tasks/today", async (HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var list = await sender.Send(new GetMyTasksTodayQuery(userId, brandId), ct);
+            return Results.Ok(new ListResponse<RiderTaskDto> { Status = true, Data = list });
+        });
+
+        // PATCH /api/v1/rider/tasks/{id}/status
+        riderSelf.MapMethods("/tasks/{id:guid}/status", ["PATCH"], async (
+            Guid id, RiderTaskStatusUpdateRequest req,
+            HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var result = await sender.Send(new UpdateMyTaskStatusCommand(id, userId, brandId, req.Status), ct);
+            return ToTaskResult(result);
+        });
+
+        // POST /api/v1/rider/tasks/{id}/verify-otp
+        riderSelf.MapPost("/tasks/{id:guid}/verify-otp", async (
+            Guid id, RiderTaskOtpVerifyRequest req,
+            HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var result = await sender.Send(new VerifyTaskOtpCommand(id, userId, brandId, req.Code), ct);
+            return ToTaskResult(result);
+        });
     }
+
+    // Maps a RiderTaskResult onto an HTTP result: ok→200, not_found→404, conflict→400.
+    private static IResult ToTaskResult(RiderTaskResult result) => result.Outcome switch
+    {
+        "ok"       => Results.Ok(new SingleResponse<RiderTaskDto> { Status = true, Data = result.Task }),
+        "conflict" => Results.BadRequest(new Response
+        {
+            Status  = false,
+            Message = new Message { ResponseMessage = result.Error ?? "Action not allowed." }
+        }),
+        _          => Results.NotFound(),
+    };
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
