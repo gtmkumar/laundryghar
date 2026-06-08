@@ -131,6 +131,14 @@ public static class AdminUserEndpoints
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<UserDto> { Status = true, Data = r });
         }).WithName("InviteUser").RequireAuthorization("permission:users.create");
 
+        // Narrow rider-invite: franchise-scoped actors (franchise_owner) can onboard their
+        // own riders without needing the broad users.create permission.
+        ac.MapPost("/riders/invite", async (InviteRiderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new InviteRiderCommand(req, u), ct);
+            return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<UserDto> { Status = true, Data = r });
+        }).WithName("InviteRider").RequireAuthorization("permission:rider.manage");
+
         ac.MapPost("/role-cell", async (SetRoleCellRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {
             var ok = await sender.Send(new SetRoleCellCommand(req, u.UserId), ct);

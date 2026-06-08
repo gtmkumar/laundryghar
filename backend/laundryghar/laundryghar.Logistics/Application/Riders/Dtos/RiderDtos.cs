@@ -28,7 +28,14 @@ public sealed record RiderDto(
     string  KycStatus,
     string  Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    // ── Enriched identity / org fields (populated via LEFT joins) ─────────
+    string? RiderName,
+    string? Email,
+    string? Phone,
+    string? UserStatus,
+    string? FranchiseName,
+    string? PrimaryStoreName);
 
 /// <summary>Request body for creating a rider profile (links an existing users row of user_type='rider').</summary>
 public sealed record CreateRiderRequest(
@@ -52,7 +59,11 @@ public sealed record CreateRiderRequest(
     int     DailyDeliveryCapacity,
     decimal ServiceRadiusKm);
 
-/// <summary>Request body for updating a rider profile (status / capacity / vehicle info).</summary>
+/// <summary>
+/// Request body for updating a rider profile (status / capacity / vehicle info).
+/// KYC status is intentionally NOT settable here — it only transitions through the
+/// dedicated verify/reject endpoints (gated by permission:rider.verify).
+/// </summary>
 public sealed record UpdateRiderRequest(
     string? Status,
     string? VehicleNumber,
@@ -63,5 +74,7 @@ public sealed record UpdateRiderRequest(
     int?    DailyPickupCapacity,
     int?    DailyDeliveryCapacity,
     decimal? ServiceRadiusKm,
-    string? KycStatus,
     Guid?   PrimaryStoreId);
+
+/// <summary>Optional body for the KYC reject endpoint — carries the rejection reason.</summary>
+public sealed record RejectRiderRequest(string? Reason);

@@ -35,10 +35,18 @@ public static class LogisticsEndpoints
 
         riders.MapGet("/", async (
             [FromServices] ISender sender, CancellationToken ct,
-            int page = 1, int pageSize = 20, string? status = null, Guid? franchiseId = null) =>
+            int page = 1, int pageSize = 20,
+            string? status = null, Guid? franchiseId = null,
+            string? search = null, string? kycStatus = null, string? sort = null) =>
         {
-            var r = await sender.Send(
-                new GetRidersQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status, franchiseId), ct);
+            var r = await sender.Send(new GetRidersQuery(
+                page < 1 ? 1 : page,
+                pageSize < 1 ? 20 : pageSize,
+                status,
+                franchiseId,
+                search,
+                kycStatus,
+                sort), ct);
             return Results.Ok(new PaginatedListResponse<RiderDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:rider.read");
 
@@ -72,6 +80,23 @@ public static class LogisticsEndpoints
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:rider.manage");
+
+        riders.MapPost("/{id:guid}/verify", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new VerifyRiderKycCommand(id, u.UserId), ct);
+            return r is null
+                ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
+
+        riders.MapPost("/{id:guid}/reject", async (
+            Guid id, RejectRiderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new RejectRiderKycCommand(id, req.Reason, u.UserId), ct);
+            return r is null
+                ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
 
         // ── Rider Assignments ─────────────────────────────────────────────────
         var assignments = admin.MapGroup("/rider-assignments").WithTags("Admin - Rider Assignments");

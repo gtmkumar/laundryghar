@@ -1143,6 +1143,126 @@ export interface InviteUserPayload {
   password?: string
 }
 
+// ── Riders (Identity invite + Logistics profile) ────────────────────────────────
+
+/** Minimal user shape returned by the Identity invite/access-control endpoint. */
+export interface UserDto {
+  id: string
+  email: string | null
+  phone: string | null
+  firstName: string | null
+  lastName: string | null
+  userType: string
+  status: string
+}
+
+export type RiderEmploymentType = 'employee' | 'contractor' | 'gig' | 'outsourced'
+export type RiderVehicleType = 'two_wheeler' | 'three_wheeler' | 'four_wheeler' | 'cycle' | 'foot'
+
+export interface RiderDto {
+  id: string
+  userId: string
+  brandId: string
+  franchiseId: string
+  primaryStoreId: string | null
+  riderCode: string
+  employmentType: string
+  vehicleType: string
+  vehicleNumber: string | null
+  vehicleModel: string | null
+  drivingLicenseNumber: string | null
+  dlExpiryDate: string | null
+  insuranceExpiryDate: string | null
+  dailyPickupCapacity: number
+  dailyDeliveryCapacity: number
+  serviceRadiusKm: number
+  ratingAverage: number | null
+  ratingCount: number
+  completionRate: number | null
+  lifetimeDeliveries: number
+  isOnline: boolean
+  isOnDuty: boolean
+  currentLoad: number
+  kycStatus: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  riderName: string | null
+  email: string | null
+  phone: string | null
+  userStatus: string | null
+  franchiseName: string | null
+  primaryStoreName: string | null
+}
+
+export type RiderKycStatus = 'pending' | 'submitted' | 'verified' | 'rejected' | 'expired'
+export type RiderStatus = 'active' | 'suspended' | 'terminated'
+
+/** Sort keys accepted by GET /riders `sort` param. Prefix with `-` for descending. */
+export type RiderSortKey = 'created' | 'name' | 'franchise' | 'kyc' | 'status'
+export type RiderSort = RiderSortKey | `-${RiderSortKey}`
+
+export interface RiderListParams extends PaginationParams {
+  search?: string
+  kycStatus?: string
+  status?: string
+  franchiseId?: string
+  sort?: string
+}
+
+/**
+ * Step 1 — create the rider login (Identity).
+ *
+ * Posts to the dedicated narrow endpoint `/access-control/riders/invite`. The
+ * server forces the franchise for franchise-scoped callers and validates it for
+ * admins, so the client no longer supplies a roleId/scope — just the identity
+ * fields plus the target franchise.
+ */
+export interface InviteRiderUserPayload {
+  email: string
+  phone?: string
+  firstName?: string
+  lastName?: string
+  franchiseId: string
+}
+
+/** Edit subset accepted by PUT /riders/{id} — every field optional. */
+export interface UpdateRiderPayload {
+  status?: string
+  vehicleNumber?: string
+  vehicleModel?: string
+  drivingLicenseNumber?: string
+  dlExpiryDate?: string | null
+  insuranceExpiryDate?: string | null
+  dailyPickupCapacity?: number
+  dailyDeliveryCapacity?: number
+  serviceRadiusKm?: number
+  primaryStoreId?: string | null
+}
+
+/** Step 2 — create the rider operational profile (Logistics). */
+export interface CreateRiderProfilePayload {
+  userId: string
+  franchiseId: string
+  primaryStoreId?: string
+  employmentType: RiderEmploymentType
+  vehicleType: RiderVehicleType
+  vehicleNumber?: string
+  vehicleModel?: string
+  drivingLicenseNumber?: string
+  dlExpiryDate?: string
+  aadhaarNumberMasked?: string
+  panNumber?: string
+  insuranceExpiryDate?: string
+  bankAccountNumber?: string
+  bankIfsc?: string
+  bankAccountName?: string
+  upiId?: string
+  dailyPickupCapacity: number
+  dailyDeliveryCapacity: number
+  serviceRadiusKm: number
+}
+
 // ── Navigator (data-driven sidebar menu) ────────────────────────────────────────
 
 export interface NavItem {

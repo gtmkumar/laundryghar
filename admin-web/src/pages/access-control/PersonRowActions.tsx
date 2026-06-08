@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import {
-  MoreVertical, ShieldCheck, Ban, RotateCcw, KeyRound,
+  ShieldCheck, Ban, RotateCcw, KeyRound,
   Loader2, Copy, Check, X, RefreshCw,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { useSetPersonStatus } from '@/hooks/useAccessControl'
+import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
 import type { AccessPerson } from '@/types/api'
 
 /** Readable, policy-friendly temporary password (no ambiguous chars). */
@@ -22,7 +22,6 @@ function generatePassword(): string {
 }
 
 export function PersonRowActions({ person }: { person: AccessPerson }) {
-  const [menuOpen, setMenuOpen] = useState(false)
   const [activateOpen, setActivateOpen] = useState(false)
   const mutation = useSetPersonStatus()
 
@@ -31,73 +30,39 @@ export function PersonRowActions({ person }: { person: AccessPerson }) {
   const canSuspend = status === 'active'
   const canReactivate = status === 'suspended'
 
-  const run = (action: 'suspend' | 'reactivate') => {
-    setMenuOpen(false)
-    mutation.mutate({ userId: person.id, action })
-  }
+  const run = (action: 'suspend' | 'reactivate') => mutation.mutate({ userId: person.id, action })
 
   return (
     <>
-      <div className="relative inline-block text-left">
-        <button
-          type="button"
-          onClick={() => setMenuOpen((o) => !o)}
-          disabled={mutation.isPending}
-          className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
-          aria-label="Row actions"
-        >
-          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
-        </button>
-
-        {menuOpen && (
+      <ActionMenu busy={mutation.isPending} label="Row actions" icon="vertical" width={192}>
+        {(close) => (
           <>
-            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 text-left shadow-lg">
-              {canActivate && (
-                <MenuItem icon={ShieldCheck} onClick={() => { setMenuOpen(false); setActivateOpen(true) }}>
-                  Activate user
-                </MenuItem>
-              )}
-              {canReactivate && (
-                <MenuItem icon={RotateCcw} onClick={() => run('reactivate')}>
-                  Reactivate
-                </MenuItem>
-              )}
-              {canSuspend && (
-                <MenuItem icon={Ban} danger onClick={() => run('suspend')}>
-                  Suspend access
-                </MenuItem>
-              )}
-              {!canActivate && !canReactivate && !canSuspend && (
-                <p className="px-3 py-2 text-xs text-gray-400">No actions available</p>
-              )}
-            </div>
+            {canActivate && (
+              <ActionMenuItem icon={ShieldCheck} onClick={() => { close(); setActivateOpen(true) }}>
+                Activate user
+              </ActionMenuItem>
+            )}
+            {canReactivate && (
+              <ActionMenuItem icon={RotateCcw} onClick={() => { close(); run('reactivate') }}>
+                Reactivate
+              </ActionMenuItem>
+            )}
+            {canSuspend && (
+              <ActionMenuItem icon={Ban} danger onClick={() => { close(); run('suspend') }}>
+                Suspend access
+              </ActionMenuItem>
+            )}
+            {!canActivate && !canReactivate && !canSuspend && (
+              <p className="px-3 py-2 text-xs text-gray-400">No actions available</p>
+            )}
           </>
         )}
-      </div>
+      </ActionMenu>
 
       {activateOpen && (
         <ActivateDialog person={person} onClose={() => setActivateOpen(false)} />
       )}
     </>
-  )
-}
-
-function MenuItem({
-  icon: Icon, children, onClick, danger,
-}: { icon: React.ElementType; children: React.ReactNode; onClick: () => void; danger?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex w-full items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50',
-        danger ? 'text-red-600' : 'text-gray-700',
-      )}
-    >
-      <Icon className="h-4 w-4" />
-      {children}
-    </button>
   )
 }
 

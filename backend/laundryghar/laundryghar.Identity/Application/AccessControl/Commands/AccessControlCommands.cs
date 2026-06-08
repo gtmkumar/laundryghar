@@ -76,6 +76,83 @@ public sealed class InviteUserHandler : IRequestHandler<InviteUserCommand, UserD
     }
 }
 
+// ── Invite a rider (franchise-scoped, requires rider.manage) ────────────────
+public sealed record InviteRiderCommand(InviteRiderRequest Request, ICurrentUser Actor) : IRequest<UserDto>;
+
+public sealed class InviteRiderHandler : IRequestHandler<InviteRiderCommand, UserDto>
+{
+    private readonly ISender _sender;
+    private readonly LaundryGharDbContext _db;
+
+    public InviteRiderHandler(ISender sender, LaundryGharDbContext db)
+    { _sender = sender; _db = db; }
+
+    public async Task<UserDto> Handle(InviteRiderCommand cmd, CancellationToken ct)
+    {
+        var r = cmd.Request;
+
+        if (string.IsNullOrWhiteSpace(r.Email))
+            throw new ValidationException(
+                new Dictionary<string, string[]> { ["email"] = ["Email is required."] });
+
+        // ── Resolve the seeded rider role ────────────────────────────────────
+        var riderRoleId = await _db.Roles
+            .Where(ro => ro.Code == "rider" && ro.DeletedAt == null)
+            .Select(ro => (Guid?)ro.Id)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new ValidationException(
+                new Dictionary<string, string[]> { ["role"] = ["The seeded 'rider' role was not found. Contact a platform administrator."] });
+
+        // ── Franchise scoping ────────────────────────────────────────────────
+        // Franchise-scoped actors are locked to their own franchise; brand/platform
+        // admins supply the franchiseId in the request but we validate brand ownership.
+        Guid franchiseId;
+
+        if (cmd.Actor.FranchiseId is Guid actorFid)
+        {
+            // Franchise owner / franchise staff: force their own franchise regardless of request.
+            franchiseId = actorFid;
+        }
+        else
+        {
+            // Brand admin or platform admin: use the request value, validate it belongs to their brand.
+            if (r.FranchiseId == Guid.Empty)
+                throw new ValidationException(
+                    new Dictionary<string, string[]> { ["franchiseId"] = ["FranchiseId is required."] });
+
+            franchiseId = r.FranchiseId;
+
+            if (!cmd.Actor.IsPlatformAdmin)
+            {
+                var brandId = cmd.Actor.BrandId
+                    ?? throw new ValidationException(
+                        new Dictionary<string, string[]> { ["actor"] = ["Could not determine your brand context. Re-authenticate and try again."] });
+
+                var franchiseBelongsToBrand = await _db.Franchises
+                    .AnyAsync(f => f.Id == franchiseId && f.BrandId == brandId && f.DeletedAt == null, ct);
+
+                if (!franchiseBelongsToBrand)
+                    throw new ValidationException(
+                        new Dictionary<string, string[]> { ["franchiseId"] = ["Franchise not found or does not belong to your brand."] });
+            }
+        }
+
+        // ── Delegate to the shared InviteUserCommand (creates user + membership + email) ──
+        return await _sender.Send(new InviteUserCommand(
+            new InviteUserRequest(
+                Email:     r.Email,
+                Phone:     r.Phone,
+                FirstName: r.FirstName,
+                LastName:  r.LastName,
+                UserType:  "rider",
+                RoleId:    riderRoleId,
+                ScopeType: "franchise",
+                ScopeId:   franchiseId,
+                Password:  null),
+            cmd.Actor), ct);
+    }
+}
+
 // ── Toggle a permission-matrix cell for a role ──────────────────────────────
 public sealed record SetRoleCellCommand(SetRoleCellRequest Request, Guid? ActorId) : IRequest<bool>;
 

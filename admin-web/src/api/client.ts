@@ -27,6 +27,7 @@ const ENGAGEMENT_URL = import.meta.env.VITE_ENGAGEMENT_URL as string
 const ANALYTICS_URL = import.meta.env.VITE_ANALYTICS_URL as string
 const COMMERCE_URL = import.meta.env.VITE_COMMERCE_URL as string
 const WAREHOUSE_URL = import.meta.env.VITE_WAREHOUSE_URL as string
+const LOGISTICS_URL = import.meta.env.VITE_LOGISTICS_URL as string
 
 // ── Token refresh state ───────────────────────────────────────────────────────
 
@@ -165,6 +166,7 @@ export const engagementClient = createInstance(ENGAGEMENT_URL)
 export const analyticsClient = createInstance(ANALYTICS_URL)
 export const commerceClient = createInstance(COMMERCE_URL)
 export const warehouseClient = createInstance(WAREHOUSE_URL)
+export const logisticsClient = createInstance(LOGISTICS_URL)
 
 // ── Response envelope helpers ─────────────────────────────────────────────────
 

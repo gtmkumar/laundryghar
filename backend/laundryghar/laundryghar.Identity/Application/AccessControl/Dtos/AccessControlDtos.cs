@@ -44,6 +44,14 @@ public sealed record InviteUserRequest(
     string Email, string? Phone, string? FirstName, string? LastName,
     string UserType, Guid RoleId, string ScopeType, Guid? ScopeId, string? Password);
 
+/// <summary>
+/// Invite a rider into a specific franchise. Requires <c>permission:rider.manage</c>.
+/// Franchise-scoped actors (franchise_owner) must omit or will have FranchiseId overridden
+/// to their own franchise. Brand/platform admins supply FranchiseId explicitly.
+/// </summary>
+public sealed record InviteRiderRequest(
+    string Email, string? Phone, string? FirstName, string? LastName, Guid FranchiseId);
+
 /// <summary>Toggle a whole matrix cell (assigns/removes all permissions it maps to).</summary>
 public sealed record SetRoleCellRequest(Guid RoleId, string CellKey, bool Enabled);
 

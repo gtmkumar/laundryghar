@@ -19,9 +19,9 @@ public sealed class GetMyRiderProfileHandler : IRequestHandler<GetMyRiderProfile
 
     public async Task<RiderDto?> Handle(GetMyRiderProfileQuery q, CancellationToken ct)
     {
-        var r = await _db.Riders
-            .FirstOrDefaultAsync(x => x.UserId == q.UserId, ct);
-        return r is null ? null : CreateRiderHandler.ToDto(r);
+        var r = await _db.Riders.FirstOrDefaultAsync(x => x.UserId == q.UserId, ct);
+        if (r is null) return null;
+        return await CreateRiderHandler.LoadEnrichedAsync(_db, r, ct);
     }
 }
 
