@@ -1,6 +1,6 @@
 # LaundryGhar OLMS — Handoff
 
-_Last updated: 2026-06-08 (people employment + KYC + bank details)_
+_Last updated: 2026-06-08 (rider per-order tasks API + OTP both legs + Android dev base-URL fix)_
 
 ## 1. What this is
 
@@ -37,7 +37,7 @@ health). **Identity is on 5050, not 5000** (macOS AirPlay squats 5000).
 ## 2. How to run
 
 Prereqs: .NET 10 SDK, Node 22, the `laundry_ghar_db` Postgres running on `localhost:5432`,
-`psql` at `/opt/homebrew/opt/postgresql@16/bin/psql`.
+`psql` at `/opt/homebrew/opt/postgresql@18/bin/psql`.
 
 **Whole backend + dashboard, one command (run detached so it survives terminal/session):**
 ```bash
