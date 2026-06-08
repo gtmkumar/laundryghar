@@ -75,6 +75,19 @@ CREATE TABLE user_profiles (
     emergency_contact_name  VARCHAR(200),
     emergency_contact_phone VARCHAR(20),
     address                 JSONB,
+    -- Employment + KYC + payout details (employees are people too — mirrors riders).
+    employment_type         VARCHAR(20)
+                            CHECK (employment_type IS NULL OR employment_type IN
+                                ('full_time','part_time','contractual','consultant','intern')),
+    pan_number              VARCHAR(10),
+    aadhaar_number_masked   VARCHAR(20),
+    kyc_status              VARCHAR(20)
+                            CHECK (kyc_status IS NULL OR kyc_status IN ('pending','verified','rejected')),
+    kyc_verified_at         TIMESTAMPTZ,
+    bank_account_name       VARCHAR(200),
+    bank_account_number     VARCHAR(50),
+    bank_ifsc               VARCHAR(11),
+    upi_id                  VARCHAR(100),
     fcm_token               TEXT,
     fcm_token_updated_at    TIMESTAMPTZ,
     apns_token              TEXT,

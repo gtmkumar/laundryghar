@@ -11,7 +11,13 @@ namespace laundryghar.Identity.Application.Users.Commands;
 public sealed record UserDto(
     Guid Id, string? Email, string? PhoneE164, string UserType, string Status,
     bool MfaEnabled, DateTimeOffset? LastLoginAt, DateTimeOffset CreatedAt,
-    string? FirstName, string? LastName, string? DisplayName);
+    string? FirstName, string? LastName, string? DisplayName,
+    string? Designation = null,
+    string? EmploymentType = null,
+    string? PanNumber = null, string? AadhaarNumberMasked = null,
+    string? KycStatus = null, DateTimeOffset? KycVerifiedAt = null,
+    string? BankAccountName = null, string? BankAccountNumber = null,
+    string? BankIfsc = null, string? UpiId = null);
 
 public sealed record CreateUserRequest(
     string? Email, string? Phone, string UserType,
@@ -27,7 +33,16 @@ public sealed record UpdateUserRequest(
     string? Phone = null,
     string? FirstName = null,
     string? LastName = null,
-    string? Designation = null);
+    string? Designation = null,
+    // Employment & payout details (profile). Send "" to clear, null to leave unchanged.
+    string? EmploymentType = null,
+    string? PanNumber = null,
+    string? AadhaarNumberMasked = null,
+    string? KycStatus = null,
+    string? BankAccountName = null,
+    string? BankAccountNumber = null,
+    string? BankIfsc = null,
+    string? UpiId = null);
 
 /// <summary>H3: Separate command for changing a user's type; requires users.set_type permission.</summary>
 public sealed record SetUserTypeRequest(string NewUserType);
@@ -81,7 +96,17 @@ public sealed class GetUserByIdHandler : IRequestHandler<GetUserByIdQuery, UserD
                 u.Id, u.Email, u.PhoneE164, u.UserType, u.Status, u.MfaEnabled, u.LastLoginAt, u.CreatedAt,
                 u.Profile != null ? u.Profile.FirstName   : null,
                 u.Profile != null ? u.Profile.LastName    : null,
-                u.Profile != null ? u.Profile.DisplayName : null))
+                u.Profile != null ? u.Profile.DisplayName : null,
+                u.Profile != null ? u.Profile.Designation : null,
+                u.Profile != null ? u.Profile.EmploymentType : null,
+                u.Profile != null ? u.Profile.PanNumber : null,
+                u.Profile != null ? u.Profile.AadhaarNumberMasked : null,
+                u.Profile != null ? u.Profile.KycStatus : null,
+                u.Profile != null ? u.Profile.KycVerifiedAt : null,
+                u.Profile != null ? u.Profile.BankAccountName : null,
+                u.Profile != null ? u.Profile.BankAccountNumber : null,
+                u.Profile != null ? u.Profile.BankIfsc : null,
+                u.Profile != null ? u.Profile.UpiId : null))
             .FirstOrDefaultAsync(ct);
 }
 
@@ -150,24 +175,65 @@ public sealed class UpdateUserHandler : IRequestHandler<UpdateUserCommand, UserD
         var user = await _db.Users.Include(u => u.Profile).FirstOrDefaultAsync(u => u.Id == cmd.Id, ct);
         if (user is null) return null;
 
+        var r = cmd.Request;
+
         // H3: Email/Phone only — Status and UserType are NOT assignable here.
         // Status → use /deactivate. UserType → use /set-type (users.set_type permission).
-        if (cmd.Request.Email is not null) user.Email     = cmd.Request.Email;
-        if (cmd.Request.Phone is not null) user.PhoneE164 = cmd.Request.Phone;
+        if (r.Email is not null) user.Email     = r.Email;
+        if (r.Phone is not null) user.PhoneE164 = r.Phone;
         user.UpdatedAt = DateTimeOffset.UtcNow; user.UpdatedBy = cmd.ActorId; user.Version++;
 
-        if (user.Profile is not null)
+        // Does the request touch any profile-backed field? Employees carry employment + KYC
+        // + bank details on the profile, so a person with no profile row needs one created.
+        var touchesProfile = r.FirstName is not null || r.LastName is not null || r.Designation is not null
+            || r.EmploymentType is not null || r.PanNumber is not null || r.AadhaarNumberMasked is not null
+            || r.KycStatus is not null || r.BankAccountName is not null || r.BankAccountNumber is not null
+            || r.BankIfsc is not null || r.UpiId is not null;
+
+        var profile = user.Profile;
+        if (profile is null && touchesProfile)
         {
-            if (cmd.Request.FirstName   is not null) user.Profile.FirstName   = cmd.Request.FirstName;
-            if (cmd.Request.LastName    is not null) user.Profile.LastName    = cmd.Request.LastName;
-            if (cmd.Request.Designation is not null) user.Profile.Designation = cmd.Request.Designation;
-            user.Profile.UpdatedAt = DateTimeOffset.UtcNow; user.Profile.UpdatedBy = cmd.ActorId;
+            profile = new UserProfile
+            {
+                UserId = user.Id, Preferences = "{}", Metadata = "{}", Status = "active",
+                CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow, CreatedBy = cmd.ActorId,
+            };
+            _db.UserProfiles.Add(profile);
+            user.Profile = profile;
+        }
+
+        if (profile is not null && touchesProfile)
+        {
+            // Empty string clears the field; null leaves it unchanged.
+            static string? Norm(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+            if (r.FirstName           is not null) profile.FirstName           = Norm(r.FirstName);
+            if (r.LastName            is not null) profile.LastName            = Norm(r.LastName);
+            if (r.Designation         is not null) profile.Designation         = Norm(r.Designation);
+            if (r.EmploymentType      is not null) profile.EmploymentType      = Norm(r.EmploymentType);
+            if (r.PanNumber           is not null) profile.PanNumber           = Norm(r.PanNumber)?.ToUpperInvariant();
+            if (r.AadhaarNumberMasked is not null) profile.AadhaarNumberMasked = Norm(r.AadhaarNumberMasked);
+            if (r.BankAccountName     is not null) profile.BankAccountName     = Norm(r.BankAccountName);
+            if (r.BankAccountNumber   is not null) profile.BankAccountNumber   = Norm(r.BankAccountNumber);
+            if (r.BankIfsc            is not null) profile.BankIfsc            = Norm(r.BankIfsc)?.ToUpperInvariant();
+            if (r.UpiId               is not null) profile.UpiId               = Norm(r.UpiId);
+            if (r.KycStatus is not null)
+            {
+                var next = Norm(r.KycStatus)?.ToLowerInvariant();
+                // Stamp verified-at on the pending→verified transition; clear it otherwise.
+                if (next == "verified" && profile.KycStatus != "verified") profile.KycVerifiedAt = DateTimeOffset.UtcNow;
+                else if (next != "verified") profile.KycVerifiedAt = null;
+                profile.KycStatus = next;
+            }
+            profile.UpdatedAt = DateTimeOffset.UtcNow; profile.UpdatedBy = cmd.ActorId;
         }
 
         await _db.SaveChangesAsync(ct);
         return new UserDto(user.Id, user.Email, user.PhoneE164, user.UserType, user.Status,
             user.MfaEnabled, user.LastLoginAt, user.CreatedAt,
-            user.Profile?.FirstName, user.Profile?.LastName, user.Profile?.DisplayName);
+            profile?.FirstName, profile?.LastName, profile?.DisplayName,
+            profile?.Designation, profile?.EmploymentType, profile?.PanNumber, profile?.AadhaarNumberMasked,
+            profile?.KycStatus, profile?.KycVerifiedAt, profile?.BankAccountName, profile?.BankAccountNumber,
+            profile?.BankIfsc, profile?.UpiId);
     }
 }
 

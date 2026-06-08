@@ -1,6 +1,6 @@
 # LaundryGhar OLMS — Handoff
 
-_Last updated: 2026-06-08 (rider-mobile Partner v2 redesign)_
+_Last updated: 2026-06-08 (people employment + KYC + bank details)_
 
 ## 1. What this is
 
@@ -67,8 +67,50 @@ All 4 clients build/typecheck; mobile apps bundle for iOS. The full stack runs f
 Aspire command and was last validated green across every service under the `app_user` runtime.
 **Admin rider onboarding** (Identity invite → Logistics profile, KYC approve/reject, franchise
 self-service, full-profile edit) is built, security-gated, and verified live + in-browser.
+**People** (HQ + franchise employees) now also carry optional employment / KYC / bank details
+on `user_profiles`, editable from the Access-control person drawer (see §4).
 
-## 4. What changed in the latest session (2026-06-08) — rider-mobile "Partner v2"
+## 4. What changed in recent sessions
+
+### 2026-06-08 (latest) — people employment + KYC + bank details
+
+People (HQ employees, franchise owners, franchise staff) are employees too, so they now
+carry the same **employment / KYC / payout** shape Riders already had. All fields are
+**optional, never required, and available for everyone** (per product decision — a
+contractual hire and a full-timer see identical fields; nothing is enforced yet).
+
+**Where it lives:** all new fields sit on the existing 1-to-1 `identity_access.user_profiles`
+row (NOT the `users` table) — mirroring how Rider carries them inline:
+`employment_type` (`full_time|part_time|contractual|consultant|intern`, CHECK-constrained),
+`pan_number`, `aadhaar_number_masked`, `kyc_status` (`pending|verified|rejected`),
+`kyc_verified_at`, `bank_account_name`, `bank_account_number`, `bank_ifsc`, `upi_id`.
+
+**Schema:** added to the canonical `database_scripts/02_bc2_identity_access.sql` (fresh
+installs) **and** shipped as an idempotent patch `02_patch_user_employment_kyc.sql`
+(ALTER … ADD COLUMN IF NOT EXISTS + guarded CHECKs) — **already applied to the live DB**.
+There are no EF migrations in this repo; schema is hand-written SQL.
+
+**Backend (Identity):** `UserProfile` entity + `UserProfileConfiguration` extended; `UserDto`
++ `UpdateUserRequest` carry the new fields; `UpdateUserHandler` now (1) **creates a profile
+row if the person has none** (verified 0→1 on first save), (2) treats **empty string as
+clear, null/omitted as leave-unchanged**, (3) upper-cases PAN/IFSC, and (4) auto-stamps
+`kyc_verified_at` on the pending→verified transition (clears it on the reverse). The list
+(`GetUsers`) and create projections keep working via defaulted `UserDto` params.
+
+**Frontend (admin-web):** `PersonDetailDrawer` gained **Employment**, **KYC & documents**,
+and **Bank & payout** sections in both view and edit modes, with one Edit toggle (in the
+header) and a sticky Save/Cancel footer. `AdminUserDetail` / `UpdateUserPayload` types +
+`UserEmploymentType` / `UserKycStatus` added in `types/api.ts`.
+
+**Verified live:** GET returns the fields; PUT persists (PAN/IFSC upper-cased, verified-at
+stamped); empty-string clears; partial update leaves siblings intact; verified→pending
+clears the timestamp; profile auto-created for a profile-less user (throwaway user, then
+hard-deleted). Drawer renders all sections, edit shows selects + IFSC/UPI + Save, 0 page
+errors (Playwright). Backend built clean, `tsc` 0, AppHost restarted (Identity healthy).
+**Follow-up if wanted:** gate *required* PAN+bank on contractual/consultant types before
+activation (currently all optional).
+
+### 2026-06-08 — rider-mobile "Partner v2"
 
 Focus: a full visual + flow redesign of **`rider-mobile/`** to the v2 mockups (warm
 cream / olive / gold palette, stack-based navigation, **no bottom tabs**). Builds clean

@@ -1156,6 +1156,12 @@ export interface UserDto {
   status: string
 }
 
+/** Employment type for people (HQ + franchise employees). */
+export type UserEmploymentType = 'full_time' | 'part_time' | 'contractual' | 'consultant' | 'intern'
+
+/** KYC verification state for a person's identity documents. */
+export type UserKycStatus = 'pending' | 'verified' | 'rejected'
+
 /** Full admin view of a user (GET /admin/users/{id}). */
 export interface AdminUserDetail {
   id: string
@@ -1169,6 +1175,16 @@ export interface AdminUserDetail {
   firstName: string | null
   lastName: string | null
   displayName: string | null
+  designation: string | null
+  employmentType: UserEmploymentType | null
+  panNumber: string | null
+  aadhaarNumberMasked: string | null
+  kycStatus: UserKycStatus | null
+  kycVerifiedAt: string | null
+  bankAccountName: string | null
+  bankAccountNumber: string | null
+  bankIfsc: string | null
+  upiId: string | null
 }
 
 export interface UpdateUserPayload {
@@ -1177,6 +1193,15 @@ export interface UpdateUserPayload {
   firstName?: string | null
   lastName?: string | null
   designation?: string | null
+  // Employment + KYC + bank. Empty string clears; omit/undefined leaves unchanged.
+  employmentType?: string | null
+  panNumber?: string | null
+  aadhaarNumberMasked?: string | null
+  kycStatus?: string | null
+  bankAccountName?: string | null
+  bankAccountNumber?: string | null
+  bankIfsc?: string | null
+  upiId?: string | null
 }
 
 export type RiderEmploymentType = 'employee' | 'contractor' | 'gig' | 'outsourced'

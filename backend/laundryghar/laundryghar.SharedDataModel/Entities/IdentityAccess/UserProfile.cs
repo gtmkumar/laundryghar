@@ -19,6 +19,19 @@ public class UserProfile
     public string? EmergencyContactName { get; set; }
     public string? EmergencyContactPhone { get; set; }
     public string? Address { get; set; }
+
+    // Employment & payout details (employees are people too — mirrors the Rider shape).
+    // All optional: never required, available for every person.
+    public string? EmploymentType { get; set; }      // full_time | part_time | contractual | consultant | intern
+    public string? PanNumber { get; set; }
+    public string? AadhaarNumberMasked { get; set; }
+    public string? KycStatus { get; set; }            // pending | verified | rejected (null = not started)
+    public DateTimeOffset? KycVerifiedAt { get; set; }
+    public string? BankAccountName { get; set; }
+    public string? BankAccountNumber { get; set; }
+    public string? BankIfsc { get; set; }
+    public string? UpiId { get; set; }
+
     public string? FcmToken { get; set; }
     public DateTimeOffset? FcmTokenUpdatedAt { get; set; }
     public string? ApnsToken { get; set; }
