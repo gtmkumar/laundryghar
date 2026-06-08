@@ -107,9 +107,9 @@ public static class AdminUserEndpoints
         // ── Access Control console (People / Roles & Permissions / Franchises) ──
         var ac = group.MapGroup("/access-control").WithTags("Admin - Access Control").RequireAuthorization();
 
-        ac.MapGet("/people", async (string? search, Guid? franchiseId, ISender sender, CancellationToken ct, int page = 1, int pageSize = 100) =>
+        ac.MapGet("/people", async (string? search, Guid? franchiseId, string? sort, ISender sender, CancellationToken ct, int page = 1, int pageSize = 100) =>
         {
-            var r = await sender.Send(new GetAccessPeopleQuery(search, page < 1 ? 1 : page, pageSize < 1 ? 100 : pageSize, franchiseId), ct);
+            var r = await sender.Send(new GetAccessPeopleQuery(search, page < 1 ? 1 : page, pageSize < 1 ? 100 : pageSize, franchiseId, sort), ct);
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<AccessPeoplePageDto> { Status = true, Data = r });
         }).WithName("GetAccessPeople").RequireAuthorization("permission:users.list");
 
@@ -119,9 +119,9 @@ public static class AdminUserEndpoints
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<AccessRolesDto> { Status = true, Data = r });
         }).WithName("GetAccessRoles").RequireAuthorization("permission:roles.list");
 
-        ac.MapGet("/franchises", async (ISender sender, CancellationToken ct, int page = 1, int pageSize = 100) =>
+        ac.MapGet("/franchises", async (string? search, ISender sender, CancellationToken ct, int page = 1, int pageSize = 100) =>
         {
-            var r = await sender.Send(new GetAccessFranchisesQuery(page < 1 ? 1 : page, pageSize < 1 ? 100 : pageSize), ct);
+            var r = await sender.Send(new GetAccessFranchisesQuery(page < 1 ? 1 : page, pageSize < 1 ? 100 : pageSize, search), ct);
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.PaginatedListResponse<FranchiseCardDto> { Status = true, Data = r });
         }).WithName("GetAccessFranchises").RequireAuthorization("permission:franchises.list");
 

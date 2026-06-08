@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AccessPeoplePage, AccessPerson, AccessPeopleCounts } from '@/types/api'
 import { PersonRowActions } from './PersonRowActions'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
+import { PersonDetailDrawer, type PersonSummary } from './PersonDetailDrawer'
 
 interface Props {
   query: {
@@ -14,6 +15,8 @@ interface Props {
     isFetchingNextPage: boolean
     fetchNextPage: () => void
   }
+  sort?: string
+  onSort?: (key: string) => void
 }
 
 const EMPTY_COUNTS: AccessPeopleCounts = { all: 0, hqEmployees: 0, franchiseOwners: 0, franchiseStaff: 0 }
@@ -69,8 +72,9 @@ function matchesChip(p: AccessPerson, chip: ChipKey): boolean {
   }
 }
 
-export function PeopleTab({ query }: Props) {
+export function PeopleTab({ query, sort, onSort }: Props) {
   const [chip, setChip] = useState<ChipKey>('all')
+  const [selected, setSelected] = useState<PersonSummary | null>(null)
   const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage } = query
 
   const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
@@ -124,18 +128,22 @@ export function PeopleTab({ query }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              <th className="px-5 py-3">Name</th>
-              <th className="px-5 py-3">Role</th>
+              <SortTh label="Name" sortKey="name" sort={sort} onSort={onSort} />
+              <SortTh label="Role" sortKey="role" sort={sort} onSort={onSort} />
               <th className="px-5 py-3">Scope</th>
               <th className="px-5 py-3">Type</th>
               <th className="px-5 py-3">Status</th>
-              <th className="px-5 py-3 text-right">Last active</th>
-              <th className="px-5 py-3 w-12"><span className="sr-only">Actions</span></th>
+              <SortTh label="Last active" sortKey="active" sort={sort} onSort={onSort} align="right" />
+              <th className="w-12 px-5 py-3"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((p) => (
-              <tr key={p.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60">
+              <tr
+                key={p.id}
+                onClick={() => setSelected(toSummary(p))}
+                className="cursor-pointer border-b border-gray-50 last:border-0 hover:bg-gray-50/60"
+              >
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
                     <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white', avatarColor(p.name))}>
@@ -153,7 +161,7 @@ export function PeopleTab({ query }: Props) {
                   </span>
                 </td>
                 <td className="px-5 py-3 text-gray-600">{p.scopeLabel}</td>
-                <td className="px-5 py-3 text-gray-500 capitalize">{p.tier}</td>
+                <td className="px-5 py-3 capitalize text-gray-500">{p.tier}</td>
                 <td className="px-5 py-3">
                   <span className="inline-flex items-center gap-1.5 text-xs font-medium capitalize">
                     <span className={cn('h-1.5 w-1.5 rounded-full', p.status === 'active' ? 'bg-emerald-500' : p.status === 'invited' ? 'bg-amber-500' : 'bg-gray-300')} />
@@ -161,7 +169,7 @@ export function PeopleTab({ query }: Props) {
                   </span>
                 </td>
                 <td className="px-5 py-3 text-right text-gray-400">{timeAgo(p.lastActiveAt)}</td>
-                <td className="px-5 py-3 text-right"><PersonRowActions person={p} /></td>
+                <td className="px-5 py-3 text-right" onClick={(e) => e.stopPropagation()}><PersonRowActions person={p} /></td>
               </tr>
             ))}
             {rows.length === 0 && (
@@ -178,6 +186,51 @@ export function PeopleTab({ query }: Props) {
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
         </div>
       )}
+
+      <PersonDetailDrawer person={selected} open={selected !== null} onClose={() => setSelected(null)} />
     </div>
+  )
+}
+
+function toSummary(p: AccessPerson): PersonSummary {
+  return { id: p.id, name: p.name, roleName: p.roleName, scopeLabel: p.scopeLabel, status: p.status, initials: p.initials }
+}
+
+/** Sortable column header. Clicking toggles asc → desc (key ↔ -key) via onSort. */
+function SortTh({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  align = 'left',
+}: {
+  label: string
+  sortKey: string
+  sort?: string
+  onSort?: (key: string) => void
+  align?: 'left' | 'right'
+}) {
+  if (!onSort) return <th className={cn('px-5 py-3', align === 'right' && 'text-right')}>{label}</th>
+  const active = sort === sortKey || sort === `-${sortKey}`
+  const desc = sort === `-${sortKey}`
+  return (
+    <th className={cn('px-5 py-3', align === 'right' && 'text-right')}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          'inline-flex items-center gap-1 font-semibold uppercase tracking-wide transition-colors hover:text-gray-600',
+          align === 'right' && 'flex-row-reverse',
+          active ? 'text-gray-700' : 'text-gray-400',
+        )}
+      >
+        {label}
+        {active ? (
+          desc ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
+        ) : (
+          <ChevronsUpDown className="h-3 w-3 opacity-50" />
+        )}
+      </button>
+    </th>
   )
 }

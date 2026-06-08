@@ -15,7 +15,7 @@ export type PersonStatusAction = 'activate' | 'suspend' | 'reactivate'
 const BASE = '/api/v1/admin/access-control'
 
 export async function getAccessPeople(
-  params: PaginationParams & { search?: string; franchiseId?: string } = {},
+  params: PaginationParams & { search?: string; franchiseId?: string; sort?: string } = {},
 ): Promise<AccessPeoplePage> {
   const { data } = await identityClient.get<ApiResponse<AccessPeoplePage>>(`${BASE}/people`, {
     params: { page: 1, pageSize: 100, ...params },
@@ -29,7 +29,7 @@ export async function getAccessRoles(): Promise<AccessRoles> {
 }
 
 export async function getAccessFranchises(
-  params: PaginationParams = {},
+  params: PaginationParams & { search?: string } = {},
 ): Promise<PaginatedList<AccessFranchise>> {
   const { data } = await identityClient.get<ApiResponse<PaginatedList<AccessFranchise>>>(
     `${BASE}/franchises`,

@@ -1156,6 +1156,29 @@ export interface UserDto {
   status: string
 }
 
+/** Full admin view of a user (GET /admin/users/{id}). */
+export interface AdminUserDetail {
+  id: string
+  email: string | null
+  phoneE164: string | null
+  userType: string
+  status: string
+  mfaEnabled: boolean
+  lastLoginAt: string | null
+  createdAt: string
+  firstName: string | null
+  lastName: string | null
+  displayName: string | null
+}
+
+export interface UpdateUserPayload {
+  email?: string | null
+  phone?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  designation?: string | null
+}
+
 export type RiderEmploymentType = 'employee' | 'contractor' | 'gig' | 'outsourced'
 export type RiderVehicleType = 'two_wheeler' | 'three_wheeler' | 'four_wheeler' | 'cycle' | 'foot'
 

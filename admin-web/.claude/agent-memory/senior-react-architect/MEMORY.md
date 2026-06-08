@@ -1,0 +1,1 @@
+- [Infinite scroll migration](project-infinite-scroll.md) — which screens were converted, additive hook pattern, and which consumers were intentionally kept as flat useQuery

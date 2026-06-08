@@ -1,6 +1,7 @@
 /**
- * Authenticated app layout — guards against unauthenticated access.
- * Wraps (tabs) and any stack screens pushed from tabs (e.g. assignment detail).
+ * Authenticated stack — guards unauthenticated access and hosts the duty home,
+ * task list, task detail, delivered summary and profile screens. No bottom tab
+ * bar (matches the v2 design — navigation is action-driven).
  */
 import React, { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
@@ -17,20 +18,18 @@ export default function AppLayout() {
   }, [accessToken, isHydrated, router]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen
-        name="assignments/[id]"
-        options={{
-          headerShown:    true,
-          headerTitle:    'Assignment',
-          headerBackTitle: 'Back',
-          presentation:   'card',
-          headerStyle:    { backgroundColor: '#15803D' },
-          headerTintColor: '#FFFFFF',
-          headerTitleStyle: { color: '#FFFFFF', fontWeight: 'bold' },
-        }}
-      />
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: '#F3EEE3' },
+        animation: 'slide_from_right',
+      }}
+    >
+      <Stack.Screen name="home" />
+      <Stack.Screen name="tasks" />
+      <Stack.Screen name="tasks/[id]" />
+      <Stack.Screen name="delivered" options={{ animation: 'fade', gestureEnabled: false }} />
+      <Stack.Screen name="profile" options={{ presentation: 'card' }} />
     </Stack>
   );
 }

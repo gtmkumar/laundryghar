@@ -13,11 +13,11 @@ import { useEffectiveBrandId } from './useBrandContext'
 
 const PEOPLE_PAGE_SIZE = 100
 
-export function useAccessPeople(search?: string) {
+export function useAccessPeople(search?: string, sort?: string) {
   const brandId = useEffectiveBrandId()
   return useInfiniteQuery({
-    queryKey: ['access', 'people', search ?? '', brandId],
-    queryFn: ({ pageParam }) => getAccessPeople({ search, page: pageParam, pageSize: PEOPLE_PAGE_SIZE }),
+    queryKey: ['access', 'people', search ?? '', sort ?? '', brandId],
+    queryFn: ({ pageParam }) => getAccessPeople({ search, sort, page: pageParam, pageSize: PEOPLE_PAGE_SIZE }),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => (lastPage.people.hasNextPage ? allPages.length + 1 : undefined),
     enabled: !!brandId,
@@ -35,11 +35,12 @@ export function useAccessRoles() {
 
 const FRANCHISE_PAGE_SIZE = 100
 
-export function useAccessFranchises() {
+export function useAccessFranchises(search?: string) {
   const brandId = useEffectiveBrandId()
   return useInfiniteQuery({
-    queryKey: ['access', 'franchises', brandId],
-    queryFn: ({ pageParam }) => getAccessFranchises({ page: pageParam, pageSize: FRANCHISE_PAGE_SIZE }),
+    queryKey: ['access', 'franchises', search ?? '', brandId],
+    queryFn: ({ pageParam }) =>
+      getAccessFranchises({ search, page: pageParam, pageSize: FRANCHISE_PAGE_SIZE }),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => (lastPage.hasNextPage ? allPages.length + 1 : undefined),
     enabled: !!brandId,

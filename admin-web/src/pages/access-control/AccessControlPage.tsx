@@ -24,17 +24,33 @@ export function AccessControlPage() {
   const [search, setSearch] = useState('')
   const [inviteOpen, setInviteOpen] = useState(false)
 
-  const people = useAccessPeople(search.trim() || undefined)
+  const [peopleSort, setPeopleSort] = useState<string | undefined>(undefined)
+  const toggleSort = (key: string) =>
+    setPeopleSort((cur) => (cur === key ? `-${key}` : cur === `-${key}` ? undefined : key))
+
+  const term = search.trim() || undefined
+  const people = useAccessPeople(term, peopleSort)
   const roles = useAccessRoles()
-  const franchises = useAccessFranchises()
+  const franchises = useAccessFranchises(term)
 
   // Flatten the infinite-query pages for the count badge and the invite picker.
   const franchiseList = franchises.data?.pages.flatMap((p) => p.list) ?? []
   const franchiseTotal = franchises.data?.pages[0]?.totalCount ?? franchiseList.length
 
+  // Roles filter client-side, so the badge reflects the same search the tab applies.
+  const lc = term?.toLowerCase()
+  const rolesCount = roles.data?.groups.reduce(
+    (n, g) =>
+      n +
+      (lc
+        ? g.roles.filter((r) => r.name.toLowerCase().includes(lc) || (r.description ?? '').toLowerCase().includes(lc)).length
+        : g.roles.length),
+    0,
+  )
+
   const counts: Record<TabKey, number | undefined> = {
     people: people.data?.pages[0]?.counts.all,
-    roles: roles.data?.groups.reduce((n, g) => n + g.roles.length, 0),
+    roles: rolesCount,
     franchises: franchises.data ? franchiseTotal : undefined,
   }
 
@@ -103,8 +119,8 @@ export function AccessControlPage() {
       </div>
 
       {/* Tab body */}
-      {tab === 'people' && <PeopleTab query={people} />}
-      {tab === 'roles' && <RolesTab query={roles} />}
+      {tab === 'people' && <PeopleTab query={people} sort={peopleSort} onSort={toggleSort} />}
+      {tab === 'roles' && <RolesTab query={roles} search={term} />}
       {tab === 'franchises' && <FranchisesTab query={franchises} />}
 
       <InviteUserModal

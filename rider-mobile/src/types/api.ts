@@ -48,12 +48,35 @@ export interface PasswordLoginRequest {
   password:   string;
 }
 
-/** Mirrors Identity's TokenResponse record */
+/** Mirrors Identity's TokenResponse / OtpVerifiedResponse records */
 export interface TokenResponse {
-  accessToken:  string;
-  refreshToken: string;
+  accessToken:       string;
+  refreshToken:      string;
+  expiresInSeconds?: number;
+  tokenType?:        string;
   /** Included in system token responses */
   userType?: string;
+}
+
+// --- OTP login (phone) — POST /auth/otp/send + /auth/otp/verify -------------
+
+/** identifierType is "phone" | "email"; purpose is "login" for sign-in. */
+export interface OtpSendRequest {
+  identifier:     string;   // E.164 phone, e.g. "+919877001234"
+  identifierType: string;
+  purpose:        string;
+}
+
+export interface OtpSentResponse {
+  message:   string;
+  expiresAt: string;   // ISO-8601
+}
+
+export interface OtpVerifyRequest {
+  identifier:     string;
+  identifierType: string;
+  purpose:        string;
+  code:           string;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +112,13 @@ export interface RiderDto {
   status:                 string;
   createdAt:              string;
   updatedAt:              string;
+  // Enriched (joined) fields returned by GET /rider/me
+  riderName?:             string | null;
+  email?:                 string | null;
+  phone?:                 string | null;    // E.164
+  userStatus?:            string | null;
+  franchiseName?:         string | null;
+  primaryStoreName?:      string | null;
 }
 
 /** Mirrors RiderAssignmentDto */
@@ -129,6 +159,51 @@ export type RiderAssignmentStatus =
 /** Body for PATCH /api/v1/rider/assignments/{id}/status */
 export interface RiderAssignmentStatusUpdateRequest {
   status: RiderAssignmentStatus;
+}
+
+// ---------------------------------------------------------------------------
+// Rider task DTOs (mobile-facing view of a per-order pickup/delivery job).
+//
+// The backend models these as `logistics.delivery_assignments` joined to an
+// order, but exposes NO rider-facing route group for them yet. This shape is
+// the contract a future GET /api/v1/rider/tasks/today should return; until it
+// ships, src/api/tasks.ts serves a labelled demo set. See HANDOFF backlog.
+// ---------------------------------------------------------------------------
+
+export type TaskLegType    = 'pickup' | 'delivery';
+export type RiderTaskStatus =
+  | 'assigned'   // waiting for the rider to start
+  | 'started'    // en route
+  | 'arrived'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface RiderTask {
+  id:            string;
+  orderNumber:   string;        // "LG-28407"
+  legType:       TaskLegType;
+  status:        RiderTaskStatus;
+  isExpress:     boolean;
+  customerName:  string;
+  customerPhone: string;        // E.164 — used by the Call action
+  addressLine:   string;        // "B-12, Sushant Lok 1"
+  zoneLabel?:    string;        // "Sec 45 · T-22"
+  distanceKm:    number;
+  etaMinutes?:   number;
+  windowStart?:  string;        // "12:00"
+  windowEnd?:    string;        // "14:00"
+  scheduledTime?: string;       // "15:30" (single-point ETA)
+  garmentCount:  number;
+  amountDue:     number;        // 0 when prepaid
+  isPaid:        boolean;
+  /** 4-digit code the customer reads out to confirm a delivery. */
+  deliveryOtp?:  string;
+  payout:        number;        // rider earning for this leg (₹)
+  lat?:          number;
+  lng?:          number;
+  completedAt?:  string;        // ISO — set when status=completed
+  rating?:       number;        // 1..5 customer rating after completion
 }
 
 // ---------------------------------------------------------------------------

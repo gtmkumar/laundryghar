@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Store, Users, Bike, Loader2, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { TEAM_LABEL, type TeamScope } from '@/api/franchiseTeam'
+import { TEAM_LABEL, type TeamScope, type TeamRow } from '@/api/franchiseTeam'
 import { useTeamInfinite } from '@/hooks/useFranchiseTeam'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { TeamRowItem } from './FranchiseTeamShared'
+import { PersonDetailDrawer, type PersonSummary } from './PersonDetailDrawer'
 
 const SCOPE_ICON: Record<TeamScope, React.ElementType> = { stores: Store, staff: Users, riders: Bike }
 const SCOPES: TeamScope[] = ['stores', 'staff', 'riders']
@@ -21,18 +22,22 @@ interface Props {
 /** Right-side drawer showing a franchise's stores / staff / riders with infinite scroll. */
 export function FranchiseTeamDrawer({ open, franchiseId, franchiseName, scope: initialScope, onClose }: Props) {
   const [scope, setScope] = useState<TeamScope>(initialScope)
+  const [person, setPerson] = useState<PersonSummary | null>(null)
   const navigate = useNavigate()
   useEffect(() => {
     if (open) setScope(initialScope)
   }, [open, initialScope])
 
-  // Row → its detail/management screen. Only riders have a full detail+edit
-  // drawer today (deep-linked); stores & staff land on their list pages.
-  const goToDetail = (id: string) => {
+  // Row click → the right detail surface. Staff opens the person drawer in place;
+  // riders deep-link to their full detail; stores land on the Stores list.
+  const openRow = (r: TeamRow) => {
+    if (scope === 'staff') {
+      setPerson({ id: r.id, name: r.title, roleName: r.subtitle, status: r.status, initials: r.initials })
+      return
+    }
     onClose()
-    if (scope === 'riders') navigate(`/riders?rider=${id}`)
-    else if (scope === 'stores') navigate('/tenancy')
-    else navigate('/access-control?tab=people')
+    if (scope === 'riders') navigate(`/riders?rider=${r.id}`)
+    else navigate('/tenancy')
   }
 
   const q = useTeamInfinite(scope, franchiseId ?? '', open && !!franchiseId)
@@ -50,6 +55,7 @@ export function FranchiseTeamDrawer({ open, franchiseId, franchiseName, scope: i
   const label = TEAM_LABEL[scope].toLowerCase()
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
       <div className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -106,7 +112,7 @@ export function FranchiseTeamDrawer({ open, franchiseId, franchiseName, scope: i
                   <button
                     key={r.id}
                     type="button"
-                    onClick={() => goToDetail(r.id)}
+                    onClick={() => openRow(r)}
                     className="group flex w-full items-center gap-1 rounded-lg px-2 text-left transition-colors hover:bg-gray-50"
                     title={`Open ${r.title}`}
                   >
@@ -128,5 +134,9 @@ export function FranchiseTeamDrawer({ open, franchiseId, franchiseName, scope: i
         </div>
       </div>
     </div>
+
+    {/* Staff row → person detail/edit drawer, layered above this drawer */}
+    <PersonDetailDrawer person={person} open={person !== null} onClose={() => setPerson(null)} />
+    </>
   )
 }

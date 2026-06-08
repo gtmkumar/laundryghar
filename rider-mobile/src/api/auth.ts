@@ -7,13 +7,64 @@
  */
 import { identityClient } from '@/api/client';
 import type {
+  OtpSendRequest,
+  OtpSentResponse,
+  OtpVerifyRequest,
   PasswordLoginRequest,
   SingleResponse,
   TokenResponse,
 } from '@/types/api';
 
+const PHONE = 'phone';
+const LOGIN = 'login';
+
 // ---------------------------------------------------------------------------
-// POST /api/v1/auth/password/login
+// POST /api/v1/auth/otp/send   (purpose="login", identifierType="phone")
+// Backend never reveals whether the number exists — always resolves on 2xx.
+// ---------------------------------------------------------------------------
+export async function sendLoginOtp(phoneE164: string): Promise<OtpSentResponse> {
+  const payload: OtpSendRequest = {
+    identifier:     phoneE164,
+    identifierType: PHONE,
+    purpose:        LOGIN,
+  };
+  const res = await identityClient.post<SingleResponse<OtpSentResponse>>(
+    '/auth/otp/send',
+    payload,
+  );
+  const envelope = res.data;
+  if (!envelope.status || !envelope.data) {
+    throw new Error(envelope.message?.responseMessage ?? 'Could not send OTP');
+  }
+  return envelope.data;
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/auth/otp/verify  →  TokenResponse (accessToken + refreshToken)
+// ---------------------------------------------------------------------------
+export async function verifyLoginOtp(
+  phoneE164: string,
+  code: string,
+): Promise<TokenResponse> {
+  const payload: OtpVerifyRequest = {
+    identifier:     phoneE164,
+    identifierType: PHONE,
+    purpose:        LOGIN,
+    code,
+  };
+  const res = await identityClient.post<SingleResponse<TokenResponse>>(
+    '/auth/otp/verify',
+    payload,
+  );
+  const envelope = res.data;
+  if (!envelope.status || !envelope.data) {
+    throw new Error(envelope.message?.responseMessage ?? 'Invalid or expired code');
+  }
+  return envelope.data;
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/auth/password/login   (kept as a fallback sign-in path)
 // ---------------------------------------------------------------------------
 export async function passwordLogin(
   identifier: string,

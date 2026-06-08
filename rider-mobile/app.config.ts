@@ -11,7 +11,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   splash: {
     image: './assets/splash.png',
     resizeMode: 'contain',
-    backgroundColor: '#15803D',
+    backgroundColor: '#4A552A',
   },
   scheme: 'laundryghar-rider',
   ios: {
@@ -28,7 +28,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#15803D',
+      backgroundColor: '#4A552A',
     },
     package: 'com.laundryghar.rider',
     versionCode: 1,
@@ -63,7 +63,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         image: './assets/splash.png',
         imageWidth: 200,
         resizeMode: 'contain',
-        backgroundColor: '#15803D',
+        backgroundColor: '#4A552A',
       },
     ],
   ],

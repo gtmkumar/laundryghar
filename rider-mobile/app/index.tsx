@@ -1,6 +1,5 @@
 /**
- * Entry redirect — send riders to the correct route group
- * based on whether they have a valid token in the auth store.
+ * Entry redirect — duty home when authenticated, otherwise sign-in.
  */
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
@@ -10,9 +9,5 @@ export default function Index() {
 
   if (!isHydrated) return null;
 
-  if (accessToken) {
-    return <Redirect href="/(app)/(tabs)/assignments" />;
-  }
-
-  return <Redirect href="/(auth)/login" />;
+  return <Redirect href={accessToken ? '/(app)/home' : '/(auth)/login'} />;
 }

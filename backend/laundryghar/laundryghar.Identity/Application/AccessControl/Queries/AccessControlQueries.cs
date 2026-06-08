@@ -24,7 +24,7 @@ internal static class AccessHelpers
 }
 
 // ── People ──────────────────────────────────────────────────────────────────
-public sealed record GetAccessPeopleQuery(string? Search, int Page, int PageSize, Guid? FranchiseId = null) : IRequest<AccessPeoplePageDto>;
+public sealed record GetAccessPeopleQuery(string? Search, int Page, int PageSize, Guid? FranchiseId = null, string? Sort = null) : IRequest<AccessPeoplePageDto>;
 
 public sealed class GetAccessPeopleHandler : IRequestHandler<GetAccessPeopleQuery, AccessPeoplePageDto>
 {
@@ -111,9 +111,19 @@ public sealed class GetAccessPeopleHandler : IRequestHandler<GetAccessPeopleQuer
                 p.RoleName.Contains(s, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
-        people = people.OrderByDescending(p => p.Tier == "enterprise")
-                       .ThenByDescending(p => p.LastActiveAt ?? DateTimeOffset.MinValue)
-                       .ToList();
+        // Sort: explicit column (name/role/active, '-' prefix = descending) or the
+        // default tiered order (enterprise first, then most-recently-active).
+        people = (q.Sort switch
+        {
+            "name" => people.OrderBy(p => p.Name),
+            "-name" => people.OrderByDescending(p => p.Name),
+            "role" => people.OrderBy(p => p.RoleName),
+            "-role" => people.OrderByDescending(p => p.RoleName),
+            "active" => people.OrderBy(p => p.LastActiveAt ?? DateTimeOffset.MinValue),
+            "-active" => people.OrderByDescending(p => p.LastActiveAt ?? DateTimeOffset.MinValue),
+            _ => people.OrderByDescending(p => p.Tier == "enterprise")
+                       .ThenByDescending(p => p.LastActiveAt ?? DateTimeOffset.MinValue),
+        }).ToList();
 
         var counts = new PeopleCountsDto(
             All: people.Count,
@@ -220,7 +230,7 @@ public sealed class GetNavigatorHandler : IRequestHandler<GetNavigatorQuery, Nav
 }
 
 // ── Franchises ──────────────────────────────────────────────────────────────
-public sealed record GetAccessFranchisesQuery(int Page, int PageSize) : IRequest<PaginatedList<FranchiseCardDto>>;
+public sealed record GetAccessFranchisesQuery(int Page, int PageSize, string? Search = null) : IRequest<PaginatedList<FranchiseCardDto>>;
 
 public sealed class GetAccessFranchisesHandler : IRequestHandler<GetAccessFranchisesQuery, PaginatedList<FranchiseCardDto>>
 {
@@ -237,6 +247,12 @@ public sealed class GetAccessFranchisesHandler : IRequestHandler<GetAccessFranch
 
         var baseQuery = _db.Franchises.AsNoTracking().Where(f => f.DeletedAt == null);
         if (brandId.HasValue) baseQuery = baseQuery.Where(f => f.BrandId == brandId.Value);
+        if (!string.IsNullOrWhiteSpace(q.Search))
+        {
+            var pattern = $"%{q.Search.Trim()}%";
+            baseQuery = baseQuery.Where(f =>
+                EF.Functions.ILike(f.DisplayName ?? f.LegalName, pattern) || EF.Functions.ILike(f.Code, pattern));
+        }
 
         // Newest activity first: UpdatedAt is touched on every edit, CreatedAt breaks ties.
         // Ordering happens in SQL before Skip/Take so paging is stable.

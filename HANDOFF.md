@@ -1,6 +1,6 @@
 # LaundryGhar OLMS — Handoff
 
-_Last updated: 2026-06-08_
+_Last updated: 2026-06-08 (rider-mobile Partner v2 redesign)_
 
 ## 1. What this is
 
@@ -65,11 +65,99 @@ nohup env ASPNETCORE_ENVIRONMENT=Development \
 All 9 backend bounded contexts are built, security/QA-gated, and verified live end-to-end.
 All 4 clients build/typecheck; mobile apps bundle for iOS. The full stack runs from one
 Aspire command and was last validated green across every service under the `app_user` runtime.
+**Admin rider onboarding** (Identity invite → Logistics profile, KYC approve/reject, franchise
+self-service, full-profile edit) is built, security-gated, and verified live + in-browser.
 
-## 4. What changed in the latest session (2026-06-07 → 08)
+## 4. What changed in the latest session (2026-06-08) — rider-mobile "Partner v2"
 
-Focus: franchise-onboarding polish + a **list pagination / infinite-scroll** sweep across
-admin-web. Commits on `main` (newest first):
+Focus: a full visual + flow redesign of **`rider-mobile/`** to the v2 mockups (warm
+cream / olive / gold palette, stack-based navigation, **no bottom tabs**). Builds clean
+(`tsc` 0 errors), **bundles for both iOS and Android** (`expo export`), and was
+**live-tested end-to-end in the iOS simulator** (idb-driven) against the running backend.
+Not yet committed.
+
+**Live E2E verified (iOS sim, real backend):** OTP login with a seeded rider
+(`+919800000001` → real `/auth/otp/send` + `/auth/otp/verify`; dev code read from Aspire
+dcp `*_out` logs, `[DEV-OTP] … code=`) → home offline→**Go on duty** (olive "You're online"
++ live location-permission prompt) → tasks list (real stats: Today 6/12, Earned ₹525) →
+delivery detail → enter delivery OTP `4283` → **Confirm delivered** → success screen
+(₹140 this task, ₹525 total, next task) → back to tasks (list correctly re-segments to
+Done) → pickup detail (no OTP) → Profile (all real `/rider/me` fields). Two **emoji-tofu
+bugs found & fixed**: the 🇮🇳 flag in login and the 📋 in the home tasks pill rendered as
+`?` boxes on the simulator (and unreliably on Android) — replaced with a **drawn tricolor
+flag** (`IndiaFlag` in `login.tsx`) and an **Ionicons `clipboard-outline`** respectively.
+(Benign pre-existing warning still present: `client.ts ↔ auth.ts` require cycle.)
+
+**New design system** (`tailwind.config.js`): `cream` / `olive` / `gold` / `ink` token
+scales. New/updated UI primitives in `src/components/`: `BrandSplash` (gradient splash,
+mockup #1), `ui/Button` (gold `primary`, olive `confirm`, `secondary` outline + icon props),
+`ui/OtpInput` (segmented cells, `editable=false` display-only mode), `ui/Keypad` (custom
+numeric pad), `ui/Avatar` (initials). `expo-linear-gradient` added (Expo-Go-safe).
+
+**Screens (route tree, all under `app/`):**
+- `(auth)/login.tsx` — phone entry → **`POST /auth/otp/send`** (`identifierType:"phone"`,
+  `purpose:"login"`). **OTP login is real** — the generic system-user OTP flow issues rider
+  tokens (verified in Identity `OtpVerifyHandler`).
+- `(auth)/otp.tsx` — **6-digit** code (backend `OtpSendHandler.CodeLength=6`; mockup shows 4)
+  via custom keypad → **`POST /auth/otp/verify`** → tokens → `/(app)/home`. 30 s resend timer.
+- `(app)/home.tsx` — **Go on duty** circle (offline/online states), "Before you ride"
+  checklist, "tasks waiting" pill, gated "View today's tasks" CTA. Going on duty is
+  client-side (`src/store/dutyStore.ts`, AsyncStorage) **plus** best-effort real effects:
+  sends a `/rider/location/ping` and activates today's `scheduled` shift assignment
+  (`PATCH /rider/assignments/{id}/status → active`).
+- `(app)/tasks.tsx` — olive header (zone + live stats), Tasks/Done tabs, job cards
+  (first pending expanded with Call/Start).
+- `(app)/tasks/[id].tsx` — stylised map placeholder, customer card (call/SMS), **delivery
+  OTP** entry (validates the 4-digit code), garments/payment row, Confirm.
+- `(app)/delivered.tsx` — success summary (rating, this-task + running earnings, next task).
+- `(app)/profile.tsx` — restyled identity/stats/details + logout.
+
+**⚠️ Backend gap (the one thing not wired to real APIs):** there is **no rider-facing
+per-order task endpoint**. The backend models jobs as `logistics.delivery_assignments`
+joined to an order (with `pickup_otp`/`delivery_otp` on the order), but exposes no
+`/api/v1/rider/tasks*` route group, no rider duty toggle, and no delivery-OTP verify
+endpoint. So the task-list / delivery-OTP / delivered flow runs on a **clearly-labelled
+demo set** (`src/data/demoTasks.ts`, served by `src/api/tasks.ts`) with a UI banner saying
+so. It's a single seam: implement `GET /api/v1/rider/tasks/today` returning the `RiderTask`
+shape (see `src/types/api.ts`) **and** a delivery-complete + OTP-verify endpoint, then flip
+`FEATURES.riderTasksApi` in `src/constants/config.ts` to `true`. Session-local completions
+live in `src/store/taskOverrideStore.ts` (delete once the mutation is real). The shift-based
+`/rider/assignments/today` data still feeds the home duty side-effects and is real.
+
+**Removed:** the old `(app)/(tabs)/` group (assignments/location/profile tabs),
+`(app)/assignments/[id]`, and `(auth)/onboarding.tsx`. `src/api/engagement.ts` +
+`useEngagement` remain but are now unused (kept for future banners).
+
+### Earlier on 2026-06-08 — admin rider onboarding
+
+Focus: an admin **rider onboarding** vertical slice on the `/riders` screen, plus a follow-up
+that brought the edit form to full field-parity with onboarding. A rider = a `User`
+(`user_type='rider'`) **always tied to a franchise**; the operational profile is a separate
+`logistics.riders` row. Onboarding is **frontend-orchestrated** across two services (no new
+service-to-service plumbing). Commits on `main` (newest first):
+
+1. **Rider edit field-parity** (`63fe186`) — `PUT /riders/{id}` + admin-web edit drawer now also
+   edit EmploymentType, VehicleType, Aadhaar(masked), PAN, Bank a/c/IFSC/holder, and UPI (previously
+   only status/store/vehicle no+model/DL/insurance/capacity). The handler applies **only non-null
+   fields**, so a partial form never clobbers what it didn't send. **Sensitive PII (Aadhaar/PAN/bank/UPI)
+   is never returned in `RiderDto`** — those edit inputs start blank with "Leave blank to keep"
+   placeholders, so blank = preserve, typing = overwrite. KYC *status* is still NOT editable here
+   (verify/reject only). `UpdateRiderValidator` whitelists the employment/vehicle enums. Verified live:
+   new fields persist, omitting PAN keeps it, invalid enum → HTTP 422.
+2. **Admin rider onboarding + KYC + franchise self-service** (`c115405`) — Identity gained a narrow
+   `POST /access-control/riders/invite` (gated `permission:rider.manage`, not broad `users.create`) that
+   forces the actor's franchise for franchise-scoped callers; admin-web orchestrates invite→profile.
+   New `permission:rider.verify` + Logistics `POST /riders/{id}/verify` (KYC→verified **and** flips the
+   linked login invited→active) and `/reject` (reason → rider Metadata). **Scoped single-approval**:
+   franchise users act only on own-franchise riders, super-admins on any — enforced server-side in
+   every rider handler via `_user.FranchiseId`. `/riders` screen: search (name/email/phone/code),
+   franchise+KYC+status filters, sortable columns, View/Edit drawers, Approve/Reject actions. Security
+   review closed a cross-brand IDOR (CreateRider now verifies userId/franchise/store all belong to the
+   brand) and a KYC-bypass (KYC status removed from the editable PUT contract). DB patch:
+   `db/patches/rider_verify_permission.sql`. Also extracted a shared `ActionMenu` (portal + flip-up)
+   that fixed the row-action menu being clipped on the last/second-last rows (Riders **and** People).
+
+### Earlier this session (2026-06-07 → 08) — list pagination sweep
 
 1. **Pagination + infinite scroll across admin lists** (`31b3059`) — every admin-web list now
    loads 100 rows then fetches the next page on scroll, via a reusable
@@ -177,12 +265,21 @@ admin-web. Commits on `main` (newest first):
   custom-scheme deep-link being dropped. Both apps bundle for iOS.
 
 ### Still open
+- **Rider per-order task API (unblocks rider-mobile v2 live data).** Add a rider-facing
+  route group in Logistics: `GET /api/v1/rider/tasks/today` (delivery_assignments ⋈ order for
+  the authed rider, returning the `RiderTask` shape in `rider-mobile/src/types/api.ts`),
+  `POST /rider/tasks/{id}/start|arrive`, and a `POST /rider/tasks/{id}/complete` that verifies
+  the customer's `delivery_otp`. Also a rider duty toggle (`POST /rider/duty`). Then flip
+  `FEATURES.riderTasksApi=true` in rider-mobile. Until then the app shows labelled demo tasks.
+- **rider-mobile live map** — `tasks/[id]` uses a stylised map placeholder; a real map needs
+  `react-native-maps` (dev build + Maps key, not Expo Go).
 - **admin-web stores the refresh token in `localStorage`** (`src/stores/authStore.ts`) — XSS→token-theft
   risk (security review Medium). Proper fix = move the refresh token to an `HttpOnly; Secure; SameSite`
   cookie set by Identity's `/auth/refresh`, and stop persisting it client-side. Not yet done (touches
   Identity auth contract). Mobile already uses `expo-secure-store` correctly.
-- **No seeded riders** → rider-mobile login can't be E2E-tested. Seed a `user_type='rider'` user +
-  `logistics.riders` row (rider-mobile code + DTOs are verified correct).
+- ~~**No seeded riders**~~ ✅ ADDRESSED (2026-06-08): the admin `/riders` screen now onboards riders
+  end-to-end (Identity invite → `logistics.riders` profile) and there are named demo riders in the DB,
+  so rider-mobile login is now E2E-testable. KYC approve flips the linked login invited→active.
 - **Customer/rider + pos-web list pagination** not yet done — the admin-web sweep (§4) stopped at the
   admin clients because the customer/rider list endpoints back the Expo apps and a shape change is
   breaking. To finish "paginate every list": convert those endpoints to `PaginatedList<T>` **and**
@@ -201,8 +298,11 @@ Git is **ask-gated** — commit/push only when explicitly requested. Commit trai
 
 - Orchestrator working notes (detailed, per-bounded-context): `.claude/agent-memory/laundryghar-orchestrator/status.md`
 - Production env contract: `backend/laundryghar/PRODUCTION_ENV.md`
-- DB patches applied this session: `db/patches/harden_app_user_and_rls_bypass.sql`,
-  `order_addons_brand_id_rls.sql`, `order_number_sequence.sql`, `fix_mv_customer_ltv_nulls.sql`
+- DB patches applied: `db/patches/harden_app_user_and_rls_bypass.sql`,
+  `order_addons_brand_id_rls.sql`, `order_number_sequence.sql`, `fix_mv_customer_ltv_nulls.sql`,
+  `rider_verify_permission.sql` (rider.verify perm + grants; rider.manage→franchise_owner)
+- Rider onboarding: admin-web `pages/riders/`, `api/riders.ts`, `hooks/useRiders.ts`,
+  `hooks/usePermissions.ts`; Logistics `Application/Riders/`; Identity `InviteRiderCommand`
 - AppHost: `backend/laundryghar/laundryghar.AppHost/Program.cs`
 - RS256 key provider + JWKS: `laundryghar.Identity/Infrastructure/Auth/RsaJwtKeyProvider.cs`,
   `laundryghar.Identity/Endpoints/WellKnownEndpoints.cs`

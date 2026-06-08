@@ -6,6 +6,7 @@ import type { AccessRoles, AccessRoleSummary } from '@/types/api'
 
 interface Props {
   query: { data?: AccessRoles; isLoading: boolean; isError: boolean }
+  search?: string
 }
 
 const SCOPE_LABEL: Record<string, string> = {
@@ -16,14 +17,26 @@ const SCOPE_LABEL: Record<string, string> = {
   warehouse: 'Warehouse-scoped',
 }
 
-export function RolesTab({ query }: Props) {
+export function RolesTab({ query, search }: Props) {
   const { data, isLoading, isError } = query
   const setCell = useSetRoleCell()
 
-  const allRoles = useMemo(
-    () => data?.groups.flatMap((g) => g.roles) ?? [],
-    [data],
-  )
+  // Roles arrive fully loaded (no pagination), so filtering client-side is complete.
+  const term = (search ?? '').trim().toLowerCase()
+  const groups = useMemo(() => {
+    const gs = data?.groups ?? []
+    if (!term) return gs
+    return gs
+      .map((g) => ({
+        ...g,
+        roles: g.roles.filter(
+          (r) => r.name.toLowerCase().includes(term) || (r.description ?? '').toLowerCase().includes(term),
+        ),
+      }))
+      .filter((g) => g.roles.length > 0)
+  }, [data, term])
+
+  const allRoles = useMemo(() => groups.flatMap((g) => g.roles), [groups])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected: AccessRoleSummary | undefined =
     allRoles.find((r) => r.id === selectedId) ?? allRoles[0]
@@ -42,8 +55,11 @@ export function RolesTab({ query }: Props) {
       </div>
     )
   }
-  if (isError || !data || !selected) {
+  if (isError || !data) {
     return <div className="py-24 text-center text-sm text-red-600">Couldn’t load roles.</div>
+  }
+  if (!selected) {
+    return <div className="py-24 text-center text-sm text-gray-400">No roles match “{search}”.</div>
   }
 
   const original = new Set(selected.onCells)
@@ -83,7 +99,7 @@ export function RolesTab({ query }: Props) {
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr]">
       {/* Left: role list */}
       <div className="rounded-2xl border border-gray-200 bg-white p-3">
-        {data.groups.map((g) => (
+        {groups.map((g) => (
           <div key={g.tier} className="mb-3">
             <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
               {g.tierLabel}
