@@ -861,6 +861,111 @@ export interface AdminCustomerListParams extends PaginationParams {
   search?: string
 }
 
+// ── Finance: Cash books & Expenses ──────────────────────────────────────────
+
+export interface CashBookSummaryDto {
+  id: string
+  storeId: string
+  bookDate: string
+  shiftLabel: string
+  openingBalance: number
+  closingBalance: number | null
+  variance: number | null
+  cashInflow: number
+  cashOutflow: number
+  status: string
+  openedAt: string
+  closedAt: string | null
+}
+
+export interface ExpenseDto {
+  id: string
+  brandId: string
+  franchiseId: string
+  storeId: string | null
+  categoryId: string
+  categoryName: string
+  expenseNumber: string
+  expenseDate: string
+  amount: number
+  taxAmount: number
+  totalAmount: number | null
+  paymentMode: string
+  vendorName: string | null
+  billNumber: string | null
+  description: string
+  notes: string | null
+  isRecurring: boolean
+  recurrenceFrequency: string | null
+  isReimbursable: boolean
+  status: string
+  submittedAt: string
+  approvedAt: string | null
+  paidAt: string | null
+  rejectionReason: string | null
+  createdAt: string
+}
+
+export interface ExpenseCategoryDto {
+  id: string
+  brandId: string
+  parentId: string | null
+  code: string
+  name: string
+  description: string | null
+  isTaxDeductible: boolean
+  requiresApproval: boolean
+  approvalThreshold: number | null
+  accountingCode: string | null
+  displayOrder: number
+  isActive: boolean
+  status: string
+  createdAt: string
+}
+
+export interface CreateExpensePayload {
+  franchiseId: string
+  storeId?: string | null
+  warehouseId?: string | null
+  categoryId: string
+  expenseDate: string
+  amount: number
+  taxAmount: number
+  paymentMode: string
+  description: string
+  vendorName?: string | null
+  vendorGstin?: string | null
+  vendorPhone?: string | null
+  billNumber?: string | null
+  billDate?: string | null
+  notes?: string | null
+  isRecurring: boolean
+  recurrenceFrequency?: string | null
+  isReimbursable: boolean
+  requiresApproval: boolean
+  submitNow: boolean
+}
+
+export interface OpenCashBookPayload {
+  storeId: string
+  franchiseId: string
+  bookDate: string
+  shiftLabel: string
+  openingBalance: number
+}
+
+export interface CashBookListParams extends PaginationParams {
+  storeId?: string
+  status?: string
+  bookDate?: string
+}
+
+export interface ExpenseListParams extends PaginationParams {
+  status?: string
+  categoryId?: string
+  storeId?: string
+}
+
 export interface AdminUpdateCustomerPayload {
   firstName?: string | null
   lastName?: string | null

@@ -21,6 +21,8 @@ import { WarehouseBoardPage } from '@/pages/warehouse/WarehouseBoardPage'
 import { AccessControlPage } from '@/pages/access-control/AccessControlPage'
 import { RidersPage } from '@/pages/riders/RidersPage'
 import { CustomersPage } from '@/pages/customers/CustomersPage'
+import { CashBookPage } from '@/pages/finance/CashBookPage'
+import { ExpensesPage } from '@/pages/finance/ExpensesPage'
 import { ComingSoonPage } from '@/pages/ComingSoonPage'
 
 const queryClient = new QueryClient({
@@ -63,8 +65,8 @@ const router = createBrowserRouter([
           { path: 'riders',        element: <RidersPage /> },
           { path: 'packages',      element: <ComingSoonPage name="Packages" /> },
           { path: 'coupons',       element: <ComingSoonPage name="Coupons" /> },
-          { path: 'cashbook',      element: <ComingSoonPage name="Cash Book" /> },
-          { path: 'expenses',      element: <ComingSoonPage name="Expenses" /> },
+          { path: 'cashbook',      element: <CashBookPage /> },
+          { path: 'expenses',      element: <ExpensesPage /> },
           { path: '*',             element: <Navigate to="/" replace /> },
         ],
       },
