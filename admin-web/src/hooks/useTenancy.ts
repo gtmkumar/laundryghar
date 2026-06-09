@@ -7,8 +7,16 @@ import {
   getPlatforms,
   createStore,
   updateStore,
+  createWarehouse,
+  updateWarehouse,
 } from '@/api/tenancy'
-import type { PaginationParams, CreateStorePayload, UpdateStorePayload } from '@/types/api'
+import type {
+  PaginationParams,
+  CreateStorePayload,
+  UpdateStorePayload,
+  CreateWarehousePayload,
+  UpdateWarehousePayload,
+} from '@/types/api'
 
 export const tenancyKeys = {
   brands: (params?: object) => ['brands', params] as const,
@@ -98,5 +106,26 @@ export function useWarehouses(params: PaginationParams & { brandId?: string; fra
   return useQuery({
     queryKey: tenancyKeys.warehouses(params),
     queryFn: () => getWarehouses(params),
+  })
+}
+
+export function useCreateWarehouse() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateWarehousePayload) => createWarehouse(payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['warehouses'] })
+    },
+  })
+}
+
+export function useUpdateWarehouse() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateWarehousePayload }) =>
+      updateWarehouse(id, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['warehouses'] })
+    },
   })
 }

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Loader2, Wallet, X, BadgeIndianRupee, Receipt, AlertTriangle, Check } from 'lucide-react'
+import { Loader2, Wallet, BadgeIndianRupee, Receipt, AlertTriangle, Check } from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useCodOutstanding, useRiderCod, useRiderSettlements, useSettleRider } from '@/hooks/useRiders'
+import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import type { RiderCodSummary } from '@/types/api'
 import { formatDate } from './riderShared'
 
@@ -117,26 +118,16 @@ function CashDrawer({ rider, onClose }: { rider: RiderCodSummary; onClose: () =>
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
-      <div className="flex h-full w-full max-w-lg flex-col bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-6 py-5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-lg-green/10 text-lg-green">
-              <Wallet className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="text-xs font-medium text-gray-400">Cash reconciliation</p>
-              <h2 className="text-xl font-bold text-gray-900">{rider.riderName ?? rider.riderCode}</h2>
-            </div>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-          {/* Outstanding */}
-          <div className="rounded-2xl border border-gray-200 p-4">
+    <FormDrawer
+      open
+      onClose={onClose}
+      icon={Wallet}
+      eyebrow="Cash reconciliation"
+      title={rider.riderName ?? rider.riderCode}
+      width="md"
+    >
+      {/* Outstanding */}
+      <div className="rounded-2xl border border-gray-200 p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-gray-400">Outstanding cash</p>
               <BadgeIndianRupee className="h-4 w-4 text-gray-300" />
@@ -156,95 +147,69 @@ function CashDrawer({ rider, onClose }: { rider: RiderCodSummary; onClose: () =>
             )}
           </div>
 
-          {/* Settle form */}
-          {canSettle && outstanding > 0 && !done && (
-            <section className="space-y-3">
-              <SectionTitle>Record settlement</SectionTitle>
-              <p className="text-xs text-gray-400">
-                Records that this rider handed over <span className="font-semibold text-gray-700">{inr(outstanding)}</span> and
-                clears all {count} collection{count === 1 ? '' : 's'}.
-              </p>
-              <Field label="Reference (deposit slip / txn)">
-                <input value={reference} onChange={(e) => setReference(e.target.value)} className={inputCls} placeholder="DEP-0001" />
-              </Field>
-              <Field label="Notes (optional)">
-                <input value={notes} onChange={(e) => setNotes(e.target.value)} className={inputCls} placeholder="Evening cash drop" />
-              </Field>
-              {error && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={submit}
-                disabled={settle.isPending}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
-              >
-                {settle.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                Mark {inr(outstanding)} settled
-              </button>
-            </section>
-          )}
-
-          {done && (
-            <div className="flex items-center gap-2 rounded-xl bg-lg-green/10 px-4 py-3 text-sm font-medium text-lg-green">
-              <Check className="h-4 w-4" /> Settlement recorded.
+      {/* Settle form */}
+      {canSettle && outstanding > 0 && !done && (
+        <DrawerSection title="Record settlement">
+          <p className="text-xs text-gray-400">
+            Records that this rider handed over <span className="font-semibold text-gray-700">{inr(outstanding)}</span> and
+            clears all {count} collection{count === 1 ? '' : 's'}.
+          </p>
+          <Field label="Reference (deposit slip / txn)">
+            <input value={reference} onChange={(e) => setReference(e.target.value)} className={drawerInputCls} placeholder="DEP-0001" />
+          </Field>
+          <Field label="Notes (optional)">
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} className={drawerInputCls} placeholder="Evening cash drop" />
+          </Field>
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span>
             </div>
           )}
-
-          {!canSettle && (
-            <p className="text-xs text-gray-400">You don’t have permission to record settlements (rider.settle).</p>
-          )}
-
-          {/* History */}
-          <section className="space-y-2">
-            <SectionTitle>Settlement history</SectionTitle>
-            {history.isLoading ? (
-              <p className="text-sm text-gray-400">Loading…</p>
-            ) : (history.data?.list.length ?? 0) === 0 ? (
-              <p className="text-sm text-gray-400">No settlements yet.</p>
-            ) : (
-              <div className="divide-y divide-gray-50 rounded-xl border border-gray-100">
-                {history.data!.list.map((s) => (
-                  <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
-                    <Receipt className="h-4 w-4 shrink-0 text-gray-300" />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-gray-900">{inr(s.totalAmount)} · {s.collectionCount} collection{s.collectionCount === 1 ? '' : 's'}</p>
-                      <p className="truncate text-xs text-gray-400">
-                        {formatDate(s.settledAt)}{s.reference ? ` · ${s.reference}` : ''}{s.storeName ? ` · ${s.storeName}` : ''}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium capitalize text-emerald-700">{s.status}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className="flex justify-end border-t border-gray-100 px-6 py-4">
-          <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
-            Close
+          <button
+            type="button"
+            onClick={submit}
+            disabled={settle.isPending}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
+          >
+            {settle.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Mark {inr(outstanding)} settled
           </button>
+        </DrawerSection>
+      )}
+
+      {done && (
+        <div className="flex items-center gap-2 rounded-xl bg-lg-green/10 px-4 py-3 text-sm font-medium text-lg-green">
+          <Check className="h-4 w-4" /> Settlement recorded.
         </div>
-      </div>
-    </div>
-  )
-}
+      )}
 
-const inputCls =
-  'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15'
+      {!canSettle && (
+        <p className="text-xs text-gray-400">You don’t have permission to record settlements (rider.settle).</p>
+      )}
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-sm font-semibold text-gray-900">{children}</h3>
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-gray-500">{label}</span>
-      {children}
-    </label>
+      {/* History */}
+      <DrawerSection title="Settlement history">
+        {history.isLoading ? (
+          <p className="text-sm text-gray-400">Loading…</p>
+        ) : (history.data?.list.length ?? 0) === 0 ? (
+          <p className="text-sm text-gray-400">No settlements yet.</p>
+        ) : (
+          <div className="divide-y divide-gray-50 rounded-xl border border-gray-100">
+            {history.data!.list.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                <Receipt className="h-4 w-4 shrink-0 text-gray-300" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-gray-900">{inr(s.totalAmount)} · {s.collectionCount} collection{s.collectionCount === 1 ? '' : 's'}</p>
+                  <p className="truncate text-xs text-gray-400">
+                    {formatDate(s.settledAt)}{s.reference ? ` · ${s.reference}` : ''}{s.storeName ? ` · ${s.storeName}` : ''}
+                  </p>
+                </div>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium capitalize text-emerald-700">{s.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </DrawerSection>
+    </FormDrawer>
   )
 }

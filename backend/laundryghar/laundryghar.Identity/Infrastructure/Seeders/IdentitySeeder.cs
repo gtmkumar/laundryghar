@@ -100,6 +100,7 @@ public sealed class IdentitySeeder
         // warehouses
         ("warehouses.list",   "warehouses","list",  "List warehouses",   "low"),
         ("warehouses.create", "warehouses","create","Create warehouse",  "high"),
+        ("warehouses.update", "warehouses","update","Update warehouse",  "high"),
         ("warehouses.delete", "warehouses","delete","Delete warehouse",  "high"),
         // operating_hours
         ("operating_hours.manage","operating_hours","manage","Manage operating hours","normal"),
@@ -344,7 +345,7 @@ public sealed class IdentitySeeder
             "franchises.list","franchises.read","franchises.create","franchises.update","franchises.delete",
             "territories.list","territories.create","territories.update",
             "stores.list","stores.read","stores.create","stores.update","stores.delete",
-            "warehouses.list","warehouses.create","warehouses.delete",
+            "warehouses.list","warehouses.create","warehouses.update","warehouses.delete",
             "users.list","users.read","users.create","users.update","users.deactivate","users.set_type",
             "roles.list","permissions.list","memberships.grant","memberships.revoke",
             "operating_hours.manage","holidays.manage","store_warehouse.manage",
@@ -384,7 +385,7 @@ public sealed class IdentitySeeder
         Grant("franchise_owner", [
             "franchises.read","franchises.update",
             "stores.list","stores.read","stores.create","stores.update",
-            "warehouses.list","warehouses.create",
+            "warehouses.list","warehouses.create","warehouses.update",
             "users.list","users.read","users.create","users.update","users.deactivate",
             "orders.list","orders.update","orders.cancel",
             "operating_hours.manage","holidays.manage",

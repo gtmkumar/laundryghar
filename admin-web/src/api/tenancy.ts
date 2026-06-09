@@ -10,6 +10,8 @@ import type {
   PaginationParams,
   CreateStorePayload,
   UpdateStorePayload,
+  CreateWarehousePayload,
+  UpdateWarehousePayload,
 } from '@/types/api'
 
 const ADMIN = '/api/v1/admin'
@@ -85,4 +87,20 @@ export async function getWarehouses(
     { params: { page: 1, pageSize: 20, ...params } },
   )
   return unwrapPaginated(data)
+}
+
+export async function createWarehouse(payload: CreateWarehousePayload): Promise<WarehouseDto> {
+  const { data } = await identityClient.post<ApiResponse<WarehouseDto>>(`${ADMIN}/warehouses`, payload)
+  return unwrap(data)
+}
+
+export async function updateWarehouse(
+  id: string,
+  payload: UpdateWarehousePayload,
+): Promise<WarehouseDto> {
+  const { data } = await identityClient.put<ApiResponse<WarehouseDto>>(
+    `${ADMIN}/warehouses/${id}`,
+    payload,
+  )
+  return unwrap(data)
 }

@@ -167,6 +167,12 @@ public static class AdminTenancyEndpoints
                 new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<WarehouseDto> { Status = true, Data = r });
         }).WithName("CreateWarehouse").RequireAuthorization("permission:warehouses.create");
 
+        warehouses.MapPut("/{id:guid}", async (Guid id, UpdateWarehouseRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new UpdateWarehouseCommand(id, req, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<WarehouseDto> { Status = true, Data = r });
+        }).WithName("UpdateWarehouse").RequireAuthorization("permission:warehouses.update");
+
         warehouses.MapDelete("/{id:guid}", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {
             var r = await sender.Send(new DeleteWarehouseCommand(id, u.UserId), ct);

@@ -238,8 +238,10 @@ public sealed class DeleteStoreHandler : IRequestHandler<DeleteStoreCommand, boo
 
 public sealed record WarehouseDto(Guid Id, Guid BrandId, Guid FranchiseId, string Code, string Name, string City, string Status, DateTimeOffset CreatedAt);
 public sealed record CreateWarehouseRequest(Guid BrandId, Guid FranchiseId, string Code, string Name, string AddressLine1, string City, string State, string Pincode, string WarehouseType = "central");
+public sealed record UpdateWarehouseRequest(string? Name, string? Status, string? ContactPhone);
 public sealed record GetWarehousesQuery(Guid? BrandId, Guid? FranchiseId, int Page = 1, int PageSize = 20) : IRequest<PaginatedList<WarehouseDto>>;
 public sealed record CreateWarehouseCommand(CreateWarehouseRequest Request, Guid? ActorId) : IRequest<WarehouseDto>;
+public sealed record UpdateWarehouseCommand(Guid Id, UpdateWarehouseRequest Request, Guid? ActorId) : IRequest<WarehouseDto?>;
 public sealed record DeleteWarehouseCommand(Guid Id, Guid? ActorId) : IRequest<bool>;
 
 public sealed class GetWarehousesHandler : IRequestHandler<GetWarehousesQuery, PaginatedList<WarehouseDto>>
@@ -275,6 +277,23 @@ public sealed class CreateWarehouseHandler : IRequestHandler<CreateWarehouseComm
             CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow, Version = 1, CreatedBy = cmd.ActorId
         };
         _db.Warehouses.Add(w);
+        await _db.SaveChangesAsync(ct);
+        return new WarehouseDto(w.Id, w.BrandId, w.FranchiseId, w.Code, w.Name, w.City, w.Status, w.CreatedAt);
+    }
+}
+
+public sealed class UpdateWarehouseHandler : IRequestHandler<UpdateWarehouseCommand, WarehouseDto?>
+{
+    private readonly LaundryGharDbContext _db;
+    public UpdateWarehouseHandler(LaundryGharDbContext db) => _db = db;
+    public async Task<WarehouseDto?> Handle(UpdateWarehouseCommand cmd, CancellationToken ct)
+    {
+        var w = await _db.Warehouses.FindAsync([cmd.Id], ct);
+        if (w is null) return null;
+        if (cmd.Request.Name         is not null) w.Name         = cmd.Request.Name;
+        if (cmd.Request.Status       is not null) w.Status       = cmd.Request.Status;
+        if (cmd.Request.ContactPhone is not null) w.ContactPhone = cmd.Request.ContactPhone;
+        w.UpdatedAt = DateTimeOffset.UtcNow; w.UpdatedBy = cmd.ActorId; w.Version++;
         await _db.SaveChangesAsync(ct);
         return new WarehouseDto(w.Id, w.BrandId, w.FranchiseId, w.Code, w.Name, w.City, w.Status, w.CreatedAt);
     }

@@ -1,0 +1,202 @@
+import type { ReactNode } from 'react'
+import { X, Loader2, AlertTriangle } from 'lucide-react'
+
+const WIDTHS = {
+  sm: 'max-w-md',
+  md: 'max-w-lg',
+  lg: 'max-w-xl',
+} as const
+
+interface FormDrawerProps {
+  open: boolean
+  onClose: () => void
+  /** Big bold heading. Optional when a custom `header` is supplied. */
+  title?: ReactNode
+  /** Small muted label above the title, e.g. "Tenancy". */
+  eyebrow?: ReactNode
+  /** Lucide icon component shown in the header chip. */
+  icon?: React.ElementType
+  width?: keyof typeof WIDTHS
+  children: ReactNode
+
+  /** Replace the default icon+eyebrow+title block with fully custom header content. */
+  header?: ReactNode
+  /** Buttons rendered to the left of the close (✕) button, e.g. an Edit toggle. */
+  headerAction?: ReactNode
+  /** Extra content rendered below the title inside the header (e.g. sub-tabs). */
+  headerExtra?: ReactNode
+  /** Override the default body classes (e.g. for list-style drawers). */
+  bodyClassName?: string
+  /** Raise to z-[60] so this drawer layers above another open drawer. */
+  elevated?: boolean
+
+  /** Inline error banner rendered at the bottom of the body. */
+  error?: string | null
+
+  // ── Footer ──
+  /**
+   * Footer override. A node renders custom footer content (full layout control);
+   * `null` hides the footer entirely. Omit for the standard Cancel + submit row.
+   */
+  footer?: ReactNode | null
+  /** When provided, renders the primary submit button. */
+  onSubmit?: () => void
+  submitLabel?: string
+  submittingLabel?: string
+  submitIcon?: React.ElementType
+  submitting?: boolean
+  submitDisabled?: boolean
+  /** Cancel button label. When there's no `onSubmit`/`footer`, this is the lone button. */
+  cancelLabel?: string
+}
+
+/**
+ * The one drawer chrome for add / edit / view screens: right-side slide-over with
+ * an icon header, scrollable body, inline error banner, and a standard
+ * Cancel + submit footer. Pass `children` for the body and either `onSubmit`
+ * (standard footer) or `footer` (custom). Omit both for a read-only "view"
+ * drawer — the footer collapses to a single Close button.
+ *
+ * Compose bodies with {@link DrawerSection}, {@link Field}, and {@link drawerInputCls}.
+ */
+export function FormDrawer({
+  open,
+  onClose,
+  title,
+  eyebrow,
+  icon: Icon,
+  width = 'md',
+  children,
+  header,
+  headerAction,
+  headerExtra,
+  bodyClassName,
+  elevated = false,
+  error,
+  footer,
+  onSubmit,
+  submitLabel = 'Save',
+  submittingLabel,
+  submitIcon: SubmitIcon,
+  submitting = false,
+  submitDisabled = false,
+  cancelLabel = 'Cancel',
+}: FormDrawerProps) {
+  if (!open) return null
+
+  return (
+    <div
+      className={`fixed inset-0 ${elevated ? 'z-[60]' : 'z-50'} flex justify-end bg-black/30`}
+      onClick={onClose}
+    >
+      <div
+        className={`flex h-full w-full ${WIDTHS[width]} flex-col bg-white shadow-2xl`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="border-b border-gray-100 px-6 py-5">
+          <div className="flex items-start justify-between gap-3">
+            {header ?? (
+              <div className="flex min-w-0 items-center gap-2.5">
+                {Icon && (
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-lg-green/10 text-lg-green">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  {eyebrow && <p className="truncate text-xs font-medium text-gray-400">{eyebrow}</p>}
+                  <h2 className="truncate text-xl font-bold text-gray-900">{title}</h2>
+                </div>
+              </div>
+            )}
+            <div className="flex shrink-0 items-center gap-1">
+              {headerAction}
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          {headerExtra && <div className="mt-4">{headerExtra}</div>}
+        </div>
+
+        {/* Body */}
+        <div className={bodyClassName ?? 'flex-1 space-y-6 overflow-y-auto px-6 py-5'}>
+          {children}
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer — `null` hides it; a node gets full layout control; otherwise
+            the standard right-aligned Cancel + submit row. */}
+        {footer === null ? null : footer ? (
+          <div className="border-t border-gray-100 px-6 py-4">{footer}</div>
+        ) : (
+          <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              {onSubmit ? cancelLabel : 'Close'}
+            </button>
+            {onSubmit && (
+              <button
+                type="button"
+                onClick={onSubmit}
+                disabled={submitting || submitDisabled}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
+              >
+                {submitting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  SubmitIcon && <SubmitIcon className="h-3.5 w-3.5" />
+                )}
+                {submitting ? submittingLabel ?? submitLabel : submitLabel}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Body primitives ───────────────────────────────────────────────────────────
+
+export const drawerInputCls =
+  'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500'
+
+export function DrawerSection({ title, children }: { title?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      {title && <h3 className="text-sm font-semibold text-gray-900">{title}</h3>}
+      {children}
+    </section>
+  )
+}
+
+export function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: ReactNode
+  children: ReactNode
+  hint?: ReactNode
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-gray-500">{label}</span>
+      {children}
+      {hint && <span className="mt-1 block text-xs text-gray-400">{hint}</span>}
+    </label>
+  )
+}

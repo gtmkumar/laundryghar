@@ -9,6 +9,7 @@ import type {
   PaginationParams,
   AdminCustomerDto,
   AdminCustomerListParams,
+  AdminUpdateCustomerPayload,
 } from '@/types/api'
 
 const ADMIN = '/api/v1/admin'
@@ -85,4 +86,15 @@ export async function getAdminCustomers(
     { params: { page: 1, pageSize: 100, ...params } },
   )
   return unwrapPaginated(data)
+}
+
+export async function updateAdminCustomer(
+  id: string,
+  payload: AdminUpdateCustomerPayload,
+): Promise<AdminCustomerDto> {
+  const { data } = await catalogClient.put<ApiResponse<AdminCustomerDto>>(
+    `${ADMIN}/customers/${id}`,
+    payload,
+  )
+  return unwrap(data)
 }

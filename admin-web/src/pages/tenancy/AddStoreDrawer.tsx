@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X, Loader2, Store as StoreIcon, Plus, AlertTriangle, Lock } from 'lucide-react'
+import { Loader2, Store as StoreIcon, Plus, Lock } from 'lucide-react'
 import { useFranchises, useCreateStore } from '@/hooks/useTenancy'
 import { useOnboardingState } from '@/hooks/useOnboarding'
 import { useEffectiveBrandId } from '@/hooks/useBrandContext'
 import { usePermissions } from '@/hooks/usePermissions'
+import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import type { StoreType } from '@/types/api'
 
 interface Props {
@@ -131,216 +132,155 @@ export function AddStoreDrawer({ open, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
-      <div
-        className="flex h-full w-full max-w-lg flex-col bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-6 py-5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-lg-green/10 text-lg-green">
-              <StoreIcon className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="text-xs font-medium text-gray-400">Tenancy</p>
-              <h2 className="text-xl font-bold text-gray-900">Add store</h2>
+    <FormDrawer
+      open={open}
+      onClose={onClose}
+      eyebrow="Tenancy"
+      title="Add store"
+      icon={StoreIcon}
+      width="md"
+      error={error}
+      onSubmit={submit}
+      submitLabel="Add store"
+      submittingLabel="Creating…"
+      submitIcon={Plus}
+      submitting={createStore.isPending}
+    >
+      {/* Section A — franchise mapping & identity */}
+      <DrawerSection title="Franchise & identity">
+        <Field label="Franchise *">
+          {lockFranchise ? (
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+              <Lock className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+              <span className="truncate">{lockedFranchiseName ?? 'Your franchise'}</span>
             </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-          {/* Section A — franchise mapping & identity */}
-          <section className="space-y-3">
-            <SectionTitle>Franchise &amp; identity</SectionTitle>
-            <Field label="Franchise *">
-              {lockFranchise ? (
-                <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                  <Lock className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                  <span className="truncate">{lockedFranchiseName ?? 'Your franchise'}</span>
-                </div>
-              ) : (
-                <select
-                  value={form.franchiseId}
-                  onChange={(e) => onFranchiseChange(e.target.value)}
-                  className={inputCls}
-                  disabled={franchisesQ.isLoading}
-                >
-                  <option value="">
-                    {franchisesQ.isLoading ? 'Loading franchises…' : 'Select a franchise…'}
-                  </option>
-                  {franchises.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.legalName} ({f.code})
-                    </option>
-                  ))}
-                </select>
-              )}
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Store code *">
-                <input
-                  value={form.code}
-                  onChange={(e) => set('code', e.target.value.toUpperCase())}
-                  className={inputCls}
-                  placeholder="LGG-DLF-004"
-                />
-              </Field>
-              <Field label="Store type">
-                <select
-                  value={form.storeType}
-                  onChange={(e) => set('storeType', e.target.value as StoreType)}
-                  className={inputCls}
-                >
-                  {STORE_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            <Field label="Store name *">
-              <input
-                value={form.name}
-                onChange={(e) => set('name', e.target.value)}
-                className={inputCls}
-                placeholder="Laundry Ghar DLF Phase 4"
-              />
-            </Field>
-          </section>
-
-          {/* Section B — location */}
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <SectionTitle>Location</SectionTitle>
-              {onboardingQ.isFetching && form.franchiseId && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-300" />
-              )}
-            </div>
-
-            {/* Reuse the franchise's address — a store often sits at its franchise location. */}
-            <label
-              className={[
-                'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm',
-                form.franchiseId && hasFranchiseAddress
-                  ? 'cursor-pointer border-gray-200 text-gray-700 hover:bg-gray-50'
-                  : 'cursor-not-allowed border-gray-100 text-gray-400',
-              ].join(' ')}
+          ) : (
+            <select
+              value={form.franchiseId}
+              onChange={(e) => onFranchiseChange(e.target.value)}
+              className={drawerInputCls}
+              disabled={franchisesQ.isLoading}
             >
-              <input
-                type="checkbox"
-                checked={addrLocked}
-                disabled={!form.franchiseId || !hasFranchiseAddress}
-                onChange={(e) => toggleSameAsFranchise(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-lg-green focus:ring-lg-green/30"
-              />
-              <span>
-                Same as franchise address
-                {form.franchiseId && !hasFranchiseAddress && !onboardingQ.isFetching && (
-                  <span className="text-gray-400"> — franchise has no saved address</span>
-                )}
-                {!form.franchiseId && <span className="text-gray-400"> — pick a franchise first</span>}
-              </span>
-            </label>
-
-            <Field label="Address *">
-              <input
-                value={form.addressLine1}
-                onChange={(e) => set('addressLine1', e.target.value)}
-                className={inputCls}
-                placeholder="Shop 12, DLF Phase 4 Market"
-                disabled={addrLocked}
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="City *">
-                <input
-                  value={form.city}
-                  onChange={(e) => set('city', e.target.value)}
-                  className={inputCls}
-                  placeholder="Gurgaon"
-                  disabled={addrLocked}
-                />
-              </Field>
-              <Field label="State *">
-                <input
-                  value={form.state}
-                  onChange={(e) => set('state', e.target.value)}
-                  className={inputCls}
-                  placeholder="Haryana"
-                  disabled={addrLocked}
-                />
-              </Field>
-            </div>
-            <Field label="Pincode *">
-              <input
-                value={form.pincode}
-                onChange={(e) => set('pincode', e.target.value)}
-                className={inputCls}
-                placeholder="122009"
-                inputMode="numeric"
-                disabled={addrLocked}
-              />
-            </Field>
-          </section>
-
-          {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+              <option value="">
+                {franchisesQ.isLoading ? 'Loading franchises…' : 'Select a franchise…'}
+              </option>
+              {franchises.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.legalName} ({f.code})
+                </option>
+              ))}
+            </select>
           )}
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Store code *">
+            <input
+              value={form.code}
+              onChange={(e) => set('code', e.target.value.toUpperCase())}
+              className={drawerInputCls}
+              placeholder="LGG-DLF-004"
+            />
+          </Field>
+          <Field label="Store type">
+            <select
+              value={form.storeType}
+              onChange={(e) => set('storeType', e.target.value as StoreType)}
+              className={drawerInputCls}
+            >
+              {STORE_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
+        <Field label="Store name *">
+          <input
+            value={form.name}
+            onChange={(e) => set('name', e.target.value)}
+            className={drawerInputCls}
+            placeholder="Laundry Ghar DLF Phase 4"
+          />
+        </Field>
+      </DrawerSection>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={createStore.isPending}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
-          >
-            {createStore.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Plus className="h-3.5 w-3.5" />
+      {/* Section B — location */}
+      <DrawerSection
+        title={
+          <span className="flex items-center justify-between">
+            <span>Location</span>
+            {onboardingQ.isFetching && form.franchiseId && (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-300" />
             )}
-            {createStore.isPending ? 'Creating…' : 'Add store'}
-          </button>
+          </span>
+        }
+      >
+        {/* Reuse the franchise's address — a store often sits at its franchise location. */}
+        <label
+          className={[
+            'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm',
+            form.franchiseId && hasFranchiseAddress
+              ? 'cursor-pointer border-gray-200 text-gray-700 hover:bg-gray-50'
+              : 'cursor-not-allowed border-gray-100 text-gray-400',
+          ].join(' ')}
+        >
+          <input
+            type="checkbox"
+            checked={addrLocked}
+            disabled={!form.franchiseId || !hasFranchiseAddress}
+            onChange={(e) => toggleSameAsFranchise(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-lg-green focus:ring-lg-green/30"
+          />
+          <span>
+            Same as franchise address
+            {form.franchiseId && !hasFranchiseAddress && !onboardingQ.isFetching && (
+              <span className="text-gray-400"> — franchise has no saved address</span>
+            )}
+            {!form.franchiseId && <span className="text-gray-400"> — pick a franchise first</span>}
+          </span>
+        </label>
+
+        <Field label="Address *">
+          <input
+            value={form.addressLine1}
+            onChange={(e) => set('addressLine1', e.target.value)}
+            className={drawerInputCls}
+            placeholder="Shop 12, DLF Phase 4 Market"
+            disabled={addrLocked}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="City *">
+            <input
+              value={form.city}
+              onChange={(e) => set('city', e.target.value)}
+              className={drawerInputCls}
+              placeholder="Gurgaon"
+              disabled={addrLocked}
+            />
+          </Field>
+          <Field label="State *">
+            <input
+              value={form.state}
+              onChange={(e) => set('state', e.target.value)}
+              className={drawerInputCls}
+              placeholder="Haryana"
+              disabled={addrLocked}
+            />
+          </Field>
         </div>
-      </div>
-    </div>
-  )
-}
-
-const inputCls =
-  'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500'
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-sm font-semibold text-gray-900">{children}</h3>
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-gray-500">{label}</span>
-      {children}
-    </label>
+        <Field label="Pincode *">
+          <input
+            value={form.pincode}
+            onChange={(e) => set('pincode', e.target.value)}
+            className={drawerInputCls}
+            placeholder="122009"
+            inputMode="numeric"
+            disabled={addrLocked}
+          />
+        </Field>
+      </DrawerSection>
+    </FormDrawer>
   )
 }

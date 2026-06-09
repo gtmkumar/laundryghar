@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from 'react'
-import { X, Loader2, UserPlus, MailCheck, ShieldCheck } from 'lucide-react'
+import { UserPlus, MailCheck, ShieldCheck } from 'lucide-react'
 import { useInviteUser } from '@/hooks/useAccessControl'
 import { useSettings } from '@/hooks/useSettings'
+import { FormDrawer, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import type { AccessRoles, AccessFranchise, InviteUserPayload } from '@/types/api'
 
 interface Props {
@@ -74,103 +75,69 @@ export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
-      <div
-        className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-white p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-lg-green/10 text-lg-green">
-              <UserPlus className="h-4 w-4" />
-            </span>
-            <h2 className="text-lg font-bold text-gray-900">Invite user</h2>
-          </div>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="First name">
-              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} placeholder="Priya" />
-            </Field>
-            <Field label="Last name">
-              <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputCls} placeholder="Nair" />
-            </Field>
-          </div>
-          <Field label="Email">
-            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className={inputCls} placeholder="priya@laundryghar.in" />
+    <FormDrawer
+      open={open}
+      onClose={onClose}
+      icon={UserPlus}
+      title="Invite user"
+      width="sm"
+      error={error}
+      onSubmit={submit}
+      submitLabel="Send invite"
+      submittingLabel="Send invite"
+      submitIcon={UserPlus}
+      submitting={invite.isPending}
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="First name">
+            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={drawerInputCls} placeholder="Priya" />
           </Field>
-          <Field label="Role">
-            <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputCls}>
-              <option value="">Select a role…</option>
-              {roles?.groups.map((g) => (
-                <optgroup key={g.tier} label={g.tierLabel}>
-                  {g.roles.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </optgroup>
+          <Field label="Last name">
+            <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={drawerInputCls} placeholder="Nair" />
+          </Field>
+        </div>
+        <Field label="Email">
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className={drawerInputCls} placeholder="priya@laundryghar.in" />
+        </Field>
+        <Field label="Role">
+          <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={drawerInputCls}>
+            <option value="">Select a role…</option>
+            {roles?.groups.map((g) => (
+              <optgroup key={g.tier} label={g.tierLabel}>
+                {g.roles.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+        {isFranchiseScoped && (
+          <Field label="Franchise">
+            <select value={franchiseId} onChange={(e) => setFranchiseId(e.target.value)} className={drawerInputCls}>
+              <option value="">Select a franchise…</option>
+              {franchises?.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
           </Field>
-          {isFranchiseScoped && (
-            <Field label="Franchise">
-              <select value={franchiseId} onChange={(e) => setFranchiseId(e.target.value)} className={inputCls}>
-                <option value="">Select a franchise…</option>
-                {franchises?.map((f) => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
-            </Field>
-          )}
+        )}
 
-          {/* What happens after inviting, driven by the provisioning setting */}
-          <div className="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2.5 text-xs text-gray-600">
-            {selfService ? <MailCheck className="mt-0.5 h-4 w-4 shrink-0 text-lg-green" /> : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />}
-            <span>
-              {selfService ? (
-                <>The user gets an email with a secure link to set their own password and activate.</>
-              ) : (
-                <>The user is created as <span className="font-medium">Invited</span>. Activate them from the people list to set a temporary password.</>
-              )}
-              {!emailEnabled && (
-                <> {' '}<span className="text-amber-600">Email is off — configure it in Settings → Email to deliver invites.</span></>
-              )}
-            </span>
-          </div>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-        </div>
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={invite.isPending}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
-          >
-            {invite.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Send invite
-          </button>
+        {/* What happens after inviting, driven by the provisioning setting */}
+        <div className="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2.5 text-xs text-gray-600">
+          {selfService ? <MailCheck className="mt-0.5 h-4 w-4 shrink-0 text-lg-green" /> : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />}
+          <span>
+            {selfService ? (
+              <>The user gets an email with a secure link to set their own password and activate.</>
+            ) : (
+              <>The user is created as <span className="font-medium">Invited</span>. Activate them from the people list to set a temporary password.</>
+            )}
+            {!emailEnabled && (
+              <> {' '}<span className="text-amber-600">Email is off — configure it in Settings → Email to deliver invites.</span></>
+            )}
+          </span>
         </div>
       </div>
-    </div>
-  )
-}
-
-const inputCls =
-  'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15'
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-gray-500">{label}</span>
-      {children}
-    </label>
+    </FormDrawer>
   )
 }

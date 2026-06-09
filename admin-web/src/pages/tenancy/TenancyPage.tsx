@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Loader2, Plus, Search, Pencil, Power, PowerOff } from 'lucide-react'
+import { Loader2, Plus, Pencil, Power, PowerOff, Eye } from 'lucide-react'
 import {
   useStoresInfinite,
   useFranchisesInfinite,
   useFranchises,
   useUpdateStore,
+  useWarehouses,
+  useUpdateWarehouse,
 } from '@/hooks/useTenancy'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useBrandStore } from '@/stores/brandStore'
@@ -12,13 +14,20 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { AddStoreDrawer } from './AddStoreDrawer'
 import { StoreEditDrawer, STORE_STATUSES } from './StoreEditDrawer'
+import {
+  AddWarehouseDrawer,
+  WarehouseDetailDrawer,
+  WarehouseEditDrawer,
+  WAREHOUSE_STATUSES,
+} from './WarehouseDrawers'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
-import { DataTable, type Column, type SortState } from '@/components/shared/DataTable'
+import { type Column } from '@/components/shared/DataTable'
+import { FilterableTable, type FilterDef } from '@/components/shared/FilterableTable'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import type { StoreDto, FranchiseDto } from '@/types/api'
+import type { StoreDto, FranchiseDto, WarehouseDto } from '@/types/api'
 import { formatDate } from '@/lib/utils'
 
 const STORE_TYPE_OPTIONS = [
@@ -29,27 +38,7 @@ const STORE_TYPE_OPTIONS = [
   { value: 'collection_point', label: 'Collection point' },
 ]
 
-// ── Sub-tabs ─────────────────────────────────────────────────────────────────
-
-type Tab = 'stores' | 'franchises'
-
-const franchiseColumns: Column<FranchiseDto>[] = [
-  { header: 'Code', accessor: 'code', className: 'font-mono text-xs w-24' },
-  { header: 'Legal Name', accessor: 'legalName' },
-  {
-    header: 'Onboarding',
-    accessor: (r) => (
-      <Badge variant={r.onboardingStatus === 'completed' ? 'success' : 'warning'}>
-        {r.onboardingStatus}
-      </Badge>
-    ),
-  },
-  {
-    header: 'Status',
-    accessor: (r) => <StatusBadge status={r.status} />,
-  },
-  { header: 'Created', accessor: (r) => formatDate(r.createdAt) },
-]
+type Tab = 'stores' | 'franchises' | 'warehouses'
 
 function StatusBadge({ status }: { status: string }) {
   const variant =
@@ -65,9 +54,37 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// ── Stores tab ────────────────────────────────────────────────────────────────
+/** Build distinct dropdown options from a column of values present in the data. */
+function distinctOptions<T>(rows: T[], read: (row: T) => string) {
+  const seen = new Set<string>()
+  for (const r of rows) {
+    const v = read(r)
+    if (v) seen.add(v)
+  }
+  return [...seen].sort().map((v) => ({ value: v, label: v.replace(/_/g, ' ') }))
+}
 
-type StoreSortKey = 'code' | 'name' | 'storeType' | 'franchise' | 'city' | 'status' | 'createdAt'
+/** Shared infinite-scroll footer (sentinel + spinner). */
+function ScrollFooter({
+  sentinelRef,
+  loading,
+}: {
+  sentinelRef: React.Ref<HTMLDivElement>
+  loading: boolean
+}) {
+  return (
+    <>
+      <div ref={sentinelRef} className="h-1" />
+      {loading && (
+        <div className="flex items-center justify-center py-4 text-gray-400">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Stores tab ────────────────────────────────────────────────────────────────
 
 function StoresTab() {
   const { activeBrandId } = useBrandStore()
@@ -90,43 +107,8 @@ function StoresTab() {
   const [editing, setEditing] = useState<StoreDto | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  // Toolbar state.
-  const [search, setSearch] = useState('')
-  const [franchiseFilter, setFranchiseFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
-  const [sort, setSort] = useState<SortState>({ key: 'createdAt', dir: 'desc' })
-
-  const allStores = useMemo(() => data?.pages.flatMap((p) => p.list) ?? [], [data])
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const rows = allStores.filter((s) => {
-      if (franchiseFilter && s.franchiseId !== franchiseFilter) return false
-      if (statusFilter && s.status !== statusFilter) return false
-      if (typeFilter && s.storeType !== typeFilter) return false
-      if (q) {
-        const hay = `${s.code} ${s.name} ${s.city} ${franchiseName.get(s.franchiseId) ?? ''}`.toLowerCase()
-        if (!hay.includes(q)) return false
-      }
-      return true
-    })
-    const dir = sort.dir === 'asc' ? 1 : -1
-    const val = (s: StoreDto): string => {
-      switch (sort.key as StoreSortKey) {
-        case 'franchise':
-          return franchiseName.get(s.franchiseId) ?? ''
-        case 'createdAt':
-          return s.createdAt
-        default:
-          return String(s[sort.key as keyof StoreDto] ?? '')
-      }
-    }
-    return [...rows].sort((a, b) => val(a).localeCompare(val(b), undefined, { numeric: true }) * dir)
-  }, [allStores, search, franchiseFilter, statusFilter, typeFilter, sort, franchiseName])
-
-  const toggleSort = (key: string) =>
-    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
+  const stores = useMemo(() => data?.pages.flatMap((p) => p.list) ?? [], [data])
+  const total = data?.pages[0]?.totalCount
 
   const setStatus = async (store: StoreDto, status: 'active' | 'paused') => {
     setBusyId(store.id)
@@ -148,15 +130,27 @@ function StoresTab() {
         </span>
       ),
       sortKey: 'franchise',
+      sortAccessor: (r) => franchiseName.get(r.franchiseId) ?? '',
     },
     {
       header: 'Type',
       accessor: (r) => <span className="capitalize">{r.storeType.replace(/_/g, ' ')}</span>,
       sortKey: 'storeType',
+      sortAccessor: (r) => r.storeType,
     },
     { header: 'City', accessor: 'city', sortKey: 'city' },
-    { header: 'Status', accessor: (r) => <StatusBadge status={r.status} />, sortKey: 'status' },
-    { header: 'Created', accessor: (r) => formatDate(r.createdAt), sortKey: 'createdAt' },
+    {
+      header: 'Status',
+      accessor: (r) => <StatusBadge status={r.status} />,
+      sortKey: 'status',
+      sortAccessor: (r) => r.status,
+    },
+    {
+      header: 'Created',
+      accessor: (r) => formatDate(r.createdAt),
+      sortKey: 'createdAt',
+      sortAccessor: (r) => r.createdAt,
+    },
     ...(canManage
       ? [
           {
@@ -196,78 +190,79 @@ function StoresTab() {
       : []),
   ]
 
+  const filters: FilterDef<StoreDto>[] = [
+    {
+      key: 'franchise',
+      allLabel: 'All franchises',
+      value: (s) => s.franchiseId,
+      options: (franchisesQ.data?.list ?? []).map((f) => ({ value: f.id, label: f.legalName })),
+    },
+    {
+      key: 'status',
+      allLabel: 'All statuses',
+      value: (s) => s.status,
+      options: STORE_STATUSES.map((s) => ({ value: s.value, label: s.label })),
+    },
+    {
+      key: 'type',
+      allLabel: 'All types',
+      value: (s) => s.storeType,
+      options: STORE_TYPE_OPTIONS,
+    },
+  ]
+
   if (isLoading) return <LoadingState message="Loading stores..." />
   if (isError) return <ErrorState error={error as Error} onRetry={() => void refetch()} />
 
-  const total = data?.pages[0]?.totalCount
-
   return (
-    <div>
-      {/* Toolbar — search + filters */}
-      <div className="flex flex-wrap items-center gap-2 px-4 pt-4">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search code, name, city, franchise…"
-            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15"
-          />
-        </div>
-        <select value={franchiseFilter} onChange={(e) => setFranchiseFilter(e.target.value)} className={filterCls}>
-          <option value="">All franchises</option>
-          {(franchisesQ.data?.list ?? []).map((f) => (
-            <option key={f.id} value={f.id}>{f.legalName}</option>
-          ))}
-        </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={filterCls}>
-          <option value="">All statuses</option>
-          {STORE_STATUSES.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={filterCls}>
-          <option value="">All types</option>
-          {STORE_TYPE_OPTIONS.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
-      </div>
-
-      <p className="px-4 py-3 text-sm text-gray-500">
-        {filtered.length}
-        {typeof total === 'number' && filtered.length !== total ? ` of ${total}` : ''} store
-        {filtered.length === 1 ? '' : 's'}
-      </p>
-
-      <DataTable
+    <>
+      <FilterableTable
         columns={columns}
-        data={filtered}
+        data={stores}
         keyFn={(r) => r.id}
-        sort={sort}
-        onSort={toggleSort}
-        emptyMessage={
-          allStores.length === 0
-            ? 'No stores found. Select a brand or add stores.'
-            : 'No stores match your filters.'
-        }
+        unit="store"
+        totalCount={total}
+        searchPlaceholder="Search code, name, city, franchise…"
+        searchAccessor={(s) => `${s.code} ${s.name} ${s.city} ${franchiseName.get(s.franchiseId) ?? ''}`}
+        filters={filters}
+        initialSort={{ key: 'createdAt', dir: 'desc' }}
+        emptyMessage="No stores found. Select a brand or add stores."
+        noMatchMessage="No stores match your filters."
+        footer={<ScrollFooter sentinelRef={sentinelRef} loading={isFetchingNextPage} />}
       />
-      <div ref={sentinelRef} className="h-1" />
-      {isFetchingNextPage && (
-        <div className="flex items-center justify-center py-4 text-gray-400">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
-        </div>
-      )}
-
       <StoreEditDrawer store={editing} onClose={() => setEditing(null)} />
-    </div>
+    </>
   )
 }
 
-const filterCls =
-  'rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15'
-
 // ── Franchises tab ────────────────────────────────────────────────────────────
+
+const franchiseColumns: Column<FranchiseDto>[] = [
+  { header: 'Code', accessor: 'code', className: 'font-mono text-xs w-24', sortKey: 'code' },
+  { header: 'Legal Name', accessor: 'legalName', sortKey: 'legalName' },
+  {
+    header: 'Onboarding',
+    accessor: (r) => (
+      <Badge variant={r.onboardingStatus === 'active' ? 'success' : 'warning'} className="capitalize">
+        {r.onboardingStatus.replace(/_/g, ' ')}
+      </Badge>
+    ),
+    sortKey: 'onboardingStatus',
+    sortAccessor: (r) => r.onboardingStatus,
+  },
+  {
+    header: 'Status',
+    accessor: (r) => <StatusBadge status={r.status} />,
+    sortKey: 'status',
+    sortAccessor: (r) => r.status,
+  },
+  {
+    header: 'Created',
+    accessor: (r) => formatDate(r.createdAt),
+    sortKey: 'createdAt',
+    sortAccessor: (r) => r.createdAt,
+  },
+]
 
 function FranchisesTab() {
   const { activeBrandId } = useBrandStore()
@@ -276,30 +271,185 @@ function FranchisesTab() {
     useFranchisesInfinite(activeBrandId ?? undefined)
   const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
+  const franchises = useMemo(() => data?.pages.flatMap((p) => p.list) ?? [], [data])
+  const total = data?.pages[0]?.totalCount
+
+  const filters: FilterDef<FranchiseDto>[] = [
+    {
+      key: 'status',
+      allLabel: 'All statuses',
+      value: (f) => f.status,
+      options: distinctOptions(franchises, (f) => f.status),
+    },
+    {
+      key: 'onboarding',
+      allLabel: 'All onboarding',
+      value: (f) => f.onboardingStatus,
+      options: distinctOptions(franchises, (f) => f.onboardingStatus),
+    },
+  ]
+
   if (isLoading) return <LoadingState message="Loading franchises..." />
   if (isError) return <ErrorState error={error as Error} onRetry={() => void refetch()} />
 
-  const franchises = data?.pages.flatMap((p) => p.list) ?? []
-  const total = data?.pages[0]?.totalCount
+  return (
+    <FilterableTable
+      columns={franchiseColumns}
+      data={franchises}
+      keyFn={(r) => r.id}
+      unit="franchise"
+      totalCount={total}
+      searchPlaceholder="Search code or legal name…"
+      searchAccessor={(f) => `${f.code} ${f.legalName}`}
+      filters={filters}
+      initialSort={{ key: 'createdAt', dir: 'desc' }}
+      emptyMessage="No franchises found."
+      noMatchMessage="No franchises match your filters."
+      footer={<ScrollFooter sentinelRef={sentinelRef} loading={isFetchingNextPage} />}
+    />
+  )
+}
+
+// ── Warehouses tab ──────────────────────────────────────────────────────────────
+
+function WarehousesTab({ addOpen, onAddClose }: { addOpen: boolean; onAddClose: () => void }) {
+  const { activeBrandId } = useBrandStore()
+  const { hasPermission } = usePermissions()
+  const canManage = hasPermission('warehouses.update')
+
+  const warehousesQ = useWarehouses({ brandId: activeBrandId ?? undefined, pageSize: 100 })
+  const franchisesQ = useFranchises({ brandId: activeBrandId ?? undefined, pageSize: 100 })
+
+  const franchiseName = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const f of franchisesQ.data?.list ?? []) m.set(f.id, f.legalName)
+    return m
+  }, [franchisesQ.data])
+
+  const warehouses = useMemo(() => warehousesQ.data?.list ?? [], [warehousesQ.data])
+  const total = warehousesQ.data?.totalCount
+
+  const updateWarehouse = useUpdateWarehouse()
+  const [viewing, setViewing] = useState<WarehouseDto | null>(null)
+  const [editing, setEditing] = useState<WarehouseDto | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const setStatus = async (w: WarehouseDto, status: 'active' | 'paused') => {
+    setBusyId(w.id)
+    try {
+      await updateWarehouse.mutateAsync({ id: w.id, payload: { status } })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const columns: Column<WarehouseDto>[] = [
+    { header: 'Code', accessor: 'code', className: 'font-mono text-xs w-24', sortKey: 'code' },
+    { header: 'Name', accessor: 'name', sortKey: 'name' },
+    {
+      header: 'Franchise',
+      accessor: (r) => (
+        <span className={franchiseName.has(r.franchiseId) ? '' : 'text-gray-400'}>
+          {franchiseName.get(r.franchiseId) ?? '—'}
+        </span>
+      ),
+      sortKey: 'franchise',
+      sortAccessor: (r) => franchiseName.get(r.franchiseId) ?? '',
+    },
+    { header: 'City', accessor: 'city', sortKey: 'city' },
+    {
+      header: 'Status',
+      accessor: (r) => <StatusBadge status={r.status} />,
+      sortKey: 'status',
+      sortAccessor: (r) => r.status,
+    },
+    {
+      header: 'Created',
+      accessor: (r) => formatDate(r.createdAt),
+      sortKey: 'createdAt',
+      sortAccessor: (r) => r.createdAt,
+    },
+    {
+      header: '',
+      className: 'w-12 text-right',
+      accessor: (r) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ActionMenu busy={busyId === r.id} label="Warehouse actions">
+            {(close) => (
+              <>
+                <ActionMenuItem icon={Eye} onClick={() => { close(); setViewing(r) }}>
+                  View
+                </ActionMenuItem>
+                {canManage && (
+                  <>
+                    <ActionMenuItem icon={Pencil} onClick={() => { close(); setEditing(r) }}>
+                      Edit
+                    </ActionMenuItem>
+                    {r.status === 'active' ? (
+                      <ActionMenuItem icon={PowerOff} danger onClick={() => { close(); void setStatus(r, 'paused') }}>
+                        Deactivate
+                      </ActionMenuItem>
+                    ) : (
+                      <ActionMenuItem icon={Power} onClick={() => { close(); void setStatus(r, 'active') }}>
+                        Activate
+                      </ActionMenuItem>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </ActionMenu>
+        </div>
+      ),
+    },
+  ]
+
+  const filters: FilterDef<WarehouseDto>[] = [
+    {
+      key: 'franchise',
+      allLabel: 'All franchises',
+      value: (w) => w.franchiseId,
+      options: (franchisesQ.data?.list ?? []).map((f) => ({ value: f.id, label: f.legalName })),
+    },
+    {
+      key: 'status',
+      allLabel: 'All statuses',
+      value: (w) => w.status,
+      options: WAREHOUSE_STATUSES.map((s) => ({ value: s.value, label: s.label })),
+    },
+  ]
+
+  if (warehousesQ.isLoading) return <LoadingState message="Loading warehouses..." />
+  if (warehousesQ.isError)
+    return <ErrorState error={warehousesQ.error as Error} onRetry={() => void warehousesQ.refetch()} />
 
   return (
-    <div>
-      {total !== undefined && (
-        <p className="text-sm text-gray-500 px-4 pt-3">{total} franchise{total === 1 ? '' : 's'}</p>
-      )}
-      <DataTable
-        columns={franchiseColumns}
-        data={franchises}
+    <>
+      <FilterableTable
+        columns={columns}
+        data={warehouses}
         keyFn={(r) => r.id}
-        emptyMessage="No franchises found."
+        onRowClick={(w) => setViewing(w)}
+        unit="warehouse"
+        totalCount={total}
+        searchPlaceholder="Search code, name, city…"
+        searchAccessor={(w) => `${w.code} ${w.name} ${w.city} ${franchiseName.get(w.franchiseId) ?? ''}`}
+        filters={filters}
+        initialSort={{ key: 'createdAt', dir: 'desc' }}
+        emptyMessage="No warehouses found."
+        noMatchMessage="No warehouses match your filters."
       />
-      <div ref={sentinelRef} className="h-1" />
-      {isFetchingNextPage && (
-        <div className="flex items-center justify-center py-4 text-gray-400">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more…
-        </div>
-      )}
-    </div>
+
+      <AddWarehouseDrawer open={addOpen} onClose={onAddClose} />
+      <WarehouseDetailDrawer
+        warehouse={viewing}
+        franchiseName={viewing ? franchiseName.get(viewing.franchiseId) : undefined}
+        onClose={() => setViewing(null)}
+        canManage={canManage}
+        onEdit={(w) => { setViewing(null); setEditing(w) }}
+      />
+      <WarehouseEditDrawer warehouse={editing} onClose={() => setEditing(null)} />
+    </>
   )
 }
 
@@ -308,30 +458,42 @@ function FranchisesTab() {
 export function TenancyPage() {
   const [activeTab, setActiveTab] = useState<Tab>('stores')
   const [addStoreOpen, setAddStoreOpen] = useState(false)
+  const [addWarehouseOpen, setAddWarehouseOpen] = useState(false)
   const { hasPermission } = usePermissions()
   const canCreateStore = hasPermission('stores.create')
+  const canCreateWarehouse = hasPermission('warehouses.create')
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'stores', label: 'Stores' },
     { id: 'franchises', label: 'Franchises' },
+    { id: 'warehouses', label: 'Warehouses' },
   ]
+
+  const headerAction =
+    activeTab === 'stores' && canCreateStore ? (
+      <button
+        type="button"
+        onClick={() => setAddStoreOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-xl bg-lg-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)]"
+      >
+        <Plus className="h-4 w-4" /> Add store
+      </button>
+    ) : activeTab === 'warehouses' && canCreateWarehouse ? (
+      <button
+        type="button"
+        onClick={() => setAddWarehouseOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-xl bg-lg-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)]"
+      >
+        <Plus className="h-4 w-4" /> Add warehouse
+      </button>
+    ) : undefined
 
   return (
     <div>
       <PageHeader
         title="Tenancy"
         description="Manage stores, franchises, and warehouse locations in the org hierarchy."
-        action={
-          activeTab === 'stores' && canCreateStore ? (
-            <button
-              type="button"
-              onClick={() => setAddStoreOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-lg-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)]"
-            >
-              <Plus className="h-4 w-4" /> Add store
-            </button>
-          ) : undefined
-        }
+        action={headerAction}
       />
 
       {/* Tab bar */}
@@ -353,7 +515,13 @@ export function TenancyPage() {
       </div>
 
       <Card className="overflow-hidden">
-        {activeTab === 'stores' ? <StoresTab /> : <FranchisesTab />}
+        {activeTab === 'stores' ? (
+          <StoresTab />
+        ) : activeTab === 'franchises' ? (
+          <FranchisesTab />
+        ) : (
+          <WarehousesTab addOpen={addWarehouseOpen} onAddClose={() => setAddWarehouseOpen(false)} />
+        )}
       </Card>
 
       <AddStoreDrawer open={addStoreOpen} onClose={() => setAddStoreOpen(false)} />

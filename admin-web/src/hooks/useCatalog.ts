@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import {
   getServiceCategories,
@@ -6,8 +6,13 @@ import {
   getItems,
   getPriceLists,
   getAdminCustomers,
+  updateAdminCustomer,
 } from '@/api/catalog'
-import type { PaginationParams, AdminCustomerListParams } from '@/types/api'
+import type {
+  PaginationParams,
+  AdminCustomerListParams,
+  AdminUpdateCustomerPayload,
+} from '@/types/api'
 
 export const catalogKeys = {
   categories: (params?: object) => ['catalog', 'categories', params] as const,
@@ -92,6 +97,17 @@ export function useAdminCustomers(params: AdminCustomerListParams = {}, enabled 
     enabled,
     // Customer names change rarely — 5 min stale time is fine
     staleTime: 5 * 60_000,
+  })
+}
+
+export function useUpdateAdminCustomer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: AdminUpdateCustomerPayload }) =>
+      updateAdminCustomer(id, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['catalog', 'adminCustomers'] })
+    },
   })
 }
 

@@ -20,6 +20,7 @@ import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage'
 import { WarehouseBoardPage } from '@/pages/warehouse/WarehouseBoardPage'
 import { AccessControlPage } from '@/pages/access-control/AccessControlPage'
 import { RidersPage } from '@/pages/riders/RidersPage'
+import { CustomersPage } from '@/pages/customers/CustomersPage'
 import { ComingSoonPage } from '@/pages/ComingSoonPage'
 
 const queryClient = new QueryClient({
@@ -58,7 +59,7 @@ const router = createBrowserRouter([
           { path: 'access-control', element: <AccessControlPage /> },
           { path: 'settings',      element: <SettingsPage /> },
           // New sidebar routes that don't have pages yet — lightweight placeholders
-          { path: 'customers',     element: <ComingSoonPage name="Customers" /> },
+          { path: 'customers',     element: <CustomersPage /> },
           { path: 'riders',        element: <RidersPage /> },
           { path: 'packages',      element: <ComingSoonPage name="Packages" /> },
           { path: 'coupons',       element: <ComingSoonPage name="Coupons" /> },

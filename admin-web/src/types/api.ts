@@ -134,6 +134,28 @@ export interface WarehouseDto {
   createdAt: string
 }
 
+export type WarehouseType = 'central' | 'satellite' | 'express' | 'specialty'
+
+export type WarehouseStatus = 'active' | 'paused' | 'maintenance' | 'closed'
+
+export interface CreateWarehousePayload {
+  brandId: string
+  franchiseId: string
+  code: string
+  name: string
+  addressLine1: string
+  city: string
+  state: string
+  pincode: string
+  warehouseType: WarehouseType
+}
+
+export interface UpdateWarehousePayload {
+  name?: string
+  status?: WarehouseStatus
+  contactPhone?: string
+}
+
 // ── Catalog ─────────────────────────────────────────────────────────────────
 
 export interface ServiceCategoryDto {
@@ -837,6 +859,16 @@ export interface AdminCustomerDto {
 export interface AdminCustomerListParams extends PaginationParams {
   status?: string
   search?: string
+}
+
+export interface AdminUpdateCustomerPayload {
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+  gender?: string | null
+  dateOfBirth?: string | null
+  customerSegment?: string | null
+  riskFlag?: string | null
 }
 
 // ── Commerce (Promotions / Coupons — for banner picker) ──────────────────────

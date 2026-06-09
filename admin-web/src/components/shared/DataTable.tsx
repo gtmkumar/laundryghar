@@ -7,6 +7,12 @@ export interface Column<T> {
   className?: string
   /** When set (together with the table's `onSort`), the header becomes a sort toggle. */
   sortKey?: string
+  /**
+   * How to read this column's sortable value. Needed for derived/computed
+   * columns whose `accessor` returns a node (e.g. a looked-up name). Falls back
+   * to the raw field when `accessor` is a plain key.
+   */
+  sortAccessor?: (row: T) => string | number
 }
 
 export type SortDir = 'asc' | 'desc'
