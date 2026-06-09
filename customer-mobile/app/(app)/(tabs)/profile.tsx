@@ -1,29 +1,44 @@
 /**
- * Profile tab — shows customer info and logout.
- * GET /api/v1/customer/auth/me on mount.
+ * Profile tab — identity card + menu + logout.
+ * GET {Identity}/customer/auth/me
  */
 import React from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { getMe } from '@/api/auth';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
-import { Button } from '@/components/ui/Button';
+import { Avatar } from '@/components/ui/Avatar';
 
-function ProfileRow({ label, value }: { label: string; value?: string }) {
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+function MenuItem({
+  icon,
+  label,
+  onPress,
+  danger,
+}: {
+  icon: IoniconName;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+}) {
   return (
-    <View className="flex-row items-center justify-between border-b border-gray-100 py-4">
-      <Text className="text-sm font-medium text-gray-500">{label}</Text>
-      <Text className="text-sm text-gray-900">{value ?? '—'}</Text>
-    </View>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      className="flex-row items-center border-b border-cream-200 py-4 last:border-0 active:opacity-70"
+    >
+      <View className={`mr-3 h-9 w-9 items-center justify-center rounded-xl ${danger ? 'bg-red-50' : 'bg-cream-100'}`}>
+        <Ionicons name={icon} size={18} color={danger ? '#C0492F' : '#5C6A33'} />
+      </View>
+      <Text className={`flex-1 text-base font-semibold ${danger ? 'text-danger' : 'text-ink'}`}>{label}</Text>
+      {!danger ? <Ionicons name="chevron-forward" size={18} color="#A8A493" /> : null}
+    </Pressable>
   );
 }
 
@@ -42,10 +57,10 @@ export default function ProfileScreen() {
   });
 
   const handleLogout = () => {
-    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+    Alert.alert('Log out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Log Out',
+        text: 'Log out',
         style: 'destructive',
         onPress: async () => {
           await logout();
@@ -58,41 +73,43 @@ export default function ProfileScreen() {
   if (isLoading) return <ScreenLoader />;
 
   const profile = me ?? customer;
+  const name = profile?.displayName ?? profile?.firstName ?? 'Customer';
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-muted">
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Avatar + name */}
-        <View className="items-center bg-brand-700 px-6 py-10">
-          <View className="mb-4 h-20 w-20 items-center justify-center rounded-full bg-brand-500">
-            <Text className="text-3xl font-bold text-white">
-              {(profile?.displayName ?? profile?.firstName ?? 'U').charAt(0).toUpperCase()}
-            </Text>
+    <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        <View className="px-6 pb-2 pt-3">
+          <Text className="text-2xl font-extrabold text-ink">Profile</Text>
+        </View>
+
+        {/* Identity card */}
+        <View className="mx-6 mt-2 flex-row items-center rounded-3xl bg-white p-5" style={{
+          shadowColor: '#2E351C', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+        }}>
+          <Avatar name={name} size={56} textClassName="text-xl" />
+          <View className="ml-4 flex-1">
+            <Text className="text-lg font-extrabold text-ink">{name}</Text>
+            <Text className="text-sm text-ink-muted">{profile?.phone ?? ''}</Text>
           </View>
-          <Text className="text-xl font-bold text-white">
-            {profile?.displayName ?? profile?.firstName ?? 'Customer'}
-          </Text>
-          <Text className="mt-1 text-sm text-brand-200">
-            {profile?.phone ?? ''}
-          </Text>
         </View>
 
-        {/* Details card */}
-        <View className="mx-6 mt-6 rounded-2xl bg-white px-4 shadow-sm" style={{ elevation: 2 }}>
-          <ProfileRow label="Phone"  value={profile?.phone} />
-          <ProfileRow label="Name"   value={profile?.displayName ?? profile?.firstName} />
-          <ProfileRow label="Status" value={profile?.status} />
+        {/* Menu */}
+        <View className="mx-6 mt-5 rounded-3xl bg-white px-4" style={{
+          shadowColor: '#2E351C', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
+        }}>
+          <MenuItem icon="pricetags-outline" label="Price list" onPress={() => router.push('/(app)/price-list')} />
+          <MenuItem icon="gift-outline" label="Offers & coupons" onPress={() => router.push('/(app)/offers')} />
+          <MenuItem icon="wallet-outline" label="Wallet" onPress={() => router.push('/(app)/(tabs)/wallet')} />
+          <MenuItem icon="location-outline" label="Saved addresses" onPress={() => Alert.alert('Addresses', 'Address management is coming soon.')} />
+          <MenuItem icon="help-circle-outline" label="Help & support" onPress={() => Alert.alert('Support', 'Reach us at care@laundryghar.in')} />
         </View>
 
-        {/* Actions */}
-        <View className="mx-6 mt-6 gap-3">
-          <Button
-            title="Log Out"
-            variant="danger"
-            fullWidth
-            onPress={handleLogout}
-          />
+        {/* Logout */}
+        <View className="mx-6 mt-5 rounded-3xl bg-white px-4">
+          <MenuItem icon="log-out-outline" label="Log out" danger onPress={handleLogout} />
         </View>
+
+        <Text className="mt-6 text-center text-xs text-ink-faint">Laundry Ghar · v2.0</Text>
       </ScrollView>
     </SafeAreaView>
   );

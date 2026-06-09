@@ -1,122 +1,75 @@
 /**
- * My Orders tab — wired to:
- *   GET {Orders}/api/v1/customer/orders?page=&pageSize=
- * Taps into order detail / tracking via stack screens pushed from (app).
+ * Orders tab — order history.
+ * GET {Orders}/customer/orders?page=&pageSize=
  */
 import React from 'react';
-import {
-  FlatList,
-  Pressable,
-  RefreshControl,
-  Text,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useMyOrders } from '@/hooks/useOrders';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Badge } from '@/components/ui/Badge';
+import { rupees, formatDate } from '@/lib/format';
 import type { OrderDto, OrderStatus } from '@/types/api';
 
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  placed:             'bg-blue-100 text-blue-700',
-  pickup_scheduled:   'bg-blue-100 text-blue-700',
-  pickup_assigned:    'bg-blue-100 text-blue-700',
-  picked_up:          'bg-yellow-100 text-yellow-700',
-  received:           'bg-yellow-100 text-yellow-700',
-  sorting:            'bg-purple-100 text-purple-700',
-  in_process:         'bg-purple-100 text-purple-700',
-  qc:                 'bg-indigo-100 text-indigo-700',
-  ready:              'bg-green-100 text-green-700',
-  delivery_scheduled: 'bg-green-100 text-green-700',
-  out_for_delivery:   'bg-green-100 text-green-700',
-  delivered:          'bg-gray-100 text-gray-600',
-  cancelled:          'bg-red-100 text-red-700',
-  returned:           'bg-orange-100 text-orange-700',
-  rewash:             'bg-orange-100 text-orange-700',
-  disputed:           'bg-red-100 text-red-700',
+const STATUS_TONE: Record<OrderStatus, 'olive' | 'gold' | 'neutral' | 'success' | 'danger' | 'info'> = {
+  placed: 'info', pickup_scheduled: 'info', pickup_assigned: 'info', picked_up: 'gold',
+  received: 'gold', sorting: 'gold', in_process: 'gold', qc: 'gold', ready: 'success',
+  delivery_scheduled: 'success', out_for_delivery: 'success', delivered: 'neutral',
+  cancelled: 'danger', returned: 'danger', rewash: 'gold', disputed: 'danger',
 };
 
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  placed:             'Placed',
-  pickup_scheduled:   'Pickup Scheduled',
-  pickup_assigned:    'Rider Assigned',
-  picked_up:          'Picked Up',
-  received:           'Received',
-  sorting:            'Sorting',
-  in_process:         'In Process',
-  qc:                 'Quality Check',
-  ready:              'Ready',
-  delivery_scheduled: 'Delivery Scheduled',
-  out_for_delivery:   'Out for Delivery',
-  delivered:          'Delivered',
-  cancelled:          'Cancelled',
-  returned:           'Returned',
-  rewash:             'Rewash',
-  disputed:           'Disputed',
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  placed: 'Placed', pickup_scheduled: 'Pickup scheduled', pickup_assigned: 'Rider assigned',
+  picked_up: 'Picked up', received: 'Received', sorting: 'Sorting', in_process: 'In process',
+  qc: 'Quality check', ready: 'Ready', delivery_scheduled: 'Out soon', out_for_delivery: 'Out for delivery',
+  delivered: 'Delivered', cancelled: 'Cancelled', returned: 'Returned', rewash: 'Rewash', disputed: 'Disputed',
 };
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-IN', {
-      day: 'numeric', month: 'short', year: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
-}
 
 function OrderCard({ order }: { order: OrderDto }) {
   const router = useRouter();
-  const colorClass = STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700';
-  const label      = STATUS_LABELS[order.status] ?? order.status;
+  const canTrack = !['delivered', 'cancelled', 'returned'].includes(order.status);
+  const itemCount = order.items?.length ?? 0;
 
   return (
     <Pressable
       onPress={() => router.push(`/(app)/orders/${order.id}` as never)}
       accessibilityRole="button"
-      accessibilityLabel={`Order ${order.orderNumber}, status ${label}`}
-      className="mb-3 rounded-2xl border border-gray-200 bg-white p-4 active:opacity-80"
-      style={{ elevation: 1 }}
+      accessibilityLabel={`Order ${order.orderNumber}`}
+      className="mb-3 rounded-3xl bg-white p-4"
+      style={{ shadowColor: '#2E351C', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}
     >
-      <View className="flex-row items-start justify-between mb-2">
+      <View className="mb-2 flex-row items-start justify-between">
         <View>
-          <Text className="text-base font-bold text-gray-900">
-            {order.orderNumber}
-          </Text>
-          <Text className="text-xs text-gray-500">{formatDate(order.placedAt)}</Text>
+          <Text className="text-base font-extrabold text-ink">#{order.orderNumber}</Text>
+          <Text className="text-xs text-ink-muted">{formatDate(order.placedAt)}</Text>
         </View>
-        <View className={`rounded-full px-3 py-1 ${colorClass.split(' ')[0]}`}>
-          <Text className={`text-xs font-semibold ${colorClass.split(' ')[1]}`}>
-            {label}
-          </Text>
-        </View>
+        <Badge label={STATUS_LABEL[order.status] ?? order.status} tone={STATUS_TONE[order.status] ?? 'neutral'} />
       </View>
 
       <View className="flex-row items-center justify-between">
-        <Text className="text-sm text-gray-600">
-          {order.items?.length ?? 0} item{(order.items?.length ?? 0) !== 1 ? 's' : ''}
-        </Text>
-        <Text className="text-base font-bold text-gray-900">
-          ₹{order.grandTotal.toFixed(0)}
-        </Text>
+        <View className="flex-row items-center gap-1.5">
+          <Ionicons name="shirt-outline" size={14} color="#7B7A6C" />
+          <Text className="text-sm text-ink-muted">{itemCount} item{itemCount !== 1 ? 's' : ''}{order.isExpress ? ' · Express' : ''}</Text>
+        </View>
+        <Text className="text-base font-extrabold text-ink">{rupees(order.grandTotal)}</Text>
       </View>
 
-      {/* Track link */}
-      {!['delivered', 'cancelled', 'returned'].includes(order.status) && (
+      {canTrack ? (
         <Pressable
           onPress={(e) => {
             e.stopPropagation?.();
             router.push(`/(app)/orders/tracking/${order.id}` as never);
           }}
-          accessibilityRole="button"
-          accessibilityLabel="Track this order"
-          className="mt-3 self-start"
+          className="mt-3 flex-row items-center gap-1 self-start"
         >
-          <Text className="text-sm font-medium text-brand-700">Track Order →</Text>
+          <Text className="text-sm font-bold text-olive-700">Track order</Text>
+          <Ionicons name="arrow-forward" size={14} color="#4A552A" />
         </Pressable>
-      )}
+      ) : null}
     </Pressable>
   );
 }
@@ -125,33 +78,34 @@ export default function MyOrdersScreen() {
   const { data, isLoading, isError, refetch, isFetching } = useMyOrders();
 
   if (isLoading) return <ScreenLoader />;
-  if (isError)   return <ErrorState onRetry={() => void refetch()} />;
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
 
   const orders = data?.list ?? [];
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-muted">
-      <View className="px-6 pt-6 pb-4">
-        <Text className="text-2xl font-bold text-gray-900">My Orders</Text>
+    <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
+      <View className="px-6 pb-3 pt-3">
+        <Text className="text-2xl font-extrabold text-ink">Your orders</Text>
       </View>
 
       {orders.length === 0 ? (
         <EmptyState
+          icon="receipt-outline"
           title="No orders yet"
-          message="Schedule a pickup to place your first order"
+          message="Tap the + button to schedule your first pickup."
         />
       ) : (
         <FlatList
           data={orders}
           keyExtractor={(o) => o.id}
           renderItem={({ item }) => <OrderCard order={item} />}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 32 }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={isFetching && !isLoading}
               onRefresh={() => void refetch()}
-              tintColor="#1D4ED8"
+              tintColor="#4A552A"
             />
           }
         />

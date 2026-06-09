@@ -1,135 +1,70 @@
 /**
- * Offers screen — lists the customer's available coupons.
- *
- * Route:  /(app)/offers
- * Params: couponId? (string) — when present, the matching coupon row is
- *         highlighted so the user immediately sees the offer that was
- *         promoted on the banner they tapped.
- *
- * Data:   GET {Commerce}/api/v1/customer/coupons  (Bearer token; auto-attached)
+ * Offers — the customer's available coupons.
+ * Route param `couponId` highlights & scrolls to a banner-promoted offer.
+ *   GET {Commerce}/customer/coupons
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import {
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useCoupons } from '@/hooks/useCommerce';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Badge } from '@/components/ui/Badge';
+import { rupees, formatDate } from '@/lib/format';
 import type { CouponDto } from '@/types/api';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function formatDiscount(coupon: CouponDto): string {
   if (coupon.couponType === 'percent') {
-    const suffix =
-      coupon.maxDiscountAmount != null ? ` (up to ₹${coupon.maxDiscountAmount.toFixed(0)})` : '';
+    const suffix = coupon.maxDiscountAmount != null ? ` (up to ${rupees(coupon.maxDiscountAmount)})` : '';
     return `${coupon.discountValue}% off${suffix}`;
   }
-  return `₹${coupon.discountValue.toFixed(0)} off`;
+  return `${rupees(coupon.discountValue)} off`;
 }
 
-function formatExpiry(validUntil?: string | null): string | null {
-  if (!validUntil) return null;
-  try {
-    return `Expires ${new Date(validUntil).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    })}`;
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// CouponCard
-// ---------------------------------------------------------------------------
-
-interface CouponCardProps {
-  coupon: CouponDto;
-  highlighted: boolean;
-}
-
-function CouponCard({ coupon, highlighted }: CouponCardProps) {
-  const expiry = formatExpiry(coupon.validUntil);
-  const discount = formatDiscount(coupon);
-
+function CouponCard({ coupon, highlighted }: { coupon: CouponDto; highlighted: boolean }) {
   return (
     <View
-      accessibilityRole="text"
-      accessibilityLabel={`Coupon ${coupon.code}, ${discount}${coupon.description ? `, ${coupon.description}` : ''}${expiry ? `, ${expiry}` : ''}`}
-      className={[
-        'mb-3 rounded-2xl border bg-white p-4',
-        highlighted
-          ? 'border-brand-700 shadow-md'
-          : 'border-gray-200',
-      ].join(' ')}
-      style={{ elevation: highlighted ? 4 : 1 }}
+      className={`mb-3 overflow-hidden rounded-3xl bg-white ${highlighted ? 'border-2 border-gold-400' : ''}`}
+      style={{ shadowColor: '#2E351C', shadowOpacity: highlighted ? 0.12 : 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: highlighted ? 4 : 1 }}
     >
-      {/* Top row: code + discount badge */}
-      <View className="flex-row items-center justify-between mb-2">
-        <View className="flex-row items-center gap-2">
-          {highlighted && (
-            <View className="rounded-full bg-brand-700 px-2 py-0.5">
-              <Text className="text-xs font-bold text-white">Featured</Text>
-            </View>
-          )}
-          <Text
-            className="font-mono text-base font-bold tracking-widest text-gray-900"
-            selectable
-          >
-            {coupon.code}
-          </Text>
+      <View className="flex-row">
+        {/* Stub */}
+        <View className="w-16 items-center justify-center bg-olive-700">
+          <Ionicons name="pricetag" size={22} color="#E6C260" />
         </View>
-        <View className="rounded-full bg-green-100 px-3 py-1">
-          <Text className="text-sm font-bold text-green-700">{discount}</Text>
+        <View className="flex-1 p-4">
+          <View className="mb-1.5 flex-row items-center gap-2">
+            {highlighted ? <Badge label="Featured" tone="gold" /> : null}
+            <Text className="font-mono text-base font-extrabold tracking-widest text-ink" selectable>
+              {coupon.code}
+            </Text>
+          </View>
+          <Text className="text-sm font-bold text-success">{formatDiscount(coupon)}</Text>
+          {coupon.description ? <Text className="mt-1 text-sm text-ink-muted">{coupon.description}</Text> : null}
+          <View className="mt-2 flex-row flex-wrap gap-x-4 gap-y-1">
+            {coupon.minOrderValue ? (
+              <Text className="text-xs text-ink-faint">Min. order {rupees(coupon.minOrderValue)}</Text>
+            ) : null}
+            {coupon.validUntil ? (
+              <Text className="text-xs text-ink-faint">Expires {formatDate(coupon.validUntil)}</Text>
+            ) : null}
+          </View>
         </View>
-      </View>
-
-      {/* Description */}
-      {coupon.description ? (
-        <Text className="text-sm text-gray-600 mb-2">{coupon.description}</Text>
-      ) : null}
-
-      {/* Footer row: min-order + expiry */}
-      <View className="flex-row flex-wrap gap-x-4 gap-y-1">
-        {coupon.minOrderValue != null && coupon.minOrderValue > 0 ? (
-          <Text className="text-xs text-gray-400">
-            Min. order ₹{coupon.minOrderValue.toFixed(0)}
-          </Text>
-        ) : null}
-        {expiry ? (
-          <Text className="text-xs text-gray-400">{expiry}</Text>
-        ) : null}
       </View>
     </View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Screen
-// ---------------------------------------------------------------------------
-
 export default function OffersScreen() {
-  // couponId may arrive as a string or string[] from expo-router params
+  const router = useRouter();
   const params = useLocalSearchParams<{ couponId?: string }>();
-  const targetCouponId = Array.isArray(params.couponId)
-    ? params.couponId[0]
-    : (params.couponId ?? null);
+  const targetCouponId = Array.isArray(params.couponId) ? params.couponId[0] : (params.couponId ?? null);
 
   const { data: coupons, isLoading, isError, refetch, isFetching } = useCoupons();
 
-  // Scroll-to-highlighted: obtain a ref to the FlatList and auto-scroll once
-  // data loads when a targetCouponId is present.
   const flatRef = useRef<FlatList<CouponDto>>(null);
   const hasScrolled = useRef(false);
 
@@ -137,10 +72,7 @@ export default function OffersScreen() {
     if (!targetCouponId || !coupons || hasScrolled.current) return;
     const idx = coupons.findIndex((c) => c.id === targetCouponId);
     if (idx > 0) {
-      // Use a short delay to let the list measure before scrolling
-      setTimeout(() => {
-        flatRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.2 });
-      }, 300);
+      setTimeout(() => flatRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.2 }), 300);
     }
     hasScrolled.current = true;
   }, [targetCouponId, coupons]);
@@ -149,16 +81,25 @@ export default function OffersScreen() {
     scrollToTarget();
   }, [scrollToTarget]);
 
-  // ── States ────────────────────────────────────────────────────────────────
+  const Header = (
+    <View className="flex-row items-center gap-3 px-5 pb-2 pt-2">
+      <Pressable
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)/(tabs)/home'))}
+        className="h-10 w-10 items-center justify-center rounded-full bg-white"
+        accessibilityLabel="Go back"
+      >
+        <Ionicons name="chevron-back" size={22} color="#3C3F35" />
+      </Pressable>
+      <Text className="text-xl font-extrabold text-ink">Offers</Text>
+    </View>
+  );
 
   if (isLoading) return <ScreenLoader />;
 
   if (isError) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-muted">
-        <View className="px-6 pt-6 pb-4">
-          <Text className="text-2xl font-bold text-gray-900">Offers</Text>
-        </View>
+      <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
+        {Header}
         <ErrorState onRetry={() => void refetch()} />
       </SafeAreaView>
     );
@@ -167,55 +108,25 @@ export default function OffersScreen() {
   const list = coupons ?? [];
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-muted">
-      {/* Header */}
-      <View className="px-6 pt-6 pb-4">
-        <Text className="text-2xl font-bold text-gray-900">Offers</Text>
-        <Text className="text-sm text-gray-500 mt-1">
-          Apply a coupon code when placing your next order.
-        </Text>
-      </View>
-
+    <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
+      {Header}
       {list.length === 0 ? (
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={isFetching && !isLoading}
-              onRefresh={() => void refetch()}
-              tintColor="#1D4ED8"
-            />
-          }
+          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => void refetch()} tintColor="#4A552A" />}
         >
-          <EmptyState
-            title="No offers right now"
-            message="Check back soon — new coupons are added regularly."
-          />
+          <EmptyState icon="gift-outline" title="No offers right now" message="Check back soon — new coupons are added regularly." />
         </ScrollView>
       ) : (
         <FlatList
           ref={flatRef}
           data={list}
           keyExtractor={(c) => c.id}
-          renderItem={({ item }) => (
-            <CouponCard
-              coupon={item}
-              highlighted={item.id === targetCouponId}
-            />
-          )}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 32 }}
+          renderItem={({ item }) => <CouponCard coupon={item} highlighted={item.id === targetCouponId} />}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, paddingTop: 8 }}
           showsVerticalScrollIndicator={false}
-          onScrollToIndexFailed={() => {
-            // Fallback: scroll to end so at least the list is visible
-            flatRef.current?.scrollToEnd({ animated: true });
-          }}
-          refreshControl={
-            <RefreshControl
-              refreshing={isFetching && !isLoading}
-              onRefresh={() => void refetch()}
-              tintColor="#1D4ED8"
-            />
-          }
+          onScrollToIndexFailed={() => flatRef.current?.scrollToEnd({ animated: true })}
+          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => void refetch()} tintColor="#4A552A" />}
         />
       )}
     </SafeAreaView>

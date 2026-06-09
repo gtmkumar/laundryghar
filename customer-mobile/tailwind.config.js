@@ -1,4 +1,9 @@
 /** @type {import('tailwindcss').Config} */
+//
+// Laundry Ghar — Customer "v2" design system.
+// Warm cream canvas, olive/forest-green primary, gold/amber CTA accent.
+// Mirrors the rider-mobile Partner-v2 palette so the two apps share a look.
+//
 module.exports = {
   content: [
     './app/**/*.{js,jsx,ts,tsx}',
@@ -8,33 +13,64 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        brand: {
-          50:  '#EFF6FF',
-          100: '#DBEAFE',
-          200: '#BFDBFE',
-          300: '#93C5FD',
-          400: '#60A5FA',
-          500: '#3B82F6',
-          600: '#2563EB',
-          700: '#1D4ED8',
-          800: '#1E40AF',
-          900: '#1E3A8A',
+        // Warm cream — primary background canvas
+        cream: {
+          DEFAULT: '#F3EEE3',
+          50:  '#FAF7F0',
+          100: '#F3EEE3',
+          200: '#ECE5D7',
+          300: '#E0D8C6',
+          400: '#D2C8B2',
         },
+        // Olive / forest green — primary brand colour (headers, confirms)
+        olive: {
+          50:  '#F1F3E8',
+          100: '#E3E7D0',
+          200: '#CBD2AC',
+          300: '#AEB983',
+          400: '#909C5C',
+          500: '#73803F',
+          600: '#5C6A33',
+          700: '#4A552A',
+          800: '#3B4423',
+          900: '#2E351C',
+        },
+        // Gold / amber — primary CTA accent
+        gold: {
+          50:  '#FBF4E0',
+          100: '#F7E8BF',
+          200: '#EFD68F',
+          300: '#E6C260',
+          400: '#DBAC3D',
+          500: '#CC9A2C',
+          600: '#AE8123',
+          700: '#8A641D',
+        },
+        // Ink — text colours
+        ink: {
+          DEFAULT: '#1E2119',
+          soft:    '#3C3F35',
+          muted:   '#7B7A6C',
+          faint:   '#A8A493',
+        },
+        // Surface — card / container backgrounds
         surface: {
           DEFAULT: '#FFFFFF',
-          muted:   '#F9FAFB',
-          subtle:  '#F3F4F6',
+          card:    '#FBF9F3',
+          muted:   '#F3EEE3',
+          subtle:  '#ECE5D7',
         },
+        // Text scale (kept for components that read `text-*`)
         text: {
-          primary:   '#111827',
-          secondary: '#6B7280',
-          disabled:  '#9CA3AF',
+          primary:   '#1E2119',
+          secondary: '#7B7A6C',
+          disabled:  '#A8A493',
           inverse:   '#FFFFFF',
         },
-        success: '#16A34A',
-        warning: '#D97706',
-        danger:  '#DC2626',
-        info:    '#0284C7',
+        success: '#4F8A4F',
+        warning: '#CC9A2C',
+        danger:  '#C0492F',
+        info:    '#3F6E8C',
       },
       fontFamily: {
         sans:   ['System'],

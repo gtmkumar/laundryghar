@@ -1,12 +1,11 @@
 /**
- * Onboarding carousel screen — data driven by the Engagement CMS.
- * Fetches slides from GET /api/v1/public/onboarding-slides?appType=customer.
- * Falls back to static FALLBACK_SLIDES when the network is unavailable
- * or the server returns no slides, so the app always works offline.
+ * Onboarding carousel — CMS-driven (GET /public/onboarding-slides?appType=customer)
+ * with a themed static fallback so the app always works offline.
+ * Matches the v2 mockup: illustration up top, bottom sheet with eyebrow + big
+ * title + subtitle, Skip / Next controls and progress dots.
  */
 import React, { useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -17,205 +16,170 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/Button';
 import { useOnboardingSlides } from '@/hooks/useEngagement';
 import type { OnboardingSlideDto } from '@/types/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ---------------------------------------------------------------------------
-// Static fallback — used when CMS data is unavailable (offline / no slides seeded)
-// ---------------------------------------------------------------------------
-
 const FALLBACK_SLIDES: OnboardingSlideDto[] = [
   {
-    id: 'fallback-1',
-    brandId: '',
-    appType: 'customer',
-    title: 'Doorstep Pickup',
+    id: 'fb-1', brandId: '', appType: 'customer',
+    title: '1100+ stores. 400+ cities. One Ghar.',
     titleLocalized: '',
-    description: 'Schedule a pickup from your home. We come to you — no queue, no hassle.',
-    descriptionLocalized: '',
-    imageUrl: '',
-    displayOrder: 1,
-    isActive: true,
-    status: 'active',
-    createdAt: '',
-    updatedAt: '',
+    description: "From DLF Phase 4 to your maa's village — we wash where you live.",
+    descriptionLocalized: '', imageUrl: '', displayOrder: 1, isActive: true,
+    status: 'active', createdAt: '', updatedAt: '',
   },
   {
-    id: 'fallback-2',
-    brandId: '',
-    appType: 'customer',
-    title: 'Expert Cleaning',
+    id: 'fb-2', brandId: '', appType: 'customer',
+    title: 'Doorstep pickup, garment-by-garment care.',
     titleLocalized: '',
-    description: 'Your clothes treated with care. Wash, dry-clean, iron — all under one roof.',
-    descriptionLocalized: '',
-    imageUrl: '',
-    displayOrder: 2,
-    isActive: true,
-    status: 'active',
-    createdAt: '',
-    updatedAt: '',
+    description: 'Schedule a pickup in seconds. A rider collects from your door — no queues.',
+    descriptionLocalized: '', imageUrl: '', displayOrder: 2, isActive: true,
+    status: 'active', createdAt: '', updatedAt: '',
   },
   {
-    id: 'fallback-3',
-    brandId: '',
-    appType: 'customer',
-    title: 'Track Every Garment',
+    id: 'fb-3', brandId: '', appType: 'customer',
+    title: 'Track every piece till it’s back home.',
     titleLocalized: '',
-    description: 'Know exactly where your clothes are — from pickup to your doorstep.',
-    descriptionLocalized: '',
-    imageUrl: '',
-    displayOrder: 3,
-    isActive: true,
-    status: 'active',
-    createdAt: '',
-    updatedAt: '',
+    description: 'Live timeline from pickup to delivery, with WhatsApp updates on the way.',
+    descriptionLocalized: '', imageUrl: '', displayOrder: 3, isActive: true,
+    status: 'active', createdAt: '', updatedAt: '',
   },
 ];
 
-// Background colors cycled when the CMS slide has no backgroundColor set
-const CYCLE_COLORS = ['#EFF6FF', '#F0FDF4', '#FFF7ED', '#FDF4FF', '#FFFBEB'];
+const SLIDE_ICONS = ['map-marker-radius', 'truck-fast-outline', 'progress-check'] as const;
 
-// ---------------------------------------------------------------------------
-// SlideItem
-// ---------------------------------------------------------------------------
-
-interface SlideItemProps {
-  item: OnboardingSlideDto;
-  index: number;
-}
-
-function SlideItem({ item, index }: SlideItemProps) {
-  const bgColor = item.backgroundColor ?? CYCLE_COLORS[index % CYCLE_COLORS.length];
-  const hasImage = !!item.imageUrl;
-
+function Illustration({ index, imageUrl }: { index: number; imageUrl?: string }) {
+  if (imageUrl) {
+    return (
+      <Image
+        source={{ uri: imageUrl }}
+        style={{ width: SCREEN_WIDTH * 0.7, height: SCREEN_WIDTH * 0.7, borderRadius: 32 }}
+        resizeMode="cover"
+      />
+    );
+  }
+  // Olive "map blob" with a Gurugram pin — evokes the mockup's hero.
   return (
-    <View
-      style={{ width: SCREEN_WIDTH }}
-      className="items-center justify-center px-8"
-    >
-      {/* Illustration / remote image */}
+    <View className="items-center justify-center">
       <View
-        className="mb-8 h-64 w-64 items-center justify-center rounded-3xl overflow-hidden"
-        style={{ backgroundColor: bgColor }}
-        accessibilityLabel={`${item.title} illustration`}
+        className="items-center justify-center rounded-[80px] bg-olive-600"
+        style={{ width: SCREEN_WIDTH * 0.62, height: SCREEN_WIDTH * 0.62 }}
       >
-        {hasImage ? (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={{ width: '100%', height: '100%' }}
-            resizeMode="cover"
-            accessibilityLabel={item.title}
-          />
-        ) : (
-          <Text className="text-6xl" accessibilityElementsHidden>
-            {index === 0 ? '🚗' : index === 1 ? '👕' : '📦'}
-          </Text>
-        )}
+        <MaterialCommunityIcons
+          name={SLIDE_ICONS[index % SLIDE_ICONS.length]}
+          size={88}
+          color="#F3EEE3"
+        />
       </View>
-
-      <Text
-        className="mb-3 text-center text-2xl font-bold text-gray-900"
-        style={item.textColor ? { color: item.textColor } : undefined}
-      >
-        {item.title}
-      </Text>
-
-      <Text className="text-center text-base leading-6 text-gray-500">
-        {item.description ?? ''}
-      </Text>
+      <View className="absolute -right-1 top-6 flex-row items-center gap-1 rounded-full bg-white px-3 py-1.5 shadow">
+        <View className="h-2 w-2 rounded-full bg-gold-400" />
+        <Text className="text-xs font-bold text-ink-soft">Gurugram</Text>
+      </View>
     </View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Screen
-// ---------------------------------------------------------------------------
+function Slide({ item, index }: { item: OnboardingSlideDto; index: number }) {
+  return (
+    <View style={{ width: SCREEN_WIDTH }} className="flex-1 items-center justify-center px-6">
+      <Illustration index={index} imageUrl={item.imageUrl || undefined} />
+    </View>
+  );
+}
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [index, setIndex] = useState(0);
   const flatRef = useRef<FlatList<OnboardingSlideDto>>(null);
 
-  const { data: cmsSlides, isLoading } = useOnboardingSlides('customer');
+  const { data: cmsSlides } = useOnboardingSlides('customer');
+  const slides = cmsSlides && cmsSlides.length > 0 ? cmsSlides : FALLBACK_SLIDES;
+  const current = slides[index] ?? slides[0];
+  const isLast = index === slides.length - 1;
 
-  // Use CMS slides when available; fall back to static defaults
-  const slides: OnboardingSlideDto[] =
-    cmsSlides && cmsSlides.length > 0 ? cmsSlides : FALLBACK_SLIDES;
-
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems[0]?.index != null) {
-        setCurrentIndex(viewableItems[0].index);
-      }
-    },
-  ).current;
+  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems[0]?.index != null) setIndex(viewableItems[0].index);
+  }).current;
 
   const goNext = () => {
-    if (currentIndex < slides.length - 1) {
-      flatRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
+    if (!isLast) {
+      flatRef.current?.scrollToIndex({ index: index + 1, animated: true });
     } else {
       router.replace('/(auth)/phone');
     }
   };
 
-  const isLast = currentIndex === slides.length - 1;
-
-  // Show a subtle loading state while the first CMS fetch is in flight.
-  // We still render the carousel using fallback data so there's no blank screen.
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      {/* Skip */}
-      <View className="flex-row items-center justify-end px-6 pt-4">
-        {isLoading && (
-          <ActivityIndicator size="small" color="#1D4ED8" style={{ marginRight: 8 }} />
-        )}
-        <Pressable
-          onPress={() => router.replace('/(auth)/phone')}
-          accessibilityRole="button"
-          accessibilityLabel="Skip onboarding"
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text className="text-base font-medium text-brand-700">Skip</Text>
-        </Pressable>
-      </View>
+    <View className="flex-1 bg-cream">
+      <StatusBar style="dark" />
+      <LinearGradient
+        colors={['#F3EEE3', '#FAF7F0']}
+        style={{ flex: 1 }}
+      >
+        <SafeAreaView className="flex-1" edges={['top']}>
+          {/* Top illustration carousel */}
+          <View className="flex-[1.1]">
+            <FlatList
+              ref={flatRef}
+              data={slides}
+              keyExtractor={(s) => s.id}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onViewableItemsChanged={onViewable}
+              viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
+              renderItem={({ item, index: i }) => <Slide item={item} index={i} />}
+            />
+          </View>
 
-      {/* Slides */}
-      <FlatList
-        ref={flatRef}
-        data={slides}
-        keyExtractor={(item) => item.id}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
-        renderItem={({ item, index }) => <SlideItem item={item} index={index} />}
-      />
+          {/* Bottom sheet with copy + controls */}
+          <View className="rounded-t-[36px] bg-white px-7 pb-8 pt-8" style={{
+            shadowColor: '#2E351C', shadowOpacity: 0.08, shadowRadius: 20, shadowOffset: { width: 0, height: -6 },
+          }}>
+            <Text className="mb-2 text-xs font-bold uppercase tracking-[3px] text-gold-600">India</Text>
+            <Text className="text-3xl font-extrabold leading-9 text-ink">{current.title}</Text>
+            <Text className="mt-3 text-base leading-6 text-ink-muted">{current.description}</Text>
 
-      {/* Dots */}
-      <View className="flex-row justify-center gap-2 py-4">
-        {slides.map((_, i) => (
-          <View
-            key={i}
-            className={`h-2 rounded-full ${
-              i === currentIndex ? 'w-6 bg-brand-700' : 'w-2 bg-gray-300'
-            }`}
-          />
-        ))}
-      </View>
+            {/* Dots */}
+            <View className="mt-6 flex-row gap-1.5">
+              {slides.map((_, i) => (
+                <View
+                  key={i}
+                  className={`h-2 rounded-full ${i === index ? 'w-6 bg-olive-600' : 'w-2 bg-cream-300'}`}
+                />
+              ))}
+            </View>
 
-      {/* CTA */}
-      <View className="px-6 pb-6">
-        <Button
-          title={isLast ? 'Get Started' : 'Next'}
-          onPress={goNext}
-          fullWidth
-          size="lg"
-        />
-      </View>
-    </SafeAreaView>
+            {/* Controls */}
+            <View className="mt-7 flex-row gap-3">
+              <View className="flex-1">
+                <Button
+                  title="Skip"
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  onPress={() => router.replace('/(auth)/phone')}
+                />
+              </View>
+              <View className="flex-1">
+                <Button
+                  title={isLast ? 'Get Started' : 'Next'}
+                  size="lg"
+                  fullWidth
+                  iconRight="arrow-forward"
+                  onPress={goNext}
+                />
+              </View>
+            </View>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    </View>
   );
 }

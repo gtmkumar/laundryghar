@@ -1,10 +1,13 @@
 /**
- * Authenticated app layout — guards against unauthenticated access.
- * Wraps (tabs) and any modal/stack screens pushed from tabs.
+ * Authenticated app layout — guards against unauthenticated access and hosts
+ * the tab group plus all pushed (stack) screens: the booking flow, order
+ * detail/tracking, price list and offers.
  */
 import React, { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
+
+const CREAM = '#F3EEE3';
 
 export default function AppLayout() {
   const { accessToken, isHydrated } = useAuthStore();
@@ -17,35 +20,25 @@ export default function AppLayout() {
   }, [accessToken, isHydrated, router]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: CREAM },
+        animation: 'slide_from_right',
+      }}
+    >
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="price-list" />
+      <Stack.Screen name="booking/items" />
+      <Stack.Screen name="booking/pickup" />
+      <Stack.Screen name="booking/pay" />
       <Stack.Screen
-        name="orders/[id]"
-        options={{
-          headerShown: true,
-          headerTitle: 'Order Details',
-          headerBackTitle: 'Back',
-          presentation: 'card',
-        }}
+        name="booking/confirm"
+        options={{ animation: 'fade', gestureEnabled: false }}
       />
-      <Stack.Screen
-        name="orders/tracking/[id]"
-        options={{
-          headerShown: true,
-          headerTitle: 'Track Order',
-          headerBackTitle: 'Back',
-          presentation: 'card',
-        }}
-      />
-      <Stack.Screen
-        name="offers"
-        options={{
-          headerShown: true,
-          headerTitle: 'Offers',
-          headerBackTitle: 'Back',
-          presentation: 'card',
-        }}
-      />
+      <Stack.Screen name="orders/[id]" />
+      <Stack.Screen name="orders/tracking/[id]" />
+      <Stack.Screen name="offers" />
     </Stack>
   );
 }

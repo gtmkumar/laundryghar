@@ -4,24 +4,24 @@
  *   2. SecureStore hydration
  *   3. TanStack Query provider
  *   4. App-config fetch (maintenance / force-update gate)
- *   5. Redirects: unauthenticated → /(auth)/onboarding | authenticated → /(app)/(tabs)/home
  */
 import '../global.css';
 import React, { useEffect } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { bootstrapApiAuth, useAuthStore } from '@/store/authStore';
-import { ScreenLoader } from '@/components/ui/ScreenLoader';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { bootstrapApiAuth, useAuthStore } from '@/store/authStore';
+import { BrandSplash } from '@/components/BrandSplash';
 import { useAppConfig } from '@/hooks/useEngagement';
 import type { AppSettingsConfigValue } from '@/types/api';
 
 // Bootstrap once — wires axios interceptors into auth store
 bootstrapApiAuth();
+
+const CREAM = '#F3EEE3';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,10 +36,24 @@ const queryClient = new QueryClient({
 // App-config gate — rendered inside QueryClientProvider so it can use hooks
 // ---------------------------------------------------------------------------
 
+function BlockingScreen({ title, body }: { title: string; body: string }) {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#4A552A' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 12 }}>
+          {title}
+        </Text>
+        <Text style={{ fontSize: 16, color: '#E3E7D0', textAlign: 'center', lineHeight: 24 }}>
+          {body}
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 function AppConfigGate({ children }: { children: React.ReactNode }) {
   const { data: configRows } = useAppConfig();
 
-  // Parse the app_settings row defensively — never crash if absent/malformed
   const appSettings = React.useMemo<AppSettingsConfigValue>(() => {
     if (!configRows) return {};
     const row = configRows.find((r) => r.configKey === 'app_settings');
@@ -51,49 +65,30 @@ function AppConfigGate({ children }: { children: React.ReactNode }) {
     }
   }, [configRows]);
 
-  // Maintenance mode — show a blocking screen
   if (appSettings.maintenance_mode === true) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#1D4ED8' }}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 12 }}>
-            Under Maintenance
-          </Text>
-          <Text style={{ fontSize: 16, color: '#BFDBFE', textAlign: 'center', lineHeight: 24 }}>
-            We are performing scheduled maintenance. Please check back shortly.
-          </Text>
-        </View>
-      </SafeAreaView>
+      <BlockingScreen
+        title="Under Maintenance"
+        body="We are performing scheduled maintenance. Please check back shortly."
+      />
     );
   }
 
-  // Force update — compare current app version against force_update_version
-  // Uses the Expo runtime version / app version from Constants if available.
-  // Kept minimal: only blocks if the field is present and non-empty.
   const forceVersion = appSettings.force_update_version;
-  const currentVersion = Platform.OS === 'ios' ? '1.0.0' : '1.0.0'; // matches app.config.ts version
+  const currentVersion = '2.0.0'; // matches app.config.ts version
   if (forceVersion && forceVersion.trim() && semverGt(forceVersion, currentVersion)) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#1D4ED8' }}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 12 }}>
-            Update Required
-          </Text>
-          <Text style={{ fontSize: 16, color: '#BFDBFE', textAlign: 'center', lineHeight: 24 }}>
-            A new version of Laundry Ghar is available. Please update the app to continue.
-          </Text>
-        </View>
-      </SafeAreaView>
+      <BlockingScreen
+        title="Update Required"
+        body="A new version of Laundry Ghar is available. Please update the app to continue."
+      />
     );
   }
 
   return <>{children}</>;
 }
 
-/**
- * Minimal semver greater-than check: returns true when `a` > `b`.
- * Compares major.minor.patch numerically. Does NOT handle pre-release tags.
- */
+/** Minimal semver greater-than check: returns true when `a` > `b`. */
 function semverGt(a: string, b: string): boolean {
   const parse = (v: string) => v.split('.').map((n) => parseInt(n, 10) || 0);
   const [aMaj, aMin, aPat] = parse(a);
@@ -115,16 +110,21 @@ export default function RootLayout() {
   }, [hydrate]);
 
   if (!isHydrated) {
-    return <ScreenLoader />;
+    return <BrandSplash />;
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <StatusBar style="auto" />
+          <StatusBar style="dark" />
           <AppConfigGate>
-            <Stack screenOptions={{ headerShown: false }}>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: CREAM },
+              }}
+            >
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(app)" />
             </Stack>

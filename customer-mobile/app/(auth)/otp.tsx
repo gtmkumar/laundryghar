@@ -1,188 +1,131 @@
 /**
- * OTP verification screen.
- * Receives ?phone= param from phone screen.
- * Calls POST /api/v1/customer/auth/otp/verify → stores tokens → enters app.
+ * OTP verification — "Enter the code".
+ * Display-only OtpInput cells driven by a custom numeric Keypad (no system
+ * keyboard). Auto-submits on the last digit.
+ *
+ * NOTE: the mockup shows 4 cells, but the Identity service issues 6-digit
+ * codes for the customer login flow, so we render 6 — correctness over pixels.
  */
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput as RNTextInput,
-  View,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@/components/ui/Button';
+import { StatusBar } from 'expo-status-bar';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { OtpInput } from '@/components/ui/OtpInput';
+import { Keypad } from '@/components/ui/Keypad';
 import { verifyOtp, sendOtp } from '@/api/auth';
 import { useAuthStore } from '@/store/authStore';
-import type { CustomerTokenResponse } from '@/types/api';
 
-const OTP_LENGTH = 6;
+const CODE_LENGTH = 6;
+const RESEND_SECONDS = 30;
 
 export default function OtpScreen() {
   const router = useRouter();
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  const { phone, raw } = useLocalSearchParams<{ phone: string; raw: string }>();
   const { setTokens } = useAuthStore();
 
-  const [otp, setOtp]             = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [resending, setResending] = useState(false);
-  const [countdown, setCountdown] = useState(30);
-  const inputRef = useRef<RNTextInput>(null);
+  const [code, setCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState(false);
+  const [seconds, setSeconds] = useState(RESEND_SECONDS);
 
-  // Countdown timer for resend
   useEffect(() => {
-    if (countdown <= 0) return;
-    const timer = setInterval(() => setCountdown((c) => c - 1), 1_000);
-    return () => clearInterval(timer);
-  }, [countdown]);
+    if (seconds <= 0) return;
+    const t = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [seconds]);
 
-  const handleVerify = async () => {
-    if (otp.length !== OTP_LENGTH) return;
-    setLoading(true);
+  const masked = raw
+    ? `+91 98 ●●●● ${raw.slice(-4)}`
+    : (phone ?? '');
+
+  async function verify(full: string) {
+    if (!phone) return;
+    setVerifying(true);
+    setError(false);
     try {
-      const tokens: CustomerTokenResponse = await verifyOtp(phone ?? '', otp);
+      const tokens = await verifyOtp(phone, full);
       await setTokens(tokens);
-      // Replace the entire auth stack so back-button cannot return here
       router.replace('/(app)/(tabs)/home');
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Invalid OTP. Please try again.';
-      Alert.alert('Verification Failed', message);
-      setOtp('');
+      setError(true);
+      setCode('');
+      Alert.alert(
+        'Verification failed',
+        err instanceof Error ? err.message : 'That code did not match. Try again.',
+      );
     } finally {
-      setLoading(false);
+      setVerifying(false);
     }
-  };
+  }
 
-  const handleResend = async () => {
-    if (!phone || countdown > 0 || resending) return;
-    setResending(true);
+  async function resend() {
+    if (seconds > 0 || !phone) return;
     try {
       await sendOtp(phone);
-      setCountdown(30);
-      setOtp('');
-      Alert.alert('OTP Sent', `A new OTP has been sent to ${phone}`);
+      setSeconds(RESEND_SECONDS);
+      setCode('');
+      setError(false);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to resend OTP';
-      Alert.alert('Error', message);
-    } finally {
-      setResending(false);
+      Alert.alert('Could not resend', err instanceof Error ? err.message : 'Try again shortly.');
     }
-  };
-
-  // Render 6 digit boxes atop a hidden input
-  const digits = otp.split('').concat(Array(OTP_LENGTH - otp.length).fill(''));
+  }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
+    <SafeAreaView className="flex-1 bg-cream">
+      <StatusBar style="dark" />
+      <View className="flex-1 px-6 pt-4">
+        {/* Back */}
+        <Pressable
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={8}
+          className="h-10 w-10 items-center justify-center rounded-full bg-white"
         >
-          <View className="flex-1 px-6 pt-12">
-            {/* Back */}
-            <Pressable
-              onPress={() => router.back()}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              className="mb-8 self-start"
-            >
-              <Text className="text-base font-medium text-brand-700">← Back</Text>
+          <MaterialCommunityIcons name="chevron-left" size={26} color="#3C3F35" />
+        </Pressable>
+
+        <Text className="mt-6 text-4xl font-extrabold text-ink">Enter the code</Text>
+        <Text className="mt-2 text-base text-ink-muted">
+          Sent via SMS to <Text className="font-bold text-ink-soft">{masked}</Text>
+        </Text>
+
+        {/* Code cells */}
+        <View className="mt-8">
+          <OtpInput value={code} length={CODE_LENGTH} hasError={error} />
+        </View>
+
+        {/* Resend */}
+        <View className="mt-6 flex-row items-center">
+          {seconds > 0 ? (
+            <Text className="text-sm text-ink-faint">
+              Didn’t get it? Resend in <Text className="font-bold text-ink-soft">0:{String(seconds).padStart(2, '0')}</Text>
+            </Text>
+          ) : (
+            <Pressable onPress={() => void resend()} hitSlop={8}>
+              <Text className="text-sm font-bold text-olive-700">Resend code</Text>
             </Pressable>
+          )}
+          {verifying ? <Text className="ml-auto text-sm text-ink-faint">Verifying…</Text> : null}
+        </View>
 
-            {/* Header */}
-            <View className="mb-8">
-              <Text className="mb-2 text-3xl font-bold text-gray-900">
-                Enter OTP
-              </Text>
-              <Text className="text-base text-gray-500">
-                We sent a 6-digit code to{' '}
-                <Text className="font-semibold text-gray-700">{phone}</Text>
-              </Text>
-            </View>
+        <View className="flex-1" />
 
-            {/* OTP boxes */}
-            <Pressable
-              onPress={() => inputRef.current?.focus()}
-              accessibilityLabel="OTP input"
-              className="flex-row justify-between mb-8"
-            >
-              {digits.map((d, i) => (
-                <View
-                  key={i}
-                  className={[
-                    'h-14 w-12 items-center justify-center rounded-xl border-2',
-                    d ? 'border-brand-700 bg-brand-50' : 'border-gray-300 bg-white',
-                    i === otp.length ? 'border-brand-400' : '',
-                  ].join(' ')}
-                >
-                  <Text className="text-2xl font-bold text-gray-900">
-                    {d ? '•' : ''}
-                  </Text>
-                </View>
-              ))}
-            </Pressable>
-
-            {/* Hidden input captures actual text */}
-            <RNTextInput
-              ref={inputRef}
-              value={otp}
-              onChangeText={(t) => {
-                const digits_only = t.replace(/\D/g, '').slice(0, OTP_LENGTH);
-                setOtp(digits_only);
-                if (digits_only.length === OTP_LENGTH) {
-                  // Auto-submit
-                  setTimeout(() => handleVerify(), 100);
-                }
-              }}
-              keyboardType="number-pad"
-              maxLength={OTP_LENGTH}
-              style={{ position: 'absolute', opacity: 0, height: 0 }}
-              autoFocus
-              accessibilityElementsHidden
-            />
-
-            <Button
-              title="Verify OTP"
-              onPress={handleVerify}
-              loading={loading}
-              disabled={otp.length !== OTP_LENGTH}
-              fullWidth
-              size="lg"
-            />
-
-            {/* Resend */}
-            <View className="mt-6 flex-row items-center justify-center gap-1">
-              <Text className="text-sm text-gray-500">Didn't receive it?</Text>
-              {countdown > 0 ? (
-                <Text className="text-sm font-medium text-gray-400">
-                  Resend in {countdown}s
-                </Text>
-              ) : (
-                <Pressable
-                  onPress={handleResend}
-                  disabled={resending}
-                  accessibilityRole="button"
-                  accessibilityLabel="Resend OTP"
-                >
-                  <Text className="text-sm font-medium text-brand-700">
-                    {resending ? 'Sending…' : 'Resend OTP'}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {/* Keypad */}
+        <View className="pb-2">
+          <Keypad
+            value={code}
+            maxLength={CODE_LENGTH}
+            onChange={(next) => {
+              setError(false);
+              setCode(next);
+              if (next.length === CODE_LENGTH) void verify(next);
+            }}
+          />
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
