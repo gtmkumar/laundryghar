@@ -18,7 +18,7 @@ import { rupees } from '@/lib/format';
 import type { PriceListItemDto } from '@/types/api';
 
 function PriceRow({ item }: { item: PriceListItemDto }) {
-  const label = item.displayLabel ?? `Item ${item.itemId.slice(0, 8)}`;
+  const label = item.displayLabel ?? item.notes ?? 'Garment';
   return (
     <View className="flex-row items-center justify-between border-b border-cream-200 py-3.5">
       <View className="mr-4 flex-1">

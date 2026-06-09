@@ -5,7 +5,7 @@
  *   GET {Catalog}/customer/addresses               (address chip)
  *   GET {Engagement}/public/banners?placement=home_top  (promo banner)
  */
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Image,
   Linking,
@@ -111,13 +111,19 @@ function MoreTile() {
 
 function PromoBanner({ banner }: { banner?: AppBannerDto }) {
   const router = useRouter();
+  const [imgFailed, setImgFailed] = useState(false);
 
   if (banner) {
     const handlePress = () => resolveBannerPress(banner, router.push);
-    if (banner.imageUrl) {
+    if (banner.imageUrl && !imgFailed) {
       return (
         <Pressable onPress={handlePress} className="overflow-hidden rounded-3xl">
-          <Image source={{ uri: banner.imageUrl }} style={{ width: '100%', height: 150 }} resizeMode="cover" />
+          <Image
+            source={{ uri: banner.imageUrl }}
+            style={{ width: '100%', height: 150 }}
+            resizeMode="cover"
+            onError={() => setImgFailed(true)}
+          />
         </Pressable>
       );
     }

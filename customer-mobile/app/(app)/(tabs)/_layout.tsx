@@ -68,12 +68,15 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   };
 
   return (
-    <View>
+    <View style={{ overflow: 'visible' }}>
+      {/* Extra top padding creates the visible ledge for the FAB above the bar */}
       <View
-        className="flex-row items-end bg-white px-2 pt-2"
+        className="flex-row items-end bg-white px-2"
         style={{
+          paddingTop: 28,
           borderTopLeftRadius: 28,
           borderTopRightRadius: 28,
+          overflow: 'visible',
           shadowColor: '#2E351C',
           shadowOpacity: 0.08,
           shadowRadius: 16,
@@ -81,19 +84,20 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           elevation: 12,
         }}
       >
-        <SafeAreaView edges={['bottom']} className="flex-1 flex-row items-end">
+        <SafeAreaView edges={['bottom']} className="flex-1 flex-row items-end" style={{ overflow: 'visible' }}>
           {LEFT.map((n) => (
             <TabButton key={n} meta={TAB_META[n]} focused={activeName === n} onPress={() => go(n)} />
           ))}
 
-          {/* Center FAB spacer */}
-          <View className="w-16 items-center">
+          {/* Center FAB spacer — height matches the paddingTop gap so tabs align */}
+          <View className="w-16 items-center" style={{ overflow: 'visible' }}>
             <Pressable
               onPress={() => router.push('/(app)/booking/items')}
               accessibilityRole="button"
               accessibilityLabel="Schedule a pickup"
-              className="absolute -top-7 h-16 w-16 items-center justify-center rounded-full bg-gold-400"
+              className="absolute h-16 w-16 items-center justify-center rounded-full bg-gold-400"
               style={{
+                top: -56,
                 shadowColor: '#8A641D',
                 shadowOpacity: 0.4,
                 shadowRadius: 10,

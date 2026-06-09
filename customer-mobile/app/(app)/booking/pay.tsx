@@ -29,7 +29,6 @@ interface MethodMeta {
 export default function PayScreen() {
   const router = useRouter();
   const { dateLabel } = useLocalSearchParams<{ dateLabel?: string }>();
-  const lines = useCartStore((s) => s.list());
   const subtotal = useCartStore((s) => s.subtotal());
   const count = useCartStore((s) => s.count());
   const clearCart = useCartStore((s) => s.clear);

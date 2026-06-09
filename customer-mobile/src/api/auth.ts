@@ -2,6 +2,7 @@
  * Customer auth API — maps to CustomerAuthEndpoints.cs
  * Endpoint prefix: {Identity}/api/v1/customer/auth/
  */
+import axios from 'axios';
 import { identityClient } from '@/api/client';
 import { CONFIG } from '@/constants/config';
 import type {
@@ -33,15 +34,33 @@ export async function verifyOtp(
   code: string,
   brandCode?: string,
 ): Promise<CustomerTokenResponse> {
-  const res = await identityClient.post<SingleResponse<CustomerTokenResponse>>(
-    '/customer/auth/otp/verify',
-    { phone, code, brandCode: brandCode ?? CONFIG.defaultBrandCode },
-  );
-  const envelope = res.data;
-  if (!envelope.status || !envelope.data) {
-    throw new Error(envelope.message?.responseMessage ?? 'OTP verification failed');
+  try {
+    const res = await identityClient.post<SingleResponse<CustomerTokenResponse>>(
+      '/customer/auth/otp/verify',
+      { phone, code, brandCode: brandCode ?? CONFIG.defaultBrandCode },
+    );
+    const envelope = res.data;
+    if (!envelope.status || !envelope.data) {
+      throw new Error(envelope.message?.responseMessage ?? 'OTP verification failed');
+    }
+    return envelope.data;
+  } catch (err: unknown) {
+    // Re-throw envelope errors as-is (already a friendly Error from above)
+    if (err instanceof Error && !(axios.isAxiosError(err))) {
+      throw err;
+    }
+    // For axios HTTP/network errors, extract the server's responseMessage when
+    // present on the error body, otherwise use a friendly fallback.
+    if (axios.isAxiosError(err)) {
+      const serverMessage =
+        (err.response?.data as SingleResponse<unknown> | undefined)
+          ?.message?.responseMessage;
+      throw new Error(
+        serverMessage ?? 'That code is incorrect or has expired. Please try again.',
+      );
+    }
+    throw new Error('That code is incorrect or has expired. Please try again.');
   }
-  return envelope.data;
 }
 
 // ---------------------------------------------------------------------------

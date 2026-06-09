@@ -154,7 +154,14 @@ function createAxiosInstance(baseURL: string): AxiosInstance {
         _retried?: boolean;
       };
 
-      if (error.response?.status === 401 && !originalRequest._retried) {
+      // Never attempt refresh-and-retry for auth-endpoint calls (login, refresh,
+      // logout, OTP). A 401 on /auth/* means the credential itself is rejected —
+      // re-entering the interceptor would cause a circular self-await on
+      // refreshPromise and hang every subsequent request indefinitely.
+      const url = originalRequest.url ?? '';
+      const isAuthCall = url.includes('/auth/');
+
+      if (error.response?.status === 401 && !originalRequest._retried && !isAuthCall) {
         originalRequest._retried = true;
 
         try {

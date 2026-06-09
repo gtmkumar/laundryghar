@@ -55,12 +55,15 @@ const FALLBACK_SLIDES: OnboardingSlideDto[] = [
 const SLIDE_ICONS = ['map-marker-radius', 'truck-fast-outline', 'progress-check'] as const;
 
 function Illustration({ index, imageUrl }: { index: number; imageUrl?: string }) {
-  if (imageUrl) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (imageUrl && !imgFailed) {
     return (
       <Image
         source={{ uri: imageUrl }}
         style={{ width: SCREEN_WIDTH * 0.7, height: SCREEN_WIDTH * 0.7, borderRadius: 32 }}
         resizeMode="cover"
+        onError={() => setImgFailed(true)}
       />
     );
   }

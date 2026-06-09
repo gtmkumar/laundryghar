@@ -65,10 +65,10 @@ export default function ItemsScreen() {
 
   const items: PickerItem[] = useMemo(() => {
     const live = (priceList ?? [])
-      .filter((p) => p.isActive && p.displayLabel)
+      .filter((p) => p.isActive)
       .map((p) => ({
         id: p.id,
-        name: p.displayLabel as string,
+        name: p.displayLabel ?? p.notes ?? 'Garment',
         fabric: p.notes ?? 'Standard',
         unitPrice: p.basePrice,
       }));
