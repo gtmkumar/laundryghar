@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Bike, Loader2, Check, Ban, Mail, Phone, Star, Pencil } from 'lucide-react'
 import { useRider, useVerifyRider, useRejectRider } from '@/hooks/useRiders'
 import { usePermissions } from '@/hooks/usePermissions'
-import { FormDrawer } from '@/components/shared/FormDrawer'
+import { FormDrawer, DetailSection, DetailRow } from '@/components/shared/FormDrawer'
 import type { RiderDto } from '@/types/api'
 import {
   VEHICLE_LABEL,
@@ -158,9 +158,9 @@ export function RiderDetailDrawer({ riderId, open, onClose, onEdit }: Props) {
           </div>
 
           {/* Identity */}
-          <Section title="Identity">
-            <Row label="Name" value={rider.riderName ?? '—'} />
-            <Row
+          <DetailSection title="Identity">
+            <DetailRow label="Name" value={rider.riderName ?? '—'} />
+            <DetailRow
               label="Email"
               value={
                 rider.email ? (
@@ -172,7 +172,7 @@ export function RiderDetailDrawer({ riderId, open, onClose, onEdit }: Props) {
                 )
               }
             />
-            <Row
+            <DetailRow
               label="Phone"
               value={
                 rider.phone ? (
@@ -184,39 +184,39 @@ export function RiderDetailDrawer({ riderId, open, onClose, onEdit }: Props) {
                 )
               }
             />
-            <Row
+            <DetailRow
               label="Account status"
               value={<span className="capitalize">{rider.userStatus ? humanise(rider.userStatus) : '—'}</span>}
             />
-          </Section>
+          </DetailSection>
 
           {/* Assignment */}
-          <Section title="Assignment">
-            <Row label="Franchise" value={rider.franchiseName ?? '—'} />
-            <Row label="Primary store" value={rider.primaryStoreName ?? '—'} />
-            <Row
+          <DetailSection title="Assignment">
+            <DetailRow label="Franchise" value={rider.franchiseName ?? '—'} />
+            <DetailRow label="Primary store" value={rider.primaryStoreName ?? '—'} />
+            <DetailRow
               label="Employment"
               value={EMPLOYMENT_LABEL[rider.employmentType] ?? humanise(rider.employmentType)}
             />
-          </Section>
+          </DetailSection>
 
           {/* Vehicle & documents */}
-          <Section title="Vehicle &amp; documents">
-            <Row label="Vehicle" value={VEHICLE_LABEL[rider.vehicleType] ?? humanise(rider.vehicleType)} />
-            <Row label="Vehicle number" value={rider.vehicleNumber ?? '—'} />
-            <Row label="Vehicle model" value={rider.vehicleModel ?? '—'} />
-            <Row label="Driving licence" value={rider.drivingLicenseNumber ?? '—'} />
-            <Row label="DL expiry" value={formatDate(rider.dlExpiryDate)} />
-            <Row label="Insurance expiry" value={formatDate(rider.insuranceExpiryDate)} />
-          </Section>
+          <DetailSection title="Vehicle &amp; documents">
+            <DetailRow label="Vehicle" value={VEHICLE_LABEL[rider.vehicleType] ?? humanise(rider.vehicleType)} />
+            <DetailRow label="Vehicle number" value={rider.vehicleNumber ?? '—'} />
+            <DetailRow label="Vehicle model" value={rider.vehicleModel ?? '—'} />
+            <DetailRow label="Driving licence" value={rider.drivingLicenseNumber ?? '—'} />
+            <DetailRow label="DL expiry" value={formatDate(rider.dlExpiryDate)} />
+            <DetailRow label="Insurance expiry" value={formatDate(rider.insuranceExpiryDate)} />
+          </DetailSection>
 
           {/* Capacity */}
-          <Section title="Capacity &amp; service">
-            <Row label="Daily pickups" value={rider.dailyPickupCapacity} />
-            <Row label="Daily deliveries" value={rider.dailyDeliveryCapacity} />
-            <Row label="Service radius" value={`${rider.serviceRadiusKm} km`} />
-            <Row label="Current load" value={rider.currentLoad} />
-            <Row
+          <DetailSection title="Capacity &amp; service">
+            <DetailRow label="Daily pickups" value={rider.dailyPickupCapacity} />
+            <DetailRow label="Daily deliveries" value={rider.dailyDeliveryCapacity} />
+            <DetailRow label="Service radius" value={`${rider.serviceRadiusKm} km`} />
+            <DetailRow label="Current load" value={rider.currentLoad} />
+            <DetailRow
               label="Availability"
               value={
                 <span className="space-x-2">
@@ -225,11 +225,11 @@ export function RiderDetailDrawer({ riderId, open, onClose, onEdit }: Props) {
                 </span>
               }
             />
-          </Section>
+          </DetailSection>
 
           {/* Performance */}
-          <Section title="Performance">
-            <Row
+          <DetailSection title="Performance">
+            <DetailRow
               label="Rating"
               value={
                 rider.ratingAverage != null ? (
@@ -243,39 +243,21 @@ export function RiderDetailDrawer({ riderId, open, onClose, onEdit }: Props) {
                 )
               }
             />
-            <Row
+            <DetailRow
               label="Completion rate"
               value={rider.completionRate != null ? `${Math.round(rider.completionRate * 100)}%` : '—'}
             />
-            <Row label="Lifetime deliveries" value={rider.lifetimeDeliveries} />
-          </Section>
+            <DetailRow label="Lifetime deliveries" value={rider.lifetimeDeliveries} />
+          </DetailSection>
 
           {/* Meta */}
-          <Section title="Record">
-            <Row label="Joined" value={formatDate(rider.createdAt)} />
-            <Row label="Last updated" value={formatDate(rider.updatedAt)} />
-          </Section>
+          <DetailSection title="Record">
+            <DetailRow label="Joined" value={formatDate(rider.createdAt)} />
+            <DetailRow label="Last updated" value={formatDate(rider.updatedAt)} />
+          </DetailSection>
         </div>
       )}
     </FormDrawer>
-  )
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-2">
-      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-      <dl className="divide-y divide-gray-50 rounded-xl border border-gray-100">{children}</dl>
-    </section>
-  )
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className="text-right font-medium text-gray-900">{value}</dd>
-    </div>
   )
 }
 

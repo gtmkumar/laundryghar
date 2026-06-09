@@ -200,3 +200,25 @@ export function Field({
     </label>
   )
 }
+
+// ── Read-only "view" primitives ────────────────────────────────────────────────
+
+/** A titled card of label/value rows for read-only detail drawers. Wrap {@link DetailRow}s. */
+export function DetailSection({ title, children }: { title?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="space-y-2">
+      {title && <h3 className="text-sm font-semibold text-gray-900">{title}</h3>}
+      <dl className="divide-y divide-gray-50 rounded-xl border border-gray-100">{children}</dl>
+    </section>
+  )
+}
+
+/** One label → value row inside a {@link DetailSection}. */
+export function DetailRow({ label, value }: { label: ReactNode; value: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+      <dt className="text-gray-500">{label}</dt>
+      <dd className="text-right font-medium text-gray-900">{value}</dd>
+    </div>
+  )
+}

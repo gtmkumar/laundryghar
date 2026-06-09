@@ -4,7 +4,7 @@ import { useFranchises, useCreateWarehouse, useUpdateWarehouse } from '@/hooks/u
 import { useOnboardingState } from '@/hooks/useOnboarding'
 import { useEffectiveBrandId } from '@/hooks/useBrandContext'
 import { usePermissions } from '@/hooks/usePermissions'
-import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
+import { FormDrawer, DrawerSection, Field, drawerInputCls, DetailSection, DetailRow } from '@/components/shared/FormDrawer'
 import { Badge } from '@/components/ui/badge'
 import type { WarehouseDto, WarehouseType, WarehouseStatus } from '@/types/api'
 import { formatDate } from '@/lib/utils'
@@ -303,15 +303,12 @@ export function WarehouseDetailDrawer({
               {warehouse.code}
             </span>
           </div>
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-900">Details</h3>
-            <dl className="divide-y divide-gray-50 rounded-xl border border-gray-100">
-              <Row label="Name" value={warehouse.name} />
-              <Row label="Franchise" value={franchiseName ?? '—'} />
-              <Row label="City" value={warehouse.city} />
-              <Row label="Created" value={formatDate(warehouse.createdAt)} />
-            </dl>
-          </section>
+          <DetailSection title="Details">
+            <DetailRow label="Name" value={warehouse.name} />
+            <DetailRow label="Franchise" value={franchiseName ?? '—'} />
+            <DetailRow label="City" value={warehouse.city} />
+            <DetailRow label="Created" value={formatDate(warehouse.createdAt)} />
+          </DetailSection>
         </div>
       )}
     </FormDrawer>
@@ -399,11 +396,3 @@ export function WarehouseEditDrawer({
   )
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className="text-right font-medium text-gray-900">{value}</dd>
-    </div>
-  )
-}

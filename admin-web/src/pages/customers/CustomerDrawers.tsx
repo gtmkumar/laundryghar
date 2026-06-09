@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { User, Save, Pencil, Mail, Phone, Star } from 'lucide-react'
 import { useUpdateAdminCustomer } from '@/hooks/useCatalog'
-import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
+import { FormDrawer, DrawerSection, Field, drawerInputCls, DetailSection, DetailRow } from '@/components/shared/FormDrawer'
 import { Badge } from '@/components/ui/badge'
 import type { AdminCustomerDto } from '@/types/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -69,9 +69,9 @@ export function CustomerDetailDrawer({
             </span>
           </div>
 
-          <Section title="Identity">
-            <Row label="Name" value={customerName(customer)} />
-            <Row
+          <DetailSection title="Identity">
+            <DetailRow label="Name" value={customerName(customer)} />
+            <DetailRow
               label="Phone"
               value={
                 <span className="inline-flex items-center gap-1.5">
@@ -79,7 +79,7 @@ export function CustomerDetailDrawer({
                 </span>
               }
             />
-            <Row
+            <DetailRow
               label="Email"
               value={
                 customer.email ? (
@@ -91,13 +91,13 @@ export function CustomerDetailDrawer({
                 )
               }
             />
-            <Row label="Gender" value={<span className="capitalize">{customer.gender ?? '—'}</span>} />
-          </Section>
+            <DetailRow label="Gender" value={<span className="capitalize">{customer.gender ?? '—'}</span>} />
+          </DetailSection>
 
-          <Section title="Engagement">
-            <Row label="Lifetime orders" value={customer.lifetimeOrders} />
-            <Row label="Lifetime spend" value={formatCurrency(customer.lifetimeSpend)} />
-            <Row
+          <DetailSection title="Engagement">
+            <DetailRow label="Lifetime orders" value={customer.lifetimeOrders} />
+            <DetailRow label="Lifetime spend" value={formatCurrency(customer.lifetimeSpend)} />
+            <DetailRow
               label="Loyalty points"
               value={
                 <span className="inline-flex items-center gap-1">
@@ -106,15 +106,15 @@ export function CustomerDetailDrawer({
                 </span>
               }
             />
-            <Row label="Wallet balance" value={formatCurrency(customer.walletBalance)} />
-          </Section>
+            <DetailRow label="Wallet balance" value={formatCurrency(customer.walletBalance)} />
+          </DetailSection>
 
-          <Section title="Record">
-            <Row label="Locale" value={customer.locale} />
-            <Row label="Timezone" value={customer.timezone} />
-            <Row label="Joined" value={formatDate(customer.createdAt)} />
-            <Row label="Last updated" value={formatDate(customer.updatedAt)} />
-          </Section>
+          <DetailSection title="Record">
+            <DetailRow label="Locale" value={customer.locale} />
+            <DetailRow label="Timezone" value={customer.timezone} />
+            <DetailRow label="Joined" value={formatDate(customer.createdAt)} />
+            <DetailRow label="Last updated" value={formatDate(customer.updatedAt)} />
+          </DetailSection>
         </div>
       )}
     </FormDrawer>
@@ -236,22 +236,3 @@ export function CustomerEditDrawer({
   )
 }
 
-// ── Local read-only primitives ─────────────────────────────────────────────────
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-2">
-      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-      <dl className="divide-y divide-gray-50 rounded-xl border border-gray-100">{children}</dl>
-    </section>
-  )
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className="text-right font-medium text-gray-900">{value}</dd>
-    </div>
-  )
-}
