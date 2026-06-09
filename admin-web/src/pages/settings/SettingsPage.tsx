@@ -1,18 +1,20 @@
 import { useState } from 'react'
-import { Mail, UserCog, Loader2, Map as MapIcon } from 'lucide-react'
+import { Mail, UserCog, Loader2, Map as MapIcon, Coins } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettings } from '@/hooks/useSettings'
 import { EmailPanel } from './EmailPanel'
 import { ProvisioningPanel } from './ProvisioningPanel'
 import { MapsPanel } from './MapsPanel'
+import { PayoutPanel } from './PayoutPanel'
 
-type Key = 'email' | 'maps' | 'provisioning'
+type Key = 'email' | 'maps' | 'payout' | 'provisioning'
 
 const NAV: { section: string; items: { key: Key; label: string; icon: React.ElementType }[] }[] = [
   { section: 'Integrations', items: [
     { key: 'email', label: 'Email & SMTP', icon: Mail },
     { key: 'maps', label: 'Maps', icon: MapIcon },
   ] },
+  { section: 'Operations', items: [{ key: 'payout', label: 'Rider payouts', icon: Coins }] },
   { section: 'Platform', items: [{ key: 'provisioning', label: 'User Provisioning', icon: UserCog }] },
 ]
 
@@ -69,6 +71,8 @@ export function SettingsPage() {
             <EmailPanel settings={settings.data} />
           ) : active === 'maps' ? (
             <MapsPanel settings={settings.data} />
+          ) : active === 'payout' ? (
+            <PayoutPanel settings={settings.data} />
           ) : (
             <ProvisioningPanel settings={settings.data} />
           )}

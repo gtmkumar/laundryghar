@@ -38,6 +38,7 @@ public sealed class DeliveryAssignmentConfiguration : IEntityTypeConfiguration<D
         b.Property(e => e.CodAmount).HasColumnName("cod_amount").HasColumnType("numeric(10,2)");
         b.Property(e => e.CodCollectedAt).HasColumnName("cod_collected_at");
         b.Property(e => e.SettlementId).HasColumnName("settlement_id");
+        b.Property(e => e.PayoutAmount).HasColumnName("payout_amount").HasColumnType("numeric(10,2)");
         b.Property(e => e.OtpVerified).HasColumnName("otp_verified").IsRequired();
         b.Property(e => e.OtpAttemptedAt).HasColumnName("otp_attempted_at");
         b.Property(e => e.SignatureS3Key).HasColumnName("signature_s3_key");

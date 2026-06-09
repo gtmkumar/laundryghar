@@ -105,10 +105,11 @@ SELECT
     18 + (g % 4) * 3, 45, true, '{"seed":"rider_ops_demo"}', now()
 FROM generate_series(1, 15) AS g;
 
--- ── 4. Demo COD cash (Phase 3): a completed delivery leg holds uncleared cash ─
--- Re-creating the assignment above wiped these, so set them after the insert.
+-- ── 4. Demo COD cash + payout (Phase 3/4): a completed delivery leg holds ─────
+-- uncleared cash and a computed payout. Re-creating the assignment wiped these.
 UPDATE order_lifecycle.delivery_assignments
-SET cod_amount = 350.00, cod_collected_at = now() - interval '35 minutes', settlement_id = NULL
+SET cod_amount = 350.00, cod_collected_at = now() - interval '35 minutes', settlement_id = NULL,
+    payout_amount = 95.00
 WHERE id = md5('seed_ops_da_done2')::uuid;
 
 COMMIT;

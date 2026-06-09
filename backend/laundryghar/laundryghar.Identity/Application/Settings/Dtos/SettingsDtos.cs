@@ -16,8 +16,16 @@ public sealed record AppUrlsView(string AdminBaseUrl);
 /// </summary>
 public sealed record MapsSettingsView(string Provider, string? GoogleApiKey, string? MapboxToken);
 
+/// <summary>
+/// Rider per-leg payout rates (₹). payout = base + perKm·km + (express? expressBonus)
+/// + (cod? codBonus), rounded to the nearest <c>RoundToNearest</c>.
+/// </summary>
+public sealed record PayoutSettingsView(
+    decimal BaseFare, decimal PerKm, decimal ExpressBonus, decimal CodBonus, decimal RoundToNearest);
+
 public sealed record AdminSettingsView(
-    EmailSettingsView Email, ProvisioningView Provisioning, AppUrlsView App, MapsSettingsView Maps);
+    EmailSettingsView Email, ProvisioningView Provisioning, AppUrlsView App,
+    MapsSettingsView Maps, PayoutSettingsView Payout);
 
 // ── Write models ────────────────────────────────────────────────────────────
 /// <summary>
@@ -40,3 +48,7 @@ public sealed record UpdateProvisioningRequest(string Mode);
 /// stored one (so the UI need not re-enter a key on every save, like SMTP).
 /// </summary>
 public sealed record UpdateMapsSettingsRequest(string Provider, string? GoogleApiKey, string? MapboxToken);
+
+/// <summary>Update rider payout rates (all ₹; non-negative; RoundToNearest must be &gt; 0).</summary>
+public sealed record UpdatePayoutSettingsRequest(
+    decimal BaseFare, decimal PerKm, decimal ExpressBonus, decimal CodBonus, decimal RoundToNearest);

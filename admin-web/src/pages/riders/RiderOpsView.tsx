@@ -196,10 +196,9 @@ function SelectedPanel({
             <Stat label="Failed" value={`${stats.assignmentsFailed}`} />
             <Stat label="Distance" value={`${stats.totalKm.toFixed(1)} km`} />
             <Stat label="Assignments" value={`${stats.assignmentsTotal}`} />
+            <Stat label="COD collected" value={`₹${stats.codCollected.toLocaleString('en-IN')}`} />
+            <Stat label="Earnings" value={`₹${stats.earnings.toLocaleString('en-IN')}`} />
           </div>
-          <p className="mt-2 text-[11px] text-gray-400">
-            COD collected &amp; earnings arrive with the cash-settlement and payout phases.
-          </p>
         </div>
       )}
     </div>

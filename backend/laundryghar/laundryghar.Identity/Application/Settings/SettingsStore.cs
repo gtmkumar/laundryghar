@@ -1,6 +1,7 @@
 using System.Text.Json;
 using laundryghar.Identity.Infrastructure.Email;
 using laundryghar.Identity.Infrastructure.Services;
+using laundryghar.SharedDataModel.Common;
 using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -80,6 +81,15 @@ public static class SettingsStore
         // silently fails to bind and returns the osm default.
         try { return JsonSerializer.Deserialize<MapsSettings>(row.SettingValue, Json) ?? new MapsSettings(); }
         catch (JsonException) { return new MapsSettings(); }
+    }
+
+    public static async Task<RiderPayoutSettings> LoadPayoutAsync(LaundryGharDbContext db, Guid? brandId, CancellationToken ct)
+    {
+        var row = await FindAsync(db, brandId, "payout", "rider", ct);
+        if (row is null) return new RiderPayoutSettings();
+        // Web options (camelCase, case-insensitive) — see LoadMapsAsync note.
+        try { return JsonSerializer.Deserialize<RiderPayoutSettings>(row.SettingValue, Json) ?? new RiderPayoutSettings(); }
+        catch (JsonException) { return new RiderPayoutSettings(); }
     }
 
     /// <summary>Upsert a setting's JSON value, creating the row if it does not exist yet.</summary>

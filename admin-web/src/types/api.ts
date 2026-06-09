@@ -968,11 +968,22 @@ export interface UpdateMapsPayload {
   mapboxToken?: string
 }
 
+export interface PayoutSettingsView {
+  baseFare: number
+  perKm: number
+  expressBonus: number
+  codBonus: number
+  roundToNearest: number
+}
+
+export type UpdatePayoutPayload = PayoutSettingsView
+
 export interface AdminSettings {
   email: EmailSettingsView
   provisioning: ProvisioningView
   app: AppUrlsView
   maps: MapsSettingsView
+  payout: PayoutSettingsView
 }
 
 export interface UpdateEmailPayload {

@@ -8,6 +8,8 @@ import type {
   TestEmailResult,
   MapsSettingsView,
   UpdateMapsPayload,
+  PayoutSettingsView,
+  UpdatePayoutPayload,
 } from '@/types/api'
 
 const BASE = '/api/v1/admin/settings'
@@ -34,5 +36,10 @@ export async function updateProvisioning(mode: string): Promise<ProvisioningView
 
 export async function updateMapsSettings(payload: UpdateMapsPayload): Promise<MapsSettingsView> {
   const { data } = await identityClient.put<ApiResponse<MapsSettingsView>>(`${BASE}/maps`, payload)
+  return unwrap(data)
+}
+
+export async function updatePayoutSettings(payload: UpdatePayoutPayload): Promise<PayoutSettingsView> {
+  const { data } = await identityClient.put<ApiResponse<PayoutSettingsView>>(`${BASE}/payout`, payload)
   return unwrap(data)
 }

@@ -53,6 +53,9 @@ public class DeliveryAssignment
 
     /// <summary>logistics.rider_settlements.id that cleared this collection (scalar, cross-BC; null = outstanding).</summary>
     public Guid? SettlementId { get; set; }
+
+    /// <summary>Rider earning for this leg (₹), computed from payout rates at completion (Phase 4).</summary>
+    public decimal? PayoutAmount { get; set; }
     public bool OtpVerified { get; set; }
     public DateTimeOffset? OtpAttemptedAt { get; set; }
     public string? SignatureS3Key { get; set; }

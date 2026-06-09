@@ -20,6 +20,7 @@ public sealed class GetAdminSettingsHandler : IRequestHandler<GetAdminSettingsQu
         var mode = await SettingsStore.LoadProvisioningModeAsync(_db, brandId, ct);
         var baseUrl = await SettingsStore.LoadAdminBaseUrlAsync(_db, brandId, ct);
         var maps = await SettingsStore.LoadMapsAsync(_db, brandId, ct);
+        var payout = await SettingsStore.LoadPayoutAsync(_db, brandId, ct);
 
         return new AdminSettingsView(
             new EmailSettingsView(
@@ -28,6 +29,7 @@ public sealed class GetAdminSettingsHandler : IRequestHandler<GetAdminSettingsQu
                 email.FromEmail, email.FromName),
             new ProvisioningView(mode),
             new AppUrlsView(baseUrl),
-            new MapsSettingsView(maps.Provider, maps.GoogleApiKey, maps.MapboxToken));
+            new MapsSettingsView(maps.Provider, maps.GoogleApiKey, maps.MapboxToken),
+            new PayoutSettingsView(payout.BaseFare, payout.PerKm, payout.ExpressBonus, payout.CodBonus, payout.RoundToNearest));
     }
 }

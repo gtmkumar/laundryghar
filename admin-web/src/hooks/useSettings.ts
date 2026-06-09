@@ -5,8 +5,9 @@ import {
   sendTestEmail,
   updateProvisioning,
   updateMapsSettings,
+  updatePayoutSettings,
 } from '@/api/settings'
-import type { UpdateEmailPayload, UpdateMapsPayload } from '@/types/api'
+import type { UpdateEmailPayload, UpdateMapsPayload, UpdatePayoutPayload } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
 
 export function useSettings() {
@@ -44,6 +45,14 @@ export function useUpdateMapsSettings() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: UpdateMapsPayload) => updateMapsSettings(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+  })
+}
+
+export function useUpdatePayoutSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: UpdatePayoutPayload) => updatePayoutSettings(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
   })
 }

@@ -52,6 +52,13 @@ public static class SettingsEndpoints
             return Results.Ok(new SingleResponse<MapsSettingsView> { Status = true, Data = r });
         }).WithName("UpdateMapsSettings");
 
+        s.MapPut("/payout", async (UpdatePayoutSettingsRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            if (Forbidden(u, out var deny)) return deny;
+            var r = await sender.Send(new UpdatePayoutCommand(req, u), ct);
+            return Results.Ok(new SingleResponse<PayoutSettingsView> { Status = true, Data = r });
+        }).WithName("UpdatePayoutSettings");
+
         return group;
     }
 

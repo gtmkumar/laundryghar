@@ -1,5 +1,6 @@
 using laundryghar.Identity.Application.Settings.Dtos;
 using laundryghar.Identity.Infrastructure.Email;
+using laundryghar.SharedDataModel.Common;
 using laundryghar.Identity.Infrastructure.Services;
 using laundryghar.SharedDataModel.Persistence;
 using laundryghar.Utilities.Exceptions;
@@ -139,5 +140,35 @@ public sealed class UpdateMapsHandler : IRequestHandler<UpdateMapsCommand, MapsS
 
         await SettingsStore.UpsertAsync(_db, brandId, "maps", "provider", value, isEncrypted: false, cmd.User.UserId, ct);
         return new MapsSettingsView(value.Provider, value.GoogleApiKey, value.MapboxToken);
+    }
+}
+
+// ── Update rider payout rates ───────────────────────────────────────────────
+public sealed record UpdatePayoutCommand(UpdatePayoutSettingsRequest Request, ICurrentUser User) : IRequest<PayoutSettingsView>;
+
+public sealed class UpdatePayoutHandler : IRequestHandler<UpdatePayoutCommand, PayoutSettingsView>
+{
+    private readonly LaundryGharDbContext _db;
+    public UpdatePayoutHandler(LaundryGharDbContext db) => _db = db;
+
+    public async Task<PayoutSettingsView> Handle(UpdatePayoutCommand cmd, CancellationToken ct)
+    {
+        var r = cmd.Request;
+        var errors = new Dictionary<string, string[]>();
+        if (r.BaseFare < 0)     errors["baseFare"]     = ["Base fare cannot be negative."];
+        if (r.PerKm < 0)        errors["perKm"]        = ["Per-km rate cannot be negative."];
+        if (r.ExpressBonus < 0) errors["expressBonus"] = ["Express bonus cannot be negative."];
+        if (r.CodBonus < 0)     errors["codBonus"]     = ["COD bonus cannot be negative."];
+        if (r.RoundToNearest <= 0) errors["roundToNearest"] = ["Round-to must be greater than zero."];
+        if (errors.Count > 0) throw new ValidationException(errors);
+
+        var brandId = await SettingsStore.ResolveBrandIdAsync(cmd.User, _db, ct);
+        var value = new RiderPayoutSettings
+        {
+            BaseFare = r.BaseFare, PerKm = r.PerKm, ExpressBonus = r.ExpressBonus,
+            CodBonus = r.CodBonus, RoundToNearest = r.RoundToNearest,
+        };
+        await SettingsStore.UpsertAsync(_db, brandId, "payout", "rider", value, isEncrypted: false, cmd.User.UserId, ct);
+        return new PayoutSettingsView(value.BaseFare, value.PerKm, value.ExpressBonus, value.CodBonus, value.RoundToNearest);
     }
 }

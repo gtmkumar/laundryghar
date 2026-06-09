@@ -1,3 +1,5 @@
+using laundryghar.Logistics.Application.Payout;
+using laundryghar.SharedDataModel.Common;
 using laundryghar.SharedDataModel.Entities.CustomerCatalog;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
 using MediatR;
@@ -64,14 +66,6 @@ internal static class RiderTaskMapper
         _             => s,            // assigned/started/arrived/completed/failed/cancelled pass through
     };
 
-    /// <summary>Transparent estimate until a real per-leg payout model exists.</summary>
-    private static decimal EstimatePayout(decimal? distanceKm, bool isExpress)
-    {
-        var d = distanceKm ?? 2m;
-        var p = 40m + 7m * d + (isExpress ? 20m : 0m);
-        return Math.Round(p / 5m) * 5m;   // nearest ₹5
-    }
-
     private static string BuildAddressLine(CustomerAddress? a)
     {
         if (a is null) return "Address on file";
@@ -120,7 +114,7 @@ internal static class RiderTaskMapper
         return st == "started" ? "to_customer" : "assigned";
     }
 
-    public static RiderTaskDto ToDto(DeliveryAssignment da, Order? o, Customer? c, CustomerAddress? addr)
+    public static RiderTaskDto ToDto(DeliveryAssignment da, Order? o, Customer? c, CustomerAddress? addr, RiderPayoutSettings payout)
     {
         var isExpress    = o?.IsExpress ?? false;
         var amountDue    = o?.AmountDue ?? 0m;
@@ -138,6 +132,12 @@ internal static class RiderTaskMapper
         var pt  = da.GeoLocation ?? addr?.GeoLocation;
         double? lat = pt?.Y;
         double? lng = pt?.X;
+
+        // Payout: the amount persisted at completion, else a live estimate from the
+        // configured rates. COD bonus applies to a delivery that still has cash due.
+        var hasCod = da.CodAmount is > 0m
+                  || (isDelivery && amountDue > 0m && o?.PaymentStatus != "paid");
+        var payoutAmt = da.PayoutAmount ?? payout.Compute(da.DistanceKm, isExpress, hasCod);
 
         return new RiderTaskDto(
             Id:            da.Id,
@@ -157,7 +157,7 @@ internal static class RiderTaskMapper
             IsPaid:        (o?.PaymentStatus == "paid") || amountDue <= 0m,
             RequiresOtp:   requiresOtp,
             OtpVerified:   da.OtpVerified,
-            Payout:        EstimatePayout(da.DistanceKm, isExpress),
+            Payout:        payoutAmt,
             Lat:           lat,
             Lng:           lng,
             SequenceNumber: da.SequenceNumber,
@@ -225,8 +225,9 @@ public sealed class GetMyTasksTodayHandler : IRequestHandler<GetMyTasksTodayQuer
             return id.HasValue && addrById.TryGetValue(id.Value, out var a) ? a : null;
         }
 
+        var payoutCfg = await PayoutConfig.LoadAsync(_db, q.BrandId, ct);
         var tasks = rows
-            .Select(x => RiderTaskMapper.ToDto(x.da, x.o, x.c, AddrFor(x.da, x.o)))
+            .Select(x => RiderTaskMapper.ToDto(x.da, x.o, x.c, AddrFor(x.da, x.o), payoutCfg))
             .ToList();
 
         // Active work first, by route sequence then scheduled time; completed sink to the bottom.
@@ -277,6 +278,7 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
 
         var (o, c, addr) = await LoadOrderAsync(da, ct);
         var now = DateTimeOffset.UtcNow;
+        var payoutCfg = await PayoutConfig.LoadAsync(_db, cmd.BrandId, ct);
 
         // "collected" is a pickup sub-step, not a DB status (the status CHECK has no
         // such value). Record collected_at and keep the leg 'arrived' (collection
@@ -290,7 +292,7 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
             da.UpdatedAt = now;
             da.UpdatedBy = cmd.UserId;
             await _db.SaveChangesAsync(ct);
-            return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr));
+            return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr, payoutCfg));
         }
 
         // Any leg with an OTP (pickup or delivery) must be verified before completing.
@@ -324,13 +326,15 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
                         da.CodCollectedAt = now;
                     }
                 }
+                // Phase 4: persist the leg payout from the configured rates.
+                da.PayoutAmount ??= payoutCfg.Compute(da.DistanceKm, o?.IsExpress ?? false, da.CodAmount is > 0m);
                 break;
         }
         da.UpdatedAt = now;
         da.UpdatedBy = cmd.UserId;
         await _db.SaveChangesAsync(ct);
 
-        return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr));
+        return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr, payoutCfg));
     }
 
     private async Task<(Order?, Customer?, CustomerAddress?)> LoadOrderAsync(DeliveryAssignment da, CancellationToken ct)
@@ -406,6 +410,7 @@ public sealed class VerifyTaskOtpHandler : IRequestHandler<VerifyTaskOtpCommand,
             ? await _db.CustomerAddresses.FirstOrDefaultAsync(a => a.Id == addrId.Value, ct)
             : null;
 
-        return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr));
+        var payoutCfg = await PayoutConfig.LoadAsync(_db, cmd.BrandId, ct);
+        return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr, payoutCfg));
     }
 }
