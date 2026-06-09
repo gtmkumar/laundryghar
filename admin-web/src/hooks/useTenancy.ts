@@ -1,6 +1,14 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { getBrands, getFranchises, getStores, getWarehouses, getPlatforms } from '@/api/tenancy'
-import type { PaginationParams } from '@/types/api'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  getBrands,
+  getFranchises,
+  getStores,
+  getWarehouses,
+  getPlatforms,
+  createStore,
+  updateStore,
+} from '@/api/tenancy'
+import type { PaginationParams, CreateStorePayload, UpdateStorePayload } from '@/types/api'
 
 export const tenancyKeys = {
   brands: (params?: object) => ['brands', params] as const,
@@ -61,6 +69,28 @@ export function useStoresInfinite(brandId?: string) {
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.hasNextPage ? allPages.length + 1 : undefined,
+  })
+}
+
+export function useCreateStore() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateStorePayload) => createStore(payload),
+    onSuccess: () => {
+      // Refresh both the paginated and infinite store lists.
+      void qc.invalidateQueries({ queryKey: ['stores'] })
+    },
+  })
+}
+
+export function useUpdateStore() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateStorePayload }) =>
+      updateStore(id, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['stores'] })
+    },
   })
 }
 

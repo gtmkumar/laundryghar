@@ -101,6 +101,28 @@ export interface StoreDto {
   createdAt: string
 }
 
+export type StoreType = 'walkin' | 'pickup_only' | 'express' | 'hub' | 'collection_point'
+
+export type StoreStatus = 'active' | 'paused' | 'closed' | 'coming_soon'
+
+export interface CreateStorePayload {
+  brandId: string
+  franchiseId: string
+  code: string
+  name: string
+  addressLine1: string
+  city: string
+  state: string
+  pincode: string
+  storeType: StoreType
+}
+
+export interface UpdateStorePayload {
+  name?: string
+  status?: StoreStatus
+  contactPhone?: string
+}
+
 export interface WarehouseDto {
   id: string
   brandId: string

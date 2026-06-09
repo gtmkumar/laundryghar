@@ -8,6 +8,8 @@ import type {
   StoreDto,
   WarehouseDto,
   PaginationParams,
+  CreateStorePayload,
+  UpdateStorePayload,
 } from '@/types/api'
 
 const ADMIN = '/api/v1/admin'
@@ -61,6 +63,16 @@ export async function getStores(
     { params: { page: 1, pageSize: 20, ...params } },
   )
   return unwrapPaginated(data)
+}
+
+export async function createStore(payload: CreateStorePayload): Promise<StoreDto> {
+  const { data } = await identityClient.post<ApiResponse<StoreDto>>(`${ADMIN}/stores`, payload)
+  return unwrap(data)
+}
+
+export async function updateStore(id: string, payload: UpdateStorePayload): Promise<StoreDto> {
+  const { data } = await identityClient.put<ApiResponse<StoreDto>>(`${ADMIN}/stores/${id}`, payload)
+  return unwrap(data)
 }
 
 // ── Warehouses ────────────────────────────────────────────────────────────────
