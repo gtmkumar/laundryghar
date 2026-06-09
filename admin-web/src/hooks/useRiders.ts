@@ -5,6 +5,10 @@ import {
   getRidersLive,
   getRiderTrack,
   getRiderStats,
+  getCodOutstanding,
+  getRiderCod,
+  settleRider,
+  getRiderSettlements,
   inviteRiderUser,
   createRiderProfile,
   updateRider,
@@ -15,6 +19,7 @@ import type {
   InviteRiderUserPayload,
   CreateRiderProfilePayload,
   UpdateRiderPayload,
+  SettleRiderPayload,
 } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
 
@@ -94,6 +99,49 @@ export function useRiderStats(id: string | null, from?: string, to?: string) {
     queryKey: ['riders', 'stats', id, from ?? '', to ?? ''],
     queryFn: () => getRiderStats(id as string, from, to),
     enabled: !!id,
+  })
+}
+
+// ── COD cash + settlement ─────────────────────────────────────────────────────
+
+/** Riders with uncleared COD cash (reconciliation list). */
+export function useCodOutstanding(opts: { franchiseId?: string } = {}) {
+  const brandId = useEffectiveBrandId()
+  return useQuery({
+    queryKey: ['riders', 'cod', 'outstanding', brandId, opts.franchiseId ?? ''],
+    queryFn: () => getCodOutstanding(opts.franchiseId),
+    enabled: !!brandId,
+  })
+}
+
+/** One rider's outstanding collections. */
+export function useRiderCod(id: string | null) {
+  return useQuery({
+    queryKey: ['riders', 'cod', 'detail', id],
+    queryFn: () => getRiderCod(id as string),
+    enabled: !!id,
+  })
+}
+
+/** A rider's settlement history. */
+export function useRiderSettlements(id: string | null) {
+  return useQuery({
+    queryKey: ['riders', 'settlements', id],
+    queryFn: () => getRiderSettlements(id as string),
+    enabled: !!id,
+  })
+}
+
+/** Record a settlement clearing a rider's outstanding COD cash. */
+export function useSettleRider() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: SettleRiderPayload }) => settleRider(id, payload),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ['riders', 'cod'] })
+      qc.invalidateQueries({ queryKey: ['riders', 'settlements', id] })
+      qc.invalidateQueries({ queryKey: ['riders', 'stats', id] })
+    },
   })
 }
 

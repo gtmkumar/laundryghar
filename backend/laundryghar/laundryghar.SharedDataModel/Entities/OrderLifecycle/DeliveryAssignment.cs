@@ -46,6 +46,13 @@ public class DeliveryAssignment
 
     public decimal? DistanceKm { get; set; }
     public int? DurationMinutes { get; set; }
+
+    /// <summary>COD cash collected on this delivery leg (Phase 3). Null = prepaid / nothing due.</summary>
+    public decimal? CodAmount { get; set; }
+    public DateTimeOffset? CodCollectedAt { get; set; }
+
+    /// <summary>logistics.rider_settlements.id that cleared this collection (scalar, cross-BC; null = outstanding).</summary>
+    public Guid? SettlementId { get; set; }
     public bool OtpVerified { get; set; }
     public DateTimeOffset? OtpAttemptedAt { get; set; }
     public string? SignatureS3Key { get; set; }

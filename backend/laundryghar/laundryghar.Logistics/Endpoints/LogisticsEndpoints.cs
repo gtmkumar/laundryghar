@@ -8,6 +8,7 @@ using laundryghar.Logistics.Application.Riders.Commands;
 using laundryghar.Logistics.Application.Riders.Dtos;
 using laundryghar.Logistics.Application.Riders.Queries;
 using laundryghar.Logistics.Application.RiderOps;
+using laundryghar.Logistics.Application.RiderCod;
 using laundryghar.Logistics.Application.RiderSelf;
 using laundryghar.SharedDataModel.Enums;
 using MediatR;
@@ -132,6 +133,45 @@ public static class LogisticsEndpoints
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderStatsDto> { Status = true, Data = s });
         }).RequireAuthorization("permission:rider.read");
+
+        // ── COD cash reconciliation + settlement (Phase 3) ────────────────────
+        // GET /api/v1/admin/riders/cod/outstanding — per-rider uncleared COD cash.
+        riders.MapGet("/cod/outstanding", async (
+            [FromServices] ISender sender, CancellationToken ct, Guid? franchiseId = null) =>
+        {
+            var list = await sender.Send(new GetCodOutstandingQuery(franchiseId), ct);
+            return Results.Ok(new ListResponse<RiderCodSummaryDto> { Status = true, Data = list });
+        }).RequireAuthorization("permission:rider.read");
+
+        // GET /api/v1/admin/riders/{id}/cod — a rider's outstanding collections.
+        riders.MapGet("/{id:guid}/cod", async (Guid id, ISender sender, CancellationToken ct) =>
+        {
+            var d = await sender.Send(new GetRiderCodDetailQuery(id), ct);
+            return d is null
+                ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderCodDetailDto> { Status = true, Data = d });
+        }).RequireAuthorization("permission:rider.read");
+
+        // GET /api/v1/admin/riders/{id}/settlements — settlement history.
+        riders.MapGet("/{id:guid}/settlements", async (
+            Guid id, [FromServices] ISender sender, CancellationToken ct,
+            int page = 1, int pageSize = 20) =>
+        {
+            var r = await sender.Send(new GetRiderSettlementsQuery(id, page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize), ct);
+            return r is null
+                ? Results.NotFound()
+                : Results.Ok(new PaginatedListResponse<RiderSettlementDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.read");
+
+        // POST /api/v1/admin/riders/{id}/settle — clear all outstanding COD cash.
+        riders.MapPost("/{id:guid}/settle", async (
+            Guid id, SettleRiderCodRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var s = await sender.Send(new SettleRiderCodCommand(id, req, u.UserId), ct);
+            return s is null
+                ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderSettlementDto> { Status = true, Data = s });
+        }).RequireAuthorization("permission:rider.settle");
 
         // ── Rider Assignments ─────────────────────────────────────────────────
         var assignments = admin.MapGroup("/rider-assignments").WithTags("Admin - Rider Assignments");

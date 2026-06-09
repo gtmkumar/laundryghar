@@ -24,9 +24,10 @@ import { OnboardRiderDrawer } from './OnboardRiderDrawer'
 import { RiderDetailDrawer } from './RiderDetailDrawer'
 import { RiderEditDrawer } from './RiderEditDrawer'
 import { RiderOpsView } from './RiderOpsView'
+import { RiderCashView } from './RiderCashView'
 import { VEHICLE_LABEL, KycBadge, StatusBadge, formatDate, humanise, isKycActionable } from './riderShared'
 
-type RidersTab = 'roster' | 'live'
+type RidersTab = 'roster' | 'live' | 'cash'
 
 const KYC_FILTERS = ['pending', 'submitted', 'verified', 'rejected', 'expired']
 const STATUS_FILTERS = ['active', 'suspended', 'terminated']
@@ -49,7 +50,8 @@ export function RidersPage() {
 
   // Roster (table) vs Live map (ops board), synced to ?view= for deep-linking.
   const [searchParams, setSearchParams] = useSearchParams()
-  const view: RidersTab = searchParams.get('view') === 'live' ? 'live' : 'roster'
+  const viewParam = searchParams.get('view')
+  const view: RidersTab = viewParam === 'live' ? 'live' : viewParam === 'cash' ? 'cash' : 'roster'
   const setView = (v: RidersTab) => {
     const next = new URLSearchParams(searchParams)
     if (v === 'roster') next.delete('view')
@@ -142,6 +144,7 @@ export function RidersPage() {
         {([
           { key: 'roster', label: 'Roster' },
           { key: 'live', label: 'Live map' },
+          { key: 'cash', label: 'Cash' },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -159,6 +162,8 @@ export function RidersPage() {
 
       {view === 'live' ? (
         <RiderOpsView />
+      ) : view === 'cash' ? (
+        <RiderCashView />
       ) : (
       <>
       {/* Filter bar */}

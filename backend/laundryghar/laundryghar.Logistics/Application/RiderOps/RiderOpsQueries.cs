@@ -227,7 +227,7 @@ public sealed class GetRiderStatsHandler : IRequestHandler<GetRiderStatsQuery, R
         var legs = await _db.DeliveryAssignments.AsNoTracking()
             .Where(d => d.BrandId == brandId && d.RiderId == q.RiderId
                      && d.AssignedAt >= startUtc && d.AssignedAt < endUtc)
-            .Select(d => new { d.LegType, d.Status, d.DistanceKm })
+            .Select(d => new { d.LegType, d.Status, d.DistanceKm, d.CodAmount })
             .ToListAsync(ct);
 
         var name = await _db.UserProfiles.AsNoTracking()
@@ -244,7 +244,7 @@ public sealed class GetRiderStatsHandler : IRequestHandler<GetRiderStatsQuery, R
             AssignmentsTotal:  legs.Count,
             AssignmentsFailed: legs.Count(l => l.Status is "failed" or "cancelled"),
             TotalKm:        legs.Where(l => l.Status == "completed").Sum(l => l.DistanceKm ?? 0m),
-            CodCollected:   0m,   // Phase 3
+            CodCollected:   legs.Sum(l => l.CodAmount ?? 0m),  // Phase 3
             Earnings:       0m);  // Phase 4
     }
 }

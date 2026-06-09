@@ -1385,6 +1385,60 @@ export interface RiderStatsDto {
   earnings: number
 }
 
+// ── Rider COD cash + settlement (Phase 3) ─────────────────────────────────────
+
+/** Per-rider uncleared COD cash (GET /admin/riders/cod/outstanding). */
+export interface RiderCodSummary {
+  riderId: string
+  riderCode: string
+  riderName: string | null
+  franchiseName: string | null
+  outstandingAmount: number
+  outstandingCount: number
+  oldestCollectedAt: string | null
+}
+
+/** A single outstanding COD collection. */
+export interface CodCollection {
+  assignmentId: string
+  orderId: string | null
+  orderNumber: string | null
+  amount: number
+  collectedAt: string
+}
+
+/** A rider's outstanding cash + the collections (GET /admin/riders/{id}/cod). */
+export interface RiderCodDetail {
+  riderId: string
+  riderCode: string
+  riderName: string | null
+  outstandingAmount: number
+  outstandingCount: number
+  collections: CodCollection[]
+}
+
+/** A recorded settlement / cash handover. */
+export interface RiderSettlement {
+  id: string
+  riderId: string
+  storeId: string | null
+  storeName: string | null
+  totalAmount: number
+  collectionCount: number
+  reference: string | null
+  status: string
+  settledAt: string
+  settledBy: string | null
+  notes: string | null
+}
+
+/** Record a settlement that clears all of a rider's outstanding COD cash. */
+export interface SettleRiderPayload {
+  storeId?: string
+  reference?: string
+  notes?: string
+}
+
 /** Step 2 — create the rider operational profile (Logistics). */
 export interface CreateRiderProfilePayload {
   userId: string

@@ -35,6 +35,9 @@ public sealed class DeliveryAssignmentConfiguration : IEntityTypeConfiguration<D
         b.Property(e => e.GeoLocation).HasColumnName("geo_location").HasColumnType("geography(Point,4326)");
         b.Property(e => e.DistanceKm).HasColumnName("distance_km").HasColumnType("numeric(6,2)");
         b.Property(e => e.DurationMinutes).HasColumnName("duration_minutes");
+        b.Property(e => e.CodAmount).HasColumnName("cod_amount").HasColumnType("numeric(10,2)");
+        b.Property(e => e.CodCollectedAt).HasColumnName("cod_collected_at");
+        b.Property(e => e.SettlementId).HasColumnName("settlement_id");
         b.Property(e => e.OtpVerified).HasColumnName("otp_verified").IsRequired();
         b.Property(e => e.OtpAttemptedAt).HasColumnName("otp_attempted_at");
         b.Property(e => e.SignatureS3Key).HasColumnName("signature_s3_key");

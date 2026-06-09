@@ -11,6 +11,10 @@ import type {
   RiderLiveDto,
   RiderTrackPointDto,
   RiderStatsDto,
+  RiderCodSummary,
+  RiderCodDetail,
+  RiderSettlement,
+  SettleRiderPayload,
 } from '@/types/api'
 
 const ACCESS = '/api/v1/admin/access-control'
@@ -65,6 +69,38 @@ export async function getRiderStats(id: string, from?: string, to?: string): Pro
   if (to) params.to = to
   const { data } = await logisticsClient.get<ApiResponse<RiderStatsDto>>(`${RIDERS}/${id}/stats`, { params })
   return unwrap(data)
+}
+
+// ── COD cash + settlement (Phase 3) ──────────────────────────────────────────
+
+/** Riders with uncleared COD cash (reconciliation list). */
+export async function getCodOutstanding(franchiseId?: string): Promise<RiderCodSummary[]> {
+  const { data } = await logisticsClient.get<ApiResponse<RiderCodSummary[]>>(`${RIDERS}/cod/outstanding`, {
+    params: franchiseId ? { franchiseId } : undefined,
+  })
+  return unwrap(data) ?? []
+}
+
+/** One rider's outstanding collections. */
+export async function getRiderCod(id: string): Promise<RiderCodDetail> {
+  const { data } = await logisticsClient.get<ApiResponse<RiderCodDetail>>(`${RIDERS}/${id}/cod`)
+  return unwrap(data)
+}
+
+/** Record a settlement clearing all of a rider's outstanding COD cash. */
+export async function settleRider(id: string, payload: SettleRiderPayload): Promise<RiderSettlement> {
+  const { data } = await logisticsClient.post<ApiResponse<RiderSettlement>>(`${RIDERS}/${id}/settle`, payload)
+  return unwrap(data)
+}
+
+/** A rider's settlement history. */
+export async function getRiderSettlements(
+  id: string, page = 1, pageSize = 20,
+): Promise<PaginatedList<RiderSettlement>> {
+  const { data } = await logisticsClient.get<ApiResponse<PaginatedList<RiderSettlement>>>(
+    `${RIDERS}/${id}/settlements`, { params: { page, pageSize } },
+  )
+  return unwrapPaginated(data)
 }
 
 // ── Two-step onboarding ────────────────────────────────────────────────────────

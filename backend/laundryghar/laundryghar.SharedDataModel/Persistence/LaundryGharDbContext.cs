@@ -103,6 +103,7 @@ public class LaundryGharDbContext : DbContext
     public DbSet<RiderAssignment> RiderAssignments => Set<RiderAssignment>();
     public DbSet<RiderCapacityConfig> RiderCapacityConfigs => Set<RiderCapacityConfig>();
     public DbSet<RiderLocationPing> RiderLocationPings => Set<RiderLocationPing>();
+    public DbSet<RiderSettlement> RiderSettlements => Set<RiderSettlement>();
 
     // commerce
     public DbSet<Package> Packages => Set<Package>();

@@ -309,7 +309,21 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
                 da.CompletedAt ??= now;
                 // Completing a pickup IS the drop-at-laundry confirmation — stamp the
                 // drop if the store geofence hadn't already caught it.
-                if (da.LegType == "pickup") da.DroppedAt ??= now;
+                if (da.LegType == "pickup")
+                {
+                    da.DroppedAt ??= now;
+                }
+                else
+                {
+                    // Delivery/return — if the order still has a balance due, the rider
+                    // collected it as COD cash. Record it for settlement (Phase 3).
+                    var due = o?.AmountDue ?? 0m;
+                    if (da.CodAmount is null && o?.PaymentStatus != "paid" && due > 0m)
+                    {
+                        da.CodAmount = due;
+                        da.CodCollectedAt = now;
+                    }
+                }
                 break;
         }
         da.UpdatedAt = now;
