@@ -29,6 +29,13 @@ public class DeliveryAssignment
     public DateTimeOffset? AcceptedAt { get; set; }
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? ArrivedAt { get; set; }
+
+    /// <summary>Pickup leg: items collected from the customer (set on pickup OTP verify).</summary>
+    public DateTimeOffset? CollectedAt { get; set; }
+
+    /// <summary>Pickup leg: items dropped at the store/laundry (set on store geofence).</summary>
+    public DateTimeOffset? DroppedAt { get; set; }
+
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
     public string? CancellationReason { get; set; }

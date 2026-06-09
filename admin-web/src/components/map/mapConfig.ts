@@ -43,7 +43,8 @@ export function useMapConfig(): MapConfig {
 
 /** Map dot / marker colour per operational status (shared by map + legend). */
 export const OPS_COLOR: Record<string, string> = {
-  on_the_way: '#2563eb', // blue — en route
+  on_the_way: '#2563eb', // blue — en route to customer
+  to_store: '#7c3aed',   // violet — collected, heading to the laundry
   arrived: '#16a34a',    // green — on site
   idle: '#d97706',       // amber — on duty, no active leg
   offline: '#9ca3af',    // grey — off duty
@@ -51,6 +52,7 @@ export const OPS_COLOR: Record<string, string> = {
 
 export const OPS_LABEL: Record<string, string> = {
   on_the_way: 'On the way',
+  to_store: 'To laundry',
   arrived: 'On site',
   idle: 'Idle (on duty)',
   offline: 'Offline',

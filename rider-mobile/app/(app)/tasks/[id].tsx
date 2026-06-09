@@ -74,13 +74,20 @@ export default function TaskDetailScreen() {
   if (!task) return <ErrorState message="This task could not be found." />;
 
   const isDelivery  = task.legType === 'delivery' || task.legType === 'return';
+  const isPickup    = task.legType === 'pickup';
   const isCompleted = task.status === 'completed';
-  // OTP applies to BOTH legs — collecting at pickup and handing over at delivery.
-  // Real API tells us via requiresOtp; demo set only carries an OTP on deliveries.
-  const needsOtp    = (task.requiresOtp ?? (isDelivery && !!task.deliveryOtp)) && !isCompleted;
+  // A pickup is a round-trip: collect at the customer, then drop at the store.
+  // `collected` flips the screen from the collection step to the drop step.
+  const collected   = isPickup && (!!task.collectedAt || task.phase === 'to_store' || task.phase === 'dropped');
+  const isDropStep  = isPickup && collected && !isCompleted;   // step 2 — drop at laundry
+  // OTP applies to the customer handshake (delivery, or the pickup collection
+  // step) — never the drop step. Real API tells us via requiresOtp.
+  const needsOtp    = !isDropStep && (task.requiresOtp ?? (isDelivery && !!task.deliveryOtp)) && !isCompleted;
   const title = isCompleted
     ? `#${task.orderNumber}`
-    : `${isDelivery ? 'Delivering' : 'Picking up'} #${task.orderNumber}`;
+    : isDropStep   ? `Drop #${task.orderNumber}`
+    : isDelivery   ? `Delivering #${task.orderNumber}`
+    :                `Picking up #${task.orderNumber}`;
 
   async function confirm() {
     if (!task || busy) return;
@@ -88,7 +95,18 @@ export default function TaskDetailScreen() {
     setOtpError('');
     try {
       if (FEATURES.riderTasksApi) {
-        // Real flow: server verifies the OTP, then we mark the leg completed.
+        // Pickup step 1 — collection at the customer. Records collected_at (via OTP
+        // verify, or an explicit collected status) but does NOT complete the leg;
+        // the rider then drives to the store. The screen re-renders as the drop step.
+        if (isPickup && !collected) {
+          if (needsOtp) await verifyTaskOtp(task.id, code);
+          else await updateTaskStatus(task.id, 'collected');
+          await queryClient.invalidateQueries({ queryKey: taskKeys.today() });
+          setCode('');
+          setBusy(false);
+          return;
+        }
+        // Delivery handover, or pickup drop-at-store → complete.
         if (needsOtp) await verifyTaskOtp(task.id, code);
         await updateTaskStatus(task.id, 'completed');
       } else if (needsOtp && code !== task.deliveryOtp) {
@@ -171,6 +189,19 @@ export default function TaskDetailScreen() {
             </View>
           ) : null}
 
+          {/* Drop-at-laundry step (pickup, after collection) */}
+          {isDropStep ? (
+            <View className="mt-4 flex-row items-center rounded-3xl bg-olive-100 p-5">
+              <MaterialCommunityIcons name="storefront-outline" size={28} color="#4A552A" />
+              <View className="ml-3 flex-1">
+                <Text className="text-base font-extrabold text-ink">Collected — drop at the laundry</Text>
+                <Text className="mt-0.5 text-xs text-ink-muted">
+                  Ride to your store and confirm the drop. We auto-detect arrival, or tap below.
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
           {/* Garments / payment row */}
           <View className="mt-4 flex-row items-center rounded-2xl bg-white px-4 py-3" style={{ elevation: 1 }}>
             <MaterialCommunityIcons name="hanger" size={18} color="#4A552A" />
@@ -206,7 +237,11 @@ export default function TaskDetailScreen() {
               </Text>
             ) : null}
             <Button
-              title={isDelivery ? 'Confirm delivered' : 'Confirm pickup'}
+              title={
+                isDropStep ? 'Confirm drop at laundry'
+                : isDelivery ? 'Confirm delivered'
+                : 'Confirm collection'
+              }
               iconLeft="checkmark"
               variant="confirm"
               size="lg"

@@ -6,7 +6,7 @@ import type { RiderLiveDto } from '@/types/api'
 import { RiderMap } from '@/components/map/RiderMap'
 import { OPS_COLOR, OPS_LABEL } from '@/components/map/mapConfig'
 
-const OPS_ORDER = ['on_the_way', 'arrived', 'idle', 'offline'] as const
+const OPS_ORDER = ['on_the_way', 'to_store', 'arrived', 'idle', 'offline'] as const
 
 /** "3m ago" / "just now" / "—" from an ISO timestamp. */
 function ago(iso: string | null): string {
@@ -32,7 +32,7 @@ export function RiderOpsView() {
 
   // Summary counts per ops status for the legend chips.
   const counts = useMemo(() => {
-    const c: Record<string, number> = { on_the_way: 0, arrived: 0, idle: 0, offline: 0 }
+    const c: Record<string, number> = { on_the_way: 0, to_store: 0, arrived: 0, idle: 0, offline: 0 }
     for (const r of riders) c[r.opsStatus] = (c[r.opsStatus] ?? 0) + 1
     return c
   }, [riders])

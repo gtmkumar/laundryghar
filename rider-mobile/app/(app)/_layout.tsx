@@ -6,10 +6,14 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
+import { useLocationTracking } from '@/hooks/useLocationTracking';
 
 export default function AppLayout() {
   const { accessToken, isHydrated } = useAuthStore();
   const router = useRouter();
+
+  // Stream GPS pings while on duty (drives the server geofence + live map).
+  useLocationTracking();
 
   useEffect(() => {
     if (isHydrated && !accessToken) {

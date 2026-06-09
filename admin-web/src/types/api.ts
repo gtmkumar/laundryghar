@@ -1337,7 +1337,7 @@ export interface UpdateRiderPayload {
 // ── Rider Ops (live board) ────────────────────────────────────────────────────
 
 /** Derived operational state of a rider on the live board. */
-export type RiderOpsStatus = 'offline' | 'idle' | 'on_the_way' | 'arrived'
+export type RiderOpsStatus = 'offline' | 'idle' | 'on_the_way' | 'arrived' | 'to_store'
 
 /** A rider's current snapshot for the live map + roster (GET /admin/riders/live). */
 export interface RiderLiveDto {

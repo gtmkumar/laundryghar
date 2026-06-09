@@ -114,6 +114,11 @@ public sealed class BatchLocationPingHandler : IRequestHandler<BatchLocationPing
                 rider.UpdatedAt  = now;
                 await _db.SaveChangesAsync(ct);
             }
+
+            // Geofence auto-status: reaching the customer flips started→arrived, and a
+            // collected pickup reaching the store gets dropped_at stamped.
+            await GeofenceEvaluator.EvaluateAsync(
+                _db, cmd.RiderId, cmd.BrandId, latest.Latitude, latest.Longitude, now, ct);
         }
 
         return new PingBatchResponse(pings.Count);

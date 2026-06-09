@@ -39,7 +39,11 @@ public sealed record RiderTaskDto(
     double?  Lat,
     double?  Lng,
     short?   SequenceNumber,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    // ── Phase 2: drop-at-laundry round-trip ──────────────────────────────
+    DateTimeOffset? CollectedAt,  // pickup: items collected from customer
+    DateTimeOffset? DroppedAt,    // pickup: items dropped at the store/laundry
+    string   Phase);              // to_customer|at_customer|to_store|dropped|completed|failed|cancelled|assigned
 
 // ── Shared mapping / helpers ───────────────────────────────────────────────────
 
@@ -93,6 +97,29 @@ internal static class RiderTaskMapper
         return "Customer";
     }
 
+    /// <summary>
+    /// Fine-grained step within a leg, derived from the lifecycle timestamps. For a
+    /// pickup this captures the two-part round-trip (to_customer → at_customer →
+    /// to_store → dropped); delivery/return have no store drop.
+    /// </summary>
+    private static string Phase(DeliveryAssignment da)
+    {
+        var st = MapStatus(da.Status);
+        if (st is "completed" or "failed" or "cancelled") return st;
+
+        if (da.LegType == "pickup")
+        {
+            if (da.DroppedAt is not null)   return "dropped";      // dropped at the laundry
+            if (da.CollectedAt is not null) return "to_store";     // collected, heading to the store
+            if (st == "arrived")            return "at_customer";  // on site, awaiting collection
+            return st == "started" ? "to_customer" : "assigned";
+        }
+
+        // delivery / return — single destination (the customer)
+        if (st == "arrived") return "at_customer";
+        return st == "started" ? "to_customer" : "assigned";
+    }
+
     public static RiderTaskDto ToDto(DeliveryAssignment da, Order? o, Customer? c, CustomerAddress? addr)
     {
         var isExpress    = o?.IsExpress ?? false;
@@ -134,7 +161,10 @@ internal static class RiderTaskMapper
             Lat:           lat,
             Lng:           lng,
             SequenceNumber: da.SequenceNumber,
-            CompletedAt:   da.CompletedAt);
+            CompletedAt:   da.CompletedAt,
+            CollectedAt:   da.CollectedAt,
+            DroppedAt:     da.DroppedAt,
+            Phase:         Phase(da));
     }
 }
 
@@ -227,7 +257,7 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
     public UpdateMyTaskStatusHandler(LaundryGharDbContext db) => _db = db;
 
     private static readonly string[] Allowed =
-        ["started", "arrived", "completed", "failed"];
+        ["started", "arrived", "collected", "completed", "failed"];
 
     public async Task<RiderTaskResult> Handle(UpdateMyTaskStatusCommand cmd, CancellationToken ct)
     {
@@ -246,6 +276,22 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
         if (da is null) return RiderTaskResult.NotFound();
 
         var (o, c, addr) = await LoadOrderAsync(da, ct);
+        var now = DateTimeOffset.UtcNow;
+
+        // "collected" is a pickup sub-step, not a DB status (the status CHECK has no
+        // such value). Record collected_at and keep the leg 'arrived' (collection
+        // happens on-site at the customer); the rider then drives to the store.
+        if (cmd.Status == "collected")
+        {
+            if (da.LegType != "pickup")
+                return RiderTaskResult.Conflict("Only pickup legs can be collected.");
+            da.CollectedAt ??= now;
+            if (da.Status == "started") { da.Status = "arrived"; da.ArrivedAt ??= now; }
+            da.UpdatedAt = now;
+            da.UpdatedBy = cmd.UserId;
+            await _db.SaveChangesAsync(ct);
+            return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr));
+        }
 
         // Any leg with an OTP (pickup or delivery) must be verified before completing.
         var legOtp = da.LegType == "pickup" ? o?.PickupOtp : o?.DeliveryOtp;
@@ -254,13 +300,17 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
             && !da.OtpVerified)
             return RiderTaskResult.Conflict("OTP must be verified before completing.");
 
-        var now = DateTimeOffset.UtcNow;
         da.Status = cmd.Status;
         switch (cmd.Status)
         {
             case "started":   da.StartedAt   ??= now; break;
             case "arrived":   da.ArrivedAt   ??= now; break;
-            case "completed": da.CompletedAt ??= now; break;
+            case "completed":
+                da.CompletedAt ??= now;
+                // Completing a pickup IS the drop-at-laundry confirmation — stamp the
+                // drop if the store geofence hadn't already caught it.
+                if (da.LegType == "pickup") da.DroppedAt ??= now;
+                break;
         }
         da.UpdatedAt = now;
         da.UpdatedBy = cmd.UserId;
@@ -325,7 +375,13 @@ public sealed class VerifyTaskOtpHandler : IRequestHandler<VerifyTaskOtpCommand,
         var ok = !string.IsNullOrWhiteSpace(expected)
                  && string.Equals(expected.Trim(), supplied, StringComparison.Ordinal);
 
-        if (ok) da.OtpVerified = true;
+        if (ok)
+        {
+            da.OtpVerified = true;
+            // A verified pickup OTP IS the collection handshake — stamp collected_at
+            // so the geofence can begin watching for the drop at the store.
+            if (da.LegType == "pickup") da.CollectedAt ??= now;
+        }
         await _db.SaveChangesAsync(ct);
 
         if (!ok) return RiderTaskResult.Conflict("Incorrect OTP.");

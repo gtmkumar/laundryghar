@@ -26,6 +26,8 @@ public sealed class DeliveryAssignmentConfiguration : IEntityTypeConfiguration<D
         b.Property(e => e.AcceptedAt).HasColumnName("accepted_at");
         b.Property(e => e.StartedAt).HasColumnName("started_at");
         b.Property(e => e.ArrivedAt).HasColumnName("arrived_at");
+        b.Property(e => e.CollectedAt).HasColumnName("collected_at");
+        b.Property(e => e.DroppedAt).HasColumnName("dropped_at");
         b.Property(e => e.CompletedAt).HasColumnName("completed_at");
         b.Property(e => e.CancelledAt).HasColumnName("cancelled_at");
         b.Property(e => e.CancellationReason).HasColumnName("cancellation_reason");

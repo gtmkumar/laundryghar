@@ -214,7 +214,23 @@ export interface RiderTask {
   lng?:          number;
   completedAt?:  string;        // ISO — set when status=completed
   rating?:       number;        // 1..5 customer rating after completion
+  // Phase 2: drop-at-laundry round-trip (pickup legs collect at the customer,
+  // then drop at the store). The server stamps these; geofence drives arrival.
+  collectedAt?:  string;        // ISO — pickup: collected from the customer
+  droppedAt?:    string;        // ISO — pickup: dropped at the store/laundry
+  /** to_customer | at_customer | to_store | dropped | completed | failed | cancelled | assigned */
+  phase?:        RiderTaskPhase;
 }
+
+export type RiderTaskPhase =
+  | 'assigned'
+  | 'to_customer'
+  | 'at_customer'
+  | 'to_store'     // pickup only: collected, heading to the laundry
+  | 'dropped'      // pickup only: dropped at the laundry
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 // ---------------------------------------------------------------------------
 // Location ping DTOs — mirrors LocationPingInput / PingBatchResponse

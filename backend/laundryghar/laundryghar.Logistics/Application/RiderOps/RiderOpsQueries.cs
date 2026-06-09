@@ -84,7 +84,7 @@ public sealed class GetRidersLiveHandler : IRequestHandler<GetRidersLiveQuery, L
             .Where(d => d.BrandId == brandId
                      && riderIds.Contains(d.RiderId)
                      && d.AssignedAt >= dayStart && d.AssignedAt < dayEnd)
-            .Select(d => new { d.RiderId, d.LegType, d.Status, d.OrderId, d.StartedAt, d.ArrivedAt })
+            .Select(d => new { d.RiderId, d.LegType, d.Status, d.OrderId, d.CollectedAt, d.DroppedAt })
             .ToListAsync(ct);
 
         // Resolve order numbers only for the active legs we'll surface.
@@ -113,11 +113,15 @@ public sealed class GetRidersLiveHandler : IRequestHandler<GetRidersLiveQuery, L
             var lastPing = r.LastPingAt;
             var isStale  = lastPing is null || (now - lastPing.Value) > StaleAfter;
 
-            string opsStatus =
-                !r.IsOnDuty            ? "offline"
-                : active is null       ? "idle"
-                : active.Status == "arrived" ? "arrived"
-                : "on_the_way";
+            // A collected pickup that's en route to the store reads as "to_store";
+            // otherwise an in-progress leg is on_the_way (to customer) or arrived (on site).
+            string opsStatus;
+            if (!r.IsOnDuty) opsStatus = "offline";
+            else if (active is null) opsStatus = "idle";
+            else if (active.Status == "arrived")
+                opsStatus = active.LegType == "pickup" && active.CollectedAt is not null && active.DroppedAt is null
+                    ? "to_store" : "arrived";
+            else opsStatus = "on_the_way";
 
             string? activeOrderNumber = active?.OrderId is Guid oid && orderNumberMap.TryGetValue(oid, out var onum)
                 ? onum : null;
@@ -137,8 +141,9 @@ public sealed class GetRidersLiveHandler : IRequestHandler<GetRidersLiveQuery, L
                 DeliveriesToday: rl.Count(l => l.LegType == "delivery" && l.Status == "completed")));
         }
 
-        // On-the-move first, then on-site, idle, offline; newest pings break ties.
-        static int Rank(string s) => s switch { "on_the_way" => 0, "arrived" => 1, "idle" => 2, _ => 3 };
+        // Moving first (to customer, then to store), then on-site, idle, offline.
+        static int Rank(string s) => s switch
+        { "on_the_way" => 0, "to_store" => 1, "arrived" => 2, "idle" => 3, _ => 4 };
         return result
             .OrderBy(x => Rank(x.OpsStatus))
             .ThenByDescending(x => x.LastPingAt ?? DateTimeOffset.MinValue)

@@ -64,8 +64,15 @@ export async function verifyTaskOtp(taskId: string, code: string): Promise<Rider
   }
 }
 
-/** Advance a task's status (started/arrived/completed/failed). */
-export async function updateTaskStatus(taskId: string, status: RiderTaskStatus): Promise<RiderTask> {
+/**
+ * Advance a task's status. Accepts the display statuses plus the pickup-only
+ * `collected` action — it records collection at the customer without completing
+ * the leg, so the rider can then drive to the store to drop.
+ */
+export async function updateTaskStatus(
+  taskId: string,
+  status: RiderTaskStatus | 'collected',
+): Promise<RiderTask> {
   try {
     const res = await logisticsClient.patch<SingleResponse<RiderTask>>(
       `/rider/tasks/${taskId}/status`,
