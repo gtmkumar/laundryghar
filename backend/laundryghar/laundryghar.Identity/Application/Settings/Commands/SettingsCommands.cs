@@ -98,3 +98,46 @@ public sealed class UpdateProvisioningHandler : IRequestHandler<UpdateProvisioni
         return new ProvisioningView(mode);
     }
 }
+
+// ── Update map-provider config ──────────────────────────────────────────────
+public sealed record UpdateMapsCommand(UpdateMapsSettingsRequest Request, ICurrentUser User) : IRequest<MapsSettingsView>;
+
+public sealed class UpdateMapsHandler : IRequestHandler<UpdateMapsCommand, MapsSettingsView>
+{
+    private static readonly HashSet<string> Providers = new(StringComparer.OrdinalIgnoreCase) { "osm", "google", "mapbox" };
+    private readonly LaundryGharDbContext _db;
+    public UpdateMapsHandler(LaundryGharDbContext db) => _db = db;
+
+    public async Task<MapsSettingsView> Handle(UpdateMapsCommand cmd, CancellationToken ct)
+    {
+        var r = cmd.Request;
+        var provider = r.Provider?.Trim().ToLowerInvariant() ?? "osm";
+        if (!Providers.Contains(provider))
+            throw new ValidationException(new Dictionary<string, string[]>
+                { ["provider"] = ["Provider must be 'osm', 'google' or 'mapbox'."] });
+
+        var brandId = await SettingsStore.ResolveBrandIdAsync(cmd.User, _db, ct);
+
+        // Preserve a stored key when the client sends a blank one (keys aren't
+        // re-entered on every save). Trim to null so blanks don't masquerade as set.
+        var existing = await SettingsStore.LoadMapsAsync(_db, brandId, ct);
+        string? Keep(string? incoming, string? stored)
+            => string.IsNullOrWhiteSpace(incoming) ? stored : incoming.Trim();
+
+        var value = new MapsSettings
+        {
+            Provider = provider,
+            GoogleApiKey = Keep(r.GoogleApiKey, existing.GoogleApiKey),
+            MapboxToken  = Keep(r.MapboxToken,  existing.MapboxToken),
+        };
+
+        // A keyed provider needs its key — guard so the map never selects a broken provider.
+        if (provider == "google" && string.IsNullOrWhiteSpace(value.GoogleApiKey))
+            throw new ValidationException(new Dictionary<string, string[]> { ["googleApiKey"] = ["A Google Maps API key is required to use Google."] });
+        if (provider == "mapbox" && string.IsNullOrWhiteSpace(value.MapboxToken))
+            throw new ValidationException(new Dictionary<string, string[]> { ["mapboxToken"] = ["A Mapbox access token is required to use Mapbox."] });
+
+        await SettingsStore.UpsertAsync(_db, brandId, "maps", "provider", value, isEncrypted: false, cmd.User.UserId, ct);
+        return new MapsSettingsView(value.Provider, value.GoogleApiKey, value.MapboxToken);
+    }
+}

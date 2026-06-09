@@ -9,8 +9,15 @@ public sealed record EmailSettingsView(
 public sealed record ProvisioningView(string Mode);          // admin_activate | self_service
 public sealed record AppUrlsView(string AdminBaseUrl);
 
+/// <summary>
+/// Map-provider config for the admin live map. Provider is osm | google | mapbox.
+/// The keys ARE returned (unlike the SMTP password) because map SDK keys are used
+/// in the browser and are client-exposed by design — the client needs them to render.
+/// </summary>
+public sealed record MapsSettingsView(string Provider, string? GoogleApiKey, string? MapboxToken);
+
 public sealed record AdminSettingsView(
-    EmailSettingsView Email, ProvisioningView Provisioning, AppUrlsView App);
+    EmailSettingsView Email, ProvisioningView Provisioning, AppUrlsView App, MapsSettingsView Maps);
 
 // ── Write models ────────────────────────────────────────────────────────────
 /// <summary>
@@ -27,3 +34,9 @@ public sealed record TestEmailRequest(string To, UpdateEmailSettingsRequest? Set
 public sealed record TestEmailResult(bool Sent, string? Error);
 
 public sealed record UpdateProvisioningRequest(string Mode);
+
+/// <summary>
+/// Update map provider config. Keys are optional: a null/blank key preserves the
+/// stored one (so the UI need not re-enter a key on every save, like SMTP).
+/// </summary>
+public sealed record UpdateMapsSettingsRequest(string Provider, string? GoogleApiKey, string? MapboxToken);

@@ -2,6 +2,9 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import {
   getRiders,
   getRider,
+  getRidersLive,
+  getRiderTrack,
+  getRiderStats,
   inviteRiderUser,
   createRiderProfile,
   updateRider,
@@ -56,6 +59,40 @@ export function useRider(id: string | null) {
   return useQuery({
     queryKey: ['riders', 'detail', id],
     queryFn: () => getRider(id as string),
+    enabled: !!id,
+  })
+}
+
+// ── Rider Ops live board ──────────────────────────────────────────────────────
+
+/** Live roster + locations; polls every 20s so the map/board stays current. */
+export function useRidersLive(opts: { franchiseId?: string; enabled?: boolean } = {}) {
+  const brandId = useEffectiveBrandId()
+  return useQuery({
+    queryKey: ['riders', 'live', brandId, opts.franchiseId ?? ''],
+    queryFn: () => getRidersLive(opts.franchiseId),
+    enabled: !!brandId && opts.enabled !== false,
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: false,
+    staleTime: 10_000,
+  })
+}
+
+/** GPS breadcrumb for the selected rider; refreshes with the board cadence. */
+export function useRiderTrack(id: string | null, date?: string) {
+  return useQuery({
+    queryKey: ['riders', 'track', id, date ?? 'today'],
+    queryFn: () => getRiderTrack(id as string, date),
+    enabled: !!id,
+    refetchInterval: 20_000,
+  })
+}
+
+/** Throughput stats for the selected rider over a date range. */
+export function useRiderStats(id: string | null, from?: string, to?: string) {
+  return useQuery({
+    queryKey: ['riders', 'stats', id, from ?? '', to ?? ''],
+    queryFn: () => getRiderStats(id as string, from, to),
     enabled: !!id,
   })
 }

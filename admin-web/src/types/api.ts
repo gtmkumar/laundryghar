@@ -954,10 +954,25 @@ export interface AppUrlsView {
   adminBaseUrl: string
 }
 
+export type MapProviderId = 'osm' | 'google' | 'mapbox'
+
+export interface MapsSettingsView {
+  provider: MapProviderId
+  googleApiKey: string | null
+  mapboxToken: string | null
+}
+
+export interface UpdateMapsPayload {
+  provider: MapProviderId
+  googleApiKey?: string // omit/blank to keep the stored key
+  mapboxToken?: string
+}
+
 export interface AdminSettings {
   email: EmailSettingsView
   provisioning: ProvisioningView
   app: AppUrlsView
+  maps: MapsSettingsView
 }
 
 export interface UpdateEmailPayload {
@@ -1317,6 +1332,57 @@ export interface UpdateRiderPayload {
   dailyDeliveryCapacity?: number
   serviceRadiusKm?: number
   primaryStoreId?: string | null
+}
+
+// ── Rider Ops (live board) ────────────────────────────────────────────────────
+
+/** Derived operational state of a rider on the live board. */
+export type RiderOpsStatus = 'offline' | 'idle' | 'on_the_way' | 'arrived'
+
+/** A rider's current snapshot for the live map + roster (GET /admin/riders/live). */
+export interface RiderLiveDto {
+  id: string
+  riderCode: string
+  riderName: string | null
+  phone: string | null
+  status: string
+  isOnDuty: boolean
+  currentLoad: number
+  lat: number | null
+  lng: number | null
+  lastPingAt: string | null
+  isStale: boolean
+  opsStatus: RiderOpsStatus
+  activeLegType: string | null
+  activeOrderId: string | null
+  activeOrderNumber: string | null
+  pickupsToday: number
+  deliveriesToday: number
+}
+
+/** One GPS breadcrumb (GET /admin/riders/{id}/track). */
+export interface RiderTrackPointDto {
+  lat: number
+  lng: number
+  pingedAt: string
+  speedKmph: number | null
+  isMoving: boolean | null
+}
+
+/** Per-rider throughput over a date range (GET /admin/riders/{id}/stats). */
+export interface RiderStatsDto {
+  riderId: string
+  riderCode: string
+  riderName: string | null
+  from: string
+  to: string
+  pickupsDone: number
+  deliveriesDone: number
+  assignmentsTotal: number
+  assignmentsFailed: number
+  totalKm: number
+  codCollected: number
+  earnings: number
 }
 
 /** Step 2 — create the rider operational profile (Logistics). */

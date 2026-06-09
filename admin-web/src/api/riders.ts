@@ -8,6 +8,9 @@ import type {
   InviteRiderUserPayload,
   CreateRiderProfilePayload,
   UpdateRiderPayload,
+  RiderLiveDto,
+  RiderTrackPointDto,
+  RiderStatsDto,
 } from '@/types/api'
 
 const ACCESS = '/api/v1/admin/access-control'
@@ -34,6 +37,33 @@ export async function getRiders(
 
 export async function getRider(id: string): Promise<RiderDto> {
   const { data } = await logisticsClient.get<ApiResponse<RiderDto>>(`${RIDERS}/${id}`)
+  return unwrap(data)
+}
+
+// ── Rider Ops live board (Logistics) ─────────────────────────────────────────
+
+/** Live snapshot of every in-scope rider — location, ops status, today's counts. */
+export async function getRidersLive(franchiseId?: string): Promise<RiderLiveDto[]> {
+  const { data } = await logisticsClient.get<ApiResponse<RiderLiveDto[]>>(`${RIDERS}/live`, {
+    params: franchiseId ? { franchiseId } : undefined,
+  })
+  return unwrap(data) ?? []
+}
+
+/** GPS breadcrumb trail for one rider on a given IST day (default today). */
+export async function getRiderTrack(id: string, date?: string): Promise<RiderTrackPointDto[]> {
+  const { data } = await logisticsClient.get<ApiResponse<RiderTrackPointDto[]>>(`${RIDERS}/${id}/track`, {
+    params: date ? { date } : undefined,
+  })
+  return unwrap(data) ?? []
+}
+
+/** Per-rider throughput over a date range (default today). */
+export async function getRiderStats(id: string, from?: string, to?: string): Promise<RiderStatsDto> {
+  const params: Record<string, string> = {}
+  if (from) params.from = from
+  if (to) params.to = to
+  const { data } = await logisticsClient.get<ApiResponse<RiderStatsDto>>(`${RIDERS}/${id}/stats`, { params })
   return unwrap(data)
 }
 

@@ -23,7 +23,10 @@ import type { RiderDto, RiderSortKey } from '@/types/api'
 import { OnboardRiderDrawer } from './OnboardRiderDrawer'
 import { RiderDetailDrawer } from './RiderDetailDrawer'
 import { RiderEditDrawer } from './RiderEditDrawer'
+import { RiderOpsView } from './RiderOpsView'
 import { VEHICLE_LABEL, KycBadge, StatusBadge, formatDate, humanise, isKycActionable } from './riderShared'
+
+type RidersTab = 'roster' | 'live'
 
 const KYC_FILTERS = ['pending', 'submitted', 'verified', 'rejected', 'expired']
 const STATUS_FILTERS = ['active', 'suspended', 'terminated']
@@ -43,6 +46,16 @@ const inputCls =
 export function RidersPage() {
   const { hasPermission, isFranchiseScoped } = usePermissions()
   const canManage = hasPermission('rider.manage')
+
+  // Roster (table) vs Live map (ops board), synced to ?view= for deep-linking.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view: RidersTab = searchParams.get('view') === 'live' ? 'live' : 'roster'
+  const setView = (v: RidersTab) => {
+    const next = new URLSearchParams(searchParams)
+    if (v === 'roster') next.delete('view')
+    else next.set('view', v)
+    setSearchParams(next, { replace: true })
+  }
 
   // ── Filters & sort state ──
   const [searchInput, setSearchInput] = useState('')
@@ -87,8 +100,8 @@ export function RidersPage() {
   const [editRider, setEditRider] = useState<RiderDto | null>(null)
 
   // Deep link: `/riders?rider=<id>` opens that rider's detail once, then drops
-  // the param so closing the drawer doesn't immediately reopen it.
-  const [searchParams, setSearchParams] = useSearchParams()
+  // the param so closing the drawer doesn't immediately reopen it. (searchParams
+  // is declared at the top of the component for the view tab.)
   useEffect(() => {
     const rid = searchParams.get('rider')
     if (!rid) return
@@ -124,6 +137,30 @@ export function RidersPage() {
         )}
       </div>
 
+      {/* View tabs — roster table vs live ops map */}
+      <div className="flex w-fit items-center gap-1 rounded-xl border border-gray-200 bg-white p-1">
+        {([
+          { key: 'roster', label: 'Roster' },
+          { key: 'live', label: 'Live map' },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setView(t.key)}
+            className={cn(
+              'rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors',
+              view === t.key ? 'bg-lg-green text-white' : 'text-gray-600 hover:bg-gray-50',
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'live' ? (
+        <RiderOpsView />
+      ) : (
+      <>
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3">
         <div className="relative min-w-[14rem] flex-1">
@@ -213,6 +250,9 @@ export function RidersPage() {
             </div>
           )}
         </>
+      )}
+
+      </>
       )}
 
       <OnboardRiderDrawer open={onboardOpen} onClose={() => setOnboardOpen(false)} />

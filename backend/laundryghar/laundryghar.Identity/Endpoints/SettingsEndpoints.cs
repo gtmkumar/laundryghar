@@ -45,6 +45,13 @@ public static class SettingsEndpoints
             return Results.Ok(new SingleResponse<ProvisioningView> { Status = true, Data = r });
         }).WithName("UpdateProvisioning");
 
+        s.MapPut("/maps", async (UpdateMapsSettingsRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            if (Forbidden(u, out var deny)) return deny;
+            var r = await sender.Send(new UpdateMapsCommand(req, u), ct);
+            return Results.Ok(new SingleResponse<MapsSettingsView> { Status = true, Data = r });
+        }).WithName("UpdateMapsSettings");
+
         return group;
     }
 

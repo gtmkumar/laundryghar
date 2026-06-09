@@ -7,6 +7,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace laundryghar.Identity.Application.Settings;
 
+/// <summary>Persisted map-provider config (stored as JSON under category 'maps', key 'provider').</summary>
+public sealed class MapsSettings
+{
+    public string Provider { get; set; } = "osm";   // osm | google | mapbox
+    public string? GoogleApiKey { get; set; }
+    public string? MapboxToken { get; set; }
+}
+
 /// <summary>
 /// Helpers for reading and upserting brand-scoped rows in
 /// <c>kernel.system_settings</c>. The RLS connection interceptor scopes every
@@ -61,6 +69,17 @@ public static class SettingsStore
             return doc.RootElement.TryGetProperty("adminBaseUrl", out var u) ? (u.GetString() ?? fallback) : fallback;
         }
         catch (JsonException) { return fallback; }
+    }
+
+    public static async Task<MapsSettings> LoadMapsAsync(LaundryGharDbContext db, Guid? brandId, CancellationToken ct)
+    {
+        var row = await FindAsync(db, brandId, "maps", "provider", ct);
+        if (row is null) return new MapsSettings();
+        // Deserialize with the SAME web options used to serialize (UpsertAsync) — the
+        // stored JSON is camelCase, and the default (case-sensitive PascalCase) reader
+        // silently fails to bind and returns the osm default.
+        try { return JsonSerializer.Deserialize<MapsSettings>(row.SettingValue, Json) ?? new MapsSettings(); }
+        catch (JsonException) { return new MapsSettings(); }
     }
 
     /// <summary>Upsert a setting's JSON value, creating the row if it does not exist yet.</summary>

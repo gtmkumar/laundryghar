@@ -7,6 +7,7 @@ using laundryghar.Logistics.Application.CapacityConfigs.Queries;
 using laundryghar.Logistics.Application.Riders.Commands;
 using laundryghar.Logistics.Application.Riders.Dtos;
 using laundryghar.Logistics.Application.Riders.Queries;
+using laundryghar.Logistics.Application.RiderOps;
 using laundryghar.Logistics.Application.RiderSelf;
 using laundryghar.SharedDataModel.Enums;
 using MediatR;
@@ -97,6 +98,40 @@ public static class LogisticsEndpoints
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:rider.verify");
+
+        // ── Rider Ops (live board) ────────────────────────────────────────────
+        // Read-only operational views over existing data: live location/status,
+        // GPS breadcrumb trail, and per-rider throughput. Gated by rider.read.
+
+        // GET /api/v1/admin/riders/live  — current location + ops status of every
+        // (non-terminated) rider in scope, plus today's pickup/delivery counts.
+        riders.MapGet("/live", async (
+            [FromServices] ISender sender, CancellationToken ct, Guid? franchiseId = null) =>
+        {
+            var list = await sender.Send(new GetRidersLiveQuery(franchiseId), ct);
+            return Results.Ok(new ListResponse<RiderLiveDto> { Status = true, Data = list });
+        }).RequireAuthorization("permission:rider.read");
+
+        // GET /api/v1/admin/riders/{id}/track?date=yyyy-MM-dd — GPS breadcrumb for a day.
+        riders.MapGet("/{id:guid}/track", async (
+            Guid id, [FromServices] ISender sender, CancellationToken ct, DateOnly? date = null) =>
+        {
+            var list = await sender.Send(new GetRiderTrackQuery(id, date), ct);
+            return list is null
+                ? Results.NotFound()
+                : Results.Ok(new ListResponse<RiderTrackPointDto> { Status = true, Data = list });
+        }).RequireAuthorization("permission:rider.read");
+
+        // GET /api/v1/admin/riders/{id}/stats?from=&to= — throughput over a date range.
+        riders.MapGet("/{id:guid}/stats", async (
+            Guid id, [FromServices] ISender sender, CancellationToken ct,
+            DateOnly? from = null, DateOnly? to = null) =>
+        {
+            var s = await sender.Send(new GetRiderStatsQuery(id, from, to), ct);
+            return s is null
+                ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderStatsDto> { Status = true, Data = s });
+        }).RequireAuthorization("permission:rider.read");
 
         // ── Rider Assignments ─────────────────────────────────────────────────
         var assignments = admin.MapGroup("/rider-assignments").WithTags("Admin - Rider Assignments");

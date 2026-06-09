@@ -1,14 +1,18 @@
 import { useState } from 'react'
-import { Mail, UserCog, Loader2 } from 'lucide-react'
+import { Mail, UserCog, Loader2, Map as MapIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettings } from '@/hooks/useSettings'
 import { EmailPanel } from './EmailPanel'
 import { ProvisioningPanel } from './ProvisioningPanel'
+import { MapsPanel } from './MapsPanel'
 
-type Key = 'email' | 'provisioning'
+type Key = 'email' | 'maps' | 'provisioning'
 
 const NAV: { section: string; items: { key: Key; label: string; icon: React.ElementType }[] }[] = [
-  { section: 'Integrations', items: [{ key: 'email', label: 'Email & SMTP', icon: Mail }] },
+  { section: 'Integrations', items: [
+    { key: 'email', label: 'Email & SMTP', icon: Mail },
+    { key: 'maps', label: 'Maps', icon: MapIcon },
+  ] },
   { section: 'Platform', items: [{ key: 'provisioning', label: 'User Provisioning', icon: UserCog }] },
 ]
 
@@ -63,6 +67,8 @@ export function SettingsPage() {
             <div className="py-24 text-center text-sm text-red-600">Couldn’t load settings.</div>
           ) : active === 'email' ? (
             <EmailPanel settings={settings.data} />
+          ) : active === 'maps' ? (
+            <MapsPanel settings={settings.data} />
           ) : (
             <ProvisioningPanel settings={settings.data} />
           )}
