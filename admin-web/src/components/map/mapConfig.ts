@@ -41,6 +41,36 @@ export function useMapConfig(): MapConfig {
   return { provider, googleApiKey, mapboxToken }
 }
 
+/** A Leaflet raster tile source (URL template + attribution, optional retina sizing). */
+export interface MapTiles {
+  url: string
+  attribution: string
+  tileSize?: number
+  zoomOffset?: number
+}
+
+export const OSM_TILES: MapTiles = {
+  url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution:
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+}
+
+/**
+ * Mapbox raster tiles for Leaflet (retina 512px). Needs a public access token —
+ * resolved by {@link useMapConfig} from Settings → Maps (or VITE_MAPBOX_TOKEN).
+ * Google is intentionally NOT here: its tiles can't be served through Leaflet per
+ * Google's ToS — it requires the Google Maps JS SDK (a separate, keyed renderer).
+ */
+export function mapboxTiles(token: string, style = 'mapbox/streets-v12'): MapTiles {
+  return {
+    url: `https://api.mapbox.com/styles/v1/${style}/tiles/512/{z}/{x}/{y}@2x?access_token=${token}`,
+    attribution:
+      '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    tileSize: 512,
+    zoomOffset: -1,
+  }
+}
+
 /** Map dot / marker colour per operational status (shared by map + legend). */
 export const OPS_COLOR: Record<string, string> = {
   on_the_way: '#2563eb', // blue — en route to customer

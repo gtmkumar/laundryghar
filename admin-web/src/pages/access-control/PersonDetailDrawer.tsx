@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Pencil, Mail, Phone, Shield, MapPin, Clock, Check, Briefcase, CreditCard, IdCard, BadgeCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { FormDrawer } from '@/components/shared/FormDrawer'
+import { FormDrawer, DetailSection, DetailRow, Field } from '@/components/shared/FormDrawer'
 import { useUser, useUpdateUser, useChangeUserRole } from '@/hooks/useUsers'
 import { useAccessRoles, useAccessFranchises } from '@/hooks/useAccessControl'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -238,7 +238,7 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
               </div>
 
               {/* Role & access — change a wrongly-assigned role (replace primary) */}
-              <Section title="Role &amp; access">
+              <DetailSection plain title="Role &amp; access">
                 {roleEditing ? (
                   <div className="space-y-3">
                     <Field label="New role">
@@ -297,10 +297,10 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                     )}
                   </>
                 )}
-              </Section>
+              </DetailSection>
 
               {/* Identity */}
-              <Section title="Identity">
+              <DetailSection plain title="Identity">
                 {editing ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
@@ -317,10 +317,10 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                     <DetailRow icon={<Shield className="h-4 w-4" />} label="Type" value={user?.userType ?? '—'} />
                   </dl>
                 )}
-              </Section>
+              </DetailSection>
 
               {/* Employment */}
-              <Section title="Employment">
+              <DetailSection plain title="Employment">
                 {editing ? (
                   <div className="space-y-3">
                     <Field label="Employment type">
@@ -337,10 +337,10 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                     <DetailRow icon={<IdCard className="h-4 w-4" />} label="Designation" value={user?.designation ?? '—'} />
                   </dl>
                 )}
-              </Section>
+              </DetailSection>
 
               {/* KYC / documents */}
-              <Section title="KYC &amp; documents">
+              <DetailSection plain title="KYC &amp; documents">
                 {editing ? (
                   <div className="space-y-3">
                     <Field label="PAN"><input value={form.pan} onChange={set('pan')} className={cn(inputCls, 'uppercase')} placeholder="ABCDE1234F" maxLength={10} /></Field>
@@ -363,10 +363,10 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                     />
                   </dl>
                 )}
-              </Section>
+              </DetailSection>
 
               {/* Bank / payout */}
-              <Section title="Bank &amp; payout">
+              <DetailSection plain title="Bank &amp; payout">
                 {editing ? (
                   <div className="space-y-3">
                     <Field label="Account holder name"><input value={form.bankName} onChange={set('bankName')} className={inputCls} /></Field>
@@ -382,47 +382,19 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                     <DetailRow icon={<CreditCard className="h-4 w-4" />} label="UPI" value={user?.upiId ?? '—'} />
                   </dl>
                 )}
-              </Section>
+              </DetailSection>
 
               {/* Account meta */}
-              <Section title="Account">
+              <DetailSection plain title="Account">
                 <dl className="space-y-2.5">
                   <DetailRow icon={<Clock className="h-4 w-4" />} label="Last active" value={fmtDate(user?.lastLoginAt)} />
                   <DetailRow icon={<Clock className="h-4 w-4" />} label="Member since" value={fmtDate(user?.createdAt)} />
                 </dl>
                 {!editing && <p className="mt-2 text-xs text-gray-400">Status changes (activate / suspend) are in the row’s ⋯ menu.</p>}
                 {savedAt && !editing && <p className="mt-2 text-xs text-lg-green">Saved at {savedAt}</p>}
-              </Section>
+              </DetailSection>
             </>
           )}
       </FormDrawer>
-  )
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{title}</h3>
-      {children}
-    </div>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-gray-500">{label}</span>
-      {children}
-    </label>
-  )
-}
-
-function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="text-gray-300">{icon}</span>
-      <span className="text-gray-400">{label}</span>
-      <span className="ml-auto truncate font-medium text-gray-700">{value}</span>
-    </div>
   )
 }

@@ -3,13 +3,15 @@ import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from
 import type { LatLngBoundsExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { RiderLiveDto, RiderTrackPointDto } from '@/types/api'
-import { OPS_COLOR, DEFAULT_CENTER, DEFAULT_ZOOM } from './mapConfig'
+import { OPS_COLOR, DEFAULT_CENTER, DEFAULT_ZOOM, OSM_TILES, type MapTiles } from './mapConfig'
 
 interface Props {
   riders: RiderLiveDto[]
   selectedId: string | null
   trail: RiderTrackPointDto[]
   onSelect: (id: string) => void
+  /** Tile source — defaults to OSM. Pass Mapbox tiles for the Mapbox provider. */
+  tiles?: MapTiles
 }
 
 /** Imperatively fit the map to the riders/trail once we have coordinates. */
@@ -44,7 +46,7 @@ function FitToData({ riders, trail, selectedId }: {
   return null
 }
 
-export function RiderLeafletMap({ riders, selectedId, trail, onSelect }: Props) {
+export function RiderLeafletMap({ riders, selectedId, trail, onSelect, tiles = OSM_TILES }: Props) {
   const located = useMemo(() => riders.filter((r) => r.lat != null && r.lng != null), [riders])
   const trailLine = useMemo<[number, number][]>(() => trail.map((p) => [p.lat, p.lng]), [trail])
 
@@ -58,8 +60,12 @@ export function RiderLeafletMap({ riders, selectedId, trail, onSelect }: Props) 
       style={{ minHeight: 420 }}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        // `key` forces a fresh tile layer when the provider/source changes.
+        key={tiles.url}
+        attribution={tiles.attribution}
+        url={tiles.url}
+        tileSize={tiles.tileSize ?? 256}
+        zoomOffset={tiles.zoomOffset ?? 0}
       />
 
       {trailLine.length >= 2 && (

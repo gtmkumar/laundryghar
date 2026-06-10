@@ -203,8 +203,28 @@ export function Field({
 
 // ── Read-only "view" primitives ────────────────────────────────────────────────
 
-/** A titled card of label/value rows for read-only detail drawers. Wrap {@link DetailRow}s. */
-export function DetailSection({ title, children }: { title?: ReactNode; children: ReactNode }) {
+/**
+ * A titled group of label/value rows for read-only detail drawers. Wrap {@link DetailRow}s.
+ * Default: a bordered card (divided rows). `plain`: a borderless block with an uppercase
+ * muted header and no `<dl>` wrapper — for drawers that mix read-only rows with edit forms.
+ */
+export function DetailSection({
+  title,
+  children,
+  plain = false,
+}: {
+  title?: ReactNode
+  children: ReactNode
+  plain?: boolean
+}) {
+  if (plain) {
+    return (
+      <div>
+        {title && <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{title}</h3>}
+        {children}
+      </div>
+    )
+  }
   return (
     <section className="space-y-2">
       {title && <h3 className="text-sm font-semibold text-gray-900">{title}</h3>}
@@ -213,8 +233,28 @@ export function DetailSection({ title, children }: { title?: ReactNode; children
   )
 }
 
-/** One label → value row inside a {@link DetailSection}. */
-export function DetailRow({ label, value }: { label: ReactNode; value: ReactNode }) {
+/**
+ * One label → value row inside a {@link DetailSection}. Default: a justified card row.
+ * With `icon`: an icon-led row (icon · label · value) for borderless/`plain` sections.
+ */
+export function DetailRow({
+  label,
+  value,
+  icon,
+}: {
+  label: ReactNode
+  value: ReactNode
+  icon?: ReactNode
+}) {
+  if (icon) {
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-gray-300">{icon}</span>
+        <span className="text-gray-400">{label}</span>
+        <span className="ml-auto truncate font-medium text-gray-700">{value}</span>
+      </div>
+    )
+  }
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
       <dt className="text-gray-500">{label}</dt>
