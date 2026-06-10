@@ -5,7 +5,7 @@
 **Project:** Laundry Ghar — multi-tenant franchise SaaS for the India laundry & dry-clean market
 **Stack:** .NET 10 Clean Architecture · React 19 (admin + POS) · React Native / Expo (customer + rider) · PostgreSQL 16+
 **Tenancy:** Single database, Row-Level Security, multi-level franchise hierarchy
-**Status:** Spec + schema complete (102 tables, 7 materialized views). Build not yet started.
+**Status:** Built and running — 9 backend services + Worker and 4 clients are live end-to-end (see root `HANDOFF.md`). The 102-table / 7-MV count includes the 10 subscription tables + 2 MRR views from `08/09_subscriptions_*.sql`, which are **spec-only and not yet deployed**; the deployed canonical schema is `database_scripts/` + `db/patches/` (92 tables, 5 MVs). Gap register: `docs/GAP_ANALYSIS.md` (2026-06-10).
 
 ---
 

@@ -5,7 +5,9 @@
 **Project:** Laundry Ghar — multi-tenant franchise SaaS for the India laundry & dry-clean market
 **Stack:** .NET 10 Clean Architecture · React 19 (admin + POS) · React Native / Expo (customer + rider) · PostgreSQL 16+
 **Tenancy:** Single database, Row-Level Security, multi-level franchise hierarchy
-**Status:** Spec + schema complete (92 tables, 5 materialized views). Build not yet started.
+**Status:** Built and running — 9 backend services + Worker (Aspire) and 4 clients (admin-web, pos-web, customer-mobile, rider-mobile) are live end-to-end. Deployed schema: 92 tables, 5 materialized views in `database_scripts/` + `db/patches/` (the 10 subscription tables in `docs/SCHEMA_FULL.sql` are spec-only, not yet deployed). See `HANDOFF.md` for current state and `docs/GAP_ANALYSIS.md` (2026-06-10) for the remediation backlog.
+
+> ⚠️ **Doc drift warning (2026-06-10):** several paths below are stale — `BUILD_PLAN.md`/`AGENT_TEAM.md`/`CONTEXT_MANAGEMENT.md` live in `bodies/`, `DEPLOYMENT.md` in `protocol/`, agent manuals in `.claude/agents/`, and the schema in `database_scripts/` (there is no `database/` directory). ADRs 001–009 were never written as files (only ADR-010 exists, in `docs/`). Cleanup is tracked in `docs/GAP_ANALYSIS.md` §G.
 
 ---
 

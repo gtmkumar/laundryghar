@@ -580,6 +580,16 @@ service-to-service plumbing). Commits on `main` (newest first):
 
 ## 6. Remaining backlog (prod-hardening)
 
+> **2026-06-10 — full gap analysis completed.** A six-track review (backend, web clients,
+> mobile, security, docs, industry research) produced a consolidated gap register with 29
+> owner-assigned, prioritized tasks: see **`docs/GAP_ANALYSIS.md`**. Headlines: payment
+> gateway is a dev stub registered in ALL envs (CRITICAL — signature verify always passes),
+> no refund flow / cumulative cap, notifications never send (logging stub), PAN/bank PII
+> plaintext + returned in UserDto, no GST invoice, no DPDP erasure, subscriptions (ADR-010)
+> schema-only, no auto-dispatch / photo-PoD / TAT alerting, zero i18n & push notifications.
+> The items below predate that review and remain valid; the gap register supersedes this
+> list as the working backlog.
+
 - ~~**Secrets → a real manager**~~ ✅ DONE (2026-06-06, cloud-agnostic abstraction): added
   `ISecretsProvider` in `laundryghar.ServiceDefaults/Secrets/` (`EnvironmentSecretsProvider`
   = no-op default, `FileSecretsProvider` = Docker/k8s secret-mount dir with `__`→`:` keys +
