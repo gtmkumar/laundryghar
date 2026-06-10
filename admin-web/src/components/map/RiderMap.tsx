@@ -2,6 +2,7 @@ import { MapPin } from 'lucide-react'
 import type { RiderLiveDto, RiderTrackPointDto } from '@/types/api'
 import { useMapConfig, mapboxTiles } from './mapConfig'
 import { RiderLeafletMap } from './RiderLeafletMap'
+import { RiderGoogleMap } from './RiderGoogleMap'
 
 interface Props {
   riders: RiderLiveDto[]
@@ -20,28 +21,24 @@ function Badge({ children }: { children: React.ReactNode }) {
 
 /**
  * Provider-agnostic live rider map. Resolves the configured provider and renders
- * the matching tiles. OSM/Leaflet is the key-less default; **Mapbox** renders its
- * raster tiles through the same Leaflet view once a token is set. Google can't be
- * served via Leaflet (ToS) — it needs the Google Maps JS SDK, a separate keyed
- * renderer — so it gracefully draws on OSM with a note until that ships.
+ * the matching implementation — all three share the same rider/trail/selection
+ * props. OSM/Leaflet is the key-less default; **Mapbox** renders its raster tiles
+ * through the same Leaflet view; **Google** uses the Google Maps JS SDK. A keyed
+ * provider only activates once its key/token is set (Settings → Maps), so this
+ * falls back to OSM whenever a key is missing.
  */
 export function RiderMap(props: Props) {
-  const { provider, mapboxToken } = useMapConfig()
+  const { provider, mapboxToken, googleApiKey } = useMapConfig()
+
+  if (provider === 'google' && googleApiKey) {
+    return <RiderGoogleMap {...props} apiKey={googleApiKey} />
+  }
 
   if (provider === 'mapbox' && mapboxToken) {
     return (
       <div className="relative h-full w-full">
         <RiderLeafletMap {...props} tiles={mapboxTiles(mapboxToken)} />
         <Badge>Mapbox</Badge>
-      </div>
-    )
-  }
-
-  if (provider === 'google') {
-    return (
-      <div className="relative h-full w-full">
-        <RiderLeafletMap {...props} />
-        <Badge>Google Maps configured — rendering on OSM (Google SDK renderer pending)</Badge>
       </div>
     )
   }

@@ -148,8 +148,9 @@ export function MapsPanel({ settings }: { settings: AdminSettings }) {
       </div>
 
       <p className="text-xs text-gray-400">
-        The Rider Ops live map reads this setting. Google &amp; Mapbox are stored and selectable now;
-        their full tile rendering ships in a follow-up — until then the board renders on OpenStreetMap.
+        The Rider Ops live map reads this setting and renders on the selected provider — OpenStreetMap,
+        Google Maps, or Mapbox. A keyed provider activates as soon as its key/token is saved; without
+        one, the board falls back to OpenStreetMap.
       </p>
     </div>
   )

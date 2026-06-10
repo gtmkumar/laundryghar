@@ -14,6 +14,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { bootstrapApiAuth, useAuthStore } from '@/store/authStore';
 import { useDutyStore } from '@/store/dutyStore';
 import { BrandSplash } from '@/components/BrandSplash';
+// Side-effect import: registers the background-location TaskManager task at app
+// launch (it must be defined before the OS can deliver a cold background event).
+import '@/lib/backgroundLocation';
 
 // Bootstrap once — wires axios interceptors into auth store
 bootstrapApiAuth();

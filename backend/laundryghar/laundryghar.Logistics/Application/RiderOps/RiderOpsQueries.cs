@@ -1,4 +1,5 @@
 using laundryghar.Utilities.Common;
+using laundryghar.Logistics.Application.RiderSelf; // GeofenceEvaluator.DistanceMeters (haversine)
 using MediatR;
 
 namespace laundryghar.Logistics.Application.RiderOps;
@@ -235,6 +236,14 @@ public sealed class GetRiderStatsHandler : IRequestHandler<GetRiderStatsQuery, R
             .Select(p => ((p.FirstName ?? "") + " " + (p.LastName ?? "")).Trim())
             .FirstOrDefaultAsync(ct);
 
+        // Distance actually travelled, from the GPS breadcrumb: haversine over
+        // consecutive pings in the window. This reflects real movement even when no
+        // leg has completed yet (the old `sum(distance_km) over completed legs` read
+        // 0.0 km for an active-but-unfinished shift). Falls back to completed-leg
+        // distance when there are no pings (GPS off / older data).
+        var trackedKm = await TrackedDistanceKmAsync(q.RiderId, brandId, startUtc, endUtc, ct);
+        var completedLegKm = legs.Where(l => l.Status == "completed").Sum(l => l.DistanceKm ?? 0m);
+
         return new RiderStatsDto(
             rider.Id, rider.RiderCode,
             string.IsNullOrWhiteSpace(name) ? null : name,
@@ -243,8 +252,35 @@ public sealed class GetRiderStatsHandler : IRequestHandler<GetRiderStatsQuery, R
             DeliveriesDone: legs.Count(l => l.LegType == "delivery" && l.Status == "completed"),
             AssignmentsTotal:  legs.Count,
             AssignmentsFailed: legs.Count(l => l.Status is "failed" or "cancelled"),
-            TotalKm:        legs.Where(l => l.Status == "completed").Sum(l => l.DistanceKm ?? 0m),
+            TotalKm:        trackedKm > 0m ? trackedKm : completedLegKm,
             CodCollected:   legs.Sum(l => l.CodAmount ?? 0m),     // Phase 3
             Earnings:       legs.Sum(l => l.PayoutAmount ?? 0m)); // Phase 4
+    }
+
+    /// <summary>
+    /// Distance travelled (km) summed from the rider's GPS breadcrumb over the window.
+    /// Steps under ~15 m are dropped as GPS jitter (pings are ~25 s apart, so a parked
+    /// rider would otherwise accrue phantom drift). Materialises the geography Point
+    /// first — ST_Y/ST_X are geometry-only, so reading .Y/.X happens client-side.
+    /// </summary>
+    private async Task<decimal> TrackedDistanceKmAsync(
+        Guid riderId, Guid brandId, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken ct)
+    {
+        var points = await _db.RiderLocationPings.AsNoTracking()
+            .Where(p => p.RiderId == riderId && p.BrandId == brandId
+                     && p.PingedAt >= startUtc && p.PingedAt < endUtc)
+            .OrderBy(p => p.PingedAt)
+            .Select(p => p.Location)
+            .ToListAsync(ct);
+
+        const double minStepMeters = 15.0;
+        double meters = 0;
+        for (var i = 1; i < points.Count; i++)
+        {
+            var step = GeofenceEvaluator.DistanceMeters(
+                points[i - 1].Y, points[i - 1].X, points[i].Y, points[i].X);
+            if (step >= minStepMeters) meters += step;
+        }
+        return Math.Round((decimal)(meters / 1000.0), 2);
     }
 }

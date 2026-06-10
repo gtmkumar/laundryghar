@@ -23,6 +23,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         'Laundry Ghar Rider uses your location to track pickups and deliveries.',
       NSLocationAlwaysAndWhenInUseUsageDescription:
         'Laundry Ghar Rider uses your location in the background during active shifts.',
+      // Allow continued GPS while the app is backgrounded during a shift.
+      UIBackgroundModes: ['location'],
     },
   },
   android: {
@@ -35,6 +37,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     permissions: [
       'ACCESS_FINE_LOCATION',
       'ACCESS_COARSE_LOCATION',
+      // Background GPS + the mandatory foreground service that carries it.
+      'ACCESS_BACKGROUND_LOCATION',
+      'FOREGROUND_SERVICE',
+      'FOREGROUND_SERVICE_LOCATION',
     ],
   },
   extra: {
@@ -59,6 +65,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         locationAlwaysAndWhenInUsePermission:
           'Laundry Ghar Rider uses your location during active shifts.',
+        // Wire the native background-location entitlements/services.
+        isAndroidBackgroundLocationEnabled: true,
+        isIosBackgroundLocationEnabled: true,
       },
     ],
     [
