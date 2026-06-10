@@ -1,5 +1,6 @@
 using laundryghar.Logistics.Application.Riders.Commands;
 using laundryghar.Logistics.Application.Riders.Dtos;
+using laundryghar.Logistics.Infrastructure.Services;
 using laundryghar.Utilities.Common;
 using MediatR;
 
@@ -156,7 +157,7 @@ public sealed class GetRidersHandler : IRequestHandler<GetRidersQuery, Paginated
             var storeName = r.PrimaryStoreId.HasValue && storeNameMap.TryGetValue(r.PrimaryStoreId.Value, out var sn)
                                 ? sn : null;
 
-            return CreateRiderHandler.ToDto(
+            var dto = CreateRiderHandler.ToDto(
                 r,
                 riderName,
                 u?.Email,
@@ -164,6 +165,7 @@ public sealed class GetRidersHandler : IRequestHandler<GetRidersQuery, Paginated
                 u?.Status,
                 f?.Name,
                 storeName);
+            return RiderDtoFinancialMask.Apply(dto, _user);
         });
     }
 }
@@ -189,6 +191,7 @@ public sealed class GetRiderByIdHandler : IRequestHandler<GetRiderByIdQuery, Rid
         // read riders that belong to a different franchise.
         if (_user.FranchiseId is Guid fid && rider.FranchiseId != fid) return null;
 
-        return await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        var dto = await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        return RiderDtoFinancialMask.Apply(dto, _user);
     }
 }

@@ -67,6 +67,15 @@ public sealed class CreatePromotionHandler : IRequestHandler<CreatePromotionComm
         var req = cmd.Request;
         var now = DateTimeOffset.UtcNow;
 
+        // Validate the linked coupon belongs to this brand, when supplied (cross-brand IDOR guard).
+        if (req.CouponId.HasValue)
+        {
+            var couponInBrand = await _db.Coupons
+                .AnyAsync(c => c.Id == req.CouponId.Value && c.BrandId == brandId && c.DeletedAt == null, ct);
+            if (!couponInBrand)
+                throw new KeyNotFoundException("Coupon not found.");
+        }
+
         var entity = new Promotion
         {
             Id               = Guid.NewGuid(),
@@ -130,6 +139,15 @@ public sealed class UpdatePromotionHandler : IRequestHandler<UpdatePromotionComm
         if (entity is null) return null;
 
         var req = cmd.Request;
+
+        // Validate the linked coupon belongs to this brand, when supplied (cross-brand IDOR guard).
+        if (req.CouponId.HasValue)
+        {
+            var couponInBrand = await _db.Coupons
+                .AnyAsync(c => c.Id == req.CouponId.Value && c.BrandId == brandId && c.DeletedAt == null, ct);
+            if (!couponInBrand)
+                throw new KeyNotFoundException("Coupon not found.");
+        }
         entity.Name             = req.Name;
         entity.Description      = req.Description;
         entity.TargetAudience   = req.TargetAudience;

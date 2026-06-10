@@ -27,6 +27,13 @@ public sealed class CreatePickupRequestAdminHandler
     public async Task<PickupRequestDto> Handle(CreatePickupRequestAdminCommand cmd, CancellationToken ct)
     {
         var brandId = _user.RequireBrandId();
+
+        // Validate the supplied customer belongs to this brand (cross-brand IDOR guard).
+        var customerInBrand = await _db.Customers
+            .AnyAsync(c => c.Id == cmd.CustomerId && c.BrandId == brandId, ct);
+        if (!customerInBrand)
+            throw new KeyNotFoundException("Customer not found.");
+
         return await CreatePickup(_db, brandId, _user.StoreId, cmd.CustomerId, cmd.Request, cmd.ActorId, ct);
     }
 
@@ -98,6 +105,12 @@ public sealed class AssignPickupHandler : IRequestHandler<AssignPickupCommand, D
         var pr = await _db.PickupRequests
             .FirstOrDefaultAsync(p => p.Id == cmd.PickupRequestId && p.BrandId == brandId, ct);
         if (pr is null) return null;
+
+        // Validate the assigned rider belongs to this brand (cross-brand IDOR guard).
+        var riderInBrand = await _db.Riders
+            .AnyAsync(r => r.Id == cmd.Request.RiderId && r.BrandId == brandId, ct);
+        if (!riderInBrand)
+            throw new KeyNotFoundException("Rider not found.");
 
         var now = DateTimeOffset.UtcNow;
         var storeId = pr.StoreId ?? _user.StoreId ?? Guid.Empty;

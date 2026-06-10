@@ -27,6 +27,12 @@ public sealed class CreateWarehouseBatchHandler
         var req     = cmd.Request;
         var now     = DateTimeOffset.UtcNow;
 
+        // Validate the warehouse belongs to this brand (cross-brand IDOR guard).
+        var warehouseInBrand = await _db.Warehouses
+            .AnyAsync(w => w.Id == req.WarehouseId && w.BrandId == brandId, ct);
+        if (!warehouseInBrand)
+            throw new KeyNotFoundException("Warehouse not found.");
+
         var count  = await _db.WarehouseBatches.CountAsync(b => b.BrandId == brandId, ct);
         var batchNo = $"WB-{now:yyyyMMdd}-{(count + 1):D4}";
 

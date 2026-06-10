@@ -27,6 +27,23 @@ public sealed class CreateAppBannerHandler
         var req = cmd.Request;
         var now = DateTimeOffset.UtcNow;
 
+        // Validate referenced promotion and coupon belong to this brand (cross-brand IDOR guards).
+        if (req.PromotionId.HasValue)
+        {
+            var promotionInBrand = await _db.Promotions
+                .AnyAsync(p => p.Id == req.PromotionId.Value && p.BrandId == brandId, ct);
+            if (!promotionInBrand)
+                throw new KeyNotFoundException("Promotion not found.");
+        }
+
+        if (req.CouponId.HasValue)
+        {
+            var couponInBrand = await _db.Coupons
+                .AnyAsync(c => c.Id == req.CouponId.Value && c.BrandId == brandId && c.DeletedAt == null, ct);
+            if (!couponInBrand)
+                throw new KeyNotFoundException("Coupon not found.");
+        }
+
         var entity = new AppBanner
         {
             Id               = Guid.NewGuid(),
@@ -106,6 +123,23 @@ public sealed class UpdateAppBannerHandler
         if (entity is null) return null;
 
         var req = cmd.Request;
+
+        // Validate referenced promotion and coupon belong to this brand (cross-brand IDOR guards).
+        if (req.PromotionId.HasValue)
+        {
+            var promotionInBrand = await _db.Promotions
+                .AnyAsync(p => p.Id == req.PromotionId.Value && p.BrandId == brandId, ct);
+            if (!promotionInBrand)
+                throw new KeyNotFoundException("Promotion not found.");
+        }
+
+        if (req.CouponId.HasValue)
+        {
+            var couponInBrand = await _db.Coupons
+                .AnyAsync(c => c.Id == req.CouponId.Value && c.BrandId == brandId && c.DeletedAt == null, ct);
+            if (!couponInBrand)
+                throw new KeyNotFoundException("Coupon not found.");
+        }
         entity.AppType           = req.AppType;
         entity.Placement         = req.Placement;
         entity.Title             = req.Title;

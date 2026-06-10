@@ -32,7 +32,7 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Authority))
     throw new InvalidOperationException(
         "Jwt:Authority (the Identity issuer base URL whose JWKS publishes the RS256 public key) is required.");// ─── Data ──────────────────────────────────────────────────────────────────
 
-builder.Services.AddSharedDataModel(connStr);
+builder.Services.AddSharedDataModel(connStr, builder.Configuration, builder.Environment);
 
 // ─── HTTP context + tenant/user ──────────────────────────────────────────────
 
@@ -44,9 +44,38 @@ builder.Services.AddScoped<ICurrentUser,   HttpContextCurrentUser>();
 
 builder.Services.Configure<JwtSettings>(jwtSection);
 
-// ─── Payment gateway (dev stub; real Razorpay BSP swaps in here) ───────────
+// ─── Payment gateway ────────────────────────────────────────────────────────
+// Development → DevPaymentGateway (stub, always succeeds).
+// All other environments → RazorpayPaymentGateway.
+// Fail closed: missing Razorpay:KeyId / Razorpay:KeySecret in non-Development
+// throws at startup — mirrors RsaJwtKeyProvider's approach.
 
-builder.Services.AddSingleton<IPaymentGateway, DevPaymentGateway>();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSingleton<IPaymentGateway, DevPaymentGateway>();
+}
+else
+{
+    var rzpSection = builder.Configuration.GetSection(RazorpaySettings.SectionName);
+    var rzpKeyId     = rzpSection["KeyId"];
+    var rzpKeySecret = rzpSection["KeySecret"];
+
+    if (string.IsNullOrWhiteSpace(rzpKeyId) || string.IsNullOrWhiteSpace(rzpKeySecret))
+        throw new InvalidOperationException(
+            "Razorpay:KeyId and Razorpay:KeySecret are required outside Development. " +
+            "Provide them via environment variables or Key Vault — never hardcode.");
+
+    builder.Services.Configure<RazorpaySettings>(rzpSection);
+
+    // Named HttpClient "razorpay" — base address + sensible timeout
+    builder.Services.AddHttpClient("razorpay", http =>
+    {
+        http.BaseAddress = new Uri("https://api.razorpay.com/");
+        http.Timeout     = TimeSpan.FromSeconds(30);
+    });
+
+    builder.Services.AddSingleton<IPaymentGateway, RazorpayPaymentGateway>();
+}
 
 // ─── MediatR + FluentValidation ─────────────────────────────────────────────
 
@@ -168,6 +197,30 @@ admin.MapAdminCommerceEndpoints();
 
 var customer = v1.MapGroup("/customer").RequireAuthorization("CustomerOnly");
 customer.MapCustomerCommerceEndpoints();
+
+// ─── Razorpay webhook ───────────────────────────────────────────────────────
+// POST /api/v1/webhooks/razorpay — unauthenticated; auth is the HMAC signature.
+// Reads the RAW body for HMAC (before any model binding) and sets bypass_rls so
+// RLS interceptor skips brand filtering on this anonymous path.
+v1.MapPost("/webhooks/razorpay", async (HttpContext http, ISender sender, CancellationToken ct) =>
+{
+    // Must read raw body BEFORE any model binding — needed for HMAC replay check
+    http.Request.EnableBuffering();
+    using var ms = new System.IO.MemoryStream();
+    await http.Request.Body.CopyToAsync(ms, ct);
+    var rawBody   = ms.ToArray();
+
+    var signature = http.Request.Headers["X-Razorpay-Signature"].FirstOrDefault();
+
+    // Set bypass_rls so the RLS interceptor skips brand filtering for this
+    // anonymous path — we filter explicitly by gateway ids in the handler.
+    http.Items["bypass_rls"] = true;
+
+    var result = await sender.Send(
+        new laundryghar.Commerce.Application.Webhooks.ProcessRazorpayWebhookCommand(rawBody, signature), ct);
+
+    return result.Accepted ? Results.Ok() : Results.BadRequest(result.Reason);
+}).AllowAnonymous();
 
 // ─── Aspire default health endpoints (/health + /alive, Development only) ─────────────
 app.MapDefaultEndpoints();

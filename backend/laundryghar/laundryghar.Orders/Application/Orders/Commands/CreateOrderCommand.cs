@@ -34,6 +34,14 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             .FirstOrDefaultAsync(s => s.Id == req.StoreId && s.BrandId == brandId, ct)
             ?? throw new KeyNotFoundException($"Store {req.StoreId} not found in brand.");
 
+        // ── Validate customer belongs to this brand (cross-brand IDOR guard) ─
+        // req.CustomerId is actor-supplied in the request body; RLS does NOT protect
+        // a bare assignment — we must verify ownership before writing the FK.
+        var customerInBrand = await _db.Customers
+            .AnyAsync(c => c.Id == req.CustomerId && c.BrandId == brandId, ct);
+        if (!customerInBrand)
+            throw new KeyNotFoundException("Customer not found.");
+
         // ── Resolve prices for each line ────────────────────────────────────
         decimal subtotal = 0, addonTotal = 0;
         var itemEntities  = new List<OrderItem>();

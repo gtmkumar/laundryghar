@@ -81,8 +81,28 @@ public sealed class IssueRefundHandler : IRequestHandler<IssueRefundCommand, Pay
             throw new BusinessRuleException("Payment not found.");
         if (payment.Status != "captured" && payment.Status != "completed")
             throw new BusinessRuleException($"Cannot refund a payment with status '{payment.Status}'.");
-        if (req.Amount <= 0 || req.Amount > payment.Amount)
-            throw new BusinessRuleException("Refund amount must be > 0 and ≤ original payment amount.");
+        if (req.Amount <= 0)
+            throw new BusinessRuleException("Refund amount must be greater than zero.");
+
+        // Idempotency: if the same idempotency key was already used for this payment, return the existing refund.
+        if (!string.IsNullOrWhiteSpace(req.IdempotencyKey))
+        {
+            var existingRefund = await _db.PaymentRefunds
+                .FirstOrDefaultAsync(r => r.IdempotencyKey == req.IdempotencyKey
+                                       && r.OriginalPaymentId == payment.Id, ct);
+            if (existingRefund is not null)
+                return ToRefundDto(existingRefund);
+        }
+
+        // Cumulative cap: sum of non-failed refunds must not exceed the captured amount.
+        var alreadyRefunded = await _db.PaymentRefunds
+            .Where(r => r.OriginalPaymentId == payment.Id && r.Status != "failed")
+            .SumAsync(r => (decimal?)r.Amount, ct) ?? 0m;
+
+        if (alreadyRefunded + req.Amount > payment.Amount)
+            throw new BusinessRuleException(
+                $"Cumulative refund total ({alreadyRefunded + req.Amount:F2}) would exceed " +
+                $"the original payment amount ({payment.Amount:F2}).");
 
         var now = DateTimeOffset.UtcNow;
         var refundNumber = $"REF-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..30];
@@ -105,6 +125,7 @@ public sealed class IssueRefundHandler : IRequestHandler<IssueRefundCommand, Pay
                 Reason             = req.Reason,
                 ReasonText         = req.ReasonText,
                 Notes              = req.Notes,
+                IdempotencyKey     = req.IdempotencyKey,
                 Status             = "processing",
                 RequestedBy        = cmd.ActorId,
                 RequestedAt        = now,

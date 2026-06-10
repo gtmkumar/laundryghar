@@ -6,3 +6,4 @@
 - [BC-9 Analytics Service](project-bc9-analytics.md) — MV brand-id guard (no RLS on MVs), CONCURRENTLY fallback, permission model, type mappings
 - [Aspire AppHost setup](project-aspire-apphost.md) — SDK 13.4.2 quirks, connection string injection via literal env var (not AddConnectionString), port pinning, ASPIRE002 benign warning
 - [Worker service context](project-worker-service.md) — outbox drain design, RLS bypass via WorkerCurrentTenant, verified enum values, two-transaction per-row pattern, backoff formula, Aspire no-HTTP registration
+- [PII encryption design](project-pii-encryption.md) — AES-256-GCM ValueConverter, users.read_financial gate, IFSC kept clear, legacy passthrough, dev key auto-gen, audit-log no writer yet

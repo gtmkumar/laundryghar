@@ -376,7 +376,24 @@ public sealed record PaymentDto(
     DateTimeOffset? FailedAt,
     string? IdempotencyKey,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt
+    DateTimeOffset UpdatedAt,
+    /// <summary>
+    /// Refund information visible to the customer. Null when no refunds exist.
+    /// Populated only on paths that include refund data (VerifyPayment result
+    /// does not load refunds; use the payment detail endpoint for the latest state).
+    /// </summary>
+    PaymentRefundSummaryDto? RefundSummary = null
+);
+
+/// <summary>
+/// Lightweight refund status visible to customers. Allows the mobile app to
+/// surface pending/completed refund state without a separate API call.
+/// </summary>
+public sealed record PaymentRefundSummaryDto(
+    string Status,
+    decimal Amount,
+    DateTimeOffset RequestedAt,
+    DateTimeOffset? CompletedAt
 );
 
 public sealed record InitiatePaymentRequest(
@@ -424,7 +441,12 @@ public sealed record IssueRefundRequest(
     string Reason,
     string? ReasonText,
     string RefundType,  // "gateway" or "wallet"
-    string? Notes
+    string? Notes,
+    /// <summary>
+    /// Optional client-supplied idempotency key. When provided, a second call
+    /// with the same key returns the original refund without creating a duplicate.
+    /// </summary>
+    string? IdempotencyKey = null
 );
 
 // ── WalletAccount + Transaction ────────────────────────────────────────────────

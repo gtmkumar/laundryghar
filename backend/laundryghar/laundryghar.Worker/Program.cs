@@ -37,7 +37,7 @@ builder.Services.Configure<WorkerOptions>(
 builder.Services.AddScoped<ICurrentTenant, WorkerCurrentTenant>();
 
 // ─── Data ─────────────────────────────────────────────────────────────────────────────
-builder.Services.AddSharedDataModel(connStr);
+builder.Services.AddSharedDataModel(connStr, builder.Configuration, builder.Environment);
 
 // ─── Channel sender and event publisher (dev stubs; swap for real providers in prod) ─
 builder.Services.AddScoped<IChannelSender, LoggingChannelSender>();

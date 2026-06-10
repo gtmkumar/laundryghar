@@ -112,12 +112,15 @@ public sealed class CreateRiderHandler : IRequestHandler<CreateRiderCommand, Rid
 
         _db.Riders.Add(rider);
         await _db.SaveChangesAsync(ct);
-        return await LoadEnrichedAsync(_db, rider, ct);
+        var dto = await LoadEnrichedAsync(_db, rider, ct);
+        return RiderDtoFinancialMask.Apply(dto, _user);
     }
 
     /// <summary>
     /// Builds a <see cref="RiderDto"/> from a fully-populated <see cref="Rider"/> entity
     /// plus the pre-fetched identity/org context. Used by query projections.
+    /// PII fields are included in the DTO; callers must apply
+    /// <see cref="RiderDtoFinancialMask.Apply"/> before returning to the HTTP layer.
     /// </summary>
     internal static RiderDto ToDto(
         Rider   r,
@@ -139,7 +142,10 @@ public sealed class CreateRiderHandler : IRequestHandler<CreateRiderCommand, Rid
             r.KycStatus,        r.Status,
             r.CreatedAt,        r.UpdatedAt,
             riderName,          email,              phone,
-            userStatus,         franchiseName,      primaryStoreName);
+            userStatus,         franchiseName,      primaryStoreName,
+            // Financial PII — populated here; masking applied by the handler before HTTP response.
+            r.PanNumber,        r.BankAccountNumber,
+            r.BankIfsc,         r.BankAccountName,  r.UpiId);
 
     /// <summary>
     /// Re-queries the enrichment rows for a single rider after a write operation
@@ -203,6 +209,16 @@ public sealed class UpdateRiderHandler : IRequestHandler<UpdateRiderCommand, Rid
         var req = cmd.Request;
         var now = DateTimeOffset.UtcNow;
 
+        // Cross-brand guard: a new primary store must be a store of the rider's
+        // franchise in the current brand.
+        if (req.PrimaryStoreId is Guid newStoreId)
+        {
+            var storeInBrand = await _db.Stores.AnyAsync(
+                s => s.Id == newStoreId && s.BrandId == brandId && s.FranchiseId == rider.FranchiseId, ct);
+            if (!storeInBrand)
+                throw new BusinessRuleException("PrimaryStoreId must be a store of the rider's franchise in the current brand.");
+        }
+
         if (req.Status             is not null) rider.Status               = req.Status;
         if (req.EmploymentType     is not null) rider.EmploymentType       = req.EmploymentType;
         if (req.VehicleType        is not null) rider.VehicleType          = req.VehicleType;
@@ -226,7 +242,8 @@ public sealed class UpdateRiderHandler : IRequestHandler<UpdateRiderCommand, Rid
         rider.UpdatedBy = cmd.ActorId;
 
         await _db.SaveChangesAsync(ct);
-        return await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        var dto = await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        return RiderDtoFinancialMask.Apply(dto, _user);
     }
 }
 
@@ -260,7 +277,8 @@ public sealed class DeactivateRiderHandler : IRequestHandler<DeactivateRiderComm
         rider.UpdatedBy = cmd.ActorId;
 
         await _db.SaveChangesAsync(ct);
-        return await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        var dto = await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        return RiderDtoFinancialMask.Apply(dto, _user);
     }
 }
 
@@ -289,7 +307,10 @@ public sealed class VerifyRiderKycHandler : IRequestHandler<VerifyRiderKycComman
 
         // Idempotent: already verified — return current state without mutation.
         if (rider.KycStatus == RiderKycStatus.Verified)
-            return await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        {
+            var dtoCurrent = await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+            return RiderDtoFinancialMask.Apply(dtoCurrent, _user);
+        }
 
         var now = DateTimeOffset.UtcNow;
         rider.KycStatus    = RiderKycStatus.Verified;
@@ -311,7 +332,8 @@ public sealed class VerifyRiderKycHandler : IRequestHandler<VerifyRiderKycComman
         }
 
         await _db.SaveChangesAsync(ct);
-        return await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        var dtoVerified = await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        return RiderDtoFinancialMask.Apply(dtoVerified, _user);
     }
 }
 
@@ -353,7 +375,8 @@ public sealed class RejectRiderKycHandler : IRequestHandler<RejectRiderKycComman
         }
 
         await _db.SaveChangesAsync(ct);
-        return await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        var dtoRejected = await CreateRiderHandler.LoadEnrichedAsync(_db, rider, ct);
+        return RiderDtoFinancialMask.Apply(dtoRejected, _user);
     }
 }
 

@@ -26,6 +26,30 @@ public sealed class CreateDeliveryAssignmentHandler
         var req     = cmd.Request;
         var now     = DateTimeOffset.UtcNow;
 
+        // Validate the assigned rider belongs to this brand (cross-brand IDOR guard).
+        var riderInBrand = await _db.Riders
+            .AnyAsync(r => r.Id == req.RiderId && r.BrandId == brandId, ct);
+        if (!riderInBrand)
+            throw new KeyNotFoundException("Rider not found.");
+
+        // Validate the linked order belongs to this brand, if supplied.
+        if (req.OrderId.HasValue)
+        {
+            var orderInBrand = await _db.Orders
+                .AnyAsync(o => o.Id == req.OrderId.Value && o.BrandId == brandId, ct);
+            if (!orderInBrand)
+                throw new KeyNotFoundException("Order not found.");
+        }
+
+        // Validate the linked pickup request belongs to this brand, if supplied.
+        if (req.PickupRequestId.HasValue)
+        {
+            var pickupInBrand = await _db.PickupRequests
+                .AnyAsync(p => p.Id == req.PickupRequestId.Value && p.BrandId == brandId, ct);
+            if (!pickupInBrand)
+                throw new KeyNotFoundException("Pickup request not found.");
+        }
+
         var assignment = new DeliveryAssignment
         {
             Id              = Guid.NewGuid(),

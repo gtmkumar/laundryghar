@@ -1,3 +1,4 @@
+using laundryghar.SharedDataModel.Crypto;
 using laundryghar.SharedDataModel.Entities.Logistics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -19,17 +20,39 @@ public sealed class RiderConfiguration : IEntityTypeConfiguration<Rider>
         b.Property(e => e.RiderCode).HasColumnName("rider_code").HasMaxLength(30).IsRequired();
         b.Property(e => e.EmploymentType).HasColumnName("employment_type").HasMaxLength(20).IsRequired();
         b.Property(e => e.AadhaarNumberMasked).HasColumnName("aadhaar_number_masked").HasMaxLength(20);
-        b.Property(e => e.PanNumber).HasColumnName("pan_number").HasMaxLength(10);
         b.Property(e => e.DrivingLicenseNumber).HasColumnName("driving_license_number").HasMaxLength(50);
         b.Property(e => e.DlExpiryDate).HasColumnName("dl_expiry_date");
         b.Property(e => e.VehicleType).HasColumnName("vehicle_type").HasMaxLength(20).IsRequired();
         b.Property(e => e.VehicleNumber).HasColumnName("vehicle_number").HasMaxLength(20);
         b.Property(e => e.VehicleModel).HasColumnName("vehicle_model").HasMaxLength(100);
         b.Property(e => e.InsuranceExpiryDate).HasColumnName("insurance_expiry_date");
-        b.Property(e => e.BankAccountNumber).HasColumnName("bank_account_number").HasMaxLength(50);
-        b.Property(e => e.BankIfsc).HasColumnName("bank_ifsc").HasMaxLength(11);
         b.Property(e => e.BankAccountName).HasColumnName("bank_account_name").HasMaxLength(200);
-        b.Property(e => e.UpiId).HasColumnName("upi_id").HasMaxLength(100);
+
+        // ── PII columns: AES-256-GCM encrypted at rest ──────────────────────────
+        // Column type widened to text via db patch pii_encryption_column_widening.sql.
+        // PiiValueConverter.Instance is set before the context is first constructed by
+        // AddSharedDataModel(). Null guard allows unit tests that skip DI.
+        if (PiiValueConverter.Instance is { } conv)
+        {
+            b.Property(e => e.PanNumber)
+                .HasColumnName("pan_number")
+                .HasConversion(conv);
+            b.Property(e => e.BankAccountNumber)
+                .HasColumnName("bank_account_number")
+                .HasConversion(conv);
+            b.Property(e => e.UpiId)
+                .HasColumnName("upi_id")
+                .HasConversion(conv);
+        }
+        else
+        {
+            b.Property(e => e.PanNumber).HasColumnName("pan_number").HasMaxLength(10);
+            b.Property(e => e.BankAccountNumber).HasColumnName("bank_account_number").HasMaxLength(50);
+            b.Property(e => e.UpiId).HasColumnName("upi_id").HasMaxLength(100);
+        }
+
+        // IFSC: publicly listed branch code, not encrypted.
+        b.Property(e => e.BankIfsc).HasColumnName("bank_ifsc").HasMaxLength(11);
         b.Property(e => e.DailyPickupCapacity).HasColumnName("daily_pickup_capacity").IsRequired();
         b.Property(e => e.DailyDeliveryCapacity).HasColumnName("daily_delivery_capacity").IsRequired();
         b.Property(e => e.ServiceRadiusKm).HasColumnName("service_radius_km").HasColumnType("numeric(5,2)").IsRequired();

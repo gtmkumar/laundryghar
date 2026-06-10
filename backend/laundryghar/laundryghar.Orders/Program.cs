@@ -31,7 +31,7 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Authority))
     throw new InvalidOperationException(
         "Jwt:Authority (the Identity issuer base URL whose JWKS publishes the RS256 public key) is required.");// ─── Data ──────────────────────────────────────────────────────────────────
 
-builder.Services.AddSharedDataModel(connStr);
+builder.Services.AddSharedDataModel(connStr, builder.Configuration, builder.Environment);
 
 // ─── HTTP context ──────────────────────────────────────────────────────────
 

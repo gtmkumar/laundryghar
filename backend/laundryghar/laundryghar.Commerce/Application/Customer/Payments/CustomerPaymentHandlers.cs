@@ -142,6 +142,13 @@ public sealed class VerifyPaymentHandler : IRequestHandler<VerifyPaymentCommand,
         if (payment.Status != "pending")
             throw new BusinessRuleException($"Cannot verify payment with status '{payment.Status}'.");
 
+        // Binding guard: the gateway_order_id supplied by the client must match the one
+        // stored when the payment was initiated. A mismatch means the caller is either
+        // replaying a different order's signature or has sent a tampered request.
+        if (!string.Equals(payment.GatewayOrderId, req.GatewayOrderId, StringComparison.Ordinal))
+            throw new BusinessRuleException(
+                "GatewayOrderId does not match the payment record. Verification rejected.");
+
         var isValid = await _gateway.VerifySignatureAsync(
             req.GatewayOrderId, req.GatewayPaymentId, req.GatewaySignature, ct);
 

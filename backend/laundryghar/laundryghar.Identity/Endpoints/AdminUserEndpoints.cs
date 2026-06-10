@@ -26,9 +26,9 @@ public static class AdminUserEndpoints
                 { Status = true, Data = r });
         }).WithName("GetUsers").RequireAuthorization("permission:users.list");
 
-        users.MapGet("/{id:guid}", async (Guid id, ISender sender, CancellationToken ct) =>
+        users.MapGet("/{id:guid}", async (Guid id, ICurrentUser actor, ISender sender, CancellationToken ct) =>
         {
-            var r = await sender.Send(new GetUserByIdQuery(id), ct);
+            var r = await sender.Send(new GetUserByIdQuery(id, actor), ct);
             return r is null ? Results.NotFound() : Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<UserDto> { Status = true, Data = r });
         }).WithName("GetUserById").RequireAuthorization("permission:users.read");
 
@@ -41,7 +41,7 @@ public static class AdminUserEndpoints
 
         users.MapPut("/{id:guid}", async (Guid id, UpdateUserRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {
-            var r = await sender.Send(new UpdateUserCommand(id, req, u.UserId), ct);
+            var r = await sender.Send(new UpdateUserCommand(id, req, u.UserId, u), ct);
             return r is null ? Results.NotFound() : Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.SingleResponse<UserDto> { Status = true, Data = r });
         }).WithName("UpdateUser").RequireAuthorization("permission:users.update");
 

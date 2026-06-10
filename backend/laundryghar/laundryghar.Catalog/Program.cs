@@ -34,7 +34,7 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Authority))
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 
-builder.Services.AddSharedDataModel(connStr);
+builder.Services.AddSharedDataModel(connStr, builder.Configuration, builder.Environment);
 
 // ─── HTTP context ──────────────────────────────────────────────────────────
 

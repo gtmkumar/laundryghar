@@ -31,6 +31,15 @@ public sealed class CreateCapacityConfigHandler
         if (!riderExists)
             throw new BusinessRuleException("Rider not found under the current brand.");
 
+        // Cross-brand guard: an explicit store must belong to this brand too.
+        if (req.StoreId is Guid storeId)
+        {
+            var storeExists = await _db.Stores
+                .AnyAsync(s => s.Id == storeId && s.BrandId == brandId, ct);
+            if (!storeExists)
+                throw new BusinessRuleException("Store not found under the current brand.");
+        }
+
         var config = new RiderCapacityConfig
         {
             Id                   = Guid.NewGuid(),

@@ -109,12 +109,13 @@ public sealed class IdentitySeeder
         // store_warehouse_mappings
         ("store_warehouse.manage","store_warehouse","manage","Manage store-warehouse mappings","normal"),
         // users
-        ("users.list",        "users","list",     "List users",        "normal"),
-        ("users.read",        "users","read",     "Read user",         "normal"),
-        ("users.create",      "users","create",   "Create user",       "high"),
-        ("users.update",      "users","update",   "Update user",       "normal"),
-        ("users.deactivate",  "users","deactivate","Deactivate user",  "high"),
-        ("users.set_password","users","set_password","Set user password","critical"),
+        ("users.list",           "users","list",           "List users",                    "normal"),
+        ("users.read",           "users","read",           "Read user",                     "normal"),
+        ("users.read_financial", "users","read_financial", "Read user financial PII (unmasked)", "high"),
+        ("users.create",         "users","create",         "Create user",                   "high"),
+        ("users.update",         "users","update",         "Update user",                   "normal"),
+        ("users.deactivate",     "users","deactivate",     "Deactivate user",               "high"),
+        ("users.set_password",   "users","set_password",   "Set user password",             "critical"),
         // roles
         ("roles.list",        "roles","list",     "List roles",        "low"),
         ("roles.manage",      "roles","manage",   "Manage roles",      "critical"),
@@ -346,7 +347,7 @@ public sealed class IdentitySeeder
             "territories.list","territories.create","territories.update",
             "stores.list","stores.read","stores.create","stores.update","stores.delete",
             "warehouses.list","warehouses.create","warehouses.update","warehouses.delete",
-            "users.list","users.read","users.create","users.update","users.deactivate","users.set_type",
+            "users.list","users.read","users.read_financial","users.create","users.update","users.deactivate","users.set_type",
             "roles.list","permissions.list","memberships.grant","memberships.revoke",
             "operating_hours.manage","holidays.manage","store_warehouse.manage",
             "orders.list","orders.update","orders.cancel","orders.refund",

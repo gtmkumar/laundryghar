@@ -162,6 +162,30 @@ public sealed class CreateExpenseHandler : IRequestHandler<CreateExpenseCommand,
         var req     = cmd.Request;
         var now     = DateTimeOffset.UtcNow;
 
+        // Verify franchise belongs to brand (cross-brand IDOR guard).
+        var franchiseInBrand = await _db.Franchises
+            .AnyAsync(f => f.Id == req.FranchiseId && f.BrandId == brandId, ct);
+        if (!franchiseInBrand)
+            throw new KeyNotFoundException("Franchise not found.");
+
+        // Verify store belongs to brand, when supplied.
+        if (req.StoreId.HasValue)
+        {
+            var storeInBrand = await _db.Stores
+                .AnyAsync(s => s.Id == req.StoreId.Value && s.BrandId == brandId, ct);
+            if (!storeInBrand)
+                throw new KeyNotFoundException("Store not found.");
+        }
+
+        // Verify warehouse belongs to brand, when supplied.
+        if (req.WarehouseId.HasValue)
+        {
+            var warehouseInBrand = await _db.Warehouses
+                .AnyAsync(w => w.Id == req.WarehouseId.Value && w.BrandId == brandId, ct);
+            if (!warehouseInBrand)
+                throw new KeyNotFoundException("Warehouse not found.");
+        }
+
         // Verify category belongs to brand
         var catExists = await _db.ExpenseCategories
             .AnyAsync(c => c.Id == req.CategoryId && c.BrandId == brandId && c.Status == "active", ct);

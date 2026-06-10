@@ -1,6 +1,11 @@
+using laundryghar.Logistics.Infrastructure.Services;
+using laundryghar.SharedDataModel.Crypto;
+
 namespace laundryghar.Logistics.Application.Riders.Dtos;
 
-/// <summary>Full rider profile DTO returned from admin and rider-self endpoints.</summary>
+/// <summary>Full rider profile DTO returned from admin endpoints.
+/// Financial PII fields (PanNumber, BankAccountNumber, UpiId) are masked by default;
+/// callers holding <c>users.read_financial</c> (or platform_admin) receive clear values.</summary>
 public sealed record RiderDto(
     Guid    Id,
     Guid    UserId,
@@ -35,7 +40,32 @@ public sealed record RiderDto(
     string? Phone,
     string? UserStatus,
     string? FranchiseName,
-    string? PrimaryStoreName);
+    string? PrimaryStoreName,
+    // ── Financial PII (masked by default) ─────────────────────────────────
+    string? PanNumber       = null,
+    string? BankAccountNumber = null,
+    string? BankIfsc        = null,
+    string? BankAccountName = null,
+    string? UpiId           = null);
+
+/// <summary>
+/// Applies masking to financial PII fields on a <see cref="RiderDto"/>.
+/// </summary>
+internal static class RiderDtoFinancialMask
+{
+    internal const string ReadFinancialPermission = "users.read_financial";
+
+    internal static RiderDto Apply(RiderDto dto, ICurrentUser actor) =>
+        actor.IsPlatformAdmin || actor.HasPermission(ReadFinancialPermission)
+            ? dto
+            : dto with
+            {
+                PanNumber         = PiiMask.MaskPan(dto.PanNumber),
+                BankAccountNumber = PiiMask.MaskBankAccount(dto.BankAccountNumber),
+                UpiId             = PiiMask.MaskUpi(dto.UpiId),
+                // IFSC returned clear (public branch code). BankAccountName is not secret.
+            };
+}
 
 /// <summary>Request body for creating a rider profile (links an existing users row of user_type='rider').</summary>
 public sealed record CreateRiderRequest(

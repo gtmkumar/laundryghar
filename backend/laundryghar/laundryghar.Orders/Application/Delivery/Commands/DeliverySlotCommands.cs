@@ -24,6 +24,12 @@ public sealed class CreateDeliverySlotHandler : IRequestHandler<CreateDeliverySl
         var req = cmd.Request;
         var now = DateTimeOffset.UtcNow;
 
+        // Validate the store belongs to this brand (cross-brand IDOR guard).
+        var storeInBrand = await _db.Stores
+            .AnyAsync(s => s.Id == req.StoreId && s.BrandId == brandId, ct);
+        if (!storeInBrand)
+            throw new KeyNotFoundException("Store not found.");
+
         var slot = new DeliverySlot
         {
             Id           = Guid.NewGuid(),

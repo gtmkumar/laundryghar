@@ -42,6 +42,12 @@ public class PaymentRefund
     public DateTimeOffset? CustomerNotifiedAt { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// Optional idempotency key — prevents duplicate refund creation on retries.
+    /// Unique where not null (partial unique index).
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
+
     /// <summary>jsonb — arbitrary metadata.</summary>
     public string Metadata { get; set; } = null!;
 

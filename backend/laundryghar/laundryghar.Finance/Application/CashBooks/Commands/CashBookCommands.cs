@@ -48,6 +48,18 @@ public sealed class OpenCashBookHandler : IRequestHandler<OpenCashBookCommand, C
         var req     = cmd.Request;
         var now     = DateTimeOffset.UtcNow;
 
+        // Validate the store belongs to this brand (cross-brand IDOR guard).
+        var storeInBrand = await _db.Stores
+            .AnyAsync(s => s.Id == req.StoreId && s.BrandId == brandId, ct);
+        if (!storeInBrand)
+            throw new KeyNotFoundException("Store not found.");
+
+        // Validate the franchise belongs to this brand.
+        var franchiseInBrand = await _db.Franchises
+            .AnyAsync(f => f.Id == req.FranchiseId && f.BrandId == brandId, ct);
+        if (!franchiseInBrand)
+            throw new KeyNotFoundException("Franchise not found.");
+
         // Enforce uniqueness (store + date + shift)
         var exists = await _db.CashBooks.AnyAsync(
             b => b.BrandId   == brandId
@@ -308,6 +320,20 @@ public sealed class CreateShiftHandoverHandler : IRequestHandler<CreateShiftHand
         var brandId = _user.RequireBrandId();
         var req     = cmd.Request;
         var now     = DateTimeOffset.UtcNow;
+
+        // Cross-brand guards: the store and the (optional) cash book being
+        // handed over must belong to this brand.
+        var storeExists = await _db.Stores
+            .AnyAsync(s => s.Id == req.StoreId && s.BrandId == brandId, ct);
+        if (!storeExists)
+            throw new KeyNotFoundException("Store not found.");
+        if (req.CashBookId is Guid cashBookId)
+        {
+            var bookExists = await _db.CashBooks
+                .AnyAsync(b => b.Id == cashBookId && b.BrandId == brandId, ct);
+            if (!bookExists)
+                throw new KeyNotFoundException("Cash book not found.");
+        }
 
         var handover = new ShiftHandover
         {

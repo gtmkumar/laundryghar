@@ -1,5 +1,6 @@
 using laundryghar.Identity.Infrastructure.Auth;
 using laundryghar.Identity.Infrastructure.Services;
+using laundryghar.SharedDataModel.Crypto;
 using laundryghar.Utilities.Common;
 using MediatR;
 using System.Security.Cryptography;
@@ -18,6 +19,29 @@ public sealed record UserDto(
     string? KycStatus = null, DateTimeOffset? KycVerifiedAt = null,
     string? BankAccountName = null, string? BankAccountNumber = null,
     string? BankIfsc = null, string? UpiId = null);
+
+/// <summary>
+/// Applies masking to financial PII fields of a <see cref="UserDto"/>.
+/// Callers holding <c>users.read_financial</c> (or platform_admin bypass) receive clear values;
+/// all others receive masked values per <see cref="PiiMask"/>.
+/// </summary>
+internal static class UserDtoFinancialMask
+{
+    internal const string ReadFinancialPermission = "users.read_financial";
+
+    internal static UserDto Apply(UserDto dto, ICurrentUser actor) =>
+        actor.IsPlatformAdmin || actor.HasPermission(ReadFinancialPermission)
+            ? dto
+            : dto with
+            {
+                PanNumber         = PiiMask.MaskPan(dto.PanNumber),
+                BankAccountNumber = PiiMask.MaskBankAccount(dto.BankAccountNumber),
+                UpiId             = PiiMask.MaskUpi(dto.UpiId),
+                // IFSC is a public branch code — returned clear regardless of permission.
+                // AadhaarNumberMasked: already masked at write time by the frontend;
+                // returned as stored.
+            };
+}
 
 public sealed record CreateUserRequest(
     string? Email, string? Phone, string UserType,
@@ -53,9 +77,9 @@ public sealed record SetPasswordRequest(string NewPassword);
 // ─── Queries / Commands ────────────────────────────────────────────────────
 
 public sealed record GetUsersQuery(int Page = 1, int PageSize = 20, string? Status = null, string? UserType = null, string? Search = null) : IRequest<PaginatedList<UserDto>>;
-public sealed record GetUserByIdQuery(Guid Id)                                  : IRequest<UserDto?>;
+public sealed record GetUserByIdQuery(Guid Id, ICurrentUser? Actor = null)      : IRequest<UserDto?>;
 public sealed record CreateUserCommand(CreateUserRequest Request, Guid? ActorId) : IRequest<UserDto>;
-public sealed record UpdateUserCommand(Guid Id, UpdateUserRequest Request, Guid? ActorId) : IRequest<UserDto?>;
+public sealed record UpdateUserCommand(Guid Id, UpdateUserRequest Request, Guid? ActorId, ICurrentUser? Actor = null) : IRequest<UserDto?>;
 public sealed record DeactivateUserCommand(Guid Id, Guid? ActorId)              : IRequest<bool>;
 public sealed record SetPasswordCommand(Guid UserId, SetPasswordRequest Request, Guid? ActorId) : IRequest<bool>;
 
@@ -89,25 +113,40 @@ public sealed class GetUserByIdHandler : IRequestHandler<GetUserByIdQuery, UserD
 {
     private readonly LaundryGharDbContext _db;
     public GetUserByIdHandler(LaundryGharDbContext db) => _db = db;
-    public Task<UserDto?> Handle(GetUserByIdQuery r, CancellationToken ct) =>
-        _db.Users.AsNoTracking().Include(u => u.Profile)
+
+    public async Task<UserDto?> Handle(GetUserByIdQuery r, CancellationToken ct)
+    {
+        var dto = await _db.Users.AsNoTracking().Include(u => u.Profile)
             .Where(u => u.Id == r.Id)
             .Select(u => new UserDto(
                 u.Id, u.Email, u.PhoneE164, u.UserType, u.Status, u.MfaEnabled, u.LastLoginAt, u.CreatedAt,
-                u.Profile != null ? u.Profile.FirstName   : null,
-                u.Profile != null ? u.Profile.LastName    : null,
-                u.Profile != null ? u.Profile.DisplayName : null,
-                u.Profile != null ? u.Profile.Designation : null,
-                u.Profile != null ? u.Profile.EmploymentType : null,
-                u.Profile != null ? u.Profile.PanNumber : null,
+                u.Profile != null ? u.Profile.FirstName       : null,
+                u.Profile != null ? u.Profile.LastName        : null,
+                u.Profile != null ? u.Profile.DisplayName     : null,
+                u.Profile != null ? u.Profile.Designation     : null,
+                u.Profile != null ? u.Profile.EmploymentType  : null,
+                u.Profile != null ? u.Profile.PanNumber       : null,
                 u.Profile != null ? u.Profile.AadhaarNumberMasked : null,
-                u.Profile != null ? u.Profile.KycStatus : null,
-                u.Profile != null ? u.Profile.KycVerifiedAt : null,
+                u.Profile != null ? u.Profile.KycStatus       : null,
+                u.Profile != null ? u.Profile.KycVerifiedAt   : null,
                 u.Profile != null ? u.Profile.BankAccountName : null,
                 u.Profile != null ? u.Profile.BankAccountNumber : null,
-                u.Profile != null ? u.Profile.BankIfsc : null,
-                u.Profile != null ? u.Profile.UpiId : null))
+                u.Profile != null ? u.Profile.BankIfsc        : null,
+                u.Profile != null ? u.Profile.UpiId           : null))
             .FirstOrDefaultAsync(ct);
+
+        if (dto is null) return null;
+
+        // Apply financial PII masking unless the caller holds users.read_financial.
+        return r.Actor is not null
+            ? UserDtoFinancialMask.Apply(dto, r.Actor)
+            : dto with
+            {
+                PanNumber         = PiiMask.MaskPan(dto.PanNumber),
+                BankAccountNumber = PiiMask.MaskBankAccount(dto.BankAccountNumber),
+                UpiId             = PiiMask.MaskUpi(dto.UpiId),
+            };
+    }
 }
 
 public sealed class CreateUserHandler : IRequestHandler<CreateUserCommand, UserDto>
@@ -170,6 +209,7 @@ public sealed class UpdateUserHandler : IRequestHandler<UpdateUserCommand, UserD
 {
     private readonly LaundryGharDbContext _db;
     public UpdateUserHandler(LaundryGharDbContext db) => _db = db;
+
     public async Task<UserDto?> Handle(UpdateUserCommand cmd, CancellationToken ct)
     {
         var user = await _db.Users.Include(u => u.Profile).FirstOrDefaultAsync(u => u.Id == cmd.Id, ct);
@@ -228,12 +268,25 @@ public sealed class UpdateUserHandler : IRequestHandler<UpdateUserCommand, UserD
         }
 
         await _db.SaveChangesAsync(ct);
-        return new UserDto(user.Id, user.Email, user.PhoneE164, user.UserType, user.Status,
+
+        var result = new UserDto(user.Id, user.Email, user.PhoneE164, user.UserType, user.Status,
             user.MfaEnabled, user.LastLoginAt, user.CreatedAt,
             profile?.FirstName, profile?.LastName, profile?.DisplayName,
             profile?.Designation, profile?.EmploymentType, profile?.PanNumber, profile?.AadhaarNumberMasked,
             profile?.KycStatus, profile?.KycVerifiedAt, profile?.BankAccountName, profile?.BankAccountNumber,
             profile?.BankIfsc, profile?.UpiId);
+
+        // Mask financial PII unless the caller holds users.read_financial.
+        // HANDOFF.md §4: the edit drawer uses "blank = keep, typed = overwrite" semantics
+        // and never echoes sensitive fields back — this masking is consistent with that contract.
+        return cmd.Actor is not null
+            ? UserDtoFinancialMask.Apply(result, cmd.Actor)
+            : result with
+            {
+                PanNumber         = PiiMask.MaskPan(result.PanNumber),
+                BankAccountNumber = PiiMask.MaskBankAccount(result.BankAccountNumber),
+                UpiId             = PiiMask.MaskUpi(result.UpiId),
+            };
     }
 }
 

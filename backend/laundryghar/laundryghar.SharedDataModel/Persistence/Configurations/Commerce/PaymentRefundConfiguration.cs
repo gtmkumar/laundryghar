@@ -36,6 +36,7 @@ public sealed class PaymentRefundConfiguration : IEntityTypeConfiguration<Paymen
         b.Property(e => e.FailureReason).HasColumnName("failure_reason");
         b.Property(e => e.CustomerNotifiedAt).HasColumnName("customer_notified_at");
         b.Property(e => e.Notes).HasColumnName("notes");
+        b.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(150);
         b.Property(e => e.Metadata).HasColumnName("metadata").HasColumnType("jsonb").IsRequired();
         b.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(e => e.UpdatedAt).HasColumnName("updated_at").IsRequired();
@@ -44,6 +45,15 @@ public sealed class PaymentRefundConfiguration : IEntityTypeConfiguration<Paymen
         b.HasIndex(e => e.RefundNumber)
             .IsUnique()
             .HasDatabaseName("payment_refunds_refund_number_key");
+
+        // Partial unique index: idempotency_key is unique only when not null.
+        // This mirrors how WalletTransaction handles its idempotency_key.
+        // The HasFilter expression is applied in the idempotent patch SQL because
+        // EF Core's HasFilter does not generate a CREATE INDEX IF NOT EXISTS.
+        b.HasIndex(e => e.IdempotencyKey)
+            .IsUnique()
+            .HasFilter("idempotency_key IS NOT NULL")
+            .HasDatabaseName("payment_refunds_idempotency_key_key");
 
         b.HasOne(e => e.Brand)
             .WithMany()

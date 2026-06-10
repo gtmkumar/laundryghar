@@ -1,8 +1,11 @@
 using laundryghar.SharedDataModel.Contracts;
+using laundryghar.SharedDataModel.Crypto;
 using laundryghar.SharedDataModel.Persistence;
 using laundryghar.SharedDataModel.Persistence.Interceptors;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace laundryghar.SharedDataModel;
 
@@ -15,15 +18,28 @@ namespace laundryghar.SharedDataModel;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers <see cref="LaundryGharDbContext"/> with Npgsql + NetTopologySuite
-    /// and the <see cref="RlsConnectionInterceptor"/>.
+    /// Registers <see cref="LaundryGharDbContext"/> with Npgsql + NetTopologySuite,
+    /// the <see cref="RlsConnectionInterceptor"/>, and the PII field cipher.
+    ///
+    /// PII encryption key (Pii:EncryptionKey):
+    ///   - Development: if absent, a one-time key is auto-generated and persisted to
+    ///     &lt;BaseDir&gt;/keys/dev-pii-key.b64 so it is stable across restarts.
+    ///   - Non-Development: FAIL CLOSED — startup throws if the key is missing.
+    ///     Provide via env var Pii__EncryptionKey or a secrets provider.
     /// </summary>
     /// <param name="services">The DI service collection.</param>
     /// <param name="connectionString">PostgreSQL connection string.</param>
+    /// <param name="configuration">Application configuration for reading Pii:EncryptionKey.</param>
+    /// <param name="environment">Host environment used for the dev-key fallback guard.</param>
     public static IServiceCollection AddSharedDataModel(
         this IServiceCollection services,
-        string connectionString)
+        string connectionString,
+        IConfiguration? configuration = null,
+        IHostEnvironment? environment = null)
     {
+        // ── PII field cipher ──────────────────────────────────────────────────────
+        ConfigurePiiCipher(configuration, environment);
+
         // LIFETIME RATIONALE (H1 security fix):
         // RlsConnectionInterceptor must be Scoped (per-request) for two reasons:
         //   1. It captures ICurrentTenant, which is itself Scoped (backed by HttpContext).
@@ -56,5 +72,62 @@ public static class DependencyInjection
         });
 
         return services;
+    }
+
+    // ── PII cipher bootstrap ──────────────────────────────────────────────────
+    private static void ConfigurePiiCipher(IConfiguration? config, IHostEnvironment? env)
+    {
+        // Already configured by a previous call (e.g. integration test setup that calls
+        // AddSharedDataModel twice). PiiValueConverter.Configure is idempotent for same instance.
+        if (PiiValueConverter.Instance is not null) return;
+
+        const string ConfigKey = "Pii:EncryptionKey";
+        const int KeySizeBytes = 32;
+
+        var keyBase64 = config?[ConfigKey];
+
+        if (string.IsNullOrWhiteSpace(keyBase64))
+        {
+            if (env is not null && !env.IsDevelopment())
+            {
+                throw new InvalidOperationException(
+                    $"{ConfigKey} is required outside Development. " +
+                    "Provide a 32-byte base64-encoded key via environment variable Pii__EncryptionKey " +
+                    "or a secrets provider. LaundryGhar will NOT start without it.");
+            }
+
+            // Development: auto-generate a stable per-machine key and persist it to disk.
+            var keyPath = Path.Combine(AppContext.BaseDirectory, "keys", "dev-pii-key.b64");
+            Directory.CreateDirectory(Path.GetDirectoryName(keyPath)!);
+
+            byte[] keyBytes;
+            if (File.Exists(keyPath))
+            {
+                keyBytes = Convert.FromBase64String(File.ReadAllText(keyPath).Trim());
+            }
+            else
+            {
+                keyBytes = new byte[KeySizeBytes];
+                System.Security.Cryptography.RandomNumberGenerator.Fill(keyBytes);
+                File.WriteAllText(keyPath, Convert.ToBase64String(keyBytes));
+            }
+
+            PiiValueConverter.Configure(new AesGcmFieldCipher(keyBytes));
+        }
+        else
+        {
+            byte[] keyBytes;
+            try
+            {
+                keyBytes = Convert.FromBase64String(keyBase64);
+            }
+            catch (FormatException ex)
+            {
+                throw new InvalidOperationException(
+                    $"{ConfigKey} is not valid base64. Provide a base64-encoded 32-byte key.", ex);
+            }
+
+            PiiValueConverter.Configure(new AesGcmFieldCipher(keyBytes));
+        }
     }
 }

@@ -27,6 +27,14 @@ public sealed class HttpContextCurrentUser : ICurrentUser
             "Brand context required. Platform admins must pass X-Brand-Id header.");
     }
 
+    public bool HasPermission(string permissionCode)
+    {
+        var perms = Claim("permissions");
+        if (string.IsNullOrEmpty(perms)) return false;
+        return perms.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Contains(permissionCode, StringComparer.OrdinalIgnoreCase);
+    }
+
     private string? Claim(string t) => P?.FindFirstValue(t);
     private Guid? ParseGuid(string t) =>
         Guid.TryParse(Claim(t), out var g) ? g : null;

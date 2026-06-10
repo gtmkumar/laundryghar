@@ -39,7 +39,7 @@ builder.Services.AddSingleton<laundryghar.Identity.Infrastructure.Auth.IJwtKeyPr
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 
-builder.Services.AddSharedDataModel(connStr);
+builder.Services.AddSharedDataModel(connStr, builder.Configuration, builder.Environment);
 
 // ─── HTTP context ──────────────────────────────────────────────────────────
 

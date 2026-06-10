@@ -135,6 +135,13 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
 
   const save = async () => {
     setErr(null)
+    // PAN/bank/UPI arrive MASKED unless the viewer holds users.read_financial —
+    // echoing an untouched (masked) value back would overwrite the real one.
+    // Omit them when unchanged from the prefill (omitted = leave unchanged).
+    const ifEdited = (formVal: string, original: string | null | undefined) => {
+      const v = formVal.trim()
+      return v === (original ?? '') ? undefined : v
+    }
     try {
       await update.mutateAsync({
         id: person.id,
@@ -142,10 +149,11 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
         payload: {
           firstName: form.first.trim(), lastName: form.last.trim(),
           email: form.email.trim(), phone: form.phone.trim(), designation: form.designation.trim(),
-          employmentType: form.employmentType, panNumber: form.pan.trim(),
+          employmentType: form.employmentType, panNumber: ifEdited(form.pan, user?.panNumber),
           aadhaarNumberMasked: form.aadhaar.trim(), kycStatus: form.kycStatus,
-          bankAccountName: form.bankName.trim(), bankAccountNumber: form.bankNumber.trim(),
-          bankIfsc: form.ifsc.trim(), upiId: form.upi.trim(),
+          bankAccountName: form.bankName.trim(),
+          bankAccountNumber: ifEdited(form.bankNumber, user?.bankAccountNumber),
+          bankIfsc: form.ifsc.trim(), upiId: ifEdited(form.upi, user?.upiId),
         },
       })
       setSavedAt(new Date().toLocaleTimeString())

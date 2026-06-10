@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="laundryghar.ServiceDefaults.Tests/laundryghar.ServiceDefaults.Tests.csproj" />
+  <Project Path="laundryghar.Commerce.Tests/laundryghar.Commerce.Tests.csproj" />
   <Project Path="laundryghar.ServiceDefaults/laundryghar.ServiceDefaults.csproj" />
   <Project Path="laundryghar.AppHost/laundryghar.AppHost.csproj" />
   <Project Path="laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />

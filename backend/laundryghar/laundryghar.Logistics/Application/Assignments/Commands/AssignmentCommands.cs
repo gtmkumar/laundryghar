@@ -31,6 +31,12 @@ public sealed class CreateRiderAssignmentHandler
         if (!riderExists)
             throw new BusinessRuleException("Rider not found under the current brand.");
 
+        // Cross-brand guard: the shift store must belong to this brand too.
+        var storeExists = await _db.Stores
+            .AnyAsync(s => s.Id == req.StoreId && s.BrandId == brandId, ct);
+        if (!storeExists)
+            throw new BusinessRuleException("Store not found under the current brand.");
+
         var assignment = new RiderAssignment
         {
             Id                  = Guid.NewGuid(),
