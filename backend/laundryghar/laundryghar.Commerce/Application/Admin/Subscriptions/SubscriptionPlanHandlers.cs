@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentValidation;
 using laundryghar.Commerce.Application;
 using laundryghar.SharedDataModel.Entities.Commerce.Subscriptions;
@@ -170,7 +171,9 @@ public sealed class CreateSubscriptionPlanValidator : AbstractValidator<CreateSu
     {
         RuleFor(x => x.Request.Code).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Request.NameLocalized).NotEmpty();
+        RuleFor(x => x.Request.NameLocalized).NotEmpty()
+            .Must(BeValidJsonObject)
+            .WithMessage("name_localized must be a valid JSON object string (e.g. {\"en\":\"Basic\",\"hi\":\"बेसिक\"})");
         RuleFor(x => x.Request.Tier).NotEmpty()
             .Must(v => v is "basic" or "standard" or "premium" or "custom")
             .WithMessage("tier must be one of: basic, standard, premium, custom");
@@ -185,6 +188,43 @@ public sealed class CreateSubscriptionPlanValidator : AbstractValidator<CreateSu
             .WithMessage("quota_type must be one of: credit, order_count, weight_kg, unlimited");
         RuleFor(x => x.Request.OverageDiscountPercent).InclusiveBetween(0, 100);
         RuleFor(x => x.Request.CurrencyCode).NotEmpty().Length(3);
+    }
+
+    internal static bool BeValidJsonObject(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(value);
+            return doc.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+}
+
+public sealed class UpdateSubscriptionPlanValidator : AbstractValidator<UpdateSubscriptionPlanCommand>
+{
+    public UpdateSubscriptionPlanValidator()
+    {
+        RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Request.NameLocalized).NotEmpty()
+            .Must(CreateSubscriptionPlanValidator.BeValidJsonObject)
+            .WithMessage("name_localized must be a valid JSON object string (e.g. {\"en\":\"Basic\",\"hi\":\"बेसिक\"})");
+        RuleFor(x => x.Request.Tier).NotEmpty()
+            .Must(v => v is "basic" or "standard" or "premium" or "custom")
+            .WithMessage("tier must be one of: basic, standard, premium, custom");
+        RuleFor(x => x.Request.Price).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Request.SetupFee).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Request.QuotaType).NotEmpty()
+            .Must(v => v is "credit" or "order_count" or "weight_kg" or "unlimited")
+            .WithMessage("quota_type must be one of: credit, order_count, weight_kg, unlimited");
+        RuleFor(x => x.Request.OverageDiscountPercent).InclusiveBetween(0, 100);
+        RuleFor(x => x.Request.Status).NotEmpty()
+            .Must(v => v is "draft" or "active" or "paused" or "retired")
+            .WithMessage("status must be one of: draft, active, paused, retired");
     }
 }
 

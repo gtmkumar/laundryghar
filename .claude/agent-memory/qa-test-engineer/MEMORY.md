@@ -6,3 +6,4 @@
 - [Tasks #15/#24 Verification 2026-06-10](project_tasks15_24_june2026.md) — #15 PASS-with-defects (label validator gap leaks 23514; 400 body empty on invalid pincode); #24 PASS (tsc 0, all flags/guards confirmed)
 - [Round 5A Verification 2026-06-10](project_round5a_verification.md) — #19/#20/#31/#32/#22 all PASS; DailyRecon dry-run confirmed; pickup reject + slot decrement + notifications verified
 - [Task #26 Test Baseline](project_task26_test_baseline.md) — 528 backend + 115 customer + 63 rider + smoke 22/22 PASS; jest-expo@52, jest@29; screen tests deferred
+- [Closing Verification June 2026](project_closing_verification_june2026.md) — #17/#33 PASS with 1 blocker: Wave-0 RLS 22P02 blocks admin subscription-plans GET/PUT + Worker dunning cycle

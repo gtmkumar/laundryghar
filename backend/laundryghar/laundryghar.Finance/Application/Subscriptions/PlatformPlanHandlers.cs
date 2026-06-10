@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentValidation;
 using laundryghar.SharedDataModel.Entities.FinanceRoyalty.Subscriptions;
 using laundryghar.Utilities.Common;
@@ -143,6 +144,45 @@ public sealed class CreatePlatformPlanValidator : AbstractValidator<CreatePlatfo
         RuleFor(x => x.Request.SupportLevel).NotEmpty()
             .Must(v => v is "community" or "email" or "priority" or "dedicated")
             .WithMessage("support_level must be one of: community, email, priority, dedicated");
+        RuleFor(x => x.Request.Features).NotEmpty()
+            .Must(BeValidJsonObject)
+            .WithMessage("features must be a valid JSON object string (e.g. {\"sms_alerts\":true,\"max_api_calls\":1000})");
+    }
+
+    internal static bool BeValidJsonObject(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(value);
+            return doc.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+}
+
+public sealed class UpdatePlatformPlanValidator : AbstractValidator<UpdatePlatformPlanCommand>
+{
+    public UpdatePlatformPlanValidator()
+    {
+        RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Request.Tier).NotEmpty()
+            .Must(v => v is "starter" or "growth" or "pro" or "enterprise" or "custom")
+            .WithMessage("tier must be one of: starter, growth, pro, enterprise, custom");
+        RuleFor(x => x.Request.Price).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Request.SetupFee).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Request.SupportLevel).NotEmpty()
+            .Must(v => v is "community" or "email" or "priority" or "dedicated")
+            .WithMessage("support_level must be one of: community, email, priority, dedicated");
+        RuleFor(x => x.Request.Features).NotEmpty()
+            .Must(CreatePlatformPlanValidator.BeValidJsonObject)
+            .WithMessage("features must be a valid JSON object string (e.g. {\"sms_alerts\":true,\"max_api_calls\":1000})");
+        RuleFor(x => x.Request.Status).NotEmpty()
+            .Must(v => v is "draft" or "active" or "retired")
+            .WithMessage("status must be one of: draft, active, retired");
     }
 }
 
