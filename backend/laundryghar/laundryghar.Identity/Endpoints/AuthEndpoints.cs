@@ -1,6 +1,9 @@
 using laundryghar.Identity.Application.Auth.Commands;
 using laundryghar.Identity.Application.Auth.Dtos;
+using laundryghar.Identity.Infrastructure.Auth;
 using MediatR;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 
 namespace laundryghar.Identity.Endpoints;
 
@@ -15,6 +18,49 @@ namespace laundryghar.Identity.Endpoints;
 /// </summary>
 public static class AuthEndpoints
 {
+    // Name of the HttpOnly refresh-token cookie for system users (admin-web).
+    private const string RefreshCookieName = "lg_refresh";
+
+    // Path the cookie is scoped to. The browser only sends `lg_refresh` to the
+    // refresh endpoint, never to any other route — minimizing exposure surface.
+    private const string RefreshCookiePath = "/api/v1/auth/refresh";
+
+    /// <summary>
+    /// Writes the refresh token to the HttpOnly `lg_refresh` cookie.
+    ///   HttpOnly      — never readable from JS (the XSS fix).
+    ///   Secure        — only sent over HTTPS outside Development (http://localhost works in dev).
+    ///   SameSite=Strict — not sent on cross-site navigations (CSRF hardening).
+    ///   Path          — scoped to the refresh endpoint only.
+    ///   Max-Age       — the refresh-token lifetime (Jwt:RefreshDays).
+    /// admin-web stops persisting the refresh token in localStorage and relies on
+    /// this cookie for silent refresh. The token is ALSO still returned in the body
+    /// for pos-web / mobile system users (body wins on refresh for backward compat).
+    /// </summary>
+    private static void SetRefreshCookie(HttpContext ctx, string refreshToken, int refreshDays, bool isDev)
+    {
+        ctx.Response.Cookies.Append(RefreshCookieName, refreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure   = !isDev,                 // dev omits Secure so http://localhost works
+            SameSite = SameSiteMode.Strict,
+            Path     = RefreshCookiePath,
+            MaxAge   = TimeSpan.FromDays(refreshDays),
+        });
+    }
+
+    /// <summary>Clears the refresh cookie. Path + attributes must match SetRefreshCookie.</summary>
+    private static void ClearRefreshCookie(HttpContext ctx, bool isDev)
+    {
+        ctx.Response.Cookies.Append(RefreshCookieName, string.Empty, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure   = !isDev,
+            SameSite = SameSiteMode.Strict,
+            Path     = RefreshCookiePath,
+            MaxAge   = TimeSpan.Zero,
+        });
+    }
+
     public static RouteGroupBuilder MapAuthEndpoints(this RouteGroupBuilder group)
     {
         // C5: rate-limit the entire auth group (10 req / 60 s per client IP)
@@ -25,11 +71,16 @@ public static class AuthEndpoints
             PasswordLoginRequest req,
             HttpContext ctx,
             ISender sender,
+            IOptions<JwtSettings> jwt,
+            IWebHostEnvironment env,
             CancellationToken ct) =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers.UserAgent.ToString();
             var result = await sender.Send(new PasswordLoginCommand(req.Identifier, req.Password, ip, ua), ct);
+            // Also set the refresh token as an HttpOnly cookie for browser system users (admin-web).
+            // The body still carries it for pos-web / mobile / scripts (backward compat).
+            SetRefreshCookie(ctx, result.RefreshToken, jwt.Value.RefreshDays, env.IsDevelopment());
             return Results.Ok(new SingleResponse<TokenResponse> { Status = true, Data = result });
         })
         .WithName("PasswordLogin")
@@ -71,14 +122,26 @@ public static class AuthEndpoints
 
         // POST /api/v1/auth/refresh
         auth.MapPost("/refresh", async (
-            RefreshTokenRequest req,
+            SystemRefreshTokenRequest req,
             HttpContext ctx,
             ISender sender,
+            IOptions<JwtSettings> jwt,
+            IWebHostEnvironment env,
             CancellationToken ct) =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString();
             var ua = ctx.Request.Headers.UserAgent.ToString();
-            var result = await sender.Send(new RefreshTokenCommand(req.RefreshToken, ip, ua), ct);
+
+            // Body wins (pos-web / mobile system users); fall back to the HttpOnly
+            // cookie (admin-web). If neither is present the command validator rejects
+            // the empty token with a 400, which the client treats as a failed refresh.
+            var rawRefresh = !string.IsNullOrWhiteSpace(req.RefreshToken)
+                ? req.RefreshToken!
+                : ctx.Request.Cookies[RefreshCookieName] ?? string.Empty;
+
+            var result = await sender.Send(new RefreshTokenCommand(rawRefresh, ip, ua), ct);
+            // Rotate the cookie with the new refresh token (refresh-token rotation).
+            SetRefreshCookie(ctx, result.RefreshToken, jwt.Value.RefreshDays, env.IsDevelopment());
             return Results.Ok(new SingleResponse<TokenResponse> { Status = true, Data = result });
         })
         .WithName("RefreshToken")
@@ -87,11 +150,28 @@ public static class AuthEndpoints
 
         // POST /api/v1/auth/logout
         auth.MapPost("/logout", async (
-            LogoutRequest req,
+            SystemLogoutRequest req,
+            HttpContext ctx,
             ISender sender,
+            IWebHostEnvironment env,
             CancellationToken ct) =>
         {
-            await sender.Send(new LogoutCommand(req.RefreshToken), ct);
+            // Body wins; fall back to the cookie (only reachable if a future cookie scope
+            // includes /logout). pos-web / mobile send the token in the body; admin-web
+            // sends its in-memory token when it still has one (fresh login), and nothing
+            // after a hard reload — in which case we just clear the cookie below.
+            var rawRefresh = !string.IsNullOrWhiteSpace(req.RefreshToken)
+                ? req.RefreshToken!
+                : ctx.Request.Cookies[RefreshCookieName];
+
+            // Revoke the token family only when we actually have a token. The validator
+            // requires a non-empty token, so skip the command entirely when there is none.
+            if (!string.IsNullOrWhiteSpace(rawRefresh))
+                await sender.Send(new LogoutCommand(rawRefresh), ct);
+
+            // Always clear the HttpOnly cookie on logout. Append with Max-Age=0 deletes it
+            // by name+path even though the cookie is scoped to the refresh path (not /logout).
+            ClearRefreshCookie(ctx, env.IsDevelopment());
             return Results.Ok(new Response { Status = true, Message = new Message { ResponseMessage = "Logged out successfully." } });
         })
         .WithName("Logout")

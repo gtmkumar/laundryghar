@@ -175,6 +175,11 @@ public sealed record WithdrawConsentRequest(
     string PrivacyPolicyVersion
 );
 
+// ── Serviceability ────────────────────────────────────────────────────────────
+
+/// <summary>Returns whether the given pincode is covered by any active store or territory in the brand.</summary>
+public sealed record ServiceabilityDto(bool Serviceable);
+
 // ── Account Deletion ──────────────────────────────────────────────────────────
 
 public sealed record AccountDeletionRequestDto(

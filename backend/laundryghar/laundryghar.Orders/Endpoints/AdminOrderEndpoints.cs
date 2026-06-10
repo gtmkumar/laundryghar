@@ -1,3 +1,4 @@
+using laundryghar.Orders.Application.Ops;
 using laundryghar.Orders.Application.Orders.Commands;
 using laundryghar.Orders.Application.Orders.Dtos;
 using laundryghar.Orders.Application.Orders.Queries;
@@ -67,6 +68,19 @@ public static class AdminOrderEndpoints
             var ok = await sender.Send(new DeleteOrderNoteCommand(id, noteId, u.UserId), ct);
             return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
         }).RequireAuthorization("permission:orders.notes.manage");
+
+        // ── Ops queues (due today / overdue / stuck) ────────────────────────
+        // GET /api/v1/admin/orders/ops-queues?page=1&pageSize=20&storeId=...
+        // Returns three independently-paged buckets with badge counts.
+        // All buckets share the same page/pageSize for UI simplicity; each
+        // bucket carries HasNextPage and TotalCount for independent pagination.
+        orders.MapGet("/ops-queues", async (
+            [FromServices] ISender sender, CancellationToken ct,
+            int page = 1, int pageSize = 20, Guid? storeId = null) =>
+        {
+            var r = await sender.Send(new OpsQueuesQuery(page, pageSize, storeId), ct);
+            return Results.Ok(new SingleResponse<OpsQueuesResponse> { Status = true, Data = r });
+        }).RequireAuthorization("permission:orders.read");
 
         return group;
     }

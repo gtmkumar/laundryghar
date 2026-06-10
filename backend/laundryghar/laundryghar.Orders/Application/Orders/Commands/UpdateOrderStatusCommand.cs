@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FluentValidation;
 using laundryghar.Orders.Application.Common;
 using laundryghar.Orders.Application.Orders.Dtos;
 using MediatR;
@@ -81,6 +82,17 @@ public sealed class UpdateOrderStatusHandler : IRequestHandler<UpdateOrderStatus
             CreatedBy        = cmd.ActorId
         };
 
+        // Determine if this status change happens after the promised delivery date.
+        // tatBreached = true signals downstream handlers (notifications, dashboards)
+        // that the order is overdue. Computed once here — no sweeping job needed.
+        var tatBreached = order.PromisedDeliveryAt.HasValue
+            && now > order.PromisedDeliveryAt.Value
+            && req.ToStatus is not (
+                OrderStatus.Delivered or
+                OrderStatus.Cancelled or
+                OrderStatus.Closed or
+                OrderStatus.Returned);
+
         // Outbox event
         var outbox = new OutboxEvent
         {
@@ -92,12 +104,19 @@ public sealed class UpdateOrderStatusHandler : IRequestHandler<UpdateOrderStatus
             EventVersion  = 1,
             Payload       = JsonSerializer.Serialize(new
             {
-                orderId    = order.Id,
+                orderId            = order.Id,
+                orderNumber        = order.OrderNumber,
                 brandId,
                 fromStatus,
-                toStatus   = req.ToStatus,
-                changedAt  = now,
-                changedById = cmd.ActorId
+                toStatus           = req.ToStatus,
+                changedAt          = now,
+                changedById        = cmd.ActorId,
+                // ISO date (yyyy-MM-dd) when a pickup slot is already booked; null otherwise.
+                pickupDate         = order.PickupScheduledAt?.ToString("yyyy-MM-dd"),
+                // True when this status change occurs after the promised delivery date;
+                // notification mapping layer may use this to trigger an apology or escalation.
+                tatBreached        = tatBreached,
+                promisedDeliveryAt = order.PromisedDeliveryAt
             }),
             Metadata    = "{}",
             OccurredAt  = now,
@@ -111,5 +130,37 @@ public sealed class UpdateOrderStatusHandler : IRequestHandler<UpdateOrderStatus
         await _db.SaveChangesAsync(ct);
 
         return CreateOrderHandler.ToDto(order);
+    }
+}
+
+// ── Validator ─────────────────────────────────────────────────────────────────
+
+public sealed class UpdateOrderStatusValidator : AbstractValidator<UpdateOrderStatusCommand>
+{
+    // All valid order status values — mirrors OrderStatus constants and DB CHECK constraint.
+    // Case-sensitive: DB stores lowercase; upper-cased values are rejected by design.
+    private static readonly HashSet<string> ValidStatuses = new(StringComparer.Ordinal)
+    {
+        OrderStatus.Placed, OrderStatus.PickupScheduled, OrderStatus.PickupAssigned,
+        OrderStatus.PickupInProgress, OrderStatus.PickedUp, OrderStatus.Received,
+        OrderStatus.Sorting, OrderStatus.InProcess, OrderStatus.Qc, OrderStatus.Ready,
+        OrderStatus.DeliveryScheduled, OrderStatus.DeliveryAssigned, OrderStatus.OutForDelivery,
+        OrderStatus.Delivered, OrderStatus.Cancelled, OrderStatus.Returned,
+        OrderStatus.Rewash, OrderStatus.Disputed, OrderStatus.Closed
+    };
+
+    public UpdateOrderStatusValidator()
+    {
+        RuleFor(x => x.OrderId).NotEmpty();
+        RuleFor(x => x.Request.ToStatus)
+            .NotEmpty()
+            .Must(s => ValidStatuses.Contains(s))
+            .WithMessage($"ToStatus is not a recognised order status value.");
+        RuleFor(x => x.Request.Reason)
+            .MaximumLength(500)
+            .When(x => x.Request.Reason is not null);
+        RuleFor(x => x.Request.Notes)
+            .MaximumLength(1000)
+            .When(x => x.Request.Notes is not null);
     }
 }

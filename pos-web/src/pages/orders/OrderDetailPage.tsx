@@ -3,13 +3,16 @@
  * Status transitions are PATCH /api/v1/admin/orders/{id}/status.
  */
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Loader2 } from 'lucide-react'
-import { useOrder, useUpdateOrderStatus } from '@/hooks/useOrders'
+import { ArrowLeft, Loader2, Printer, FileText, Tag } from 'lucide-react'
+import { useOrder, useUpdateOrderStatus, useOpenInvoicePdf } from '@/hooks/useOrders'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ReceiptSlip } from '@/components/print/Receipt'
+import { GarmentTags } from '@/components/print/GarmentTags'
+import { usePosStore } from '@/stores/posStore'
 import {
   formatCurrency,
   formatDateTime,
@@ -21,10 +24,14 @@ import { useState } from 'react'
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { activeStore } = usePosStore()
   const [statusError, setStatusError] = useState<string | null>(null)
+  const [printMode, setPrintMode] = useState<'receipt' | 'tags' | null>(null)
 
   const { data: order, isLoading, isError, refetch } = useOrder(id ?? '')
   const { mutate: updateStatus, isPending } = useUpdateOrderStatus()
+  const { mutate: openInvoice, isPending: invoicePending, isError: invoiceError } =
+    useOpenInvoicePdf()
 
   if (!id) return null
   if (isLoading) return <LoadingState message="Loading order…" />
@@ -33,6 +40,14 @@ export function OrderDetailPage() {
   }
 
   const allowedNext = nextStatuses(order.status)
+
+  function handlePrint(mode: 'receipt' | 'tags') {
+    setPrintMode(mode)
+    setTimeout(() => {
+      window.print()
+      setPrintMode(null)
+    }, 50)
+  }
 
   function handleStatusChange(toStatus: string) {
     setStatusError(null)
@@ -50,7 +65,8 @@ export function OrderDetailPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-5 max-w-2xl mx-auto">
+    <>
+    <div className="p-4 lg:p-6 space-y-5 max-w-2xl mx-auto no-print">
       {/* Back */}
       <button
         type="button"
@@ -105,6 +121,44 @@ export function OrderDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Documents & printing */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Documents</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-3">
+            <Button size="touch" variant="outline" onClick={() => handlePrint('receipt')}>
+              <Printer className="h-5 w-5" /> Receipt
+            </Button>
+            <Button size="touch" variant="outline" onClick={() => handlePrint('tags')}>
+              <Tag className="h-5 w-5" /> Garment Tags
+            </Button>
+            <Button
+              size="touch"
+              variant="outline"
+              disabled={invoicePending}
+              onClick={() => openInvoice(order.id)}
+            >
+              {invoicePending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <FileText className="h-5 w-5" />
+              )}
+              Tax Invoice PDF
+            </Button>
+          </div>
+          {invoiceError && (
+            <p className="text-xs text-amber-600">
+              Invoice isn't available yet. A GST tax invoice can only be generated
+              once the order reaches <strong>ready</strong>, <strong>delivered</strong>,
+              or <strong>closed</strong>. Use the receipt slip for the counter
+              hand-off in the meantime.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Totals */}
       <Card>
@@ -199,5 +253,19 @@ export function OrderDetailPage() {
         </Card>
       )}
     </div>
+
+    {/* Print payloads — visible only during window.print (see @media print). */}
+    {printMode === 'receipt' && (
+      <ReceiptSlip
+        order={order}
+        storeName={activeStore?.name ?? 'Laundry Ghar'}
+        storeCode={activeStore?.code}
+        amountPaid={order.amountPaid > 0 ? order.amountPaid : null}
+      />
+    )}
+    {printMode === 'tags' && (
+      <GarmentTags order={order} storeCode={activeStore?.code} />
+    )}
+    </>
   )
 }

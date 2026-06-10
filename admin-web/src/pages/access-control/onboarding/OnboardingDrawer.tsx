@@ -42,7 +42,7 @@ export function OnboardingContent({ franchiseId, onClose, onActivated }: Props) 
           </h2>
           {state && <p className="text-xs text-gray-400">{state.code}</p>}
         </div>
-        <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+        <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
           <X className="h-5 w-5" />
         </button>
       </div>

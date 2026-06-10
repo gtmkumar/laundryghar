@@ -7,6 +7,7 @@ import React, { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationTracking } from '@/hooks/useLocationTracking';
+import { initialisePushNotifications } from '@/lib/pushNotifications';
 
 export default function AppLayout() {
   const { accessToken, isHydrated } = useAuthStore();
@@ -21,6 +22,14 @@ export default function AppLayout() {
     }
   }, [accessToken, isHydrated, router]);
 
+  // Register for push notifications when the rider is authenticated.
+  // Best-effort — failures never block navigation or render.
+  useEffect(() => {
+    if (isHydrated && accessToken) {
+      void initialisePushNotifications();
+    }
+  }, [isHydrated, accessToken]);
+
   return (
     <Stack
       screenOptions={{
@@ -34,6 +43,8 @@ export default function AppLayout() {
       <Stack.Screen name="tasks/[id]" />
       <Stack.Screen name="delivered" options={{ animation: 'fade', gestureEnabled: false }} />
       <Stack.Screen name="profile" options={{ presentation: 'card' }} />
+      <Stack.Screen name="earnings" options={{ presentation: 'card' }} />
+      <Stack.Screen name="cash" options={{ presentation: 'card' }} />
     </Stack>
   );
 }

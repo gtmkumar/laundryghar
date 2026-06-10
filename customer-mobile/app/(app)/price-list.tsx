@@ -85,6 +85,7 @@ export default function PriceListScreen() {
           <Pressable
             onPress={() => router.back()}
             className="h-10 w-10 items-center justify-center rounded-full bg-white"
+            accessibilityRole="button"
             accessibilityLabel="Go back"
           >
             <Ionicons name="chevron-back" size={22} color="#3C3F35" />

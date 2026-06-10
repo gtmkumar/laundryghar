@@ -9,6 +9,7 @@ import { FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { usePriceList } from '@/hooks/useCatalog';
 import { useCartStore } from '@/store/cartStore';
 import { useBookingStore } from '@/store/bookingStore';
@@ -26,6 +27,7 @@ interface PickerItem {
 }
 
 function ItemRow({ item }: { item: PickerItem }) {
+  const { t } = useTranslation();
   const lines = useCartStore((s) => s.lines);
   const setQty = useCartStore((s) => s.setQty);
   const qty = lines[item.id]?.qty ?? 0;
@@ -38,7 +40,7 @@ function ItemRow({ item }: { item: PickerItem }) {
       <View className="flex-1">
         <Text className="text-base font-bold text-ink">{item.name}</Text>
         <Text className="text-xs text-ink-muted">
-          {item.fabric} · {rupees(item.unitPrice)}/pc
+          {item.fabric} · {t('booking.perPiece', { price: rupees(item.unitPrice) })}
         </Text>
       </View>
       <Stepper
@@ -55,6 +57,7 @@ function ItemRow({ item }: { item: PickerItem }) {
 }
 
 export default function ItemsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { data: priceList, isLoading } = usePriceList();
   const count = useCartStore((s) => s.count());
@@ -88,18 +91,19 @@ export default function ItemsScreen() {
         <Pressable
           onPress={() => router.back()}
           className="h-10 w-10 items-center justify-center rounded-full bg-white"
-          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.back')}
         >
           <Ionicons name="chevron-back" size={22} color="#3C3F35" />
         </Pressable>
-        <Text className="text-xl font-extrabold text-ink">What needs washing?</Text>
+        <Text className="text-xl font-extrabold text-ink">{t('booking.whatNeedsWashing')}</Text>
       </View>
 
       {/* Filter chips */}
       <View className="flex-row px-5 pb-2">
         <Chip label="Dry Clean" selected={serviceFilter === 'all'} onPress={() => setServiceFilter('all')} />
         <Chip
-          label="Express"
+          label={t('booking.express')}
           icon="flash"
           accent="gold"
           selected={express}
@@ -123,7 +127,7 @@ export default function ItemsScreen() {
       >
         <View>
           <Text className="text-xs text-ink-muted">
-            {count} item{count !== 1 ? 's' : ''}{express ? ' · Express' : ''}
+            {t('booking.itemCount', { count, plural: count !== 1 ? 's' : '' })}{express ? ` · ${t('booking.express')}` : ''}
           </Text>
           <Text className="text-2xl font-extrabold text-ink">{rupees(estimate)}</Text>
         </View>
@@ -131,10 +135,10 @@ export default function ItemsScreen() {
           disabled={count === 0}
           onPress={() => router.push('/(app)/booking/pickup')}
           className={`flex-row items-center gap-2 rounded-2xl px-6 py-4 ${count === 0 ? 'bg-cream-300' : 'bg-gold-400'}`}
-          accessibilityLabel="Continue to schedule pickup"
+          accessibilityLabel={t('booking.continueToPickup')}
         >
           <Text className={`text-base font-extrabold ${count === 0 ? 'text-ink-faint' : 'text-olive-900'}`}>
-            Continue
+            {t('common.continue')}
           </Text>
           <Ionicons name="arrow-forward" size={18} color={count === 0 ? '#A8A493' : '#2E351C'} />
         </Pressable>

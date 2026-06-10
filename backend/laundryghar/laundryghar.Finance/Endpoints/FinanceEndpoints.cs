@@ -7,6 +7,7 @@ using laundryghar.Finance.Application.Expenses.Queries;
 using laundryghar.Finance.Application.Royalty.Commands;
 using laundryghar.Finance.Application.Royalty.Dtos;
 using laundryghar.Finance.Application.Royalty.Queries;
+using laundryghar.Finance.Application.Subscriptions;
 using MediatR;
 
 namespace laundryghar.Finance.Endpoints;
@@ -216,6 +217,67 @@ public static class FinanceEndpoints
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RoyaltyInvoiceDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:royalty.manage");
+
+        // ── Platform Plans (platform_admin only) ───────────────────────────────
+        var platPlans = admin.MapGroup("/platform-plans").WithTags("Admin - SaaS - Platform Plans");
+
+        platPlans.MapGet("/", async ([FromServices] ISender sender, CancellationToken ct,
+            int page = 1, int pageSize = 20, string? status = null) =>
+        {
+            var r = await sender.Send(new GetPlatformPlansQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status), ct);
+            return Results.Ok(new PaginatedListResponse<PlatformPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:saas.read");
+
+        platPlans.MapGet("/{id:guid}", async (Guid id, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetPlatformPlanByIdQuery(id), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PlatformPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:saas.read");
+
+        platPlans.MapPost("/", async (CreatePlatformPlanRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new CreatePlatformPlanCommand(req, u.UserId), ct);
+            return Results.Created($"/api/v1/admin/platform-plans/{r.Id}",
+                new SingleResponse<PlatformPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:saas.manage");
+
+        platPlans.MapPut("/{id:guid}", async (Guid id, UpdatePlatformPlanRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new UpdatePlatformPlanCommand(id, req, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PlatformPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:saas.manage");
+
+        platPlans.MapDelete("/{id:guid}", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var ok = await sender.Send(new DeletePlatformPlanCommand(id, u.UserId), ct);
+            return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+        }).RequireAuthorization("permission:saas.manage");
+
+        // ── Franchise Subscriptions ────────────────────────────────────────────
+        var franSubs = admin.MapGroup("/franchise-subscriptions").WithTags("Admin - SaaS - Franchise Subscriptions");
+
+        franSubs.MapGet("/", async ([FromServices] ISender sender, CancellationToken ct,
+            int page = 1, int pageSize = 20, Guid? franchiseId = null, string? status = null) =>
+        {
+            var r = await sender.Send(new GetFranchiseSubscriptionsQuery(
+                page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, franchiseId, status), ct);
+            return Results.Ok(new PaginatedListResponse<FranchiseSubscriptionDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:saas.read");
+
+        franSubs.MapPost("/assign", async (AssignFranchisePlanRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new AssignFranchisePlanCommand(req, u.UserId), ct);
+            return Results.Created($"/api/v1/admin/franchise-subscriptions/{r.Id}",
+                new SingleResponse<FranchiseSubscriptionDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:saas.manage");
+
+        franSubs.MapPost("/{id:guid}/cancel", async (Guid id, CancelFranchiseSubscriptionRequest req,
+            ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new CancelFranchiseSubscriptionCommand(id, req.Reason, u.UserId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<FranchiseSubscriptionDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:saas.manage");
 
         return app;
     }

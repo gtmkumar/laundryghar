@@ -105,7 +105,7 @@ function ActivateDialog({ person, onClose }: { person: AccessPerson; onClose: ()
             </span>
             <h2 className="text-lg font-bold text-gray-900">{done ? 'User activated' : 'Activate user'}</h2>
           </div>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-700">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -139,6 +139,7 @@ function ActivateDialog({ person, onClose }: { person: AccessPerson; onClose: ()
                   type="button"
                   onClick={() => setPassword(generatePassword())}
                   title="Generate another"
+                  aria-label="Generate another password"
                   className="shrink-0 rounded-lg border border-gray-200 px-2.5 text-gray-500 hover:bg-gray-50"
                 >
                   <RefreshCw className="h-4 w-4" />
@@ -148,6 +149,7 @@ function ActivateDialog({ person, onClose }: { person: AccessPerson; onClose: ()
                 type="button"
                 onClick={copy}
                 title="Copy"
+                aria-label={copied ? 'Copied' : 'Copy password'}
                 className="shrink-0 rounded-lg border border-gray-200 px-2.5 text-gray-500 hover:bg-gray-50"
               >
                 {copied ? <Check className="h-4 w-4 text-lg-green" /> : <Copy className="h-4 w-4" />}

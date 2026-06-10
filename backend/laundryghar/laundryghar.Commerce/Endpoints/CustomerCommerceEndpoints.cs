@@ -3,6 +3,7 @@ using laundryghar.Commerce.Application.Customer.Coupons;
 using laundryghar.Commerce.Application.Customer.Loyalty;
 using laundryghar.Commerce.Application.Customer.Packages;
 using laundryghar.Commerce.Application.Customer.Payments;
+using laundryghar.Commerce.Application.Customer.Subscriptions;
 using laundryghar.Commerce.Application.Customer.Wallet;
 using MediatR;
 
@@ -146,6 +147,48 @@ public static class CustomerCommerceEndpoints
             if (customerId == Guid.Empty) return Results.Unauthorized();
             var r = await sender.Send(new VerifyPaymentCommand(customerId, brandId, req), ct);
             return Results.Ok(new SingleResponse<PaymentDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        // ── Subscriptions ──────────────────────────────────────────────────────
+        var subs = group.MapGroup("/subscriptions").WithTags("Customer - Subscriptions");
+
+        // GET /customer/subscription-plans — active, public plans for the customer's brand
+        subs.MapGet("/plans", async (HttpContext http, ISender sender, CancellationToken ct) =>
+        {
+            var (customerId, brandId) = GetIds(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetActiveSubscriptionPlansQuery(customerId, brandId), ct);
+            return Results.Ok(new ListResponse<SubscriptionPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        // GET /customer/subscriptions — list my subscriptions
+        subs.MapGet("/", async (HttpContext http, ISender sender, CancellationToken ct) =>
+        {
+            var (customerId, brandId) = GetIds(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetMySubscriptionsQuery(customerId, brandId), ct);
+            return Results.Ok(new ListResponse<CustomerSubscriptionDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        // POST /customer/subscriptions — subscribe (creates mandate + subscription)
+        subs.MapPost("/", async (HttpContext http, SubscribeRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var (customerId, brandId) = GetIds(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new SubscribeCommand(customerId, brandId, req), ct);
+            return Results.Created($"/api/v1/customer/subscriptions/{r.Id}",
+                new SingleResponse<CustomerSubscriptionDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        // POST /customer/subscriptions/{id}/cancel — end-of-period cancel
+        subs.MapPost("/{id:guid}/cancel", async (HttpContext http, Guid id, CancelSubscriptionRequest req,
+            ISender sender, CancellationToken ct) =>
+        {
+            var (customerId, brandId) = GetIds(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new CancelSubscriptionCommand(id, customerId, brandId, req.Reason), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<CustomerSubscriptionDto> { Status = true, Data = r });
         }).RequireAuthorization("CustomerOnly");
 
         return group;

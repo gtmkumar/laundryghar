@@ -22,6 +22,7 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icon
 import { Button } from '@/components/ui/Button';
 import { sendOtp } from '@/api/auth';
 import { FEATURES } from '@/constants/config';
+import { useTranslation } from 'react-i18next';
 
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/\D/g, '');
@@ -59,6 +60,7 @@ function SocialButton({
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [phone, setPhone] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -67,11 +69,11 @@ export default function LoginScreen() {
 
   const handleSendOtp = async () => {
     if (!valid) {
-      Alert.alert('Invalid number', 'Enter a valid 10-digit mobile number.');
+      Alert.alert(t('auth.invalidNumber'), t('auth.invalidNumberMessage'));
       return;
     }
     if (!agreed) {
-      Alert.alert('Please agree', 'Accept the Terms & Privacy policy to continue.');
+      Alert.alert(t('auth.pleaseAgree'), t('auth.pleaseAgreeMessage'));
       return;
     }
     setLoading(true);
@@ -81,14 +83,14 @@ export default function LoginScreen() {
       const raw = normalized.replace('+91', '');
       router.push({ pathname: '/(auth)/otp', params: { phone: normalized, raw } });
     } catch (err: unknown) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to send OTP. Try again.');
+      Alert.alert('Error', err instanceof Error ? err.message : t('auth.errorSendingOtp'));
     } finally {
       setLoading(false);
     }
   };
 
   const socialSoon = () =>
-    Alert.alert('Coming soon', 'Social sign-in will be available shortly.');
+    Alert.alert(t('auth.social.comingSoon'), t('auth.social.socialSoonMessage'));
 
   return (
     <SafeAreaView className="flex-1 bg-cream">
@@ -109,16 +111,16 @@ export default function LoginScreen() {
             </View>
 
             <View className="mt-8 flex-row items-center gap-2">
-              <Text className="text-4xl font-extrabold text-ink">Welcome back</Text>
-              <Text style={{ fontSize: 30 }}>👋</Text>
+              <Text className="text-4xl font-extrabold text-ink">{t('auth.welcomeBack')}</Text>
+              <Text style={{ fontSize: 30 }}>{t('auth.welcomeBackEmoji')}</Text>
             </View>
             <Text className="mt-2 text-base text-ink-muted">
-              Enter your phone — we’ll text you a code.
+              {t('auth.enterPhone')}
             </Text>
 
             {/* Phone input */}
             <Text className="mb-1.5 mt-9 text-xs font-bold uppercase tracking-wider text-ink-muted">
-              Phone number
+              {t('auth.phoneLabel')}
             </Text>
             <View className="flex-row items-center rounded-2xl border border-cream-300 bg-white px-4">
               <Text className="text-base">🇮🇳</Text>
@@ -127,7 +129,7 @@ export default function LoginScreen() {
               <RNTextInput
                 value={phone}
                 onChangeText={setPhone}
-                placeholder="98123 45678"
+                placeholder={t('auth.phonePlaceholder')}
                 placeholderTextColor="#A8A493"
                 keyboardType="phone-pad"
                 maxLength={11}
@@ -144,6 +146,7 @@ export default function LoginScreen() {
               onPress={() => setAgreed((a) => !a)}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: agreed }}
+              accessibilityLabel={t('auth.agreeToTerms')}
               className="mt-4 flex-row items-center"
               hitSlop={6}
             >
@@ -155,15 +158,15 @@ export default function LoginScreen() {
                 {agreed ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
               </View>
               <Text className="ml-2 text-sm text-ink-muted">
-                I agree to <Text className="font-bold text-olive-700">T&C</Text> and{' '}
-                <Text className="font-bold text-olive-700">Privacy</Text>
+                {t('auth.agreeToTerms')} <Text className="font-bold text-olive-700">{t('auth.termsAndConditions')}</Text>{' '}
+                {t('auth.and')} <Text className="font-bold text-olive-700">{t('auth.privacy')}</Text>
               </Text>
             </Pressable>
 
             {/* Send OTP */}
             <View className="mt-7">
               <Button
-                title="Send OTP"
+                title={t('auth.sendOtp')}
                 size="lg"
                 fullWidth
                 loading={loading}
@@ -175,7 +178,7 @@ export default function LoginScreen() {
             {/* Divider */}
             <View className="my-7 flex-row items-center gap-3">
               <View className="h-px flex-1 bg-cream-300" />
-              <Text className="text-xs text-ink-faint">or continue with</Text>
+              <Text className="text-xs text-ink-faint">{t('common.orContinueWith')}</Text>
               <View className="h-px flex-1 bg-cream-300" />
             </View>
 
@@ -194,7 +197,7 @@ export default function LoginScreen() {
             </View>
             {!FEATURES.socialLogin ? (
               <Text className="mt-2 text-center text-[11px] text-ink-faint">
-                Social sign-in coming soon
+                {t('auth.socialSoon')}
               </Text>
             ) : null}
 
@@ -202,9 +205,9 @@ export default function LoginScreen() {
 
             {/* New user */}
             <View className="flex-row items-center justify-center py-6">
-              <Text className="text-sm text-ink-muted">New here? </Text>
-              <Pressable onPress={handleSendOtp} hitSlop={6}>
-                <Text className="text-sm font-bold text-olive-700">Create account</Text>
+              <Text className="text-sm text-ink-muted">{t('auth.newHere')} </Text>
+              <Pressable onPress={handleSendOtp} hitSlop={6} accessibilityRole="button" accessibilityLabel={t('auth.createAccount')}>
+                <Text className="text-sm font-bold text-olive-700">{t('auth.createAccount')}</Text>
               </Pressable>
             </View>
           </View>

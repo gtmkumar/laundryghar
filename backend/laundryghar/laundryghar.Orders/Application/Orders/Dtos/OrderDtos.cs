@@ -13,7 +13,9 @@ public sealed record CreateOrderRequest(
     Guid? DeliveryAddressId,
     CreateOrderItemRequest[] Items,
     CreateOrderAddonRequest[] Addons,
-    string? NotesCustomer
+    string? NotesCustomer,
+    /// <summary>Optional coupon code. Validated and applied server-side; 422 on invalid.</summary>
+    string? CouponCode = null
 );
 
 public sealed record CreateOrderItemRequest(
@@ -44,6 +46,9 @@ public sealed record CreateOrderNoteRequest(
     bool IsPinned
 );
 
+/// <summary>Customer rating payload — score 1–5, optional comment.</summary>
+public sealed record RateOrderRequest(int Score, string? Comment);
+
 // ── Response DTOs ────────────────────────────────────────────────────────────
 
 public sealed record OrderDto(
@@ -62,6 +67,8 @@ public sealed record OrderDto(
     decimal TaxTotal,
     decimal Cgst,
     decimal Sgst,
+    /// <summary>Total discount applied (coupon + loyalty + package). Populated from DiscountTotal on the order entity.</summary>
+    decimal DiscountTotal,
     decimal GrandTotal,
     decimal AmountPaid,
     decimal? AmountDue,
@@ -71,9 +78,15 @@ public sealed record OrderDto(
     string PaymentStatus,
     DateTimeOffset PlacedAt,
     DateTimeOffset UpdatedAt,
+    /// <summary>TAT-computed delivery promise (null for legacy orders placed before this feature).</summary>
+    DateTimeOffset? PromisedDeliveryAt,
     IReadOnlyList<OrderItemDto>? Items,
     IReadOnlyList<OrderAddonDto>? Addons,
-    IReadOnlyList<OrderStatusHistoryDto>? StatusHistory
+    IReadOnlyList<OrderStatusHistoryDto>? StatusHistory,
+    /// <summary>Customer rating 1–5. Null until the customer rates the order.</summary>
+    short? Rating = null,
+    string? RatingComment = null,
+    DateTimeOffset? RatedAt = null
 );
 
 public sealed record OrderItemDto(

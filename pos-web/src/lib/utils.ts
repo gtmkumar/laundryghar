@@ -41,6 +41,24 @@ export function todayLocalDate(): string {
     .toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 }
 
+/**
+ * Best human label for a customer: displayName → first+last → phone → code.
+ * Mirrors the precedence admin-web uses for its customer name map.
+ */
+export function customerLabel(c: {
+  displayName?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  phoneE164?: string | null
+  customerCode?: string | null
+}): string {
+  if (c.displayName?.trim()) return c.displayName.trim()
+  const full = [c.firstName, c.lastName].filter(Boolean).join(' ').trim()
+  if (full) return full
+  if (c.phoneE164?.trim()) return c.phoneE164.trim()
+  return c.customerCode?.trim() || 'Customer'
+}
+
 export function orderStatusColor(status: string): string {
   const map: Record<string, string> = {
     placed: 'bg-blue-100 text-blue-800',

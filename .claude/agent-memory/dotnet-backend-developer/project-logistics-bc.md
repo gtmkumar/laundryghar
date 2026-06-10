@@ -71,3 +71,13 @@ BC-5 `logistics` schema added to `laundryghar.SharedDataModel` (4 tables, 6 enum
 **BC-5 permissions seeded:** rider.read, rider.manage, rider.assignment.read, rider.assignment.manage, rider.capacity.manage. Grants: platform_admin auto-all; brand_admin all 5; store_admin reader+assignment r/m; warehouse_supervisor reader+assignment.manage+capacity.manage; franchise_owner/auditor read-only (rider.read + rider.assignment.read).
 
 **Cleanup note:** rider_location_pings is partitioned — DELETE works without needing to specify partition. Children (pings, capacity, assignments) must be deleted before the rider row itself (FK cascade on rider_id would handle assignments/pings anyway, but explicit ordering is cleaner).
+
+## Task #9 additions (auto-dispatch + duty toggle + load tracking)
+
+**Rider duty toggle:** `PATCH /api/v1/rider/duty` — RiderOnly lane, rider self-resolved from JWT sub + brand_id claim. Returns `{onDuty, openTaskCount}`. Handler in `RiderDutyCommands.cs`. Going off duty with open tasks is allowed; `openTaskCount > 0` is the warning signal. Used `on_duty_since` as the timestamp (already existed); `last_duty_change_at` was not added — `on_duty_since` already serves this purpose.
+
+**CurrentLoad maintenance:** Shared helper `RiderLoadHelper` in `laundryghar.SharedDataModel/Logistics/RiderLoadHelper.cs`. Uses raw `ExecuteSqlInterpolated` for atomicity. `IncrementAsync` called on: `AssignPickupHandler` (Orders), `CreateDeliveryAssignmentHandler` (Orders), and `AutoDispatchService.AssignPickupAsync` (Worker). `DecrementAsync` called on: `UpdateDeliveryAssignmentHandler` (Orders, terminal transition guard), and `UpdateMyTaskStatusHandler` (Logistics, completed/failed). Guard: `GREATEST(0, current_load - 1)` prevents negative values.
+
+**Auto-dispatch:** `AutoDispatchService` in Worker. Disabled by default (`AutoDispatch:Enabled=false`). Pure ranking logic in `RiderRanker.PickBest` (static, unit-tested). Ranking: load asc, then haversine distance asc. Worker bypasses RLS — every query explicitly scoped by brand_id. Creates `assignment.auto_assigned` outbox event per assignment. `AutoDispatchService.AssignPickupAsync` has an idempotency re-check before inserting (guards against concurrent manual assignment).
+
+**rider-mobile wiring:** `patchRiderDuty()` added to `src/api/rider.ts`. `dutyStore.setOnDuty()` calls it fire-and-forget via `void patchRiderDuty(on).catch(() => undefined)`. Local AsyncStorage state remains the optimistic source — offline behaviour unchanged.

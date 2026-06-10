@@ -1,9 +1,10 @@
 /**
  * Rider tasks API.
  *
- *   GET   /api/v1/rider/tasks/today          → ListResponse<RiderTask>
- *   PATCH /api/v1/rider/tasks/{id}/status    → started | arrived | completed | failed
- *   POST  /api/v1/rider/tasks/{id}/verify-otp→ server-side OTP check (code never returned)
+ *   GET   /api/v1/rider/tasks/today              → ListResponse<RiderTask>
+ *   PATCH /api/v1/rider/tasks/{id}/status        → started | arrived | completed | failed
+ *   POST  /api/v1/rider/tasks/{id}/verify-otp    → server-side OTP check (code never returned)
+ *   POST  /api/v1/rider/tasks/{id}/proof-photo   → multipart photo upload (optional PoD)
  *
  * When FEATURES.riderTasksApi is false the app falls back to the labelled demo
  * set (src/data/demoTasks.ts) so the flow still works offline / pre-backend.
@@ -81,5 +82,60 @@ export async function updateTaskStatus(
     return unwrapSingle(res.data);
   } catch (e) {
     throw toApiError(e, 'Could not update the task. Try again.');
+  }
+}
+
+/**
+ * Mark a task as failed with an optional structured reason code and note.
+ * The rider's failure reason is stored server-side on delivery_assignments.
+ *
+ * Allowed reason codes: customer_unavailable | address_issue | customer_refused | other
+ */
+export async function failTaskStatus(
+  taskId: string,
+  reason: string,
+  note?: string,
+): Promise<RiderTask> {
+  try {
+    const res = await logisticsClient.patch<SingleResponse<RiderTask>>(
+      `/rider/tasks/${taskId}/status`,
+      { status: 'failed', reason, note },
+    );
+    return unwrapSingle(res.data);
+  } catch (e) {
+    throw toApiError(e, 'Could not report the failure. Try again.');
+  }
+}
+
+/**
+ * Upload a proof-of-delivery photo for a task. The photo is optional — the
+ * existing confirm flow works without it. Sends as multipart/form-data.
+ *
+ * @param taskId  The delivery_assignment id (same id used by all /rider/tasks/* endpoints)
+ * @param uri     Local file URI returned by expo-image-picker (e.g. file:///...)
+ * @param mimeType MIME type of the selected image (image/jpeg | image/png | image/webp)
+ */
+export async function uploadProofPhoto(
+  taskId: string,
+  uri: string,
+  mimeType: string,
+): Promise<RiderTask> {
+  try {
+    const form = new FormData();
+    // React Native / Expo FormData accepts { uri, name, type } for file fields.
+    form.append('file', { uri, name: 'proof.jpg', type: mimeType } as unknown as Blob);
+
+    const res = await logisticsClient.post<SingleResponse<RiderTask>>(
+      `/rider/tasks/${taskId}/proof-photo`,
+      form,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        // Override the default 15 s timeout — photos can be large on slow connections.
+        timeout: 60_000,
+      },
+    );
+    return unwrapSingle(res.data);
+  } catch (e) {
+    throw toApiError(e, 'Could not upload photo. Try again.');
   }
 }

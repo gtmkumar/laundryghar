@@ -43,6 +43,7 @@ public sealed class DeliveryAssignmentConfiguration : IEntityTypeConfiguration<D
         b.Property(e => e.OtpAttemptedAt).HasColumnName("otp_attempted_at");
         b.Property(e => e.SignatureS3Key).HasColumnName("signature_s3_key");
         b.Property(e => e.ProofPhotoS3Key).HasColumnName("proof_photo_s3_key");
+        b.Property(e => e.ProofPhotoTakenAt).HasColumnName("proof_photo_taken_at");
         b.Property(e => e.CustomerSignature).HasColumnName("customer_signature");
         b.Property(e => e.Status).HasColumnName("status").HasMaxLength(30).IsRequired();
         b.Property(e => e.Notes).HasColumnName("notes");

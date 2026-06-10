@@ -11,13 +11,18 @@ interface OtpInputProps {
 
 /**
  * Display-only OTP cells. Value is driven externally by the custom Keypad.
+ * Each cell carries an accessibilityLabel so screen readers can read progress.
  */
 export function OtpInput({ value, length = 6, hasError = false, activeIndex }: OtpInputProps) {
   const active = activeIndex ?? value.length;
   const cells = Array.from({ length });
 
   return (
-    <View className="flex-row gap-2.5">
+    <View
+      className="flex-row gap-2.5"
+      accessible
+      accessibilityLabel={`Enter ${length}-digit code. ${value.length} of ${length} digits entered.`}
+    >
       {cells.map((_, i) => {
         const char = value[i] ?? '';
         const isActive = i === active;
@@ -32,6 +37,8 @@ export function OtpInput({ value, length = 6, hasError = false, activeIndex }: O
           <View
             key={i}
             className={`h-16 flex-1 items-center justify-center rounded-2xl border-2 bg-white ${border}`}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
             style={
               isActive
                 ? {

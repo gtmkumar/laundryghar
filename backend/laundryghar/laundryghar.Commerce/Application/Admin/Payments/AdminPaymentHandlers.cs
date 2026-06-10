@@ -207,10 +207,10 @@ public sealed class IssueRefundHandler : IRequestHandler<IssueRefundCommand, Pay
                 if (!string.IsNullOrEmpty(payment.GatewayPaymentId))
                     gatewayRefundId = await _gateway.InitiateRefundAsync(payment.GatewayPaymentId, req.Amount, ct);
                 refund.GatewayRefundId = gatewayRefundId;
-                refund.RefundMethod    = "gateway";
+                refund.RefundMethod    = "original";
             }
 
-            refund.Status      = "completed";
+            refund.Status      = "succeeded";
             refund.ProcessedAt = now;
             refund.CompletedAt = now;
 

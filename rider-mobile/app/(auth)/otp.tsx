@@ -17,12 +17,14 @@ import { sendLoginOtp, verifyLoginOtp } from '@/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { OtpInput } from '@/components/ui/OtpInput';
 import { Keypad } from '@/components/ui/Keypad';
+import { useTranslation } from 'react-i18next';
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
 export default function OtpScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { setTokens } = useAuthStore();
   const { phone, raw } = useLocalSearchParams<{ phone: string; raw: string }>();
 
@@ -33,8 +35,8 @@ export default function OtpScreen() {
 
   useEffect(() => {
     if (seconds <= 0) return;
-    const t = setTimeout(() => setSeconds((s) => s - 1), 1000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
   }, [seconds]);
 
   const masked = raw
@@ -53,8 +55,8 @@ export default function OtpScreen() {
       setError(true);
       setCode('');
       Alert.alert(
-        'Verification failed',
-        err instanceof Error ? err.message : 'That code did not match. Try again.',
+        t('auth.verificationFailed'),
+        err instanceof Error ? err.message : t('auth.errors.tryAgain'),
       );
     } finally {
       setVerifying(false);
@@ -69,7 +71,7 @@ export default function OtpScreen() {
       setCode('');
       setError(false);
     } catch (err: unknown) {
-      Alert.alert('Could not resend', err instanceof Error ? err.message : 'Try again shortly.');
+      Alert.alert(t('auth.couldNotResend'), err instanceof Error ? err.message : t('auth.errors.tryAgain'));
     }
   }
 
@@ -82,9 +84,9 @@ export default function OtpScreen() {
           <MaterialCommunityIcons name="truck-fast-outline" size={24} color="#4A552A" />
         </View>
 
-        <Text className="mt-8 text-4xl font-extrabold text-ink">Enter the code</Text>
+        <Text className="mt-8 text-4xl font-extrabold text-ink">{t('auth.enterCode')}</Text>
         <Text className="mt-2 text-base text-ink-muted">
-          Sent to <Text className="font-bold text-ink-soft">{masked}</Text>
+          {t('auth.codeSentTo')} <Text className="font-bold text-ink-soft">{masked}</Text>
         </Text>
 
         {/* Code cells (display only — driven by the keypad below) */}
@@ -103,15 +105,20 @@ export default function OtpScreen() {
         <View className="mt-6 flex-row items-center">
           {seconds > 0 ? (
             <Text className="text-sm text-ink-faint">
-              Resend code in {seconds}s
+              {t('auth.resendIn', { count: seconds })}
             </Text>
           ) : (
-            <Pressable onPress={() => void resend()} hitSlop={8}>
-              <Text className="text-sm font-bold text-olive-700">Resend code</Text>
+            <Pressable
+              onPress={() => void resend()}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('a11y.resendCode')}
+            >
+              <Text className="text-sm font-bold text-olive-700">{t('auth.resendCode')}</Text>
             </Pressable>
           )}
           {verifying ? (
-            <Text className="ml-auto text-sm text-ink-faint">Verifying…</Text>
+            <Text className="ml-auto text-sm text-ink-faint">{t('auth.verifying')}</Text>
           ) : null}
         </View>
 

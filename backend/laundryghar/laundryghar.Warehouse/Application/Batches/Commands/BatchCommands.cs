@@ -213,3 +213,19 @@ public sealed class CreateWarehouseBatchValidator : AbstractValidator<CreateWare
         RuleFor(x => x.Request.ExpectedGarmentCount).GreaterThan(0);
     }
 }
+
+public sealed class UpdateWarehouseBatchValidator : AbstractValidator<UpdateWarehouseBatchCommand>
+{
+    // Mirrors warehouse_batches.status CHECK constraint values.
+    private static readonly string[] AllowedStatuses =
+        ["created", "running", "completed", "failed", "aborted"];
+
+    public UpdateWarehouseBatchValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Request.Status)
+            .NotEmpty()
+            .Must(s => AllowedStatuses.Contains(s))
+            .WithMessage($"Status must be one of: {string.Join(", ", AllowedStatuses)}.");
+    }
+}

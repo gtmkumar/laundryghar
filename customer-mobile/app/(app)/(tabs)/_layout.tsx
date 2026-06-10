@@ -9,22 +9,24 @@ import { Tabs, useRouter } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface TabMeta {
   name: string;
-  label: string;
+  labelKey: string;
+  a11yKey: string;
   icon: IoniconName;
   activeIcon: IoniconName;
 }
 
 // Order matters — the FAB is injected between index 1 and 2.
 const TAB_META: Record<string, TabMeta> = {
-  home:        { name: 'home',      label: 'Home',    icon: 'home-outline',    activeIcon: 'home' },
-  'my-orders': { name: 'my-orders', label: 'Orders',  icon: 'receipt-outline', activeIcon: 'receipt' },
-  wallet:      { name: 'wallet',    label: 'Wallet',  icon: 'wallet-outline',  activeIcon: 'wallet' },
-  profile:     { name: 'profile',   label: 'Profile', icon: 'person-outline',  activeIcon: 'person' },
+  home:        { name: 'home',      labelKey: 'home.tabLabel',     a11yKey: 'a11y.tabHome',    icon: 'home-outline',    activeIcon: 'home' },
+  'my-orders': { name: 'my-orders', labelKey: 'orders.tabLabel',   a11yKey: 'a11y.tabOrders',  icon: 'receipt-outline', activeIcon: 'receipt' },
+  wallet:      { name: 'wallet',    labelKey: 'wallet.tabLabel',   a11yKey: 'a11y.tabWallet',  icon: 'wallet-outline',  activeIcon: 'wallet' },
+  profile:     { name: 'profile',   labelKey: 'profile.tabLabel',  a11yKey: 'a11y.tabProfile', icon: 'person-outline',  activeIcon: 'person' },
 };
 
 const LEFT = ['home', 'my-orders'];
@@ -39,12 +41,15 @@ function TabButton({
   focused: boolean;
   onPress: () => void;
 }) {
+  const { t } = useTranslation();
+  // Fall back to a11y key label if the short label key isn't defined yet
+  const label = t(meta.labelKey, { defaultValue: t(meta.a11yKey) });
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
+      accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
-      accessibilityLabel={meta.label}
+      accessibilityLabel={t(meta.a11yKey)}
       className="flex-1 items-center justify-center gap-1 py-1"
     >
       <Ionicons
@@ -53,7 +58,7 @@ function TabButton({
         color={focused ? '#4A552A' : '#A8A493'}
       />
       <Text className={`text-[11px] font-bold ${focused ? 'text-olive-700' : 'text-ink-faint'}`}>
-        {meta.label}
+        {label}
       </Text>
     </Pressable>
   );
@@ -61,6 +66,7 @@ function TabButton({
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const router = useRouter();
+  const { t } = useTranslation();
   const activeName = state.routes[state.index]?.name;
 
   const go = (name: string) => {
@@ -94,7 +100,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             <Pressable
               onPress={() => router.push('/(app)/booking/items')}
               accessibilityRole="button"
-              accessibilityLabel="Schedule a pickup"
+              accessibilityLabel={t('a11y.schedulePickup')}
               className="absolute h-16 w-16 items-center justify-center rounded-full bg-gold-400"
               style={{
                 top: -56,

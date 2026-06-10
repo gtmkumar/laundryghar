@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useDailyStoreRevenue } from '@/hooks/useAnalytics'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
+import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
@@ -53,7 +54,7 @@ export function DailyRevenueTab() {
       </div>
 
       {isLoading && <LoadingState message="Loading daily revenue..." />}
-      {isError && <ErrorState error={error as Error} onRetry={() => void refetch()} />}
+      {isError && (isForbiddenError(error) ? <ForbiddenState /> : <ErrorState error={error as Error} onRetry={() => void refetch()} />)}
 
       {data && (
         <Card>

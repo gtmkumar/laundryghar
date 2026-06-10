@@ -2,16 +2,20 @@
  * Duty store — the rider's on/off-duty toggle and the "before you ride"
  * pre-shift checklist.
  *
- * The backend has no rider-self duty endpoint yet (only admin can flip
- * riders.is_online / is_on_duty, and the shift-assignment status is the
- * closest real signal). So duty is held client-side and persisted to
- * AsyncStorage (non-sensitive). Going on duty ALSO opportunistically
- * activates today's shift assignment + sends a location ping — see home.tsx.
+ * Local state (AsyncStorage) is the optimistic source of truth — the UX
+ * responds instantly even when offline.  Going on/off duty also calls
+ * PATCH /api/v1/rider/duty best-effort so the backend reflects the real
+ * duty state for auto-dispatch and the live board.
  *
- * When a rider-self duty endpoint ships, set it from `setOnDuty`.
+ * The server call is fire-and-forget from the store's perspective:
+ *   - On success the server acks the new state.
+ *   - On failure (network offline, 401, etc.) the optimistic local state
+ *     stands; the rider can still work — the server will re-sync next
+ *     time the call succeeds.
  */
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { patchRiderDuty } from '@/api/rider';
 
 const STORAGE_KEY = 'lg_rider_duty_v1';
 
@@ -72,9 +76,14 @@ export const useDutyStore = create<DutyState>()((set, get) => ({
   },
 
   setOnDuty: (on) => {
+    // Update local state immediately (optimistic).
     const onDutySince = on ? new Date().toISOString() : null;
     set({ isOnDuty: on, onDutySince });
     persist({ isOnDuty: on, onDutySince, checklist: get().checklist });
+
+    // Best-effort server sync — never block or reject based on outcome.
+    // The rider can work offline; the server will re-sync on next success.
+    void patchRiderDuty(on).catch(() => undefined);
   },
 
   toggleChecklist: (item) => {

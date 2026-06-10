@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Loader2, ChevronRight } from 'lucide-react'
 import { useOrdersInfinite } from '@/hooks/useOrders'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -15,8 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 import type { OrderDto } from '@/types/api'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { OrderDetailDrawer } from './OrderDetailDrawer'
+import { PickupRequestsTab } from './PickupRequestsTab'
+import { OpsQueuesTab } from './OpsQueuesTab'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -91,6 +96,11 @@ const orderColumns: Column<OrderDto>[] = [
     accessor: (r) =>
       r.isExpress ? <Badge variant="warning">Express</Badge> : null,
   },
+  {
+    header: '',
+    accessor: () => <ChevronRight className="h-4 w-4 text-gray-300" />,
+    className: 'w-8 text-right',
+  },
 ]
 
 // ── Filters bar ───────────────────────────────────────────────────────────────
@@ -135,10 +145,11 @@ function OrderFilters({ status, onStatusChange }: FiltersProps) {
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Orders tab (the original list) ─────────────────────────────────────────────
 
-export function OrdersPage() {
+function OrdersTab() {
   const [statusFilter, setStatusFilter] = useState('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const { data, isLoading, isError, error, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useOrdersInfinite({
@@ -148,15 +159,9 @@ export function OrdersPage() {
   const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   const orders = data?.pages.flatMap((p) => p.list) ?? []
-  const total = data?.pages[0]?.totalCount
 
   return (
-    <div>
-      <PageHeader
-        title="Orders"
-        description={total !== undefined ? `${total} order${total === 1 ? '' : 's'} · View and manage customer orders across all stores.` : 'View and manage customer orders across all stores.'}
-      />
-
+    <>
       <OrderFilters status={statusFilter} onStatusChange={setStatusFilter} />
 
       <Card className="overflow-hidden">
@@ -167,6 +172,7 @@ export function OrdersPage() {
             columns={orderColumns}
             data={orders}
             keyFn={(r) => r.id}
+            onRowClick={(r) => setSelectedId(r.id)}
             emptyMessage="No orders match the selected filters."
           />
         )}
@@ -177,6 +183,70 @@ export function OrdersPage() {
         <div className="flex items-center justify-center py-4 text-gray-400">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more orders…
         </div>
+      )}
+
+      <OrderDetailDrawer orderId={selectedId} onClose={() => setSelectedId(null)} />
+    </>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+type OrdersView = 'orders' | 'pickups' | 'ops'
+
+export function OrdersPage() {
+  // Tab synced to ?tab= for deep-linking (mirrors the Riders page ?view= pattern).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const view: OrdersView =
+    tabParam === 'pickups' ? 'pickups' : tabParam === 'ops' ? 'ops' : 'orders'
+  const setView = (v: OrdersView) => {
+    const next = new URLSearchParams(searchParams)
+    if (v === 'orders') next.delete('tab')
+    else next.set('tab', v)
+    setSearchParams(next, { replace: true })
+  }
+
+  const tabs: { key: OrdersView; label: string }[] = [
+    { key: 'orders',  label: 'Orders' },
+    { key: 'pickups', label: 'Pickup requests' },
+    { key: 'ops',     label: 'Ops queues' },
+  ]
+
+  return (
+    <div>
+      <PageHeader
+        title="Orders"
+        description="View and manage customer orders, pickup requests, and overdue ops queues."
+      />
+
+      {/* Tab bar — Orders list | Pickup requests | Ops queues */}
+      <div className="mb-5 flex w-fit items-center gap-1 rounded-xl border border-gray-200 bg-white p-1">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setView(t.key)}
+            className={cn(
+              'rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors',
+              view === t.key ? 'bg-lg-green text-white' : 'text-gray-600 hover:bg-gray-50',
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'pickups' ? (
+        <Card className="overflow-hidden">
+          <PickupRequestsTab />
+        </Card>
+      ) : view === 'ops' ? (
+        <div className="space-y-4">
+          <OpsQueuesTab />
+        </div>
+      ) : (
+        <OrdersTab />
       )}
     </div>
   )

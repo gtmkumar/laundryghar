@@ -288,6 +288,7 @@ public sealed class EngagementSeeder
             added++;
         }
 
+        // ── Existing templates (preserved) ────────────────────────────────────
         // order_placed — SMS
         Ensure(
             code: "ORDER_PLACED_SMS",
@@ -307,6 +308,239 @@ public sealed class EngagementSeeder
             category: "transactional",
             locale: "en",
             body: "Hi {{customer_name}}, your order #{{order_number}} is ready! We'll deliver it on {{delivery_date}}. Thank you for choosing Laundry Ghar.",
+            subject: null,
+            isTransactional: true);
+
+        // ── Lifecycle templates — WhatsApp (utility/transactional) ─────────────
+        Ensure(
+            code: "ORDER_PICKUP_SCHEDULED_WHATSAPP",
+            name: "Order Pickup Scheduled - WhatsApp",
+            channel: "whatsapp",
+            category: "transactional",
+            locale: "en",
+            body: "Hi {{customer_name}}, your Laundry Ghar order #{{order_number}} pickup is scheduled for {{pickup_date}}. Our rider will be at your door soon!",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_PICKED_UP_WHATSAPP",
+            name: "Order Picked Up - WhatsApp",
+            channel: "whatsapp",
+            category: "transactional",
+            locale: "en",
+            body: "Hi {{customer_name}}, we've picked up your order #{{order_number}}. Your clothes are on their way to our laundry facility. We'll keep you updated!",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_OUT_FOR_DELIVERY_WHATSAPP",
+            name: "Order Out for Delivery - WhatsApp",
+            channel: "whatsapp",
+            category: "transactional",
+            locale: "en",
+            body: "Hi {{customer_name}}, your order #{{order_number}} is out for delivery! Our rider is on the way. Estimated delivery: {{delivery_date}}.",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_DELIVERED_WHATSAPP",
+            name: "Order Delivered - WhatsApp",
+            channel: "whatsapp",
+            category: "transactional",
+            locale: "en",
+            body: "Hi {{customer_name}}, your Laundry Ghar order #{{order_number}} has been delivered! Thank you for choosing us. Rate your experience: {{tracking_url}}",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_CANCELLED_WHATSAPP",
+            name: "Order Cancelled - WhatsApp",
+            channel: "whatsapp",
+            category: "transactional",
+            locale: "en",
+            body: "Hi {{customer_name}}, your Laundry Ghar order #{{order_number}} has been cancelled. If you have questions please contact our support. We're sorry for the inconvenience.",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "PAYMENT_CAPTURED_WHATSAPP",
+            name: "Payment Received - WhatsApp",
+            channel: "whatsapp",
+            category: "transactional",
+            locale: "en",
+            body: "Hi {{customer_name}}, we've received your payment of ₹{{amount}} for order #{{order_number}}. Thank you!",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "REFUND_INITIATED_WHATSAPP",
+            name: "Refund Initiated - WhatsApp",
+            channel: "whatsapp",
+            category: "transactional",
+            locale: "en",
+            body: "Hi {{customer_name}}, a refund of ₹{{amount}} for order #{{order_number}} has been initiated. It will reflect in your account within 5-7 business days.",
+            subject: null,
+            isTransactional: true);
+
+        // ── Lifecycle templates — SMS (fallback when WhatsApp not opted-in) ────
+        Ensure(
+            code: "ORDER_PICKUP_SCHEDULED_SMS",
+            name: "Order Pickup Scheduled - SMS",
+            channel: "sms",
+            category: "transactional",
+            locale: "en",
+            body: "Laundry Ghar: Order #{{order_number}} pickup scheduled for {{pickup_date}}. -LaunGhar",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_PICKED_UP_SMS",
+            name: "Order Picked Up - SMS",
+            channel: "sms",
+            category: "transactional",
+            locale: "en",
+            body: "Laundry Ghar: Order #{{order_number}} picked up. We'll notify you when ready. -LaunGhar",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_READY_SMS",
+            name: "Order Ready - SMS",
+            channel: "sms",
+            category: "transactional",
+            locale: "en",
+            body: "Laundry Ghar: Your order #{{order_number}} is ready for delivery on {{delivery_date}}. -LaunGhar",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_OUT_FOR_DELIVERY_SMS",
+            name: "Order Out for Delivery - SMS",
+            channel: "sms",
+            category: "transactional",
+            locale: "en",
+            body: "Laundry Ghar: Order #{{order_number}} is out for delivery. ETA: {{delivery_date}}. -LaunGhar",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_DELIVERED_SMS",
+            name: "Order Delivered - SMS",
+            channel: "sms",
+            category: "transactional",
+            locale: "en",
+            body: "Laundry Ghar: Order #{{order_number}} delivered! Thank you. Rate us: {{tracking_url}} -LaunGhar",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_CANCELLED_SMS",
+            name: "Order Cancelled - SMS",
+            channel: "sms",
+            category: "transactional",
+            locale: "en",
+            body: "Laundry Ghar: Order #{{order_number}} has been cancelled. Contact support for assistance. -LaunGhar",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "PAYMENT_CAPTURED_SMS",
+            name: "Payment Received - SMS",
+            channel: "sms",
+            category: "transactional",
+            locale: "en",
+            body: "Laundry Ghar: Payment of Rs.{{amount}} received for order #{{order_number}}. Thank you! -LaunGhar",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "REFUND_INITIATED_SMS",
+            name: "Refund Initiated - SMS",
+            channel: "sms",
+            category: "transactional",
+            locale: "en",
+            body: "Laundry Ghar: Refund of Rs.{{amount}} for order #{{order_number}} initiated. Allow 5-7 days. -LaunGhar",
+            subject: null,
+            isTransactional: true);
+
+        // ── Lifecycle templates — Push (second fallback) ───────────────────────
+        Ensure(
+            code: "ORDER_PICKUP_SCHEDULED_PUSH",
+            name: "Order Pickup Scheduled - Push",
+            channel: "push",
+            category: "transactional",
+            locale: "en",
+            body: "Your order #{{order_number}} pickup is scheduled for {{pickup_date}}.",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_PICKED_UP_PUSH",
+            name: "Order Picked Up - Push",
+            channel: "push",
+            category: "transactional",
+            locale: "en",
+            body: "We've picked up order #{{order_number}}. It's in our facility now!",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_READY_PUSH",
+            name: "Order Ready - Push",
+            channel: "push",
+            category: "transactional",
+            locale: "en",
+            body: "Order #{{order_number}} is clean and ready for delivery on {{delivery_date}}.",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_OUT_FOR_DELIVERY_PUSH",
+            name: "Order Out for Delivery - Push",
+            channel: "push",
+            category: "transactional",
+            locale: "en",
+            body: "Order #{{order_number}} is on its way! ETA: {{delivery_date}}.",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_DELIVERED_PUSH",
+            name: "Order Delivered - Push",
+            channel: "push",
+            category: "transactional",
+            locale: "en",
+            body: "Order #{{order_number}} delivered! Fresh and clean. Thank you for choosing Laundry Ghar.",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "ORDER_CANCELLED_PUSH",
+            name: "Order Cancelled - Push",
+            channel: "push",
+            category: "transactional",
+            locale: "en",
+            body: "Your order #{{order_number}} has been cancelled.",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "PAYMENT_CAPTURED_PUSH",
+            name: "Payment Received - Push",
+            channel: "push",
+            category: "transactional",
+            locale: "en",
+            body: "Payment of ₹{{amount}} received for order #{{order_number}}.",
+            subject: null,
+            isTransactional: true);
+
+        Ensure(
+            code: "REFUND_INITIATED_PUSH",
+            name: "Refund Initiated - Push",
+            channel: "push",
+            category: "transactional",
+            locale: "en",
+            body: "Refund of ₹{{amount}} initiated for order #{{order_number}}. Allow 5-7 business days.",
             subject: null,
             isTransactional: true);
 

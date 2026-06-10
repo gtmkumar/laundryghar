@@ -9,6 +9,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Expose internals to the companion test project only -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>laundryghar.Engagement.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\laundryghar.ServiceDefaults\laundryghar.ServiceDefaults.csproj" />
     <ProjectReference Include="..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
     <ProjectReference Include="..\laundryghar.Utilities\laundryghar.Utilities.csproj" />

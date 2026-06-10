@@ -155,15 +155,21 @@ public sealed class NotificationDispatcherService : BackgroundService
             RecipientPhone: row.RecipientPhone,
             RecipientEmail: row.RecipientEmail,
             TemplateCode:  row.TemplateCode,
-            Body:          renderedBody);
+            Body:          renderedBody,
+            ReferenceType: row.ReferenceType,
+            ReferenceId:   row.ReferenceId);
 
         bool succeeded = false;
         string? errorMessage = null;
+        string providerName = "unknown";
+        string? providerMessageId = null;
 
         try
         {
-            await sender.SendAsync(sendRequest, ct);
-            succeeded = true;
+            var result = await sender.SendAsync(sendRequest, ct);
+            succeeded         = true;
+            providerName      = result.ProviderName;
+            providerMessageId = result.ProviderMessageId;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -194,28 +200,29 @@ public sealed class NotificationDispatcherService : BackgroundService
 
             if (succeeded)
             {
-                toUpdate.Status    = "sent";
-                toUpdate.SentAt    = now;
-                toUpdate.Provider  = "logging-stub";
-                toUpdate.LastError = null;
+                toUpdate.Status            = "sent";
+                toUpdate.SentAt            = now;
+                toUpdate.Provider          = providerName;
+                toUpdate.ProviderMessageId = providerMessageId;
+                toUpdate.LastError         = null;
 
                 // Append audit log row (composite PK: Id + SentAt).
                 var log = new NotificationLog
                 {
-                    Id              = Guid.NewGuid(),
-                    SentAt          = now,
-                    BrandId         = row.BrandId,
-                    OutboxId        = row.Id,
-                    Channel         = row.Channel,
-                    TemplateCode    = row.TemplateCode,
-                    RecipientType   = row.RecipientType,
-                    RecipientId     = row.RecipientId,
+                    Id               = Guid.NewGuid(),
+                    SentAt           = now,
+                    BrandId          = row.BrandId,
+                    OutboxId         = row.Id,
+                    Channel          = row.Channel,
+                    TemplateCode     = row.TemplateCode,
+                    RecipientType    = row.RecipientType,
+                    RecipientId      = row.RecipientId,
                     RecipientAddress = row.RecipientPhone ?? row.RecipientEmail,
-                    Provider        = "logging-stub",
-                    Status          = "sent",
-                    ReferenceType   = row.ReferenceType,
-                    ReferenceId     = row.ReferenceId,
-                    CreatedAt       = now
+                    Provider         = providerName,
+                    Status           = "sent",
+                    ReferenceType    = row.ReferenceType,
+                    ReferenceId      = row.ReferenceId,
+                    CreatedAt        = now
                 };
                 db.NotificationLogs.Add(log);
 

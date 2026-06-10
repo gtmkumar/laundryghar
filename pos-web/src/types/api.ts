@@ -196,6 +196,37 @@ export interface PriceResolutionDto {
   serviceNameSnapshot: string
 }
 
+// ── Customers (admin lane) ───────────────────────────────────────────────────
+
+export interface AdminCustomerDto {
+  id: string
+  brandId: string
+  customerCode: string
+  phoneE164: string
+  email: string | null
+  firstName: string | null
+  lastName: string | null
+  displayName: string | null
+  gender: string | null
+  dateOfBirth: string | null
+  locale: string
+  timezone: string
+  lifetimeOrders: number
+  lifetimeSpend: number
+  loyaltyPointsBalance: number
+  walletBalance: number
+  customerSegment: string | null
+  riskFlag: string | null
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminCustomerListParams extends PaginationParams {
+  status?: string
+  search?: string
+}
+
 // ── Orders ──────────────────────────────────────────────────────────────────
 
 export interface CreateOrderItemRequest {
@@ -224,6 +255,7 @@ export interface CreateOrderRequest {
   items: CreateOrderItemRequest[]
   addons: CreateOrderAddonRequest[]
   notesCustomer?: string | null
+  couponCode?: string | null
 }
 
 export interface UpdateOrderStatusRequest {
@@ -285,6 +317,7 @@ export interface OrderDto {
   taxTotal: number
   cgst: number
   sgst: number
+  discountTotal: number
   grandTotal: number
   amountPaid: number
   amountDue: number | null
@@ -395,4 +428,33 @@ export interface CashBookListParams extends PaginationParams {
   storeId?: string
   status?: string
   bookDate?: string
+}
+
+// ── Offline payment (Commerce admin lane) ────────────────────────────────────
+
+export interface RecordOfflinePaymentRequest {
+  orderId: string
+  method: 'cash' | 'upi' | 'card'
+  amount: number
+  reference?: string | null
+}
+
+export interface OfflinePaymentDto {
+  paymentId: string
+  orderId: string
+  method: string
+  amount: number
+  reference: string | null
+  orderPaymentStatus: string
+  orderAmountPaid: number
+  orderAmountDue: number | null
+}
+
+// ── Admin create customer ─────────────────────────────────────────────────────
+
+export interface AdminCreateCustomerRequest {
+  phone: string
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
 }

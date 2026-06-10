@@ -21,6 +21,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/Button';
 import { useOnboardingSlides } from '@/hooks/useEngagement';
+import { useTranslation } from 'react-i18next';
+import { pickLocalized } from '@/i18n';
 import type { OnboardingSlideDto } from '@/types/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -44,7 +46,7 @@ const FALLBACK_SLIDES: OnboardingSlideDto[] = [
   },
   {
     id: 'fb-3', brandId: '', appType: 'customer',
-    title: 'Track every piece till it’s back home.',
+    title: "Track every piece till it's back home.",
     titleLocalized: '',
     description: 'Live timeline from pickup to delivery, with WhatsApp updates on the way.',
     descriptionLocalized: '', imageUrl: '', displayOrder: 3, isActive: true,
@@ -98,6 +100,7 @@ function Slide({ item, index }: { item: OnboardingSlideDto; index: number }) {
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [index, setIndex] = useState(0);
   const flatRef = useRef<FlatList<OnboardingSlideDto>>(null);
 
@@ -145,9 +148,9 @@ export default function OnboardingScreen() {
           <View className="rounded-t-[36px] bg-white px-7 pb-8 pt-8" style={{
             shadowColor: '#2E351C', shadowOpacity: 0.08, shadowRadius: 20, shadowOffset: { width: 0, height: -6 },
           }}>
-            <Text className="mb-2 text-xs font-bold uppercase tracking-[3px] text-gold-600">India</Text>
-            <Text className="text-3xl font-extrabold leading-9 text-ink">{current.title}</Text>
-            <Text className="mt-3 text-base leading-6 text-ink-muted">{current.description}</Text>
+            <Text className="mb-2 text-xs font-bold uppercase tracking-[3px] text-gold-600">{t('onboarding.eyebrow')}</Text>
+            <Text className="text-3xl font-extrabold leading-9 text-ink">{pickLocalized(current.title, current.titleLocalized)}</Text>
+            <Text className="mt-3 text-base leading-6 text-ink-muted">{pickLocalized(current.description ?? '', current.descriptionLocalized)}</Text>
 
             {/* Dots */}
             <View className="mt-6 flex-row gap-1.5">
@@ -163,7 +166,7 @@ export default function OnboardingScreen() {
             <View className="mt-7 flex-row gap-3">
               <View className="flex-1">
                 <Button
-                  title="Skip"
+                  title={t('onboarding.skip')}
                   variant="secondary"
                   size="lg"
                   fullWidth
@@ -172,7 +175,7 @@ export default function OnboardingScreen() {
               </View>
               <View className="flex-1">
                 <Button
-                  title={isLast ? 'Get Started' : 'Next'}
+                  title={isLast ? t('onboarding.getStarted') : t('onboarding.next')}
                   size="lg"
                   fullWidth
                   iconRight="arrow-forward"

@@ -22,6 +22,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { sendLoginOtp } from '@/api/auth';
 import { Button } from '@/components/ui/Button';
+import { useTranslation } from 'react-i18next';
 
 /** Tiny India flag — drawn (not emoji) so it renders identically on iOS+Android. */
 function IndiaFlag() {
@@ -41,6 +42,7 @@ function IndiaFlag() {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [digits, setDigits]   = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
@@ -49,7 +51,7 @@ export default function LoginScreen() {
 
   async function handleSend() {
     if (!valid) {
-      setError('Enter a valid 10-digit mobile number.');
+      setError(t('auth.errors.invalidPhone'));
       return;
     }
     setError('');
@@ -59,7 +61,7 @@ export default function LoginScreen() {
       await sendLoginOtp(e164);
       router.push({ pathname: '/(auth)/otp', params: { phone: e164, raw: digits } });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not send OTP. Try again.');
+      setError(err instanceof Error ? err.message : t('auth.errors.tryAgain'));
     } finally {
       setLoading(false);
     }
@@ -84,14 +86,14 @@ export default function LoginScreen() {
             <MaterialCommunityIcons name="truck-fast-outline" size={24} color="#4A552A" />
           </View>
 
-          <Text className="mt-8 text-4xl font-extrabold text-ink">Rider sign in</Text>
+          <Text className="mt-8 text-4xl font-extrabold text-ink">{t('auth.title')}</Text>
           <Text className="mt-2 text-base text-ink-muted">
-            Use your registered partner number.
+            {t('auth.subtitle')}
           </Text>
 
           {/* Phone field */}
           <Text className="mt-9 text-xs font-semibold uppercase tracking-widest text-ink-faint">
-            Phone number
+            {t('auth.phoneLabel')}
           </Text>
           <View
             className={[
@@ -133,7 +135,7 @@ export default function LoginScreen() {
         {/* Pinned CTA */}
         <View className="px-6 pb-4">
           <Button
-            title="Send OTP"
+            title={t('auth.sendOtp')}
             iconRight="arrow-forward"
             size="lg"
             fullWidth
@@ -142,7 +144,7 @@ export default function LoginScreen() {
             onPress={() => void handleSend()}
           />
           <Text className="mt-4 text-center text-xs text-ink-faint">
-            Trouble signing in? Contact your franchise manager.
+            {t('auth.troubleSignIn')}
           </Text>
         </View>
       </KeyboardAvoidingView>

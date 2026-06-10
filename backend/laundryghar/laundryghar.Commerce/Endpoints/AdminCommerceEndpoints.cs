@@ -5,6 +5,7 @@ using laundryghar.Commerce.Application.Admin.Packages;
 using laundryghar.Commerce.Application.Admin.PaymentMethods;
 using laundryghar.Commerce.Application.Admin.Payments;
 using laundryghar.Commerce.Application.Admin.Promotions;
+using laundryghar.Commerce.Application.Admin.Subscriptions;
 using laundryghar.Commerce.Application.Admin.Wallet;
 using MediatR;
 
@@ -200,6 +201,12 @@ public static class AdminCommerceEndpoints
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PaymentDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:payment.read");
 
+        payments.MapPost("/", async (RecordOfflinePaymentRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new RecordOfflinePaymentCommand(req, u.UserId), ct);
+            return Results.Created($"/api/v1/admin/payments/{r.PaymentId}", new SingleResponse<OfflinePaymentDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:payment.record");
+
         payments.MapPost("/refunds", async (IssueRefundRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {
             var r = await sender.Send(new IssueRefundCommand(req, u.UserId), ct);
@@ -227,6 +234,51 @@ public static class AdminCommerceEndpoints
             var r = await sender.Send(new AdminWalletAdjustCommand(req, u.UserId), ct);
             return Results.Ok(new SingleResponse<WalletTransactionDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:wallet.adjust");
+
+        // ── Subscription Plans ─────────────────────────────────────────────────
+        var subPlans = group.MapGroup("/subscription-plans").WithTags("Admin - Commerce - Subscription Plans");
+
+        subPlans.MapGet("/", async ([FromServices] ISender sender, CancellationToken ct,
+            int page = 1, int pageSize = 20) =>
+        {
+            var r = await sender.Send(new GetSubscriptionPlansQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize), ct);
+            return Results.Ok(new PaginatedListResponse<SubscriptionPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:subscription.manage");
+
+        subPlans.MapGet("/{id:guid}", async (Guid id, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetSubscriptionPlanByIdQuery(id), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<SubscriptionPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:subscription.manage");
+
+        subPlans.MapPost("/", async (CreateSubscriptionPlanRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new CreateSubscriptionPlanCommand(req, u.UserId), ct);
+            return Results.Created($"/api/v1/admin/subscription-plans/{r.Id}", new SingleResponse<SubscriptionPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:subscription.manage");
+
+        subPlans.MapPut("/{id:guid}", async (Guid id, UpdateSubscriptionPlanRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new UpdateSubscriptionPlanCommand(id, req, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<SubscriptionPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:subscription.manage");
+
+        subPlans.MapDelete("/{id:guid}", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var ok = await sender.Send(new DeleteSubscriptionPlanCommand(id, u.UserId), ct);
+            return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+        }).RequireAuthorization("permission:subscription.manage");
+
+        // ── Admin: Customer Subscriptions (read) ───────────────────────────────
+        var custSubs = group.MapGroup("/subscriptions").WithTags("Admin - Commerce - Customer Subscriptions");
+
+        custSubs.MapGet("/", async ([FromServices] ISender sender, CancellationToken ct,
+            int page = 1, int pageSize = 20, Guid? customerId = null, string? status = null) =>
+        {
+            var r = await sender.Send(new GetCustomerSubscriptionsAdminQuery(
+                page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, customerId, status), ct);
+            return Results.Ok(new PaginatedListResponse<CustomerSubscriptionDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:subscription.read");
 
         return group;
     }

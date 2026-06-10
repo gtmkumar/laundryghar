@@ -7,6 +7,7 @@ import {
   useDeleteAppBanner,
 } from '@/hooks/useCms'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
+import { usePermissions } from '@/hooks/usePermissions'
 import { usePromotions, useCoupons } from '@/hooks/useCommerce'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -416,6 +417,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function AppBannersTab() {
+  // Backend gate: every banner mutation requires permission:cms.banner.manage.
+  const { hasPermission } = usePermissions()
+  const canManage = hasPermission('cms.banner.manage')
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<AppBannerDto | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AppBannerDto | null>(null)
@@ -512,35 +516,37 @@ export function AppBannersTab() {
     },
     { header: 'Status', accessor: (r) => <StatusBadge status={r.status} /> },
     { header: 'Updated', accessor: (r) => formatDate(r.updatedAt) },
-    {
-      header: '',
-      accessor: (r) => (
-        <div className="flex gap-1 justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleEdit(r)
-            }}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              setDeleteTarget(r)
-            }}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-          >
-            Archive
-          </Button>
-        </div>
-      ),
-      className: 'w-36',
-    },
+    ...(canManage
+      ? [{
+          header: '',
+          accessor: (r: AppBannerDto) => (
+            <div className="flex gap-1 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEdit(r)
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDeleteTarget(r)
+                }}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Archive
+              </Button>
+            </div>
+          ),
+          className: 'w-36',
+        } satisfies Column<AppBannerDto>]
+      : []),
   ]
 
   if (isLoading) return <LoadingState message="Loading app banners..." />
@@ -555,9 +561,11 @@ export function AppBannersTab() {
         {total !== undefined && (
           <p className="text-sm text-gray-500">{total} banner{total === 1 ? '' : 's'}</p>
         )}
-        <Button size="sm" onClick={() => setShowForm(true)} className="ml-auto">
-          + New Banner
-        </Button>
+        {canManage && (
+          <Button size="sm" onClick={() => setShowForm(true)} className="ml-auto">
+            + New Banner
+          </Button>
+        )}
       </div>
 
       <DataTable

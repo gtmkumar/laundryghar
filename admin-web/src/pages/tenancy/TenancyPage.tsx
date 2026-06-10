@@ -20,6 +20,7 @@ import {
   WarehouseEditDrawer,
   WAREHOUSE_STATUSES,
 } from './WarehouseDrawers'
+import { DeliverySlotsTab } from './DeliverySlotsTab'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { type Column } from '@/components/shared/DataTable'
@@ -38,7 +39,7 @@ const STORE_TYPE_OPTIONS = [
   { value: 'collection_point', label: 'Collection point' },
 ]
 
-type Tab = 'stores' | 'franchises' | 'warehouses'
+type Tab = 'stores' | 'franchises' | 'warehouses' | 'slots'
 
 function StatusBadge({ status }: { status: string }) {
   const variant =
@@ -459,14 +460,17 @@ export function TenancyPage() {
   const [activeTab, setActiveTab] = useState<Tab>('stores')
   const [addStoreOpen, setAddStoreOpen] = useState(false)
   const [addWarehouseOpen, setAddWarehouseOpen] = useState(false)
+  const [addSlotOpen, setAddSlotOpen] = useState(false)
   const { hasPermission } = usePermissions()
   const canCreateStore = hasPermission('stores.create')
   const canCreateWarehouse = hasPermission('warehouses.create')
+  const canManageSlots = hasPermission('delivery.slot.manage')
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'stores', label: 'Stores' },
     { id: 'franchises', label: 'Franchises' },
     { id: 'warehouses', label: 'Warehouses' },
+    { id: 'slots', label: 'Delivery slots' },
   ]
 
   const headerAction =
@@ -485,6 +489,14 @@ export function TenancyPage() {
         className="inline-flex items-center gap-1.5 rounded-xl bg-lg-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)]"
       >
         <Plus className="h-4 w-4" /> Add warehouse
+      </button>
+    ) : activeTab === 'slots' && canManageSlots ? (
+      <button
+        type="button"
+        onClick={() => setAddSlotOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-xl bg-lg-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)]"
+      >
+        <Plus className="h-4 w-4" /> Add slot
       </button>
     ) : undefined
 
@@ -519,8 +531,10 @@ export function TenancyPage() {
           <StoresTab />
         ) : activeTab === 'franchises' ? (
           <FranchisesTab />
-        ) : (
+        ) : activeTab === 'warehouses' ? (
           <WarehousesTab addOpen={addWarehouseOpen} onAddClose={() => setAddWarehouseOpen(false)} />
+        ) : (
+          <DeliverySlotsTab addOpen={addSlotOpen} onAddClose={() => setAddSlotOpen(false)} />
         )}
       </Card>
 

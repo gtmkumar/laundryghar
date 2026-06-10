@@ -10,8 +10,14 @@ import { BottomNav } from './BottomNav'
 export function AppShell() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to content
+      </a>
       <Topbar />
-      <main className="flex-1 overflow-y-auto">
+      <main id="main-content" className="flex-1 overflow-y-auto">
         <Outlet />
       </main>
       <BottomNav />

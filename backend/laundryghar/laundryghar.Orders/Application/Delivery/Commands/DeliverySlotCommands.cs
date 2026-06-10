@@ -106,3 +106,21 @@ public sealed class CreateDeliverySlotValidator : AbstractValidator<CreateDelive
             .WithMessage("SlotType must be 'pickup' or 'delivery'.");
     }
 }
+
+public sealed class UpdateDeliverySlotValidator : AbstractValidator<UpdateDeliverySlotCommand>
+{
+    private static readonly string[] AllowedStatuses = ["active", "inactive", "full", "cancelled"];
+
+    public UpdateDeliverySlotValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Request.Capacity)
+            .GreaterThan(0)
+            .When(x => x.Request.Capacity.HasValue)
+            .WithMessage("Capacity must be greater than 0.");
+        RuleFor(x => x.Request.Status)
+            .Must(s => AllowedStatuses.Contains(s))
+            .When(x => x.Request.Status is not null)
+            .WithMessage($"Status must be one of: {string.Join(", ", AllowedStatuses)}.");
+    }
+}

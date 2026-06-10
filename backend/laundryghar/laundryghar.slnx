@@ -1,6 +1,9 @@
 <Solution>
   <Project Path="laundryghar.ServiceDefaults.Tests/laundryghar.ServiceDefaults.Tests.csproj" />
   <Project Path="laundryghar.Commerce.Tests/laundryghar.Commerce.Tests.csproj" />
+  <Project Path="laundryghar.Orders.Tests/laundryghar.Orders.Tests.csproj" />
+  <Project Path="laundryghar.Identity.Tests/laundryghar.Identity.Tests.csproj" />
+  <Project Path="laundryghar.Worker.Tests/laundryghar.Worker.Tests.csproj" />
   <Project Path="laundryghar.ServiceDefaults/laundryghar.ServiceDefaults.csproj" />
   <Project Path="laundryghar.AppHost/laundryghar.AppHost.csproj" />
   <Project Path="laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
@@ -13,6 +16,9 @@
   <Project Path="laundryghar.Commerce/laundryghar.Commerce.csproj" />
   <Project Path="laundryghar.Finance/laundryghar.Finance.csproj" />
   <Project Path="laundryghar.Engagement/laundryghar.Engagement.csproj" />
+  <Project Path="laundryghar.Engagement.Tests/laundryghar.Engagement.Tests.csproj" />
+  <Project Path="laundryghar.Finance.Tests/laundryghar.Finance.Tests.csproj" />
+  <Project Path="laundryghar.Logistics.Tests/laundryghar.Logistics.Tests.csproj" />
   <Project Path="laundryghar.Analytics/laundryghar.Analytics.csproj" />
   <Project Path="laundryghar.Worker/laundryghar.Worker.csproj" />
 </Solution>

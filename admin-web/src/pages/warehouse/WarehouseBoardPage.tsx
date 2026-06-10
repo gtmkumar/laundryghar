@@ -1,9 +1,13 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { QrCode, ClipboardList, Flag, ArrowLeft, Plus, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWarehouseBoard } from '@/hooks/useWarehouse'
 import { useEnsureBrandContext } from '@/hooks/useBrandContext'
 import { Barcode } from '@/components/warehouse/Barcode'
+import { ScanInDrawer } from '@/components/warehouse/ScanInDrawer'
+import { ReconReportDrawer } from '@/components/warehouse/ReconReportDrawer'
+import { AddCardDrawer } from '@/components/warehouse/AddCardDrawer'
 import type { WarehouseGarmentCard, WarehouseStageColumn } from '@/types/api'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -57,7 +61,13 @@ function GarmentCard({ card }: { card: WarehouseGarmentCard }) {
 
 // ── Column ──────────────────────────────────────────────────────────────────--
 
-function StageColumn({ column }: { column: WarehouseStageColumn }) {
+function StageColumn({
+  column,
+  onAddCard,
+}: {
+  column: WarehouseStageColumn
+  onAddCard: () => void
+}) {
   const hot = column.stage === HOT_STAGE
   return (
     <div className="flex w-[268px] shrink-0 flex-col">
@@ -80,6 +90,7 @@ function StageColumn({ column }: { column: WarehouseStageColumn }) {
 
         <button
           type="button"
+          onClick={onAddCard}
           className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 py-2 text-xs font-medium text-neutral-400 hover:border-neutral-400 hover:text-neutral-600 transition"
         >
           <Plus className="h-3.5 w-3.5" /> Add card
@@ -114,6 +125,13 @@ export function WarehouseBoardPage() {
   // Treat the pre-data window (incl. brand-context resolving) as loading.
   const pending = isLoading || (!data && !isError)
 
+  // ── Drawer state ───────────────────────────────────────────────────────────
+  const [scanInOpen,  setScanInOpen]  = useState(false)
+  const [reconOpen,   setReconOpen]   = useState(false)
+  const [addCardOpen, setAddCardOpen] = useState(false)
+
+  const warehouseId = data?.summary.warehouseId ?? null
+
   return (
     <div className="flex min-h-screen flex-col bg-[#F4F3EF]">
       {/* Top bar */}
@@ -146,12 +164,14 @@ export function WarehouseBoardPage() {
           )}
           <button
             type="button"
+            onClick={() => setScanInOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] transition"
           >
             <QrCode className="h-4 w-4" /> Scan in
           </button>
           <button
             type="button"
+            onClick={() => setReconOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-50 transition"
           >
             <ClipboardList className="h-4 w-4" /> Recon report
@@ -166,7 +186,7 @@ export function WarehouseBoardPage() {
         </div>
       ) : isError ? (
         <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-red-600">
-          Couldn’t load the warehouse board: {(error as Error)?.message ?? 'unknown error'}
+          Couldn't load the warehouse board: {(error as Error)?.message ?? 'unknown error'}
         </div>
       ) : !data || data.summary.inFlightCount === 0 ? (
         <div className="flex flex-1 items-center justify-center text-sm text-neutral-400">
@@ -175,10 +195,31 @@ export function WarehouseBoardPage() {
       ) : (
         <div className="flex flex-1 gap-4 overflow-x-auto px-6 py-5">
           {data.columns.map((col) => (
-            <StageColumn key={col.stage} column={col} />
+            <StageColumn
+              key={col.stage}
+              column={col}
+              onAddCard={() => setAddCardOpen(true)}
+            />
           ))}
         </div>
       )}
+
+      {/* Drawers */}
+      <ScanInDrawer
+        open={scanInOpen}
+        onClose={() => setScanInOpen(false)}
+        warehouseId={warehouseId}
+      />
+      <ReconReportDrawer
+        open={reconOpen}
+        onClose={() => setReconOpen(false)}
+        warehouseId={warehouseId}
+      />
+      <AddCardDrawer
+        open={addCardOpen}
+        onClose={() => setAddCardOpen(false)}
+        warehouseId={warehouseId}
+      />
     </div>
   )
 }

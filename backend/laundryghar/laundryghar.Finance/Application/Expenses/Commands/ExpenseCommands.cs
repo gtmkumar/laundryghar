@@ -268,6 +268,20 @@ public sealed class CreateExpenseValidator : AbstractValidator<CreateExpenseComm
     }
 }
 
+// ── Validators ────────────────────────────────────────────────────────────────
+
+// ApproveExpenseCommand: no body fields require strict validation — Notes is optional;
+// the state-machine guard (submitted → approved) lives in the handler.
+// An explicit validator is provided to participate in the pipeline and surface a
+// 422 for any future body additions without a second code change.
+public sealed class ApproveExpenseValidator : AbstractValidator<ApproveExpenseCommand>
+{
+    public ApproveExpenseValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+    }
+}
+
 // ── Approve Expense ───────────────────────────────────────────────────────────
 
 public sealed record ApproveExpenseCommand(Guid Id, ApproveExpenseRequest Request, Guid? ActorId)

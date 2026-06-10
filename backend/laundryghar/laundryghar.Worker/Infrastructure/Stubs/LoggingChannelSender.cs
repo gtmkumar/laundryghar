@@ -13,7 +13,7 @@ internal sealed class LoggingChannelSender : IChannelSender
     public LoggingChannelSender(ILogger<LoggingChannelSender> logger)
         => _logger = logger;
 
-    public Task SendAsync(ChannelSendRequest request, CancellationToken ct = default)
+    public Task<ChannelSendResult> SendAsync(ChannelSendRequest request, CancellationToken ct = default)
     {
         _logger.LogInformation(
             "[NOTIFY] channel={Channel} recipient={RecipientType}:{RecipientId} " +
@@ -26,6 +26,6 @@ internal sealed class LoggingChannelSender : IChannelSender
             request.TemplateCode,
             request.OutboxId);
 
-        return Task.CompletedTask;
+        return Task.FromResult(new ChannelSendResult("logging-stub"));
     }
 }

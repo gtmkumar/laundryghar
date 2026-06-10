@@ -24,6 +24,8 @@ import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { serviceMeta } from '@/lib/serviceMeta';
 import { greeting } from '@/lib/format';
+import { useTranslation } from 'react-i18next';
+import { pickLocalized } from '@/i18n';
 import type { AppBannerDto, ServiceDto } from '@/types/api';
 
 // Static services shown when the catalog is empty, so the grid always renders.
@@ -93,35 +95,38 @@ function ServiceTile({ name }: { name: string }) {
 
 function MoreTile() {
   const router = useRouter();
+  const { t } = useTranslation();
   return (
     <Pressable
       onPress={() => router.push('/(app)/price-list')}
       accessibilityRole="button"
-      accessibilityLabel="More services"
+      accessibilityLabel={t('home.moreServices')}
       className="mb-4 items-center"
       style={{ width: '25%' }}
     >
       <View className="h-16 w-16 items-center justify-center rounded-2xl bg-cream-200">
         <Ionicons name="ellipsis-horizontal" size={26} color="#7B7A6C" />
       </View>
-      <Text className="mt-2 text-center text-xs font-semibold text-ink-soft">More</Text>
+      <Text className="mt-2 text-center text-xs font-semibold text-ink-soft">{t('home.moreServices')}</Text>
     </Pressable>
   );
 }
 
 function PromoBanner({ banner }: { banner?: AppBannerDto }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [imgFailed, setImgFailed] = useState(false);
 
   if (banner) {
     const handlePress = () => resolveBannerPress(banner, router.push);
     if (banner.imageUrl && !imgFailed) {
       return (
-        <Pressable onPress={handlePress} className="overflow-hidden rounded-3xl">
+        <Pressable onPress={handlePress} accessibilityRole="button" accessibilityLabel={banner.title ?? t('home.firstOrderOffer')} className="overflow-hidden rounded-3xl">
           <Image
             source={{ uri: banner.imageUrl }}
             style={{ width: '100%', height: 150 }}
             resizeMode="cover"
+            accessibilityLabel={banner.title ?? t('home.firstOrderOffer')}
             onError={() => setImgFailed(true)}
           />
         </Pressable>
@@ -130,6 +135,8 @@ function PromoBanner({ banner }: { banner?: AppBannerDto }) {
     return (
       <Pressable
         onPress={handlePress}
+        accessibilityRole="button"
+        accessibilityLabel={banner.title ?? t('home.firstOrderOffer')}
         className="overflow-hidden rounded-3xl p-5"
         style={{ backgroundColor: banner.backgroundColor ?? '#DBAC3D' }}
       >
@@ -143,12 +150,14 @@ function PromoBanner({ banner }: { banner?: AppBannerDto }) {
   return (
     <Pressable
       onPress={() => router.push('/(app)/offers')}
+      accessibilityRole="button"
+      accessibilityLabel={t('home.firstOrderOffer')}
       className="flex-row items-center overflow-hidden rounded-3xl bg-gold-300 p-5"
     >
       <View className="flex-1">
-        <Text className="text-[11px] font-bold uppercase tracking-wider text-olive-900/70">First order</Text>
-        <Text className="mt-1 text-2xl font-extrabold text-olive-900">20% off your first wash</Text>
-        <Text className="mt-1 text-xs text-olive-900/70">Code FRESH20 · ends in 6 days</Text>
+        <Text className="text-[11px] font-bold uppercase tracking-wider text-olive-900/70">{t('home.firstOrder')}</Text>
+        <Text className="mt-1 text-2xl font-extrabold text-olive-900">{t('home.firstOrderOffer')}</Text>
+        <Text className="mt-1 text-xs text-olive-900/70">{t('home.firstOrderCode')}</Text>
       </View>
       <Ionicons name="gift" size={44} color="#8A641D" />
     </Pressable>
@@ -157,6 +166,7 @@ function PromoBanner({ banner }: { banner?: AppBannerDto }) {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { customer } = useAuthStore();
   const { data: services, isLoading, isError, refetch } = useServices();
   const { data: banners } = useHomeBanners('home_top');
@@ -165,8 +175,8 @@ export default function HomeScreen() {
   const displayName = customer?.displayName ?? customer?.firstName ?? 'there';
   const defaultAddr = addresses?.find((a) => a.isDefault) ?? addresses?.[0];
   const addrLabel = defaultAddr
-    ? `${defaultAddr.label ?? defaultAddr.line1}`
-    : 'Add a pickup address';
+    ? `${defaultAddr.label ?? defaultAddr.addressLine1}`
+    : t('home.addPickupAddress');
 
   if (isLoading) return <ScreenLoader />;
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
@@ -190,14 +200,15 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => router.push('/(app)/offers')}
             className="h-10 w-10 items-center justify-center rounded-xl bg-white"
-            accessibilityLabel="Notifications"
+            accessibilityRole="button"
+            accessibilityLabel={t('a11y.notifications')}
           >
             <Ionicons name="notifications-outline" size={20} color="#3C3F35" />
           </Pressable>
         </View>
 
         {/* Address selector */}
-        <Pressable className="mx-6 mt-4 flex-row items-center gap-2" accessibilityLabel="Pickup address">
+        <Pressable className="mx-6 mt-4 flex-row items-center gap-2" accessibilityRole="button" accessibilityLabel={t('a11y.pickupAddress')}>
           <Ionicons name="location-sharp" size={16} color="#5C6A33" />
           <Text className="text-sm font-bold text-ink-soft" numberOfLines={1}>
             {addrLabel}
@@ -213,9 +224,9 @@ export default function HomeScreen() {
         {/* Services */}
         <View className="mx-6 mt-7">
           <View className="mb-4 flex-row items-center justify-between">
-            <Text className="text-lg font-extrabold text-ink">Our services</Text>
-            <Pressable onPress={() => router.push('/(app)/price-list')} hitSlop={6} className="flex-row items-center gap-1">
-              <Text className="text-sm font-bold text-olive-700">See prices</Text>
+            <Text className="text-lg font-extrabold text-ink">{t('home.ourServices')}</Text>
+            <Pressable onPress={() => router.push('/(app)/price-list')} hitSlop={6} className="flex-row items-center gap-1" accessibilityRole="button" accessibilityLabel={t('a11y.seePrices')}>
+              <Text className="text-sm font-bold text-olive-700">{t('home.seePrices')}</Text>
               <Ionicons name="arrow-forward" size={14} color="#4A552A" />
             </Pressable>
           </View>
@@ -230,15 +241,17 @@ export default function HomeScreen() {
         {/* Schedule a pickup card */}
         <Pressable
           onPress={() => router.push('/(app)/booking/items')}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.schedulePickup')}
           className="mx-6 mt-3 overflow-hidden rounded-3xl bg-olive-700 p-5"
         >
-          <Text className="text-[11px] font-bold uppercase tracking-wider text-olive-100">Free pickup</Text>
-          <Text className="mt-1 text-2xl font-extrabold text-white">Schedule a pickup</Text>
+          <Text className="text-[11px] font-bold uppercase tracking-wider text-olive-100">{t('home.freePickup')}</Text>
+          <Text className="mt-1 text-2xl font-extrabold text-white">{t('home.schedulePickup')}</Text>
           <Text className="mt-1 text-sm text-olive-100">
-            Pick your items, choose a slot — a rider collects from your door.
+            {t('home.schedulePickupSub')}
           </Text>
           <View className="mt-4 flex-row items-center gap-2 self-start rounded-full bg-gold-400 px-4 py-2.5">
-            <Text className="text-sm font-extrabold text-olive-900">Start now</Text>
+            <Text className="text-sm font-extrabold text-olive-900">{t('home.startNow')}</Text>
             <Ionicons name="arrow-forward" size={16} color="#2E351C" />
           </View>
         </Pressable>

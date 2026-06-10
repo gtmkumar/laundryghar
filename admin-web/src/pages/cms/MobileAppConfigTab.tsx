@@ -7,6 +7,7 @@ import {
   useDeleteMobileAppConfig,
 } from '@/hooks/useCms'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
+import { usePermissions } from '@/hooks/usePermissions'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { DataTable, type Column } from '@/components/shared/DataTable'
@@ -301,6 +302,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function MobileAppConfigTab() {
+  // Backend gate: every config mutation requires permission:cms.appconfig.manage.
+  const { hasPermission } = usePermissions()
+  const canManage = hasPermission('cms.appconfig.manage')
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<MobileAppConfigDto | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<MobileAppConfigDto | null>(null)
@@ -367,35 +371,37 @@ export function MobileAppConfigTab() {
     },
     { header: 'Status', accessor: (r) => <StatusBadge status={r.status} /> },
     { header: 'Updated', accessor: (r) => formatDate(r.updatedAt) },
-    {
-      header: '',
-      accessor: (r) => (
-        <div className="flex gap-1 justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleEdit(r)
-            }}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              setDeleteTarget(r)
-            }}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-          >
-            Archive
-          </Button>
-        </div>
-      ),
-      className: 'w-36',
-    },
+    ...(canManage
+      ? [{
+          header: '',
+          accessor: (r: MobileAppConfigDto) => (
+            <div className="flex gap-1 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEdit(r)
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDeleteTarget(r)
+                }}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Archive
+              </Button>
+            </div>
+          ),
+          className: 'w-36',
+        } satisfies Column<MobileAppConfigDto>]
+      : []),
   ]
 
   if (isLoading) return <LoadingState message="Loading app config..." />
@@ -410,9 +416,11 @@ export function MobileAppConfigTab() {
         {total !== undefined && (
           <p className="text-sm text-gray-500">{total} config{total === 1 ? '' : 's'}</p>
         )}
-        <Button size="sm" onClick={() => setShowForm(true)} className="ml-auto">
-          + New Config
-        </Button>
+        {canManage && (
+          <Button size="sm" onClick={() => setShowForm(true)} className="ml-auto">
+            + New Config
+          </Button>
+        )}
       </div>
 
       <DataTable

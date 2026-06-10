@@ -19,6 +19,7 @@ using laundryghar.Warehouse.Application.StockReconciliation.Commands;
 using laundryghar.Warehouse.Application.StockReconciliation.Dtos;
 using laundryghar.Warehouse.Application.StockReconciliation.Queries;
 using MediatR;
+using Microsoft.AspNetCore.Antiforgery;
 
 namespace laundryghar.Warehouse.Endpoints;
 
@@ -98,6 +99,52 @@ public static class WarehouseEndpoints
             var r = await sender.Send(new CreateInspectionCommand(req, u.UserId), ct);
             return Results.Created($"/api/v1/admin/garment-inspections/{r.Id}",
                 new SingleResponse<GarmentInspectionDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:garment.inspect");
+
+        // ── Inspection Photos ─────────────────────────────────────────────────
+        // POST /api/v1/admin/garment-inspections/{id}/photos
+        // Multipart upload: IFormFile requires DisableAntiforgery() in .NET 10 minimal APIs.
+        // Body size capped at 10 MB + envelope overhead.
+        inspections.MapPost("/{id:guid}/photos", async (
+            Guid id,
+            IFormFile file,
+            ICurrentUser u,
+            ISender sender,
+            CancellationToken ct,
+            string view = "overall",
+            bool isPrimary = false) =>
+        {
+            var r = await sender.Send(
+                new UploadInspectionPhotoCommand(id, file, view, isPrimary, u.UserId), ct);
+            return Results.Created(
+                $"/api/v1/admin/garment-inspections/{id}/photos/{r.Id}",
+                new SingleResponse<InspectionPhotoDto> { Status = true, Data = r });
+        })
+        .RequireAuthorization("permission:garment.inspect")
+        .DisableAntiforgery()
+        .WithMetadata(new RequestSizeLimitAttribute(11 * 1024 * 1024)); // 10 MB + overhead
+
+        // GET /api/v1/admin/garment-inspections/{id}/photos
+        inspections.MapGet("/{id:guid}/photos", async (
+            Guid id, [FromServices] ISender sender, CancellationToken ct) =>
+        {
+            var list = await sender.Send(new GetInspectionPhotosQuery(id), ct);
+            return Results.Ok(new ListResponse<InspectionPhotoDto> { Status = true, Data = list });
+        }).RequireAuthorization("permission:garment.inspect");
+
+        // GET /api/v1/admin/garment-inspections/photos/{photoId} — streams the image
+        // Streaming by photo ID avoids exposing raw storage keys in the API surface.
+        inspections.MapGet("/photos/{photoId:guid}", async (
+            Guid photoId, [FromServices] ISender sender, CancellationToken ct) =>
+        {
+            var result = await sender.Send(new GetInspectionPhotoStreamQuery(photoId), ct);
+            if (result is null) return Results.NotFound();
+
+            return Results.Stream(
+                result.Stream,
+                contentType: result.ContentType,
+                fileDownloadName: result.FileName,
+                enableRangeProcessing: false);
         }).RequireAuthorization("permission:garment.inspect");
 
         // ── Garment Conditions (lookup) ───────────────────────────────────────

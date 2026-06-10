@@ -8,6 +8,7 @@ import * as SecureStore from 'expo-secure-store';
 import { configureApiAuth } from '@/api/client';
 import { refreshAccessToken as apiRefreshAccessToken, logout as apiLogout } from '@/api/auth';
 import type { CustomerTokenResponse, CustomerMeResponse } from '@/types/api';
+import { deregisterPushNotifications } from '@/lib/pushNotifications';
 
 // ---------------------------------------------------------------------------
 // SecureStore keys
@@ -59,6 +60,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   logout: async () => {
     const { refreshToken } = get();
+    // Deactivate push token before clearing auth state so the API call still
+    // has a valid Bearer token. Best-effort — never blocks logout.
+    await deregisterPushNotifications();
     try {
       if (refreshToken) await apiLogout(refreshToken);
     } catch {

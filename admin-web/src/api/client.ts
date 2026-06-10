@@ -19,6 +19,7 @@ import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import type { ApiResponse, PaginatedList, TokenResponse } from '@/types/api'
 import { useAuthStore } from '@/stores/authStore'
 import { useBrandStore } from '@/stores/brandStore'
+import { showToast } from '@/stores/toastStore'
 
 const IDENTITY_URL = import.meta.env.VITE_IDENTITY_URL as string
 const CATALOG_URL = import.meta.env.VITE_CATALOG_URL as string
@@ -46,6 +47,36 @@ function drainQueue(token: string) {
 function rejectQueue(err: unknown) {
   pendingQueue.forEach((p) => p.reject(err))
   pendingQueue = []
+}
+
+/**
+ * Performs a single token refresh against Identity and stores the new tokens.
+ *
+ * Auth model (system-user lane):
+ *  - The refresh token lives in the HttpOnly `lg_refresh` cookie set by Identity;
+ *    JS can't read it (XSS-hardened). `withCredentials: true` makes the browser
+ *    attach that cookie to this cross-origin request.
+ *  - admin-web no longer persists the refresh token, but it may still hold an
+ *    in-memory copy from this session's login/refresh. When present we send it in
+ *    the body (body wins server-side); after a hard reload it's gone and the
+ *    cookie alone drives the refresh.
+ *
+ * Returns the new access token, or throws on failure (caller logs the user out).
+ * Uses a bare axios call to bypass our intercepted instances and avoid recursion.
+ */
+export async function refreshAccessToken(): Promise<string> {
+  const { refreshToken, setTokens } = getAuthState()
+
+  const { data } = await axios.post<ApiResponse<TokenResponse>>(
+    `${IDENTITY_URL}/api/v1/auth/refresh`,
+    refreshToken ? { refreshToken } : {},
+    { withCredentials: true },
+  )
+
+  if (!data.status || !data.data) throw new Error('Token refresh failed')
+
+  setTokens(data.data.accessToken, data.data.refreshToken)
+  return data.data.accessToken
 }
 
 // ── Store accessors (called at request-time, not module-init time) ────────────
@@ -93,7 +124,7 @@ function createInstance(baseURL: string): AxiosInstance {
     return config
   })
 
-  // Response: handle 401 with refresh + retry (once)
+  // Response: handle 401 (refresh + retry once) and 403 (permission toast).
   instance.interceptors.response.use(
     (response) => response,
     async (error: unknown) => {
@@ -102,7 +133,17 @@ function createInstance(baseURL: string): AxiosInstance {
         config: AxiosRequestConfig & { _retried?: boolean }
       }
 
-      if (axiosError.response?.status !== 401 || axiosError.config._retried) {
+      const status = axiosError.response?.status
+
+      // 403 = authenticated but not authorized. This is NOT a session problem, so
+      // never refresh or log out — surface a non-blocking toast and let the page
+      // decide whether to also render <ForbiddenState/> for a primary-query 403.
+      if (status === 403) {
+        showToast('error', "You don't have permission to perform this action.")
+        return Promise.reject(error)
+      }
+
+      if (status !== 401 || axiosError.config._retried) {
         return Promise.reject(error)
       }
 
@@ -125,19 +166,8 @@ function createInstance(baseURL: string): AxiosInstance {
       isRefreshing = true
 
       try {
-        const { refreshToken, setTokens } = getAuthState()
-        if (!refreshToken) throw new Error('No refresh token available')
-
-        // Plain axios call — bypasses our intercepted instance to avoid recursion
-        const { data } = await axios.post<ApiResponse<TokenResponse>>(
-          `${IDENTITY_URL}/api/v1/auth/refresh`,
-          { refreshToken },
-        )
-
-        if (!data.status || !data.data) throw new Error('Token refresh failed')
-
-        const { accessToken: newAccess, refreshToken: newRefresh } = data.data
-        setTokens(newAccess, newRefresh)
+        // Cookie-backed refresh (sends in-memory body token when available).
+        const newAccess = await refreshAccessToken()
         drainQueue(newAccess)
 
         if (axiosError.config.headers) {

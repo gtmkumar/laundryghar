@@ -17,6 +17,7 @@ public sealed class OtpCodeConfiguration : IEntityTypeConfiguration<OtpCode>
         b.Property(e => e.Identifier).HasColumnName("identifier").HasMaxLength(255).IsRequired();
         b.Property(e => e.IdentifierType).HasColumnName("identifier_type").HasMaxLength(10).IsRequired();
         b.Property(e => e.CodeHash).HasColumnName("code_hash").IsRequired();
+        b.Property(e => e.CodeSalt).HasColumnName("code_salt");
         b.Property(e => e.UserId).HasColumnName("user_id");
         b.Property(e => e.CustomerId).HasColumnName("customer_id");
         b.Property(e => e.ReferenceId).HasColumnName("reference_id");

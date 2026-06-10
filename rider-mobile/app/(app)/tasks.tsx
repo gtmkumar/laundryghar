@@ -20,6 +20,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useDutyStore } from '@/store/dutyStore';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { Button } from '@/components/ui/Button';
+import { useTranslation } from 'react-i18next';
 import type { RiderTask } from '@/types/api';
 
 function whenLabel(t: RiderTask): string {
@@ -40,6 +41,7 @@ function LegIcon({ legType, size = 16 }: { legType: RiderTask['legType']; size?:
 
 /** Right-aligned status badges. OTP applies to both legs; payment/express shown alongside. */
 function Tags({ task }: { task: RiderTask }) {
+  const { t } = useTranslation();
   const hasOtp = task.requiresOtp ?? (task.legType !== 'pickup' && !!task.deliveryOtp);
   const cod    = !task.isPaid && task.amountDue > 0;
   return (
@@ -47,16 +49,16 @@ function Tags({ task }: { task: RiderTask }) {
       {hasOtp ? (
         <View className="flex-row items-center gap-1 rounded-lg bg-olive-100 px-2 py-1">
           <Ionicons name="key-outline" size={12} color="#4A552A" />
-          <Text className="text-[11px] font-bold text-olive-800">OTP</Text>
+          <Text className="text-[11px] font-bold text-olive-800">{t('tasks.otp')}</Text>
         </View>
       ) : null}
       {cod ? (
         <View className="rounded-lg bg-danger/10 px-2 py-1">
-          <Text className="text-[11px] font-bold text-danger">COD ₹{task.amountDue}</Text>
+          <Text className="text-[11px] font-bold text-danger">{t('tasks.collect', { amount: task.amountDue })}</Text>
         </View>
       ) : task.isExpress ? (
         <View className="rounded-lg bg-gold-100 px-2 py-1">
-          <Text className="text-[11px] font-bold text-gold-700">Express</Text>
+          <Text className="text-[11px] font-bold text-gold-700">{t('tasks.express')}</Text>
         </View>
       ) : null}
     </View>
@@ -76,13 +78,14 @@ function CardShell({ children, onPress }: { children: React.ReactNode; onPress: 
 }
 
 function CardHeader({ task }: { task: RiderTask }) {
+  const { t } = useTranslation();
   return (
     <View className="mb-2 flex-row items-center gap-2">
       <View className="h-6 w-6 items-center justify-center rounded-lg bg-gold-100">
         <LegIcon legType={task.legType} />
       </View>
       <Text className="text-sm font-bold text-ink-soft">
-        {task.legType === 'pickup' ? 'Pickup' : 'Deliver'}
+        {task.legType === 'pickup' ? t('taskDetail.pickup') : t('taskDetail.delivery')}
       </Text>
       {/* flex-1 + middle ellipsis so long order numbers never collide with the badges */}
       <Text
@@ -116,6 +119,7 @@ function MetaRow({ task }: { task: RiderTask }) {
 }
 
 function PendingCard({ task, expanded, onOpen }: { task: RiderTask; expanded: boolean; onOpen: () => void }) {
+  const { t } = useTranslation();
   return (
     <CardShell onPress={onOpen}>
       <CardHeader task={task} />
@@ -129,14 +133,14 @@ function PendingCard({ task, expanded, onOpen }: { task: RiderTask; expanded: bo
       {expanded ? (
         <View className="mt-3 flex-row gap-3">
           <Button
-            title="Call"
+            title={t('tasks.call')}
             iconLeft="call-outline"
             variant="secondary"
             size="sm"
             onPress={() => void Linking.openURL(`tel:${task.customerPhone}`)}
           />
           <View className="flex-1">
-            <Button title="Start" iconRight="arrow-forward" size="sm" fullWidth onPress={onOpen} />
+            <Button title={t('tasks.start')} iconRight="arrow-forward" size="sm" fullWidth onPress={onOpen} />
           </View>
         </View>
       ) : null}
@@ -145,6 +149,7 @@ function PendingCard({ task, expanded, onOpen }: { task: RiderTask; expanded: bo
 }
 
 function DoneCard({ task, onOpen }: { task: RiderTask; onOpen: () => void }) {
+  const { t } = useTranslation();
   return (
     <CardShell onPress={onOpen}>
       <View className="flex-row items-center">
@@ -153,7 +158,7 @@ function DoneCard({ task, onOpen }: { task: RiderTask; onOpen: () => void }) {
         </View>
         <View className="ml-3 flex-1">
           <Text className="text-sm font-bold text-ink">
-            {task.legType === 'delivery' ? 'Delivered' : 'Picked up'} · {task.customerName}
+            {task.legType === 'delivery' ? t('taskDetail.delivery') : t('taskDetail.pickup')} · {task.customerName}
           </Text>
           <Text className="text-xs text-ink-muted">#{task.orderNumber} · {task.addressLine}</Text>
         </View>
@@ -185,6 +190,7 @@ function StatTile({ label, value, sub }: { label: string; value: string; sub?: R
 
 export default function TasksScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { rider } = useAuthStore();
   const { isOnDuty } = useDutyStore();
   const { data: me } = useMyRiderProfile();
@@ -207,7 +213,7 @@ export default function TasksScreen() {
         <View className="px-5 pb-5 pt-2">
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center">
-              <Pressable onPress={() => router.back()} hitSlop={8} className="mr-1 active:opacity-60">
+              <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('a11y.back')} className="mr-1 active:opacity-60">
                 <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
               </Pressable>
               <Text className="text-xs font-bold uppercase tracking-widest text-olive-100">
@@ -216,7 +222,7 @@ export default function TasksScreen() {
             </View>
             <View className="flex-row items-center gap-1.5 rounded-full bg-white/15 px-3 py-1">
               <View className={`h-2 w-2 rounded-full ${isOnDuty ? 'bg-gold-300' : 'bg-ink-faint'}`} />
-              <Text className="text-xs font-bold text-white">{isOnDuty ? 'Online' : 'Offline'}</Text>
+              <Text className="text-xs font-bold text-white">{isOnDuty ? t('home.online') : t('home.offline')}</Text>
             </View>
           </View>
 
@@ -238,17 +244,20 @@ export default function TasksScreen() {
 
       {/* Tabs */}
       <View className="flex-row gap-2 px-5 pb-1 pt-4">
-        {(['tasks', 'done'] as const).map((t) => {
-          const active = tab === t;
-          const count = t === 'tasks' ? pending.length : done.length;
+        {(['tasks', 'done'] as const).map((tabKey) => {
+          const active = tab === tabKey;
+          const count = tabKey === 'tasks' ? pending.length : done.length;
           return (
             <Pressable
-              key={t}
-              onPress={() => setTab(t)}
+              key={tabKey}
+              onPress={() => setTab(tabKey)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={tabKey === 'tasks' ? t('a11y.tabTasks') : t('a11y.tabDone')}
               className={`rounded-full px-4 py-2 ${active ? 'bg-olive-700' : 'bg-white border border-cream-300'}`}
             >
               <Text className={`text-sm font-bold ${active ? 'text-white' : 'text-ink-muted'}`}>
-                {t === 'tasks' ? 'Tasks' : 'Done'} ({count})
+                {tabKey === 'tasks' ? t('tasks.tab_tasks') : t('tasks.tab_done')} ({count})
               </Text>
             </Pressable>
           );
@@ -267,7 +276,7 @@ export default function TasksScreen() {
         ListHeaderComponent={
           isDemo ? (
             <Text className="mb-3 text-center text-[11px] text-ink-faint">
-              Demo tasks — live feed activates when the backend rider-tasks API ships.
+              {t('home.demoNote')}
             </Text>
           ) : null
         }
@@ -288,12 +297,10 @@ export default function TasksScreen() {
               <Ionicons name={tab === 'tasks' ? 'checkmark-done' : 'time-outline'} size={28} color="#4A552A" />
             </View>
             <Text className="mt-4 text-base font-bold text-ink">
-              {tab === 'tasks' ? 'All caught up' : 'Nothing done yet'}
+              {tab === 'tasks' ? t('tasks.noTasks') : t('tasks.noDone')}
             </Text>
             <Text className="mt-1 text-center text-sm text-ink-muted">
-              {tab === 'tasks'
-                ? 'No pending tasks right now. New jobs appear here while you’re online.'
-                : 'Completed tasks will show up here as you finish them.'}
+              {tab === 'tasks' ? t('tasks.noTasksMessage') : t('tasks.noDoneMessage')}
             </Text>
           </View>
         }

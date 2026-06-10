@@ -1,5 +1,7 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
+const EAS_PROJECT_ID = 'laundryghar-rider';
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Laundry Ghar Rider',
@@ -41,7 +43,26 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'ACCESS_BACKGROUND_LOCATION',
       'FOREGROUND_SERVICE',
       'FOREGROUND_SERVICE_LOCATION',
+      // Push notifications — runtime permission requested by expo-notifications
+      // on Android 13+ (API 33). The plugin adds POST_NOTIFICATIONS automatically
+      // via its config plugin; listing it here is belt-and-suspenders documentation.
+      'POST_NOTIFICATIONS',
     ],
+  },
+  // ---------------------------------------------------------------------------
+  // OTA updates — expo-updates
+  // checkAutomatically: 'ON_LOAD' means the runtime checks on every cold start.
+  // fallbackToCacheTimeout: 0 → never block startup waiting for a manifest.
+  // runtimeVersion policy 'appVersion' ties OTA compatibility to the app version
+  // declared above — a new native binary gets a new channel automatically.
+  // ---------------------------------------------------------------------------
+  updates: {
+    url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+    checkAutomatically: 'ON_LOAD',
+    fallbackToCacheTimeout: 0,
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
   },
   extra: {
     // Service base URLs — set ONLY from explicit env overrides (EAS secrets /
@@ -53,13 +74,30 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     logisticsApiUrl:  process.env.LOGISTICS_API_URL,
     engagementApiUrl: process.env.ENGAGEMENT_API_URL,
     defaultBrandCode: process.env.DEFAULT_BRAND_CODE ?? 'LG-MAIN',
+    // Sentry DSN — set via EAS secret (SENTRY_DSN) or .env.local
+    // (EXPO_PUBLIC_SENTRY_DSN). When absent Sentry is fully disabled.
+    sentryDsn: process.env.SENTRY_DSN,
     eas: {
-      projectId: 'laundryghar-rider',
+      projectId: EAS_PROJECT_ID,
     },
   },
   plugins: [
     'expo-router',
     'expo-secure-store',
+    'expo-localization',
+    // Sentry config plugin — injects native crash-reporter init
+    '@sentry/react-native',
+    [
+      // expo-notifications: configures native notification permissions and
+      // Android notification channels. Required for production/dev builds.
+      // In Expo Go only Android can obtain push tokens; iOS requires a native build.
+      'expo-notifications',
+      {
+        icon: './assets/icon.png',
+        color: '#4A552A',
+        androidMode: 'default',
+      },
+    ],
     [
       'expo-location',
       {

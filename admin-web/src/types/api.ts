@@ -337,9 +337,96 @@ export interface OrderDto {
   paymentStatus: string
   placedAt: string
   updatedAt: string
+  /** TAT-computed delivery promise. Null for legacy orders created before this feature. */
+  promisedDeliveryAt: string | null
   items: OrderItemDto[] | null
   addons: OrderAddonDto[] | null
   statusHistory: OrderStatusHistoryDto[] | null
+}
+
+// ── Ops queues ────────────────────────────────────────────────────────────────
+
+export interface OpsOrderDto {
+  id: string
+  createdAt: string
+  orderNumber: string
+  customerName: string
+  status: string
+  promisedDeliveryAt: string | null
+  /** Hours the order is overdue (positive). Null when not overdue. */
+  hoursOverdue: number | null
+  /** Hours since last status history entry. Populated in the stuck queue. */
+  hoursStuck: number | null
+}
+
+export interface OpsQueueBucket {
+  count: number
+  list: OpsOrderDto[]
+  hasNextPage: boolean
+  totalCount: number
+}
+
+export interface OpsQueuesResponse {
+  dueToday: OpsQueueBucket
+  overdue: OpsQueueBucket
+  stuck: OpsQueueBucket
+}
+
+export interface OpsQueuesParams {
+  page?: number
+  pageSize?: number
+  storeId?: string
+}
+
+// ── Order note create request ────────────────────────────────────────────────
+// Mirrors laundryghar.Orders CreateOrderNoteRequest. Valid noteType:
+//   internal | customer_facing | complaint | resolution | flag
+// Valid visibility: staff | customer | platform
+export interface CreateOrderNoteRequest {
+  noteType: string
+  visibility: string
+  noteText: string
+  isPinned: boolean
+}
+
+// ── Invoice ───────────────────────────────────────────────────────────────────
+// Mirrors laundryghar.Orders.Application.Invoices.Dtos.InvoiceDto.
+
+export interface InvoiceLineItemDto {
+  description: string
+  qty: number
+  unit: string
+  unitPrice: number
+  taxableValue: number
+}
+
+export interface InvoiceDto {
+  id: string
+  orderId: string
+  invoiceNumber: string
+  invoiceDate: string
+  supplierName: string
+  supplierAddress: string
+  supplierGstin: string | null
+  customerName: string
+  customerPhone: string
+  customerGstin: string | null
+  placeOfSupply: string
+  sacCode: string
+  lineItems: InvoiceLineItemDto[]
+  subtotal: number
+  discountTotal: number
+  taxableTotal: number
+  cgstRate: number
+  cgstAmount: number
+  sgstRate: number
+  sgstAmount: number
+  igstRate: number
+  igstAmount: number
+  roundOff: number
+  grandTotal: number
+  status: string
+  createdAt: string
 }
 
 // ── Orders list filter params ────────────────────────────────────────────────
@@ -1066,6 +1153,101 @@ export interface WarehouseBoard {
   columns: WarehouseStageColumn[]
 }
 
+// ── Garment journey (by-tag lookup) ──────────────────────────────────────────────
+
+export interface GarmentDto {
+  id: string
+  brandId: string
+  storeId: string
+  warehouseId: string | null
+  orderId: string
+  orderItemId: string
+  customerId: string
+  tagCode: string
+  secondaryTagCode: string | null
+  itemId: string | null
+  itemVariantId: string | null
+  fabricTypeId: string | null
+  color: string | null
+  size: string | null
+  weightGrams: number | null
+  hasOrnaments: boolean
+  hasLining: boolean
+  isDesignerWear: boolean
+  currentStage: string
+  currentBatchId: string | null
+  lastScannedAt: string | null
+  rewashCount: number
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProcessLogDto {
+  id: string
+  processCode: string
+  action: string
+  fromStage: string | null
+  toStage: string | null
+  occurredAt: string
+}
+
+export interface GarmentJourneyDto {
+  garment: GarmentDto
+  inspections: unknown[]
+  processLogs: ProcessLogDto[]
+  qualityChecks: unknown[]
+}
+
+// ── Stock Reconciliation ──────────────────────────────────────────────────────────
+
+export interface StockReconciliationDto {
+  id: string
+  brandId: string
+  warehouseId: string | null
+  storeId: string | null
+  reconDate: string
+  reconType: string
+  startedAt: string
+  startedBy: string
+  completedAt: string | null
+  expectedCount: number
+  scannedCount: number
+  matchedCount: number
+  missingCount: number
+  unexpectedCount: number
+  status: string
+  createdAt: string
+}
+
+// ── Process log create ────────────────────────────────────────────────────────────
+
+export interface CreateProcessLogRequest {
+  garmentId: string
+  warehouseId: string
+  batchId: string | null
+  processId: string | null
+  processCode: string
+  action: string
+  fromStage: string | null
+  toStage: string | null
+  performedByName: string | null
+}
+
+// ── Create Garment (manual register) ─────────────────────────────────────────────
+
+export interface CreateGarmentRequest {
+  orderItemId: string
+  tagCode: string
+  color: string | null
+  size: string | null
+  weightGrams: number | null
+  hasOrnaments: boolean
+  hasLining: boolean
+  isDesignerWear: boolean
+  warehouseId: string | null
+}
+
 // ── Access Control console ──────────────────────────────────────────────────────
 
 export interface AccessPerson {
@@ -1648,4 +1830,193 @@ export interface NavSection {
 
 export interface Navigator {
   sections: NavSection[]
+}
+
+// ── Pickup requests (Orders: laundryghar.Orders/Application/Pickup/Dtos) ─────────
+
+/**
+ * A single estimated cart line submitted by the customer at booking time.
+ * Mirrors RequestedCartItemDto. These are ESTIMATES — the real order is created
+ * after weighing at the store, so serviceId/itemId/estimatedUnitPrice may be null.
+ */
+export interface RequestedCartItemDto {
+  serviceId: string | null
+  itemId: string | null
+  displayLabel: string
+  quantity: number
+  estimatedUnitPrice: number | null
+}
+
+/** Full pickup request — mirrors PickupRequestDto (admin + customer paths share it). */
+export interface PickupRequestDto {
+  id: string
+  requestNumber: string
+  brandId: string
+  storeId: string | null
+  customerId: string
+  addressId: string
+  pickupSlotId: string | null
+  pickupDate: string // DateOnly → "YYYY-MM-DD"
+  pickupWindowStart: string // TimeOnly → "HH:mm:ss"
+  pickupWindowEnd: string
+  isExpress: boolean
+  estimatedItems: number | null
+  estimatedAmount: number | null
+  status: string
+  createdAt: string
+  cartItems: RequestedCartItemDto[]
+  /** Customer payment intent recorded at booking time: "wallet" | "cod" | "upi-deferred". */
+  paymentPreference: string
+}
+
+export interface PickupRequestListParams extends PaginationParams {
+  status?: string
+}
+
+/** Body for POST /pickup-requests/{id}/assign — mirrors AssignPickupRequest. */
+export interface AssignPickupPayload {
+  riderId: string
+}
+
+/** Body for POST /pickup-requests/{id}/reject — mirrors RejectPickupRequest. */
+export interface RejectPickupPayload {
+  /** Mandatory rejection reason, max 300 characters. */
+  reason: string
+}
+
+/** Result of assigning a pickup to a rider — mirrors DeliveryAssignmentDto. */
+export interface DeliveryAssignmentDto {
+  id: string
+  brandId: string
+  storeId: string
+  riderId: string
+  orderId: string | null
+  pickupRequestId: string | null
+  legType: string
+  assignedAt: string
+  status: string
+}
+
+// ── Delivery slots (Orders: laundryghar.Orders/Application/Delivery/Dtos) ────────
+
+export type DeliverySlotType = 'pickup' | 'delivery'
+
+/** A managed time slot — mirrors DeliverySlotDto. */
+export interface DeliverySlotDto {
+  id: string
+  brandId: string
+  storeId: string
+  slotDate: string // DateOnly → "YYYY-MM-DD"
+  slotStart: string // TimeOnly → "HH:mm:ss"
+  slotEnd: string
+  slotType: DeliverySlotType | string
+  capacity: number
+  bookedCount: number
+  available: number
+  isExpress: boolean
+  isActive: boolean
+  status: string
+}
+
+export interface DeliverySlotListParams extends PaginationParams {
+  storeId?: string
+  date?: string
+  slotType?: string
+}
+
+/** Body for POST /delivery-slots — mirrors CreateDeliverySlotRequest. */
+export interface CreateDeliverySlotPayload {
+  storeId: string
+  slotDate: string // "YYYY-MM-DD"
+  slotStart: string // "HH:mm:ss"
+  slotEnd: string // "HH:mm:ss"
+  slotType: DeliverySlotType
+  capacity: number
+  isExpress: boolean
+}
+
+/** Body for PUT /delivery-slots/{id} — mirrors UpdateDeliverySlotRequest (all optional). */
+export interface UpdateDeliverySlotPayload {
+  capacity?: number
+  isActive?: boolean
+  status?: string
+}
+
+// ── Finance: Royalty invoices ────────────────────────────────────────────────
+
+export interface RoyaltyCalculationDto {
+  id: string
+  royaltyInvoiceId: string
+  storeId: string | null
+  orderId: string | null
+  calculationDate: string   // DateOnly — "YYYY-MM-DD"
+  revenueType: string
+  grossAmount: number
+  excludedAmount: number
+  eligibleAmount: number
+  royaltyRate: number
+  royaltyAmount: number
+  notes: string | null
+}
+
+export interface RoyaltyInvoiceDto {
+  id: string
+  brandId: string
+  franchiseId: string
+  franchiseAgreementId: string | null
+  invoiceNumber: string
+  periodStart: string        // DateOnly — "YYYY-MM-DD"
+  periodEnd: string          // DateOnly — "YYYY-MM-DD"
+  grossRevenue: number
+  eligibleRevenue: number
+  royaltyPercent: number
+  royaltyAmount: number
+  marketingFeePercent: number
+  marketingFeeAmount: number
+  technologyFeeAmount: number
+  otherCharges: number
+  adjustments: number
+  subtotal: number
+  taxTotal: number
+  grandTotal: number
+  amountPaid: number
+  amountDue: number | null
+  currencyCode: string
+  totalOrders: number
+  invoiceDate: string        // DateOnly — "YYYY-MM-DD"
+  dueDate: string            // DateOnly — "YYYY-MM-DD"
+  status: string             // draft | issued | sent | viewed | partial | paid | overdue | void
+  notes: string | null
+  createdAt: string
+  calculations: RoyaltyCalculationDto[]
+}
+
+export interface RoyaltyListParams extends PaginationParams {
+  franchiseId?: string
+  status?: string
+}
+
+export interface GenerateRoyaltyInvoicePayload {
+  franchiseId: string
+  franchiseAgreementId?: string | null
+  periodStart: string        // DateOnly — "YYYY-MM-DD"
+  periodEnd: string          // DateOnly — "YYYY-MM-DD"
+  grossRevenueOverride?: number | null
+  royaltyPercent: number
+  marketingFeePercent: number
+  technologyFeeAmount: number
+  otherCharges: number
+  adjustments: number
+  gstRate: number
+  notes?: string | null
+  currencyCode: string
+}
+
+export interface IssueRoyaltyInvoicePayload {
+  notes?: string | null
+}
+
+export interface RecordRoyaltyPaymentPayload {
+  amountPaid: number
+  notes?: string | null
 }

@@ -23,12 +23,33 @@ export const CONFIG = {
 } as const;
 
 /**
- * Feature flags. Flip `riderTasksApi` to true once the backend ships the
- * rider-facing GET /api/v1/rider/tasks/today route group; until then the app
- * serves a clearly-labelled demo task set (src/data/demoTasks.ts).
+ * Feature flags.
  */
 export const FEATURES = {
   riderTasksApi: true,
+  /**
+   * Push notifications — Expo push token registration + foreground handler.
+   * Requires a dev/production build for full iOS support (Expo Go iOS cannot
+   * obtain push tokens). Set to false to skip all push initialisation.
+   */
+  pushNotifications: true,
+  /**
+   * Sentry crash reporting — gates initialiseSentry() in lib/sentry.ts.
+   * Sentry is ALSO disabled when no DSN is configured or when __DEV__ === true,
+   * regardless of this flag. Set to false to fully opt-out of crash reporting.
+   */
+  crashReporting: true,
+  /**
+   * OTA updates — gates the expo-updates check on boot.
+   * Always a no-op in Expo Go (Updates.isEnabled === false) and in dev builds.
+   * Set to false to disable the update check without removing the package.
+   */
+  otaUpdates: true,
+  /**
+   * Version gate — evaluates min/force-update versions from app_settings config.
+   * When false the version-gate UI is never shown, even if the backend signals an update.
+   */
+  versionGate: true,
 } as const;
 
 export type ServiceName = keyof typeof CONFIG;

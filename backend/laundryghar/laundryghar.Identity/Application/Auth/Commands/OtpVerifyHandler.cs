@@ -1,9 +1,9 @@
-using System.Security.Cryptography;
 using laundryghar.Identity.Application.Auth.Dtos;
 using laundryghar.Identity.Application.Common;
 using laundryghar.Identity.Infrastructure.Auth;
 using laundryghar.Identity.Infrastructure.Services;
 using MediatR;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace laundryghar.Identity.Application.Auth.Commands;
@@ -11,26 +11,53 @@ namespace laundryghar.Identity.Application.Auth.Commands;
 /// <summary>
 /// Verifies an OTP code. On success marks verified_at, updates user phone/email verification,
 /// issues JWT + refresh token.
+///
+/// Security properties enforced:
+///   SEC1 — Rolling-window lockout check before looking up the OTP row (no oracle on existence).
+///   SEC2 — HMAC-SHA256 verify with per-row salt; falls back to legacy SHA-256 for rows
+///           written before the salt migration (code_salt IS NULL).
 /// </summary>
 public sealed class OtpVerifyHandler : IRequestHandler<OtpVerifyCommand, OtpVerifiedResponse>
 {
     private readonly LaundryGharDbContext _db;
     private readonly IJwtTokenService     _jwt;
     private readonly JwtSettings          _jwtSettings;
+    private readonly OtpSettings          _otpSettings;
+    private readonly IHostEnvironment     _env;
 
     public OtpVerifyHandler(
         LaundryGharDbContext db,
         IJwtTokenService jwt,
-        IOptions<JwtSettings> jwtOptions)
+        IOptions<JwtSettings> jwtOptions,
+        IOptions<OtpSettings> otpOptions,
+        IHostEnvironment env)
     {
         _db          = db;
         _jwt         = jwt;
         _jwtSettings = jwtOptions.Value;
+        _otpSettings = otpOptions.Value;
+        _env         = env;
     }
 
     public async Task<OtpVerifiedResponse> Handle(OtpVerifyCommand cmd, CancellationToken ct)
     {
-        var codeHash = HashOtp(cmd.Code.Trim());
+        // SEC1: Rolling-window lockout — check BEFORE loading the OTP row so we don't
+        // leak whether an OTP exists for the identifier via timing or different errors.
+        var lockoutWindowCutoff = DateTimeOffset.UtcNow.AddMinutes(-_otpSettings.LockoutWindowMinutes);
+        var windowAttempts = await _db.OtpCodes
+            .Where(o => o.Identifier     == cmd.Identifier
+                     && o.IdentifierType == cmd.IdentifierType
+                     && o.Purpose        == cmd.Purpose
+                     && o.CreatedAt      > lockoutWindowCutoff)
+            .Select(o => o.Attempts)
+            .ToListAsync(ct);
+
+        var totalAttempts = OtpSecurityHelper.SumWindowAttempts(windowAttempts);
+        if (OtpSecurityHelper.ExceedsLockoutThreshold(totalAttempts, _otpSettings.LockoutThreshold))
+        {
+            throw new laundryghar.Utilities.Exceptions.BusinessRuleException(
+                $"Too many attempts. Try again in {_otpSettings.LockoutDurationMinutes} minutes.");
+        }
 
         var otpCode = await _db.OtpCodes
             .Where(o => o.Identifier     == cmd.Identifier
@@ -47,7 +74,15 @@ public sealed class OtpVerifyHandler : IRequestHandler<OtpVerifyCommand, OtpVeri
         if (otpCode.Attempts >= otpCode.MaxAttempts)
             throw new UnauthorizedAccessException("Maximum OTP attempts exceeded.");
 
-        if (!string.Equals(otpCode.CodeHash, codeHash, StringComparison.OrdinalIgnoreCase))
+        // SEC2: Verify using salted HMAC, falling back to legacy SHA-256 for pre-migration rows
+        var hmacKey = OtpSecurityHelper.ResolveHmacKey(_otpSettings, _env.IsDevelopment());
+        var isValid = OtpSecurityHelper.VerifyCode(
+            hmacKey,
+            otpCode.CodeSalt,
+            otpCode.CodeHash,
+            cmd.Code.Trim());
+
+        if (!isValid)
         {
             otpCode.Attempts++;
             await _db.SaveChangesAsync(ct);
@@ -91,7 +126,7 @@ public sealed class OtpVerifyHandler : IRequestHandler<OtpVerifyCommand, OtpVeri
             Id        = rtId,
             UserId    = user.Id,
             TokenHash = tokenHash,
-            FamilyId  = rtId, // root token
+            FamilyId  = rtId,
             IpAddress = ipAddress,
             UserAgent = cmd.UserAgent,
             IssuedAt  = DateTimeOffset.UtcNow,
@@ -119,11 +154,5 @@ public sealed class OtpVerifyHandler : IRequestHandler<OtpVerifyCommand, OtpVeri
             AccessToken:      accessToken,
             RefreshToken:     rawRefresh,
             ExpiresInSeconds: _jwtSettings.AccessMinutes * 60);
-    }
-
-    private static string HashOtp(string code)
-    {
-        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(code));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

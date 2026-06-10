@@ -147,7 +147,14 @@ builder.Services.AddCors(opts =>
 {
     if (builder.Environment.IsDevelopment())
     {
-        opts.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+        // Cookie auth (lg_refresh) requires AllowCredentials, which is incompatible with
+        // AllowAnyOrigin() ("*"). Reflect the request origin instead so the Vite dev
+        // origins (admin-web :5173, pos-web) can send/receive the HttpOnly refresh cookie.
+        opts.AddDefaultPolicy(p => p
+            .SetIsOriginAllowed(_ => true)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials());
     }
     else
     {
@@ -158,7 +165,10 @@ builder.Services.AddCors(opts =>
         opts.AddDefaultPolicy(p =>
             p.WithOrigins(allowedOrigins)
              .AllowAnyHeader()
-             .AllowAnyMethod());
+             .AllowAnyMethod()
+             // Required so browsers send/accept the HttpOnly lg_refresh cookie. Safe here
+             // because origins are an explicit allowlist (never "*" with credentials).
+             .AllowCredentials());
     }
 });
 
@@ -195,6 +205,12 @@ if (runSeed)
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
+// ForwardedHeaders: rewrites RemoteIpAddress from socket IP to real client IP
+// when ForwardedHeaders:Enabled=true (off by default in Development).
+// MUST run before UseCors/UseRateLimiter so rate-limit partitioning uses the real IP.
+app.UseForwardedHeadersIfEnabled();
+// No-op in Development. Must run before UseCors so headers appear on preflight responses.
+app.UseSecurityHeaders();
 app.UseCors();
 app.UseRateLimiter();                                      // C5
 app.UseMiddleware<ExceptionHandler>();                     // Utilities exception handler → JSON errors

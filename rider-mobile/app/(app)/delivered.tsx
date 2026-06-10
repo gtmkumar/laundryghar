@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useRiderTask, useRiderTasks } from '@/hooks/useRiderTasks';
 import { Button } from '@/components/ui/Button';
+import { useTranslation } from 'react-i18next';
 import type { RiderTask } from '@/types/api';
 
 function timeLabel(iso?: string): string {
@@ -54,6 +55,7 @@ function Confetti() {
 
 export default function DeliveredScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { task } = useRiderTask(id);
   const { pending, stats } = useRiderTasks();
@@ -72,7 +74,7 @@ export default function DeliveredScreen() {
             <Ionicons name="checkmark" size={40} color="#FFFFFF" />
           </View>
           <Text className="mt-5 text-3xl font-extrabold text-ink">
-            {isDelivery ? 'Delivered!' : 'Picked up!'}
+            {isDelivery ? t('taskDetail.delivery') + '!' : t('taskDetail.pickup') + '!'}
           </Text>
           {task ? (
             <Text className="mt-2 text-center text-sm text-ink-muted">
@@ -115,7 +117,7 @@ export default function DeliveredScreen() {
 
         <View className="pb-4">
           <Button
-            title={pending.length > 0 ? `Back to tasks (${pending.length} left)` : 'Back to tasks'}
+            title={pending.length > 0 ? `${t('tasks.title')} (${pending.length})` : t('tasks.title')}
             size="lg"
             fullWidth
             onPress={() => router.replace('/(app)/tasks')}

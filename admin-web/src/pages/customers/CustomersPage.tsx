@@ -5,6 +5,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
+import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
@@ -144,7 +145,7 @@ export function CustomersPage() {
         {isLoading ? (
           <LoadingState message="Loading customers..." />
         ) : isError ? (
-          <ErrorState error={error as Error} onRetry={() => void refetch()} />
+          isForbiddenError(error) ? <ForbiddenState /> : <ErrorState error={error as Error} onRetry={() => void refetch()} />
         ) : (
           <FilterableTable
             columns={columns}

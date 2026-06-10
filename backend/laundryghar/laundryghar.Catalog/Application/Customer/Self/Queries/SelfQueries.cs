@@ -76,6 +76,41 @@ public sealed class GetMyConsentsHandler : IRequestHandler<GetMyConsentsQuery, I
         c.ConsentMethod, c.PrivacyPolicyVersion, c.GrantedAt, c.WithdrawnAt, c.CreatedAt);
 }
 
+// ── Serviceability ────────────────────────────────────────────────────────────
+
+public sealed record CheckServiceabilityQuery(Guid BrandId, string Pincode)
+    : IRequest<ServiceabilityDto>;
+
+public sealed class CheckServiceabilityHandler
+    : IRequestHandler<CheckServiceabilityQuery, ServiceabilityDto>
+{
+    private readonly LaundryGharDbContext _db;
+
+    public CheckServiceabilityHandler(LaundryGharDbContext db) => _db = db;
+
+    public async Task<ServiceabilityDto> Handle(CheckServiceabilityQuery q, CancellationToken ct)
+    {
+        // 1. Check an active store in this brand covers the pincode directly.
+        var storeMatch = await _db.Stores
+            .AnyAsync(s => s.BrandId == q.BrandId
+                        && s.Pincode == q.Pincode
+                        && s.Status  == "active"
+                        && s.DeletedAt == null, ct);
+
+        if (storeMatch)
+            return new ServiceabilityDto(true);
+
+        // 2. Check if the pincode falls within any active territory in this brand.
+        var territoryMatch = await _db.Territories
+            .AnyAsync(t => t.BrandId == q.BrandId
+                        && t.Status  == "active"
+                        && t.DeletedAt == null
+                        && t.Pincodes.Contains(q.Pincode), ct);
+
+        return new ServiceabilityDto(territoryMatch);
+    }
+}
+
 // ── Account Deletion Request ──────────────────────────────────────────────────
 
 public sealed record GetMyDeletionRequestQuery(Guid CustomerId) : IRequest<AccountDeletionRequestDto?>;

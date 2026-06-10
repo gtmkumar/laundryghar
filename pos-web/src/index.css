@@ -40,3 +40,43 @@
     min-height: 36px;
   }
 }
+
+/* ── Print: thermal-slip / garment-tag output ──────────────────────────────────
+ * When a `.print-area` element is mounted and the user prints, hide the whole
+ * app chrome and render only the print payload. The print component sets
+ * `body.printing` while a print is in flight so the on-screen overlay stays
+ * hidden too. 80mm roll is the common counter-printer width.
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    size: 80mm auto;
+    margin: 4mm;
+  }
+  /* Each garment tag starts on its own slip. */
+  .print-tag {
+    page-break-after: always;
+  }
+  .print-tag:last-child {
+    page-break-after: auto;
+  }
+}

@@ -11,7 +11,11 @@ import { StatusBar } from 'expo-status-bar';
 
 export function BrandSplash() {
   return (
-    <View className="flex-1">
+    <View
+      className="flex-1"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       <StatusBar style="light" />
       <LinearGradient
         colors={['#6E7C42', '#4A552A', '#363F20']}

@@ -1,8 +1,10 @@
 using laundryghar.SharedDataModel.Entities.Analytics;
 using laundryghar.SharedDataModel.Entities.Commerce;
+using laundryghar.SharedDataModel.Entities.Commerce.Subscriptions;
 using laundryghar.SharedDataModel.Entities.CustomerCatalog;
 using laundryghar.SharedDataModel.Entities.EngagementCms;
 using laundryghar.SharedDataModel.Entities.FinanceRoyalty;
+using laundryghar.SharedDataModel.Entities.FinanceRoyalty.Subscriptions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
 using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Entities.Logistics;
@@ -97,6 +99,7 @@ public class LaundryGharDbContext : DbContext
     public DbSet<QualityCheck> QualityChecks => Set<QualityCheck>();
     public DbSet<StockReconciliation> StockReconciliations => Set<StockReconciliation>();
     public DbSet<StockReconciliationItem> StockReconciliationItems => Set<StockReconciliationItem>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
 
     // logistics
     public DbSet<Rider> Riders => Set<Rider>();
@@ -120,6 +123,14 @@ public class LaundryGharDbContext : DbContext
     public DbSet<WalletAccount> WalletAccounts => Set<WalletAccount>();
     public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
 
+    // commerce — subscriptions (ADR-010 module A)
+    public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
+    public DbSet<PaymentMandate> PaymentMandates => Set<PaymentMandate>();
+    public DbSet<CustomerSubscription> CustomerSubscriptions => Set<CustomerSubscription>();
+    public DbSet<SubscriptionInvoice> SubscriptionInvoices => Set<SubscriptionInvoice>();
+    public DbSet<SubscriptionBillingAttempt> SubscriptionBillingAttempts => Set<SubscriptionBillingAttempt>();
+    public DbSet<SubscriptionUsageLedger> SubscriptionUsageLedger => Set<SubscriptionUsageLedger>();
+
     // finance_royalty
     public DbSet<CashBook> CashBooks => Set<CashBook>();
     public DbSet<CashBookEntry> CashBookEntries => Set<CashBookEntry>();
@@ -129,6 +140,12 @@ public class LaundryGharDbContext : DbContext
     public DbSet<ShiftHandover> ShiftHandovers => Set<ShiftHandover>();
     public DbSet<RoyaltyInvoice> RoyaltyInvoices => Set<RoyaltyInvoice>();
     public DbSet<RoyaltyCalculation> RoyaltyCalculations => Set<RoyaltyCalculation>();
+
+    // finance_royalty — SaaS subscriptions (ADR-010 module B)
+    public DbSet<PlatformPlan> PlatformPlans => Set<PlatformPlan>();
+    public DbSet<FranchiseSubscription> FranchiseSubscriptions => Set<FranchiseSubscription>();
+    public DbSet<FranchiseSubscriptionInvoice> FranchiseSubscriptionInvoices => Set<FranchiseSubscriptionInvoice>();
+    public DbSet<FranchiseSubscriptionEvent> FranchiseSubscriptionEvents => Set<FranchiseSubscriptionEvent>();
 
     // kernel
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
@@ -152,6 +169,8 @@ public class LaundryGharDbContext : DbContext
     public DbSet<OnboardingSlide> OnboardingSlides => Set<OnboardingSlide>();
     public DbSet<AppBanner> AppBanners => Set<AppBanner>();
     public DbSet<MobileAppConfig> MobileAppConfigs => Set<MobileAppConfig>();
+    public DbSet<PushToken> PushTokens => Set<PushToken>();
+    public DbSet<NotificationEventCursor> NotificationEventCursors => Set<NotificationEventCursor>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

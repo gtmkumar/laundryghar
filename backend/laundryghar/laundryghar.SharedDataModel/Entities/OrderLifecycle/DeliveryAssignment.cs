@@ -60,6 +60,10 @@ public class DeliveryAssignment
     public DateTimeOffset? OtpAttemptedAt { get; set; }
     public string? SignatureS3Key { get; set; }
     public string? ProofPhotoS3Key { get; set; }
+
+    /// <summary>Timestamp when the rider uploaded the proof-of-delivery photo (null = no photo uploaded yet).</summary>
+    public DateTimeOffset? ProofPhotoTakenAt { get; set; }
+
     public string? CustomerSignature { get; set; }
     public string Status { get; set; } = null!;
     public string? Notes { get; set; }

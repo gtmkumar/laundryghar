@@ -181,9 +181,11 @@ public sealed class GenerateRoyaltyInvoiceHandler
         _db.RoyaltyCalculations.Add(calcLine);
         await _db.SaveChangesAsync(ct);
 
-        // Reload to pick up generated amount_due
+        // Reload to pick up generated amount_due.
+        // calcLine is already tracked by EF and navigation-populated via FK — do NOT call
+        // invoice.Calculations.Add(calcLine) here; that would produce a duplicate in the
+        // response collection (DB row is correct; only the in-memory list would be doubled).
         await _db.Entry(invoice).ReloadAsync(ct);
-        invoice.Calculations.Add(calcLine);
 
         return RoyaltyMapper.ToDto(invoice);
     }

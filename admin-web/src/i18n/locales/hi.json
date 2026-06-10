@@ -1,0 +1,54 @@
+{
+  "common": {
+    "appName": "Laundry Ghar एडमिन",
+    "loading": "लोड हो रहा है…",
+    "cancel": "रद्द करें",
+    "save": "सेव करें",
+    "signIn": "साइन इन करें",
+    "signingIn": "साइन इन हो रहा है…",
+    "signOut": "साइन आउट",
+    "export": "निर्यात",
+    "today": "आज",
+    "days7": "7 दिन",
+    "days30": "30 दिन",
+    "new": "नया",
+    "live": "लाइव"
+  },
+  "language": {
+    "title": "भाषा",
+    "english": "English",
+    "hindi": "हिन्दी"
+  },
+  "auth": {
+    "welcomeBack": "वापस स्वागत है",
+    "signInConsole": "कंसोल में साइन इन करें",
+    "useCredentials": "अपने स्टोर या एडमिन क्रेडेंशियल इस्तेमाल करें।",
+    "yourRole": "आपकी भूमिका",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "rememberDevice": "इस डिवाइस को याद रखें",
+    "forgot": "भूल गए?",
+    "signInArrow": "साइन इन करें →",
+    "signingIn": "साइन इन हो रहा है…",
+    "securityNote": "JWT + OTP MFA · TLS 1.3 से सुरक्षित",
+    "troubleSign": "साइन इन में परेशानी? IT से संपर्क करें · v2.0",
+    "loginFailed": "साइन इन नहीं हो पाया। क्रेडेंशियल जाँचें।",
+    "roles": {
+      "super_admin": "सुपर एडमिन",
+      "super_admin_sub": "सभी स्टोर · सिस्टम कॉन्फ़िग",
+      "store_admin": "स्टोर एडमिन",
+      "store_admin_sub": "एकल स्टोर · स्टाफ और रिपोर्ट",
+      "warehouse": "वेयरहाउस",
+      "warehouse_sub": "चेक-इन · QC · सत्यापन"
+    }
+  },
+  "topbar": {
+    "operationsDashboard": "ऑपरेशन · डैशबोर्ड",
+    "greeting_morning": "सुप्रभात",
+    "greeting_afternoon": "नमस्कार",
+    "greeting_evening": "शुभ संध्या",
+    "searchPlaceholder": "ऑर्डर, ग्राहक, राइडर खोजें…",
+    "stores_one": "सभी {{count}} स्टोर",
+    "stores_other": "सभी {{count}} स्टोर"
+  }
+}

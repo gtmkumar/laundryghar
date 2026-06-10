@@ -9,6 +9,14 @@ public class OtpCode
     public string Identifier { get; set; } = null!;
     public string IdentifierType { get; set; } = null!;
     public string CodeHash { get; set; } = null!;
+
+    /// <summary>
+    /// Per-row random salt (hex-encoded 16 bytes) used for HMAC-SHA256 code hashing.
+    /// NULL on rows written before the salted-hash migration — those rows use the legacy
+    /// unsalted SHA-256 path and expire within TTL (≤ 5 minutes).
+    /// </summary>
+    public string? CodeSalt { get; set; }
+
     public Guid? UserId { get; set; }
 
     /// <summary>FK to customer_catalog.customers — cross-BC, scalar only.</summary>

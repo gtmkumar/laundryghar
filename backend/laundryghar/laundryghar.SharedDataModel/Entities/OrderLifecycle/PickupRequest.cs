@@ -24,6 +24,20 @@ public class PickupRequest
     public Guid[] ServicesRequested { get; set; } = [];
     public string? CustomerNotes { get; set; }
 
+    /// <summary>
+    /// Estimated cart lines submitted by the customer at booking time.
+    /// Serialised as JSON array: [{ serviceId?, itemId?, displayLabel, quantity, estimatedUnitPrice? }].
+    /// These are ESTIMATES — the authoritative order is created after weighing at the store.
+    /// </summary>
+    public string RequestedItems { get; set; } = "[]";
+
+    /// <summary>
+    /// Customer payment intent at booking: wallet | cod | upi-deferred.
+    /// UPI/card selections are recorded as "upi-deferred"; actual collection
+    /// is always handled when the order is confirmed after weighing.
+    /// </summary>
+    public string PaymentPreference { get; set; } = "cod";
+
     /// <summary>Part of composite FK to orders(id, created_at) — scalar only (no composite nav supported here).</summary>
     public Guid? ConvertedOrderId { get; set; }
 

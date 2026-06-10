@@ -1,6 +1,7 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
 const OLIVE_700 = '#4A552A';
+const EAS_PROJECT_ID = 'laundryghar-customer';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -30,6 +31,21 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     versionCode: 1,
     permissions: [],
   },
+  // ---------------------------------------------------------------------------
+  // OTA updates — expo-updates
+  // checkAutomatically: 'ON_LOAD' means the runtime checks on every cold start.
+  // fallbackToCacheTimeout: 0 → never block startup waiting for a manifest.
+  // runtimeVersion policy 'appVersion' ties OTA compatibility to the app version
+  // declared above — a new native binary gets a new channel automatically.
+  // ---------------------------------------------------------------------------
+  updates: {
+    url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+    checkAutomatically: 'ON_LOAD',
+    fallbackToCacheTimeout: 0,
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
   extra: {
     // Service base URLs — set ONLY from env (undefined in plain dev so the app
     // falls back to constants/config.ts's DEV_HOST resolution, which is correct
@@ -42,13 +58,32 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     commerceApiUrl: process.env.COMMERCE_API_URL,
     engagementApiUrl: process.env.ENGAGEMENT_API_URL,
     defaultBrandCode: process.env.DEFAULT_BRAND_CODE ?? 'LG-MAIN',
+    // Sentry DSN — set via EAS secret (SENTRY_DSN) or .env.local
+    // (EXPO_PUBLIC_SENTRY_DSN). When absent Sentry is fully disabled.
+    sentryDsn: process.env.SENTRY_DSN,
     eas: {
-      projectId: 'laundryghar-customer',
+      projectId: EAS_PROJECT_ID,
     },
   },
   plugins: [
     'expo-router',
     'expo-secure-store',
+    'expo-localization',
+    // Sentry config plugin — injects native crash-reporter init
+    '@sentry/react-native',
+    [
+      // expo-notifications: configures native notification permissions and
+      // Android notification channels. Required for production/dev builds.
+      // In Expo Go only Android can obtain push tokens; iOS requires a native build.
+      'expo-notifications',
+      {
+        icon: './assets/icon.png',
+        color: '#4A552A',
+        androidMode: 'default',
+        // Android 13+ explicit notification permission is requested at runtime
+        // via requestPermissionsAsync() — no manifest entry needed here.
+      },
+    ],
     [
       'expo-splash-screen',
       {

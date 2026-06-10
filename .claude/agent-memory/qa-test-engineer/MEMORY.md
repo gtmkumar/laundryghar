@@ -1,2 +1,8 @@
 - [Wave-0 RLS & Auth Validation](project_wave0_rls.md) — Exit gate passed; app_user LOGIN fix needed; legacy public-role policies have unsafe uuid cast
 - [BC-3 Catalog QA Gate](project_bc3_catalog.md) — Exit gate passed; IDOR proof, pricing rules verified; request_source CHECK error exposed raw; published PL edit returns 500 not 4xx
+- [Security Tasks Review June 2026](project_security_tasks_review.md) — Tasks #1/#3/#5/#13 PASS; #2 FAIL (3 DB CHECK violations in refund handlers); #6 FAIL (NotificationMappingService: toStatus/NewStatus mismatch + string.Compare LINQ crash)
+- [Live Verification 2026-06-10](project_live_verification_june2026.md) — #2/#6/#8/#10 PASS; #14 FAIL (phone tombstone varchar(20) overflow in CustomerAnonymizer); 2 notification template defects confirmed live
+- [Live Verification Round 3 2026-06-10](project_live_verification_round3_june2026.md) — #7/#16/#18/#21 PASS; #9 PASS-WITH-DEFECT (auto-dispatch FAIL: ST_Y geography crash + StoreId FK defect)
+- [Tasks #15/#24 Verification 2026-06-10](project_tasks15_24_june2026.md) — #15 PASS-with-defects (label validator gap leaks 23514; 400 body empty on invalid pincode); #24 PASS (tsc 0, all flags/guards confirmed)
+- [Round 5A Verification 2026-06-10](project_round5a_verification.md) — #19/#20/#31/#32/#22 all PASS; DailyRecon dry-run confirmed; pickup reject + slot decrement + notifications verified
+- [Task #26 Test Baseline](project_task26_test_baseline.md) — 528 backend + 115 customer + 63 rider + smoke 22/22 PASS; jest-expo@52, jest@29; screen tests deferred

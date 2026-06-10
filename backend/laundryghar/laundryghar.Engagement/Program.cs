@@ -164,6 +164,9 @@ if (runSeed)
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
+// Security headers (HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy).
+// No-op in Development. Must run before UseCors so headers appear on preflight responses.
+app.UseSecurityHeaders();
 app.UseCors();
 app.UseMiddleware<ExceptionHandler>();
 app.UseAuthentication();

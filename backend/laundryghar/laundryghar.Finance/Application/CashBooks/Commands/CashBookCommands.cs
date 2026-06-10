@@ -302,6 +302,39 @@ public sealed class CloseCashBookHandler : IRequestHandler<CloseCashBookCommand,
     }
 }
 
+// ── Validators for CloseCashBookCommand and CreateShiftHandoverCommand ────────
+
+public sealed class CloseCashBookValidator : AbstractValidator<CloseCashBookCommand>
+{
+    public CloseCashBookValidator()
+    {
+        RuleFor(x => x.BookId).NotEmpty();
+        // Closing balance can be zero (empty float) but must not be negative.
+        RuleFor(x => x.Request.ClosingBalance)
+            .GreaterThanOrEqualTo(0)
+            .WithMessage("ClosingBalance must be zero or greater.");
+        RuleFor(x => x.Request.VarianceReason)
+            .MaximumLength(500)
+            .When(x => x.Request.VarianceReason is not null);
+    }
+}
+
+public sealed class CreateShiftHandoverValidator : AbstractValidator<CreateShiftHandoverCommand>
+{
+    public CreateShiftHandoverValidator()
+    {
+        RuleFor(x => x.Request.StoreId).NotEmpty();
+        RuleFor(x => x.Request.FromUserId).NotEmpty();
+        // CashHandedOver may be 0 for non-cash shifts but never negative.
+        RuleFor(x => x.Request.CashHandedOver)
+            .GreaterThanOrEqualTo(0)
+            .WithMessage("CashHandedOver must be zero or greater.");
+        RuleFor(x => x.Request.PendingOrdersCount).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Request.PickupsRemaining).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Request.DeliveriesRemaining).GreaterThanOrEqualTo(0);
+    }
+}
+
 // ── Create Shift Handover ─────────────────────────────────────────────────────
 
 public sealed record CreateShiftHandoverCommand(CreateShiftHandoverRequest Request, Guid? ActorId)

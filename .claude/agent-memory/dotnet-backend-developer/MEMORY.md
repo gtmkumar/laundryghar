@@ -7,3 +7,9 @@
 - [Aspire AppHost setup](project-aspire-apphost.md) — SDK 13.4.2 quirks, connection string injection via literal env var (not AddConnectionString), port pinning, ASPIRE002 benign warning
 - [Worker service context](project-worker-service.md) — outbox drain design, RLS bypass via WorkerCurrentTenant, verified enum values, two-transaction per-row pattern, backoff formula, Aspire no-HTTP registration
 - [PII encryption design](project-pii-encryption.md) — AES-256-GCM ValueConverter, users.read_financial gate, IFSC kept clear, legacy passthrough, dev key auto-gen, audit-log no writer yet
+- [DPDP erasure pipeline](project-dpdp-erasure.md) — Task #14: CustomerAnonymizer, tombstone format, grace-period override, pg_partman findings, grievance config key
+- [File storage abstraction](project-file-storage.md) — IFileStorageProvider, key scheme, local/S3/blob seams, DisableAntiforgery + RequestSizeLimitAttribute for multipart in .NET 10, proof_photo_taken_at patch
+- [Warehouse actions + recon + lost flow](project-warehouse-actions.md) — garments.status has no 'lost' value (use current_stage), DailyReconService IST hardcoding, LostGarmentProcessor atomicity, wallet compensation deferred
+- [Security hardening (Task #27)](project-security-hardening.md) — header hook pattern (no shared pipeline in ServiceDefaults), password policy alignment rationale, banner http:// env-gating, sweep findings
+- [POS gaps (Task #31)](project-pos-gaps.md) — admin create-customer, offline payment record (Commerce 5005), coupon on order create; permission risk_level='normal', cash-book mirrored server-side
+- [Subscriptions ADR-010 (Task #17)](project-subscriptions-adr010.md) — schema placement, gateway seam design, Worker dunning service, DB patch canonicalization, known deferred gateway wiring

@@ -8,18 +8,29 @@ import {
   approveExpense,
   rejectExpense,
   markExpensePaid,
+  getRoyaltyInvoices,
+  getRoyaltyInvoice,
+  generateRoyaltyInvoice,
+  issueRoyaltyInvoice,
+  recordRoyaltyPayment,
 } from '@/api/finance'
 import type {
   CashBookListParams,
   ExpenseListParams,
   CreateExpensePayload,
   OpenCashBookPayload,
+  RoyaltyListParams,
+  GenerateRoyaltyInvoicePayload,
+  IssueRoyaltyInvoicePayload,
+  RecordRoyaltyPaymentPayload,
 } from '@/types/api'
 
 export const financeKeys = {
   cashBooks: (params?: object) => ['finance', 'cashBooks', params] as const,
   expenses: (params?: object) => ['finance', 'expenses', params] as const,
   expenseCategories: () => ['finance', 'expenseCategories'] as const,
+  royaltyInvoices: (params?: object) => ['finance', 'royaltyInvoices', params] as const,
+  royaltyInvoice: (id: string) => ['finance', 'royaltyInvoice', id] as const,
 }
 
 export function useCashBooks(params: CashBookListParams = {}) {
@@ -75,6 +86,49 @@ export function useExpenseAction() {
     }),
     markPaid: useMutation({
       mutationFn: ({ id, notes }: { id: string; notes?: string }) => markExpensePaid(id, notes),
+      onSuccess: refresh,
+    }),
+  }
+}
+
+// ── Royalty hooks ─────────────────────────────────────────────────────────────
+
+export function useRoyaltyInvoices(params: RoyaltyListParams = {}) {
+  return useQuery({
+    queryKey: financeKeys.royaltyInvoices(params),
+    queryFn: () => getRoyaltyInvoices(params),
+  })
+}
+
+export function useRoyaltyInvoice(id: string | null) {
+  return useQuery({
+    queryKey: financeKeys.royaltyInvoice(id ?? ''),
+    queryFn: () => getRoyaltyInvoice(id!),
+    enabled: !!id,
+  })
+}
+
+export function useGenerateRoyaltyInvoice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: GenerateRoyaltyInvoicePayload) => generateRoyaltyInvoice(payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['finance', 'royaltyInvoices'] }),
+  })
+}
+
+export function useRoyaltyInvoiceActions() {
+  const qc = useQueryClient()
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['finance', 'royaltyInvoices'] })
+
+  return {
+    issue: useMutation({
+      mutationFn: ({ id, payload }: { id: string; payload: IssueRoyaltyInvoicePayload }) =>
+        issueRoyaltyInvoice(id, payload),
+      onSuccess: refresh,
+    }),
+    recordPayment: useMutation({
+      mutationFn: ({ id, payload }: { id: string; payload: RecordRoyaltyPaymentPayload }) =>
+        recordRoyaltyPayment(id, payload),
       onSuccess: refresh,
     }),
   }

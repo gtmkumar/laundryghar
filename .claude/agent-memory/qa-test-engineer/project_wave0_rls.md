@@ -17,3 +17,5 @@ RLS isolation and auth flows validated for Wave-0 foundation (2026-06-05).
 
 **Why:** Validates Wave-0 identity/tenancy foundation before further BCs are layered on top.
 **How to apply:** Reference these defects in any RLS or auth work going forward. Prioritize fixing app_user_role.sql and legacy public policies before Phase 3 (AppRuntime connection string switch).
+
+See also: [[project-live-verification-june2026]] for cross-task defects found during the 2026-06-10 live sweep.

@@ -8,6 +8,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
+import { Toaster } from '@/components/shared/Toaster'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { AcceptInvitePage } from '@/pages/auth/AcceptInvitePage'
 import { DashboardPage } from '@/pages/DashboardPage'
@@ -23,6 +24,7 @@ import { RidersPage } from '@/pages/riders/RidersPage'
 import { CustomersPage } from '@/pages/customers/CustomersPage'
 import { CashBookPage } from '@/pages/finance/CashBookPage'
 import { ExpensesPage } from '@/pages/finance/ExpensesPage'
+import { RoyaltyPage } from '@/pages/finance/RoyaltyPage'
 import { ComingSoonPage } from '@/pages/ComingSoonPage'
 
 const queryClient = new QueryClient({
@@ -67,6 +69,7 @@ const router = createBrowserRouter([
           { path: 'coupons',       element: <ComingSoonPage name="Coupons" /> },
           { path: 'cashbook',      element: <CashBookPage /> },
           { path: 'expenses',      element: <ExpensesPage /> },
+          { path: 'royalty',       element: <RoyaltyPage /> },
           { path: '*',             element: <Navigate to="/" replace /> },
         ],
       },
@@ -78,6 +81,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <Toaster />
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   )

@@ -11,7 +11,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
  */
 export function BrandSplash() {
   return (
-    <View className="flex-1">
+    <View
+      className="flex-1"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       <StatusBar style="light" />
       <LinearGradient
         colors={['#7C8B49', '#5C6A33', '#3B4423']}

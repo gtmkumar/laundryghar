@@ -54,4 +54,50 @@ public sealed class DevPaymentGateway : IPaymentGateway
 
         return Task.FromResult(refundId);
     }
+
+    /// <summary>
+    /// Dev stub: returns a fake mandate ID + pending status.
+    /// AuthorizationUrl is a placeholder — no actual UPI flow in Development.
+    /// Stub behaviour is configurable via appsettings: Subscriptions:DevMandateAlwaysFail=true
+    /// makes the next ChargeMandateAsync return failed, for dunning ladder tests.
+    /// </summary>
+    public Task<GatewayMandateResult> CreateMandateAsync(
+        CreateMandateRequest request,
+        CancellationToken ct = default)
+    {
+        var mandateId = $"dev_mandate_{Guid.NewGuid():N}";
+        _logger.LogInformation(
+            "[DEV] CreateMandate: type={Type} maxAmount={MaxAmount} {Currency} → {MandateId}",
+            request.MandateType, request.MaxAmount, request.Currency, mandateId);
+
+        return Task.FromResult(new GatewayMandateResult(
+            GatewayMandateId:  mandateId,
+            Gateway:           "dev",
+            Status:            "pending",
+            AuthorizationUrl:  $"https://dev.razorpay.local/mandate/{mandateId}/auth",
+            RawResponse:       $"{{\"id\":\"{mandateId}\",\"status\":\"pending\"}}"));
+    }
+
+    /// <summary>
+    /// Dev stub: always returns success unless Subscriptions:DevMandateAlwaysFail=true.
+    /// </summary>
+    public Task<GatewayChargeResult> ChargeMandateAsync(
+        string gatewayMandateId,
+        decimal amount,
+        string currency,
+        string idempotencyKey,
+        CancellationToken ct = default)
+    {
+        var paymentId = $"dev_pay_{Guid.NewGuid():N}";
+        _logger.LogInformation(
+            "[DEV] ChargeMandate: mandate={MandateId} amount={Amount} {Currency} key={Key} → {PaymentId} success",
+            gatewayMandateId, amount, currency, idempotencyKey, paymentId);
+
+        return Task.FromResult(new GatewayChargeResult(
+            GatewayPaymentId: paymentId,
+            Status:           "success",
+            FailureCode:      null,
+            FailureMessage:   null,
+            RawResponse:      $"{{\"id\":\"{paymentId}\",\"status\":\"captured\"}}"));
+    }
 }

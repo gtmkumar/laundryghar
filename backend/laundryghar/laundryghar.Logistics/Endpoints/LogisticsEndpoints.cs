@@ -12,6 +12,8 @@ using laundryghar.Logistics.Application.RiderCod;
 using laundryghar.Logistics.Application.RiderSelf;
 using laundryghar.SharedDataModel.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Mvc;
 
 namespace laundryghar.Logistics.Endpoints;
 
@@ -172,6 +174,26 @@ public static class LogisticsEndpoints
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderSettlementDto> { Status = true, Data = s });
         }).RequireAuthorization("permission:rider.settle");
+
+        // ── Delivery Assignments — Proof Photos ───────────────────────────────
+        // GET /api/v1/admin/rider-tasks/{id}/proof-photo
+        // Streams the rider's proof-of-delivery photo for admin/dispatch inspection.
+        // Routes under /rider-tasks/ to avoid confusion with the /rider-assignments/ CRUD group.
+        var riderTasks = admin.MapGroup("/rider-tasks").WithTags("Admin - Rider Tasks");
+
+        riderTasks.MapGet("/{id:guid}/proof-photo", async (
+            Guid id, ICurrentUser u, [FromServices] ISender sender, CancellationToken ct) =>
+        {
+            var brandId = u.RequireBrandId();
+            var result  = await sender.Send(new GetProofPhotoStreamQuery(id, brandId), ct);
+            if (result is null) return Results.NotFound();
+
+            return Results.Stream(
+                result.Stream,
+                contentType: result.ContentType,
+                fileDownloadName: result.FileName,
+                enableRangeProcessing: false);
+        }).RequireAuthorization("permission:rider.read");
 
         // ── Rider Assignments ─────────────────────────────────────────────────
         var assignments = admin.MapGroup("/rider-assignments").WithTags("Admin - Rider Assignments");
@@ -360,7 +382,8 @@ public static class LogisticsEndpoints
             var brandId = GetRiderBrandId(ctx);
             if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
 
-            var result = await sender.Send(new UpdateMyTaskStatusCommand(id, userId, brandId, req.Status), ct);
+            var result = await sender.Send(
+                new UpdateMyTaskStatusCommand(id, userId, brandId, req.Status, req.Reason, req.Note), ct);
             return ToTaskResult(result);
         });
 
@@ -375,6 +398,124 @@ public static class LogisticsEndpoints
 
             var result = await sender.Send(new VerifyTaskOtpCommand(id, userId, brandId, req.Code), ct);
             return ToTaskResult(result);
+        });
+
+        // PATCH /api/v1/rider/duty
+        // Toggle the authenticated rider's duty state.
+        // RiderOnly — rider self-resolved from JWT; no id in path.
+        riderSelf.MapMethods("/duty", ["PATCH"], async (
+            SetDutyRequest req,
+            HttpContext ctx,
+            ISender sender,
+            CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var result = await sender.Send(new SetRiderDutyCommand(userId, brandId, req.OnDuty), ct);
+
+            return result.Outcome switch
+            {
+                "ok" => Results.Ok(new SingleResponse<DutyToggleResponse>
+                        { Status = true, Data = result.Data }),
+                _    => Results.NotFound()
+            };
+        });
+
+        // POST /api/v1/rider/tasks/{id}/proof-photo
+        // Rider uploads a proof-of-delivery photo. Optional — does not block completion.
+        // Stores the storage key in delivery_assignments.proof_photo_s3_key.
+        // DisableAntiforgery() is required for IFormFile in .NET 10 minimal APIs.
+        riderSelf.MapPost("/tasks/{id:guid}/proof-photo", async (
+            Guid id,
+            IFormFile file,
+            HttpContext ctx,
+            ISender sender,
+            CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var result = await sender.Send(
+                new UploadProofPhotoCommand(id, userId, brandId, file), ct);
+            return ToTaskResult(result);
+        })
+        .DisableAntiforgery()
+        .WithMetadata(new RequestSizeLimitAttribute(11 * 1024 * 1024)); // 10 MB + envelope overhead
+
+        // ── Push Tokens ───────────────────────────────────────────────────────
+        // Expo push token registration / deactivation for rider devices.
+        // Both endpoints are RiderOnly (JWT sub = userId, user_type = rider).
+        // POST upserts on the unique token column — re-registering reactivates.
+        // DELETE deactivates on logout so the Worker skips signed-out devices.
+
+        // POST /api/v1/rider/push-token
+        riderSelf.MapPost("/push-token", async (
+            RiderRegisterPushTokenRequest req,
+            HttpContext ctx,
+            ISender sender,
+            CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            await sender.Send(
+                new RegisterRiderPushTokenCommand(userId, brandId, req.Token, req.Platform), ct);
+
+            return Results.Ok(new Response { Status = true });
+        });
+
+        // DELETE /api/v1/rider/push-token
+        riderSelf.MapDelete("/push-token", async (
+            [FromBody] RiderDeactivatePushTokenRequest req,
+            HttpContext ctx,
+            ISender sender,
+            CancellationToken ct) =>
+        {
+            var userId = GetRiderUserId(ctx);
+            if (userId == Guid.Empty) return Results.Unauthorized();
+
+            await sender.Send(
+                new DeactivateRiderPushTokenCommand(userId, req.Token), ct);
+
+            return Results.Ok(new Response { Status = true });
+        });
+
+        // ── Earnings / Payouts ────────────────────────────────────────────────
+        // GET /api/v1/rider/payouts?days=30
+        // Returns a per-day earnings breakdown (completed legs with a persisted
+        // payout_amount) plus a summary (total, avgPerTask) for the rolling window.
+        riderSelf.MapGet("/payouts", async (
+            HttpContext ctx, ISender sender, CancellationToken ct,
+            int days = 30) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var result = await sender.Send(new GetMyPayoutsQuery(userId, brandId, days), ct);
+            return result is null
+                ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderPayoutSummaryDto> { Status = true, Data = result });
+        });
+
+        // ── COD cash self-summary ─────────────────────────────────────────────
+        // GET /api/v1/rider/cash/summary
+        // Returns the authenticated rider's outstanding COD balance (cash in hand),
+        // last settlement timestamp, and up to 10 recent settlements.
+        riderSelf.MapGet("/cash/summary", async (HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var result = await sender.Send(new GetMyCashSummaryQuery(userId, brandId), ct);
+            return result is null
+                ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderCashSummaryDto> { Status = true, Data = result });
         });
     }
 
@@ -405,3 +546,12 @@ public static class LogisticsEndpoints
         return Guid.TryParse(brandClaim, out var g) ? g : Guid.Empty;
     }
 }
+
+// ── Request DTOs (local to this endpoint file) ────────────────────────────────
+
+/// <param name="Token">Expo push token (ExponentPushToken[…] or ExpoPushToken[…]).</param>
+/// <param name="Platform">"ios" or "android".</param>
+public sealed record RiderRegisterPushTokenRequest(string Token, string Platform);
+
+/// <param name="Token">The Expo push token to deactivate.</param>
+public sealed record RiderDeactivatePushTokenRequest(string Token);

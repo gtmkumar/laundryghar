@@ -17,6 +17,29 @@ import type {
 } from '@/types/api';
 
 // ---------------------------------------------------------------------------
+// Types for the duty toggle endpoint
+// ---------------------------------------------------------------------------
+
+export interface DutyToggleResponse {
+  onDuty:        boolean;
+  openTaskCount: number;
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /api/v1/rider/duty
+// Persists the rider's on/off-duty state server-side.
+// Returns { onDuty, openTaskCount } — openTaskCount > 0 means the rider has
+// open tasks while going off duty (caller decides whether to warn the user).
+// ---------------------------------------------------------------------------
+export async function patchRiderDuty(onDuty: boolean): Promise<DutyToggleResponse> {
+  const res = await logisticsClient.patch<SingleResponse<DutyToggleResponse>>(
+    '/rider/duty',
+    { onDuty },
+  );
+  return unwrapSingle(res.data);
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/v1/rider/me
 // Returns the full rider profile for the authenticated rider.
 // ---------------------------------------------------------------------------

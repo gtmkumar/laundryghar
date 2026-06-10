@@ -11,6 +11,7 @@ import type {
   OrderStatusHistoryDto,
   PaginatedListResponse,
   PickupRequestDto,
+  RateOrderRequest,
   SingleResponse,
 } from '@/types/api';
 
@@ -54,6 +55,18 @@ export async function cancelOrder(id: string): Promise<OrderDto> {
   return unwrapSingle(res.data);
 }
 
+/** POST /api/v1/customer/orders/{id}/rate */
+export async function rateOrder(
+  id: string,
+  body: RateOrderRequest,
+): Promise<OrderDto> {
+  const res = await ordersClient.post<SingleResponse<OrderDto>>(
+    `/customer/orders/${id}/rate`,
+    body,
+  );
+  return unwrapSingle(res.data);
+}
+
 // ── Pickup scheduling ─────────────────────────────────────────────────────────
 
 /** POST /api/v1/customer/pickup-requests */
@@ -63,6 +76,33 @@ export async function schedulePickup(
   const res = await ordersClient.post<SingleResponse<PickupRequestDto>>(
     '/customer/pickup-requests/',
     req,
+  );
+  return unwrapSingle(res.data);
+}
+
+/** GET /api/v1/customer/pickup-requests?page=&pageSize=&status= */
+export async function getMyPickupRequests(
+  page = 1,
+  pageSize = 20,
+  status?: string,
+): Promise<{ list: PickupRequestDto[]; hasPreviousPage: boolean; hasNextPage: boolean }> {
+  const res = await ordersClient.get<PaginatedListResponse<PickupRequestDto>>(
+    '/customer/pickup-requests/',
+    {
+      params: {
+        page,
+        pageSize,
+        ...(status ? { status } : {}),
+      },
+    },
+  );
+  return unwrapPaginated(res.data);
+}
+
+/** GET /api/v1/customer/pickup-requests/{id} */
+export async function getMyPickupRequestById(id: string): Promise<PickupRequestDto> {
+  const res = await ordersClient.get<SingleResponse<PickupRequestDto>>(
+    `/customer/pickup-requests/${id}`,
   );
   return unwrapSingle(res.data);
 }

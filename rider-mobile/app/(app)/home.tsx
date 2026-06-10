@@ -1,10 +1,14 @@
 /**
  * Duty home — "Go on duty" (mockups: offline + online states).
  *
- * Going on duty is client-side (see dutyStore — backend has no rider-self duty
- * endpoint), but it also fires real side-effects best-effort:
- *   1. requests location permission + sends a /rider/location/ping
- *   2. activates today's scheduled shift assignment (PATCH …/status → active)
+ * Going on/off duty calls setOnDuty() in dutyStore, which:
+ *   1. Flips local AsyncStorage state immediately (optimistic — UX never waits).
+ *   2. Calls PATCH /api/v1/rider/duty best-effort to persist the state server-side
+ *      (auto-dispatch and the admin live board rely on is_on_duty=true).
+ *
+ * In addition, going on duty fires two more best-effort side effects here:
+ *   3. Activates today's scheduled shift assignment (PATCH …/status → active).
+ *   4. Sends a location ping so dispatch can see the rider on the map immediately.
  *
  * The "View today's tasks" CTA unlocks only once on duty (matches the mockup,
  * where it's faded while offline).
@@ -23,6 +27,7 @@ import { useDutyStore, type ChecklistItem } from '@/store/dutyStore';
 import { sendCurrentLocationPing } from '@/lib/sendCurrentLocation';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
+import { useTranslation } from 'react-i18next';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -31,18 +36,19 @@ function greeting(): string {
   return 'Good evening';
 }
 
-const CHECKLIST: { key: ChecklistItem; label: string }[] = [
-  { key: 'bagTags',      label: 'Bag & tags' },
-  { key: 'phoneCharged', label: 'Phone charged' },
-  { key: 'vehicleDocs',  label: 'Vehicle docs' },
-  { key: 'cashFloat',    label: 'Cash float ₹500' },
-];
-
 export default function HomeScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { rider, setRider } = useAuthStore();
   const { isOnDuty, setOnDuty, checklist, toggleChecklist } = useDutyStore();
   const [busy, setBusy] = useState(false);
+
+  const CHECKLIST: { key: ChecklistItem; label: string }[] = [
+    { key: 'bagTags',      label: t('home.checklist.bagTags') },
+    { key: 'phoneCharged', label: t('home.checklist.phoneCharged') },
+    { key: 'vehicleDocs',  label: t('home.checklist.vehicleDocs') },
+    { key: 'cashFloat',    label: t('home.checklist.cashFloat') },
+  ];
 
   const { data: me } = useMyRiderProfile();
   const { data: assignments } = useTodaysAssignments();
@@ -91,9 +97,9 @@ export default function HomeScreen() {
 
   function toggleDuty() {
     if (isOnDuty) {
-      Alert.alert('Go off duty?', 'You will stop receiving new task assignments.', [
-        { text: 'Stay online', style: 'cancel' },
-        { text: 'Go off duty', style: 'destructive', onPress: () => void goOffDuty() },
+      Alert.alert(t('home.goOffDuty'), t('home.goOffDutyMessage'), [
+        { text: t('home.stayOnline'), style: 'cancel' },
+        { text: t('home.goOnDuty'), style: 'destructive', onPress: () => void goOffDuty() },
       ]);
     } else {
       void goOnDuty();
@@ -115,7 +121,7 @@ export default function HomeScreen() {
         <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View className="flex-row items-center px-5 pt-2">
-            <Pressable onPress={() => router.push('/(app)/profile')} className="flex-row items-center active:opacity-70">
+            <Pressable onPress={() => router.push('/(app)/profile')} accessibilityRole="button" accessibilityLabel={t('a11y.viewProfile')} className="flex-row items-center active:opacity-70">
               <Avatar name={name} size={44} />
               <View className="ml-3">
                 <Text className="text-xs text-ink-muted">{greeting()}</Text>
@@ -124,10 +130,10 @@ export default function HomeScreen() {
             </Pressable>
             <View className="flex-1" />
             <Pressable
-              onPress={() => Alert.alert('Notifications', "You're all caught up.")}
+              onPress={() => Alert.alert(t('home.notifications'), t('home.allCaughtUp'))}
               className="h-11 w-11 items-center justify-center rounded-2xl border border-cream-300 bg-white active:opacity-70"
               accessibilityRole="button"
-              accessibilityLabel="Notifications"
+              accessibilityLabel={t('a11y.notifications')}
             >
               <Ionicons name="notifications-outline" size={22} color="#3C3F35" />
             </Pressable>
@@ -138,9 +144,9 @@ export default function HomeScreen() {
             <Pressable
               onPress={toggleDuty}
               disabled={busy}
-              accessibilityRole="button"
-              accessibilityLabel={isOnDuty ? 'Go off duty' : 'Go on duty'}
-              accessibilityState={{ selected: isOnDuty, busy }}
+              accessibilityRole="switch"
+              accessibilityLabel={t(isOnDuty ? 'a11y.goOffDuty' : 'a11y.goOnDuty')}
+              accessibilityState={{ checked: isOnDuty, busy, disabled: busy }}
               className="items-center justify-center rounded-full active:opacity-90"
               style={{
                 width: 200,
@@ -161,11 +167,11 @@ export default function HomeScreen() {
               <Text
                 className={`mt-3 text-2xl font-extrabold ${isOnDuty ? 'text-white' : 'text-ink'}`}
               >
-                {isOnDuty ? "You're online" : 'Go on duty'}
+                {isOnDuty ? t('home.online') : t('home.goOnDuty')}
               </Text>
             </Pressable>
             <Text className="mt-4 text-sm text-ink-muted">
-              {isOnDuty ? 'Receiving task assignments…' : 'Tap to start receiving tasks'}
+              {isOnDuty ? t('home.receivingTasks') : t('home.tapToStart')}
             </Text>
           </View>
 
@@ -175,7 +181,7 @@ export default function HomeScreen() {
             style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}
           >
             <Text className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-faint">
-              Before you ride
+              {t('home.beforeYouRide')}
             </Text>
             {CHECKLIST.map((item, i) => {
               const checked = checklist[item.key];
@@ -207,23 +213,53 @@ export default function HomeScreen() {
               <Ionicons name="clipboard-outline" size={16} color="#5C6A33" />
             </View>
             <Text className="ml-3 flex-1 text-sm leading-5 text-ink-soft">
-              <Text className="font-extrabold text-ink">{stats.pendingCount} tasks</Text> waiting in
-              your zone ({zone}).{'\n'}Avg payout{' '}
-              <Text className="font-bold text-ink">₹{stats.avgPayout}/task</Text> today.
+              {t('home.pendingTasks', { count: stats.pendingCount, zone })}{'\n'}
+              {t('home.avgPayout', { amount: stats.avgPayout })}
             </Text>
           </View>
 
           {isDemo ? (
             <Text className="mx-5 mt-3 text-center text-[11px] text-ink-faint">
-              Showing demo tasks — live task feed activates when the backend rider-tasks API ships.
+              {t('home.demoNote')}
             </Text>
           ) : null}
+
+          {/* Quick-action row — Earnings + Cash */}
+          <View className="mx-5 mt-4 flex-row gap-3">
+            <Pressable
+              onPress={() => router.push('/(app)/earnings')}
+              className="flex-1 flex-row items-center gap-2 rounded-2xl bg-white px-4 py-3.5 active:opacity-70"
+              style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('a11y.earnings')}
+            >
+              <View className="h-8 w-8 items-center justify-center rounded-lg bg-olive-100">
+                <Ionicons name="trending-up-outline" size={16} color="#4A552A" />
+              </View>
+              <Text className="text-sm font-bold text-ink">{t('home.earnings')}</Text>
+              <View className="flex-1" /><Ionicons name="chevron-forward" size={14} color="#A8A493" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/(app)/cash')}
+              className="flex-1 flex-row items-center gap-2 rounded-2xl bg-white px-4 py-3.5 active:opacity-70"
+              style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('a11y.cash')}
+            >
+              <View className="h-8 w-8 items-center justify-center rounded-lg bg-gold-100">
+                <Ionicons name="cash-outline" size={16} color="#8A641D" />
+              </View>
+              <Text className="text-sm font-bold text-ink">{t('home.cash')}</Text>
+              <View className="flex-1" /><Ionicons name="chevron-forward" size={14} color="#A8A493" />
+            </Pressable>
+          </View>
         </ScrollView>
 
         {/* CTA */}
         <View className="px-5 pb-3 pt-1">
           <Button
-            title="View today's tasks"
+            title={t('home.viewTodaysTasks')}
             iconRight="arrow-forward"
             size="lg"
             fullWidth

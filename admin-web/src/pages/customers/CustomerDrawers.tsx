@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { User, Save, Pencil, Mail, Phone, Star } from 'lucide-react'
 import { useUpdateAdminCustomer } from '@/hooks/useCatalog'
 import { FormDrawer, DrawerSection, Field, drawerInputCls, DetailSection, DetailRow } from '@/components/shared/FormDrawer'
+import { FieldError } from '@/components/ui/FieldError'
 import { Badge } from '@/components/ui/badge'
+import { optionalEmail } from '@/lib/validation'
 import type { AdminCustomerDto } from '@/types/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
@@ -123,6 +128,17 @@ export function CustomerDetailDrawer({
 
 // ── Edit ────────────────────────────────────────────────────────────────────
 
+const customerEditSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: optionalEmail,
+  gender: z.enum(['', 'male', 'female', 'other', 'prefer_not_to_say'] as const).optional(),
+  customerSegment: z.string().optional(),
+  riskFlag: z.enum(['', 'normal', 'watchlist', 'blocked', 'vip'] as const).optional(),
+})
+
+type CustomerEditValues = z.infer<typeof customerEditSchema>
+
 export function CustomerEditDrawer({
   customer,
   onClose,
@@ -131,54 +147,50 @@ export function CustomerEditDrawer({
   onClose: () => void
 }) {
   const update = useUpdateAdminCustomer()
-  const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    gender: '',
-    customerSegment: '',
-    riskFlag: '',
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<CustomerEditValues>({
+    resolver: zodResolver(customerEditSchema),
   })
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (customer) {
-      setForm({
+      reset({
         firstName: customer.firstName ?? '',
         lastName: customer.lastName ?? '',
         email: customer.email ?? '',
-        gender: customer.gender ?? '',
+        gender: (customer.gender as CustomerEditValues['gender']) ?? '',
         customerSegment: customer.customerSegment ?? '',
-        riskFlag: customer.riskFlag ?? '',
+        riskFlag: (customer.riskFlag as CustomerEditValues['riskFlag']) ?? '',
       })
-      setError(null)
     }
-  }, [customer])
+  }, [customer, reset])
 
   if (!customer) return null
 
-  const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
-    setForm((f) => ({ ...f, [key]: value }))
-
-  const submit = async () => {
-    setError(null)
+  const submit = handleSubmit(async (values) => {
     try {
       await update.mutateAsync({
         id: customer.id,
         payload: {
-          firstName: form.firstName.trim() || null,
-          lastName: form.lastName.trim() || null,
-          email: form.email.trim() || null,
-          gender: form.gender.trim() || null,
-          customerSegment: form.customerSegment.trim() || null,
-          riskFlag: form.riskFlag.trim() || null,
+          firstName: values.firstName?.trim() || null,
+          lastName: values.lastName?.trim() || null,
+          email: values.email?.trim() || null,
+          gender: values.gender || null,
+          customerSegment: values.customerSegment?.trim() || null,
+          riskFlag: values.riskFlag || null,
         },
       })
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update the customer.')
+      setError('root', { message: e instanceof Error ? e.message : 'Could not update the customer.' })
     }
-  }
+  })
 
   return (
     <FormDrawer
@@ -188,27 +200,33 @@ export function CustomerEditDrawer({
       eyebrow={<>Edit customer · <span className="font-mono">{customer.customerCode}</span></>}
       title={customerName(customer)}
       width="sm"
-      error={error}
-      onSubmit={submit}
+      error={errors.root?.message}
+      onSubmit={() => void submit()}
       submitLabel="Save changes"
       submittingLabel="Saving…"
       submitIcon={Save}
-      submitting={update.isPending}
+      submitting={isSubmitting || update.isPending}
     >
       <DrawerSection title="Identity">
         <div className="grid grid-cols-2 gap-3">
           <Field label="First name">
-            <input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} className={drawerInputCls} />
+            <input {...register('firstName')} className={drawerInputCls} />
           </Field>
           <Field label="Last name">
-            <input value={form.lastName} onChange={(e) => set('lastName', e.target.value)} className={drawerInputCls} />
+            <input {...register('lastName')} className={drawerInputCls} />
           </Field>
         </div>
         <Field label="Email">
-          <input value={form.email} onChange={(e) => set('email', e.target.value)} type="email" className={drawerInputCls} />
+          <input
+            {...register('email')}
+            type="email"
+            aria-invalid={!!errors.email}
+            className={drawerInputCls}
+          />
+          <FieldError message={errors.email?.message} />
         </Field>
         <Field label="Gender">
-          <select value={form.gender} onChange={(e) => set('gender', e.target.value)} className={drawerInputCls}>
+          <select {...register('gender')} className={drawerInputCls}>
             <option value="">—</option>
             {GENDERS.map((g) => (
               <option key={g} value={g} className="capitalize">{g.replace(/_/g, ' ')}</option>
@@ -219,10 +237,10 @@ export function CustomerEditDrawer({
 
       <DrawerSection title="Segmentation">
         <Field label="Customer segment">
-          <input value={form.customerSegment} onChange={(e) => set('customerSegment', e.target.value)} className={drawerInputCls} placeholder="e.g. high_value, regular" />
+          <input {...register('customerSegment')} className={drawerInputCls} placeholder="e.g. high_value, regular" />
         </Field>
         <Field label="Risk flag">
-          <select value={form.riskFlag} onChange={(e) => set('riskFlag', e.target.value)} className={drawerInputCls}>
+          <select {...register('riskFlag')} className={drawerInputCls}>
             <option value="">—</option>
             {RISK_FLAGS.map((r) => (
               <option key={r} value={r} className="capitalize">{r}</option>

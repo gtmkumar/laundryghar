@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useState } from 'react'
 import { Loader2, ShoppingBag } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { loginSchema, type LoginFormValues } from '@/types/schemas'
 import { passwordLogin } from '@/api/auth'
 import { useAuthStore } from '@/stores/authStore'
@@ -11,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 export function LoginPage() {
+  const { t } = useTranslation()
   const { accessToken, setTokens } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
@@ -42,7 +44,7 @@ export function LoginPage() {
       navigate(from, { replace: true })
     } catch (err) {
       setServerError(
-        err instanceof Error ? err.message : 'Login failed. Please check your credentials.',
+        err instanceof Error ? err.message : t('auth.loginFailed'),
       )
     }
   }
@@ -55,8 +57,8 @@ export function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
             <ShoppingBag className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Laundry Ghar</h1>
-          <p className="mt-1 text-gray-500">POS — Walk-in Counter</p>
+          <h1 className="text-3xl font-bold text-gray-900">{t('auth.title')}</h1>
+          <p className="mt-1 text-gray-500">{t('auth.subtitle')}</p>
         </div>
 
         {/* Form card */}
@@ -69,7 +71,7 @@ export function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="identifier">Email or Username</Label>
+              <Label htmlFor="identifier">{t('auth.emailOrUsername')}</Label>
               <Input
                 id="identifier"
                 type="text"
@@ -84,7 +86,7 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('auth.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -105,7 +107,7 @@ export function LoginPage() {
               disabled={isSubmitting}
             >
               {isSubmitting && <Loader2 className="h-5 w-5 animate-spin" />}
-              {isSubmitting ? 'Signing in…' : 'Sign in'}
+              {isSubmitting ? t('common.signingIn') : t('common.signIn')}
             </Button>
           </form>
         </div>

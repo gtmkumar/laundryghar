@@ -1,4 +1,5 @@
 using FluentValidation;
+using laundryghar.Warehouse.Application.StockReconciliation.Commands;
 using laundryghar.Warehouse.Application.StockReconciliation.Dtos;
 using MediatR;
 
@@ -126,13 +127,18 @@ public sealed record CloseStockReconCommand(Guid ReconId, CloseReconRequest Requ
 
 public sealed class CloseStockReconHandler : IRequestHandler<CloseStockReconCommand, StockReconciliationDto?>
 {
-    private readonly LaundryGharDbContext _db;
-    private readonly ICurrentUser _user;
+    private readonly LaundryGharDbContext          _db;
+    private readonly ICurrentUser                  _user;
+    private readonly ILogger<CloseStockReconHandler> _logger;
 
-    public CloseStockReconHandler(LaundryGharDbContext db, ICurrentUser user)
+    public CloseStockReconHandler(
+        LaundryGharDbContext             db,
+        ICurrentUser                     user,
+        ILogger<CloseStockReconHandler>  logger)
     {
-        _db   = db;
-        _user = user;
+        _db     = db;
+        _user   = user;
+        _logger = logger;
     }
 
     public async Task<StockReconciliationDto?> Handle(CloseStockReconCommand cmd, CancellationToken ct)
@@ -160,6 +166,12 @@ public sealed class CloseStockReconHandler : IRequestHandler<CloseStockReconComm
         });
         recon.UpdatedAt = now;
         recon.UpdatedBy = cmd.ActorId;
+
+        // ── Lost garment flow ─────────────────────────────────────────────────
+        // Any items still in 'missing' status when the recon is closed are confirmed lost.
+        // Garments are flagged (status='lost', stage='lost') and a garment.lost outbox
+        // event is emitted inside this SaveChangesAsync for atomic consistency.
+        await LostGarmentProcessor.MarkMissingAsLostAsync(_db, cmd.ReconId, brandId, _logger, ct);
 
         await _db.SaveChangesAsync(ct);
         return CreateStockReconHandler.ToDto(recon);

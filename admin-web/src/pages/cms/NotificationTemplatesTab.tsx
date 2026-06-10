@@ -7,6 +7,7 @@ import {
   useDeleteNotificationTemplate,
 } from '@/hooks/useCms'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
+import { usePermissions } from '@/hooks/usePermissions'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { DataTable, type Column } from '@/components/shared/DataTable'
@@ -330,6 +331,9 @@ function StatusBadge({ status }: { status: string }) {
 // ── Tab ───────────────────────────────────────────────────────────────────────
 
 export function NotificationTemplatesTab() {
+  // Backend gate: every template mutation requires permission:cms.template.manage.
+  const { hasPermission } = usePermissions()
+  const canManage = hasPermission('cms.template.manage')
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<NotificationTemplateDto | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<NotificationTemplateDto | null>(null)
@@ -388,35 +392,38 @@ export function NotificationTemplatesTab() {
     },
     { header: 'Status', accessor: (r) => <StatusBadge status={r.status} /> },
     { header: 'Updated', accessor: (r) => formatDate(r.updatedAt) },
-    {
-      header: '',
-      accessor: (r) => (
-        <div className="flex gap-1 justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleEdit(r)
-            }}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              setDeleteTarget(r)
-            }}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-          >
-            Archive
-          </Button>
-        </div>
-      ),
-      className: 'w-36',
-    },
+    // Edit/Archive row actions only render for users who can manage templates.
+    ...(canManage
+      ? [{
+          header: '',
+          accessor: (r: NotificationTemplateDto) => (
+            <div className="flex gap-1 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEdit(r)
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDeleteTarget(r)
+                }}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Archive
+              </Button>
+            </div>
+          ),
+          className: 'w-36',
+        } satisfies Column<NotificationTemplateDto>]
+      : []),
   ]
 
   if (isLoading) return <LoadingState message="Loading notification templates..." />
@@ -431,9 +438,11 @@ export function NotificationTemplatesTab() {
         {total !== undefined && (
           <p className="text-sm text-gray-500">{total} template{total === 1 ? '' : 's'}</p>
         )}
-        <Button size="sm" onClick={() => setShowForm(true)} className="ml-auto">
-          + New Template
-        </Button>
+        {canManage && (
+          <Button size="sm" onClick={() => setShowForm(true)} className="ml-auto">
+            + New Template
+          </Button>
+        )}
       </div>
 
       <DataTable

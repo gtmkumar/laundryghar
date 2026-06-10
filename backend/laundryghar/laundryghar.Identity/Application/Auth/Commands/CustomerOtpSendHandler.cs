@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using laundryghar.Identity.Application.Auth.Dtos;
 using laundryghar.Identity.Infrastructure.Auth;
 using MediatR;
@@ -9,8 +8,14 @@ namespace laundryghar.Identity.Application.Auth.Commands;
 
 /// <summary>
 /// Sends a 6-digit OTP to a customer phone number under a specific brand.
-/// H1: cooldown and invalidation queries are brand-scoped.
-/// L2: phone number is masked in logs outside Development.
+///
+/// Security properties enforced:
+///   H1  — Cooldown and invalidation queries are brand-scoped (phone + brand_id).
+///   L2  — Phone number is masked in logs outside Development.
+///   SEC1 — Rolling-window lockout: ≥ LockoutThreshold failed verifies for the phone
+///           (brand-scoped) within LockoutWindowMinutes → block send for LockoutDurationMinutes.
+///           Resend-cycling does not bypass this because we sum Attempts on ALL rows in the window.
+///   SEC2 — HMAC-SHA256 with per-row random salt.
 /// </summary>
 public sealed class CustomerOtpSendHandler : IRequestHandler<CustomerOtpSendCommand, OtpSentResponse>
 {
@@ -38,6 +43,27 @@ public sealed class CustomerOtpSendHandler : IRequestHandler<CustomerOtpSendComm
 
     public async Task<OtpSentResponse> Handle(CustomerOtpSendCommand cmd, CancellationToken ct)
     {
+        // SEC1: Rolling-window lockout — brand-scoped.
+        // Sum Attempts on ALL rows (verified, expired, active) for this (phone, brand)
+        // within the window so that resend-cycling cannot reset the counter.
+        var lockoutWindowCutoff = DateTimeOffset.UtcNow.AddMinutes(-_settings.LockoutWindowMinutes);
+        var windowAttempts = await _db.OtpCodes
+            .Where(o => o.Identifier     == cmd.Phone
+                     && o.IdentifierType == "phone"
+                     && o.Purpose        == OtpPurpose.Login
+                     && o.ReferenceId    == cmd.ResolvedBrandId   // H1: brand-scoped
+                     && o.ReferenceType  == "brand"
+                     && o.CreatedAt      > lockoutWindowCutoff)
+            .Select(o => o.Attempts)
+            .ToListAsync(ct);
+
+        var totalAttempts = OtpSecurityHelper.SumWindowAttempts(windowAttempts);
+        if (OtpSecurityHelper.ExceedsLockoutThreshold(totalAttempts, _settings.LockoutThreshold))
+        {
+            throw new laundryghar.Utilities.Exceptions.BusinessRuleException(
+                $"Too many attempts. Try again in {_settings.LockoutDurationMinutes} minutes.");
+        }
+
         // H1: Both the cooldown check AND the invalidation query are scoped to
         // (phone, brand) — a send for Brand B must not affect Brand A's pending OTP
         // for the same phone, and the resend cooldown is per-(phone, brand) pair.
@@ -85,15 +111,17 @@ public sealed class CustomerOtpSendHandler : IRequestHandler<CustomerOtpSendComm
             .Select(c => (Guid?)c.Id)
             .FirstOrDefaultAsync(ct);
 
+        // SEC2: Generate OTP with HMAC-SHA256 + per-row random salt
         var plainCode = GenerateNumericCode(CodeLength);
-        var codeHash  = HashOtp(plainCode);
+        var salt      = OtpSecurityHelper.GenerateSalt();
+        var hmacKey   = OtpSecurityHelper.ResolveHmacKey(_settings, _env.IsDevelopment());
+        var codeHash  = OtpSecurityHelper.ComputeHmac(hmacKey, salt, plainCode);
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(_settings.TtlMinutes);
 
         var ipAddress = string.IsNullOrEmpty(cmd.IpAddress) ? null
             : IPAddress.TryParse(cmd.IpAddress, out var ip) ? ip : null;
 
         // ReferenceId stores the brand context so verify can resolve the correct brand.
-        // ReferenceType = "brand"; ReferenceId = brand_id UUID.
         _db.OtpCodes.Add(new OtpCode
         {
             Id             = Guid.NewGuid(),
@@ -101,6 +129,7 @@ public sealed class CustomerOtpSendHandler : IRequestHandler<CustomerOtpSendComm
             Identifier     = cmd.Phone,
             IdentifierType = "phone",
             CodeHash       = codeHash,
+            CodeSalt       = salt,
             CustomerId     = customerId,
             ReferenceId    = cmd.ResolvedBrandId,
             ReferenceType  = "brand",
@@ -128,14 +157,8 @@ public sealed class CustomerOtpSendHandler : IRequestHandler<CustomerOtpSendComm
     private static string GenerateNumericCode(int length)
     {
         var max    = (int)Math.Pow(10, length);
-        var random = RandomNumberGenerator.GetInt32(max);
+        var random = System.Security.Cryptography.RandomNumberGenerator.GetInt32(max);
         return random.ToString().PadLeft(length, '0');
-    }
-
-    private static string HashOtp(string code)
-    {
-        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(code));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     /// <summary>
@@ -147,23 +170,19 @@ public sealed class CustomerOtpSendHandler : IRequestHandler<CustomerOtpSendComm
     {
         if (string.IsNullOrEmpty(phone)) return "****";
 
-        // Keep country code ('+' + 1-3 digits) and last 4 digits; mask the middle
-        // E.164: +[1-3 digit cc][subscriber]. Minimum length with cc=1 is 7 chars.
         if (phone.Length > 6 && phone.StartsWith('+'))
         {
-            // Find where subscriber number starts: skip '+' then digits until we have up to 3 cc digits
             int ccEnd = 1;
             while (ccEnd < phone.Length && ccEnd <= 3 && char.IsDigit(phone[ccEnd]))
                 ccEnd++;
 
-            var prefix  = phone[..ccEnd];             // e.g. "+91"
+            var prefix  = phone[..ccEnd];
             var last4   = phone.Length >= 4 ? phone[^4..] : phone;
             var midLen  = phone.Length - ccEnd - last4.Length;
             var masked  = midLen > 0 ? new string('X', midLen) : string.Empty;
             return $"{prefix}{masked}{last4}";
         }
 
-        // Fallback for non-E.164 or very short values
         return phone.Length <= 4 ? "****" : $"****{phone[^4..]}";
     }
 }

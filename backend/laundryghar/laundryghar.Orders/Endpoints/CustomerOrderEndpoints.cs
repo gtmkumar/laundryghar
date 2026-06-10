@@ -5,6 +5,7 @@ using laundryghar.Orders.Application.Orders.Dtos;
 using laundryghar.Orders.Application.Orders.Queries;
 using laundryghar.Orders.Application.Pickup.Commands;
 using laundryghar.Orders.Application.Pickup.Dtos;
+using laundryghar.Orders.Application.Pickup.Queries;
 using MediatR;
 
 namespace laundryghar.Orders.Endpoints;
@@ -62,6 +63,19 @@ public static class CustomerOrderEndpoints
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<OrderDto> { Status = true, Data = r });
         }).RequireAuthorization("CustomerOnly");
 
+        orders.MapPost("/{id:guid}/rate", async (Guid id, HttpContext http, RateOrderRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var result = await sender.Send(new RateOrderCommand(id, customerId, req), ct);
+            return result.Kind switch
+            {
+                RateOrderResultKind.NotFound       => Results.NotFound(new Response { Status = false }),
+                RateOrderResultKind.InvalidStatus  => Results.UnprocessableEntity(new Response { Status = false }),
+                _                                  => Results.Ok(new SingleResponse<OrderDto> { Status = true, Data = result.Order })
+            };
+        }).RequireAuthorization("CustomerOnly");
+
         // ── Pickup scheduling ─────────────────────────────────────────────────
         var pickups = group.MapGroup("/pickup-requests").WithTags("Customer - Pickups");
 
@@ -73,6 +87,27 @@ public static class CustomerOrderEndpoints
             var r = await sender.Send(new CustomerSchedulePickupCommand(customerId, brandId, req, customerId), ct);
             return Results.Created($"/api/v1/customer/pickup-requests/{r.Id}",
                 new SingleResponse<PickupRequestDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        /// <summary>GET customer's own pickup requests — self-filtered by JWT sub.</summary>
+        pickups.MapGet("/", async (
+            HttpContext http, [FromServices] ISender sender, CancellationToken ct,
+            int page = 1, int pageSize = 20, string? status = null) =>
+        {
+            var customerId = GetCustomerId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(
+                new GetMyPickupRequestsQuery(customerId, page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status), ct);
+            return Results.Ok(new PaginatedListResponse<PickupRequestDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        /// <summary>GET a single pickup request by id — IDOR-guarded: customer_id must match JWT sub.</summary>
+        pickups.MapGet("/{id:guid}", async (Guid id, HttpContext http, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetMyPickupRequestByIdQuery(id, customerId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PickupRequestDto> { Status = true, Data = r });
         }).RequireAuthorization("CustomerOnly");
 
         // ── Delivery slots ────────────────────────────────────────────────────

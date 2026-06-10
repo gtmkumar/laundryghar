@@ -1,3 +1,4 @@
+using FluentValidation;
 using laundryghar.SharedDataModel.Entities.Logistics;
 using laundryghar.SharedDataModel.Entities.FinanceRoyalty;
 using MediatR;
@@ -192,5 +193,24 @@ public sealed class SettleRiderCodHandler : IRequestHandler<SettleRiderCodComman
         book.CashInflow += total;
         book.UpdatedAt = now;
         book.UpdatedBy = actorId;
+    }
+}
+
+// ── Validator ─────────────────────────────────────────────────────────────────
+
+public sealed class SettleRiderCodValidator : AbstractValidator<SettleRiderCodCommand>
+{
+    public SettleRiderCodValidator()
+    {
+        // Reference is optional but bounded — prevents enormous strings hitting the DB.
+        RuleFor(x => x.Request.Reference)
+            .MaximumLength(100)
+            .When(x => x.Request.Reference is not null)
+            .WithMessage("Reference must not exceed 100 characters.");
+
+        RuleFor(x => x.Request.Notes)
+            .MaximumLength(500)
+            .When(x => x.Request.Notes is not null)
+            .WithMessage("Notes must not exceed 500 characters.");
     }
 }

@@ -148,16 +148,56 @@ export interface CustomerProfileDto {
 export interface CustomerAddressDto {
   id: string;
   customerId: string;
-  label?: string;
-  line1: string;
-  line2?: string;
+  /** Label preset: 'home' | 'work' | 'other' | custom */
+  label: string;
+  customLabel?: string;
+  recipientName?: string;
+  recipientPhone?: string;
+  /** Backend field: addressLine1 */
+  addressLine1: string;
+  addressLine2?: string;
+  landmark?: string;
+  floor?: string;
+  flatNumber?: string;
+  buildingName?: string;
+  society?: string;
+  area?: string;
   city: string;
   state: string;
   pincode: string;
-  landmark?: string;
-  latitude?: number;
-  longitude?: number;
+  countryCode: string;
+  deliveryInstructions?: string;
   isDefault: boolean;
+  isVerified: boolean;
+  status: string;
+  createdAt: string;
+}
+
+export interface CreateAddressRequest {
+  label: string;
+  customLabel?: string;
+  recipientName?: string;
+  recipientPhone?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  landmark?: string;
+  floor?: string;
+  flatNumber?: string;
+  buildingName?: string;
+  society?: string;
+  area?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  countryCode: string;
+  deliveryInstructions?: string;
+  isDefault: boolean;
+}
+
+export type UpdateAddressRequest = CreateAddressRequest;
+
+export interface ServiceabilityDto {
+  serviceable: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,6 +217,7 @@ export type OrderStatus =
   | 'delivery_scheduled'
   | 'out_for_delivery'
   | 'delivered'
+  | 'closed'
   | 'cancelled'
   | 'returned'
   | 'rewash'
@@ -215,13 +256,23 @@ export interface OrderDto {
   storeId: string;
   storeName?: string;
   notes?: string;
+  /** Customer rating 1–5. Null until rated. */
+  rating?: number | null;
+  ratingComment?: string | null;
+  ratedAt?: string | null;
+}
+
+export interface RateOrderRequest {
+  score: number;
+  comment?: string | null;
 }
 
 export interface OrderStatusHistoryDto {
   id: string;
-  orderId: string;
-  status: OrderStatus;
-  previousStatus?: OrderStatus;
+  /** Previous status before this transition (null on first event). Backend field: fromStatus. */
+  fromStatus?: OrderStatus | null;
+  /** Status this event transitioned to. Backend field: toStatus. */
+  toStatus: OrderStatus;
   changedAt: string;
   changedByType: string;
   reason?: string;
@@ -242,24 +293,75 @@ export interface DeliverySlotDto {
   available: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Pickup-request DTOs — mirrors PickupDtos.cs in Orders service
+// ---------------------------------------------------------------------------
+
+/** Estimated cart line submitted by the customer at booking time. */
+export interface RequestedCartItemDto {
+  /** Catalog service id — null when not selected. */
+  serviceId?: string | null;
+  /** Catalog item id — null when not selected. */
+  itemId?: string | null;
+  /** Human-readable label, e.g. "Shirt – Wash & Iron". */
+  displayLabel: string;
+  /** Quantity >= 1. */
+  quantity: number;
+  /** Estimated unit price from price list; null when unavailable. */
+  estimatedUnitPrice?: number | null;
+}
+
+export type PickupRequestStatus =
+  | 'pending'
+  | 'assigned'
+  | 'rider_dispatched'
+  | 'arrived'
+  | 'completed'
+  | 'converted'
+  | 'cancelled'
+  | 'no_response'
+  | 'rescheduled';
+
 export interface PickupRequestDto {
   id: string;
+  requestNumber: string;
+  brandId: string;
+  storeId?: string | null;
   customerId: string;
-  storeId: string;
-  slotId?: string;
-  addressId?: string;
-  status: string;
-  requestedAt: string;
-  notes?: string;
+  addressId: string;
+  pickupSlotId?: string | null;
+  pickupDate: string;
+  pickupWindowStart: string;
+  pickupWindowEnd: string;
+  isExpress: boolean;
+  estimatedItems?: number | null;
+  estimatedAmount?: number | null;
+  status: PickupRequestStatus;
+  createdAt: string;
+  /** Estimated cart lines — empty array when none were supplied. */
+  cartItems: RequestedCartItemDto[];
+  /** Payment intent recorded at booking: "wallet" | "cod" | "upi-deferred". */
+  paymentPreference: string;
 }
 
 export interface CreatePickupRequestRequest {
-  storeId: string;
-  slotId?: string;
-  pickupAddressId?: string;
-  deliveryAddressId?: string;
-  isExpress?: boolean;
-  notes?: string;
+  addressId: string;
+  slotId?: string | null;
+  pickupDate: string;
+  pickupWindowStart: string;
+  pickupWindowEnd: string;
+  isExpress: boolean;
+  estimatedItems?: number | null;
+  estimatedAmount?: number | null;
+  servicesRequested: string[];
+  customerNotes?: string | null;
+  /** Estimated cart lines from the booking flow. */
+  cartItems?: RequestedCartItemDto[] | null;
+  /**
+   * Payment intent: "wallet" | "cod" | "upi-deferred".
+   * UPI/card are normalised to "upi-deferred" server-side.
+   */
+  paymentPreference?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -484,10 +586,17 @@ export interface MobileAppConfigDto {
 /**
  * Parsed shape of configValue for the "app_settings" configKey.
  * The backend stores this as a JSON string — parse defensively.
+ *
+ * Version-gate contract (read by versionGate.ts):
+ *   min_version           — soft minimum: show dismissible banner if app < min_version
+ *   force_update_version  — hard minimum: blocking modal if app < force_update_version
+ *   store_url             — deep-link / https URL to open for forced updates (optional)
  */
 export interface AppSettingsConfigValue {
   min_version?: string;
   force_update_version?: string;
+  /** App Store / Play Store URL shown in the force-update modal. */
+  store_url?: string;
   maintenance_mode?: boolean;
   feature_flags?: Record<string, boolean>;
 }

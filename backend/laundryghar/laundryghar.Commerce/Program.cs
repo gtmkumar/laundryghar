@@ -158,6 +158,8 @@ if (runSeed)
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
+// No-op in Development. Must run before UseCors so headers appear on preflight responses.
+app.UseSecurityHeaders();
 app.UseCors();
 app.UseMiddleware<ExceptionHandler>();
 app.UseAuthentication();

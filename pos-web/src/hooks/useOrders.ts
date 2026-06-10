@@ -1,5 +1,12 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getOrders, getOrderById, createOrder, updateOrderStatus } from '@/api/orders'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  getOrders,
+  getOrderById,
+  createOrder,
+  updateOrderStatus,
+  generateInvoice,
+  getInvoicePdf,
+} from '@/api/orders'
 import type { OrderListParams, CreateOrderRequest, UpdateOrderStatusRequest } from '@/types/api'
 
 export const orderKeys = {
@@ -44,6 +51,31 @@ export function useUpdateOrderStatus() {
       // Update the cached detail and invalidate list
       qc.setQueryData(orderKeys.detail(updatedOrder.id), updatedOrder)
       void qc.invalidateQueries({ queryKey: ['orders', 'list'] })
+    },
+  })
+}
+
+/**
+ * Generates the invoice (if the status allows) then opens the rendered PDF in a
+ * new browser tab. Generation is idempotent server-side, so re-printing an
+ * already-invoiced order just re-fetches. The PDF is fetched as an authenticated
+ * Blob and shown via an object URL (the token never lands in a URL).
+ */
+export function useOpenInvoicePdf() {
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      // Best-effort generate; ignore "already exists" / status-gate errors and
+      // let the subsequent fetch surface a real "no invoice" failure.
+      try {
+        await generateInvoice(orderId)
+      } catch {
+        // Status not billable yet, or invoice already exists — fall through.
+      }
+      const blob = await getInvoicePdf(orderId)
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank', 'noopener')
+      // Revoke after the tab has had time to load the resource.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
     },
   })
 }

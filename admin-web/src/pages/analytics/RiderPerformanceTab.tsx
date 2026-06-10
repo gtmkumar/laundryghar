@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useRiderPerformance } from '@/hooks/useAnalytics'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
+import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
 import { Pagination } from '@/components/shared/Pagination'
 import { Card } from '@/components/ui/card'
 import type { RiderPerformanceDto } from '@/types/api'
@@ -35,7 +36,7 @@ export function RiderPerformanceTab() {
   return (
     <div className="space-y-4">
       {isLoading && <LoadingState message="Loading rider performance..." />}
-      {isError && <ErrorState error={error as Error} onRetry={() => void refetch()} />}
+      {isError && (isForbiddenError(error) ? <ForbiddenState /> : <ErrorState error={error as Error} onRetry={() => void refetch()} />)}
 
       {data && (
         <>

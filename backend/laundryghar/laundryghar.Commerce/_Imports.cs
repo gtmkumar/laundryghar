@@ -11,6 +11,7 @@ global using laundryghar.SharedDataModel.Persistence;
 global using laundryghar.SharedDataModel.Entities.CustomerCatalog;
 global using laundryghar.SharedDataModel.Entities.TenancyOrg;
 global using laundryghar.SharedDataModel.Entities.Commerce;
+global using laundryghar.SharedDataModel.Entities.Commerce.Subscriptions;
 global using laundryghar.SharedDataModel.Enums;
 global using laundryghar.Utilities.ApiResponse.ResponseUtil;
 global using laundryghar.Utilities.Exceptions;

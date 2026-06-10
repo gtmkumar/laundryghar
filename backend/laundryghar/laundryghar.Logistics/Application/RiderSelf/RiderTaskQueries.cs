@@ -2,6 +2,7 @@ using laundryghar.Logistics.Application.Payout;
 using laundryghar.SharedDataModel.Common;
 using laundryghar.SharedDataModel.Entities.CustomerCatalog;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.SharedDataModel.Logistics;
 using MediatR;
 
 namespace laundryghar.Logistics.Application.RiderSelf;
@@ -241,8 +242,11 @@ public sealed class GetMyTasksTodayHandler : IRequestHandler<GetMyTasksTodayQuer
 
 // ── Update my task status (start / arrive / complete / fail) ───────────────────
 
+/// <param name="FailureReason">Reason code persisted on the assignment when Status='failed' (nullable).</param>
+/// <param name="FailureNote">Optional free-text note for a failed status (nullable).</param>
 public sealed record UpdateMyTaskStatusCommand(
-    Guid AssignmentId, Guid UserId, Guid BrandId, string Status) : IRequest<RiderTaskResult>;
+    Guid AssignmentId, Guid UserId, Guid BrandId, string Status,
+    string? FailureReason = null, string? FailureNote = null) : IRequest<RiderTaskResult>;
 
 /// <summary>Result of a status/OTP mutation. Outcome distinguishes the 404/409 cases for the endpoint.</summary>
 public sealed record RiderTaskResult(string Outcome, RiderTaskDto? Task = null, string? Error = null)
@@ -307,6 +311,15 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
         {
             case "started":   da.StartedAt   ??= now; break;
             case "arrived":   da.ArrivedAt   ??= now; break;
+            case "failed":
+                // Persist the structured reason code and free-text note provided by the rider.
+                // CancellationReason re-used for failure reason; Notes appended idempotently.
+                // Allowed reason codes: customer_unavailable | address_issue | customer_refused | other.
+                if (!string.IsNullOrWhiteSpace(cmd.FailureReason))
+                    da.CancellationReason ??= cmd.FailureReason.Trim();
+                if (!string.IsNullOrWhiteSpace(cmd.FailureNote))
+                    da.Notes ??= cmd.FailureNote.Trim();
+                break;
             case "completed":
                 da.CompletedAt ??= now;
                 // Completing a pickup IS the drop-at-laundry confirmation — stamp the
@@ -333,6 +346,10 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
         da.UpdatedAt = now;
         da.UpdatedBy = cmd.UserId;
         await _db.SaveChangesAsync(ct);
+
+        // Decrement current_load when this leg reaches a terminal state.
+        if (cmd.Status is "completed" or "failed")
+            await RiderLoadHelper.DecrementAsync(_db, da.RiderId, ct);
 
         return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr, payoutCfg));
     }

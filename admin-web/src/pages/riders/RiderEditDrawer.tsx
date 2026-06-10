@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Bike, Save, ShieldAlert } from 'lucide-react'
 import { useStores } from '@/hooks/useTenancy'
 import { useEffectiveBrandId } from '@/hooks/useBrandContext'
 import { useUpdateRider } from '@/hooks/useRiders'
 import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
+import { FieldError } from '@/components/ui/FieldError'
+import { optionalPan, optionalIfsc, optionalUpi, nonNegativeInt } from '@/lib/validation'
 import type { RiderDto, RiderEmploymentType, RiderVehicleType, UpdateRiderPayload } from '@/types/api'
 
 interface Props {
@@ -37,38 +42,58 @@ function toDateInput(iso: string | null): string {
   return d.toISOString().slice(0, 10)
 }
 
+// ── Zod schema ────────────────────────────────────────────────────────────────
+//
+// Sensitive KYC/payout fields (aadhaarNumberMasked, panNumber, bankAccountNumber,
+// bankIfsc, bankAccountName, upiId) are INTENTIONALLY optional with no minimum
+// length. The API contract is: blank field = "don't change the stored value".
+// Zod must not reject an empty string for these fields.
+
+const schema = z.object({
+  status: z.string().min(1, 'Required'),
+  primaryStoreId: z.string().optional(),
+  employmentType: z.enum(['employee', 'contractor', 'gig', 'outsourced'] as const),
+  vehicleType: z.enum(['two_wheeler', 'three_wheeler', 'four_wheeler', 'cycle', 'foot'] as const),
+  vehicleNumber: z.string().optional(),
+  vehicleModel: z.string().optional(),
+  drivingLicenseNumber: z.string().optional(),
+  dlExpiryDate: z.string().optional(),
+  // Sensitive fields — blank = keep existing value on the server
+  aadhaarNumberMasked: z.string().optional(),
+  panNumber: optionalPan,           // validates format only when non-empty
+  insuranceExpiryDate: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  bankIfsc: optionalIfsc,           // validates format only when non-empty
+  bankAccountName: z.string().optional(),
+  upiId: optionalUpi,               // validates format only when non-empty
+  dailyPickupCapacity: nonNegativeInt,
+  dailyDeliveryCapacity: nonNegativeInt,
+  serviceRadiusKm: z
+    .number({ error: 'Must be a number' })
+    .gte(0, 'Must be 0 or greater'),
+})
+
+type FormValues = z.infer<typeof schema>
+
 export function RiderEditDrawer({ rider, open, onClose }: Props) {
   const brandId = useEffectiveBrandId()
   const update = useUpdateRider()
 
-  const [form, setForm] = useState({
-    status: '',
-    primaryStoreId: '',
-    employmentType: 'employee' as RiderEmploymentType,
-    vehicleType: 'two_wheeler' as RiderVehicleType,
-    vehicleNumber: '',
-    vehicleModel: '',
-    drivingLicenseNumber: '',
-    dlExpiryDate: '',
-    // Sensitive — never returned by the API, so these start blank and only
-    // overwrite when the operator actually types something (see submit()).
-    aadhaarNumberMasked: '',
-    panNumber: '',
-    insuranceExpiryDate: '',
-    bankAccountNumber: '',
-    bankIfsc: '',
-    bankAccountName: '',
-    upiId: '',
-    dailyPickupCapacity: '',
-    dailyDeliveryCapacity: '',
-    serviceRadiusKm: '',
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
   })
-  const [error, setError] = useState<string | null>(null)
 
   // Seed the form from the rider whenever the drawer opens for a (new) rider.
+  // Sensitive fields always start blank — see schema comment above.
   useEffect(() => {
     if (open && rider) {
-      setForm({
+      reset({
         status: rider.status,
         primaryStoreId: rider.primaryStoreId ?? '',
         employmentType: (rider.employmentType as RiderEmploymentType) || 'employee',
@@ -77,6 +102,8 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
         vehicleModel: rider.vehicleModel ?? '',
         drivingLicenseNumber: rider.drivingLicenseNumber ?? '',
         dlExpiryDate: toDateInput(rider.dlExpiryDate),
+        // Sensitive — never returned by the API, so these start blank and only
+        // overwrite when the operator actually types something (see submit()).
         aadhaarNumberMasked: '',
         panNumber: '',
         insuranceExpiryDate: toDateInput(rider.insuranceExpiryDate),
@@ -84,13 +111,12 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
         bankIfsc: '',
         bankAccountName: '',
         upiId: '',
-        dailyPickupCapacity: String(rider.dailyPickupCapacity),
-        dailyDeliveryCapacity: String(rider.dailyDeliveryCapacity),
-        serviceRadiusKm: String(rider.serviceRadiusKm),
+        dailyPickupCapacity: rider.dailyPickupCapacity,
+        dailyDeliveryCapacity: rider.dailyDeliveryCapacity,
+        serviceRadiusKm: rider.serviceRadiusKm,
       })
-      setError(null)
     }
-  }, [open, rider])
+  }, [open, rider, reset])
 
   // Stores for this rider's franchise (server-filtered) — for the primary store picker.
   const storesQ = useStores(
@@ -100,41 +126,37 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
 
   if (!open || !rider) return null
 
-  const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
-    setForm((f) => ({ ...f, [key]: value }))
-
-  const submit = async () => {
-    setError(null)
+  const submit = handleSubmit(async (values) => {
     // `undefined` for blank text means "don't change" (the server only applies
-    // non-null fields). This keeps the sensitive KYC/payout fields intact when
-    // left blank, instead of wiping them.
+    // non-null/undefined fields). This keeps the sensitive KYC/payout fields
+    // intact when left blank, instead of wiping them.
     const payload: UpdateRiderPayload = {
-      status: form.status,
-      primaryStoreId: form.primaryStoreId || null,
-      employmentType: form.employmentType,
-      vehicleType: form.vehicleType,
-      vehicleNumber: form.vehicleNumber.trim() || undefined,
-      vehicleModel: form.vehicleModel.trim() || undefined,
-      drivingLicenseNumber: form.drivingLicenseNumber.trim() || undefined,
-      dlExpiryDate: form.dlExpiryDate || null,
-      aadhaarNumberMasked: form.aadhaarNumberMasked.trim() || undefined,
-      panNumber: form.panNumber.trim() || undefined,
-      insuranceExpiryDate: form.insuranceExpiryDate || null,
-      bankAccountNumber: form.bankAccountNumber.trim() || undefined,
-      bankIfsc: form.bankIfsc.trim() || undefined,
-      bankAccountName: form.bankAccountName.trim() || undefined,
-      upiId: form.upiId.trim() || undefined,
-      dailyPickupCapacity: Number(form.dailyPickupCapacity) || 0,
-      dailyDeliveryCapacity: Number(form.dailyDeliveryCapacity) || 0,
-      serviceRadiusKm: Number(form.serviceRadiusKm) || 0,
+      status: values.status,
+      primaryStoreId: values.primaryStoreId || null,
+      employmentType: values.employmentType,
+      vehicleType: values.vehicleType,
+      vehicleNumber: values.vehicleNumber?.trim() || undefined,
+      vehicleModel: values.vehicleModel?.trim() || undefined,
+      drivingLicenseNumber: values.drivingLicenseNumber?.trim() || undefined,
+      dlExpiryDate: values.dlExpiryDate || null,
+      aadhaarNumberMasked: values.aadhaarNumberMasked?.trim() || undefined,
+      panNumber: values.panNumber?.trim() || undefined,
+      insuranceExpiryDate: values.insuranceExpiryDate || null,
+      bankAccountNumber: values.bankAccountNumber?.trim() || undefined,
+      bankIfsc: values.bankIfsc?.trim() || undefined,
+      bankAccountName: values.bankAccountName?.trim() || undefined,
+      upiId: values.upiId?.trim() || undefined,
+      dailyPickupCapacity: values.dailyPickupCapacity,
+      dailyDeliveryCapacity: values.dailyDeliveryCapacity,
+      serviceRadiusKm: values.serviceRadiusKm,
     }
     try {
       await update.mutateAsync({ id: rider.id, payload })
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save the rider.')
+      setError('root', { message: e instanceof Error ? e.message : 'Could not save the rider.' })
     }
-  }
+  })
 
   return (
     <FormDrawer
@@ -144,16 +166,16 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
       eyebrow="Edit rider"
       title={rider.riderName ?? rider.email ?? rider.riderCode}
       width="md"
-      error={error}
-      onSubmit={submit}
+      error={errors.root?.message}
+      onSubmit={() => void submit()}
       submitLabel="Save changes"
       submittingLabel="Saving…"
       submitIcon={Save}
-      submitting={update.isPending}
+      submitting={isSubmitting || update.isPending}
     >
       <DrawerSection title="Status & assignment">
         <Field label="Rider status">
-          <select value={form.status} onChange={(e) => set('status', e.target.value)} className={drawerInputCls}>
+          <select {...register('status')} className={drawerInputCls}>
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s} className="capitalize">{s}</option>
             ))}
@@ -164,8 +186,7 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
         </p>
         <Field label="Primary store">
           <select
-            value={form.primaryStoreId}
-            onChange={(e) => set('primaryStoreId', e.target.value)}
+            {...register('primaryStoreId')}
             className={drawerInputCls}
             disabled={storesQ.isLoading}
           >
@@ -180,22 +201,22 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
       <DrawerSection title="Employment & vehicle">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Employment type">
-            <select value={form.employmentType} onChange={(e) => set('employmentType', e.target.value as RiderEmploymentType)} className={drawerInputCls}>
+            <select {...register('employmentType')} className={drawerInputCls}>
               {EMPLOYMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </Field>
           <Field label="Vehicle type">
-            <select value={form.vehicleType} onChange={(e) => set('vehicleType', e.target.value as RiderVehicleType)} className={drawerInputCls}>
+            <select {...register('vehicleType')} className={drawerInputCls}>
               {VEHICLE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Vehicle number">
-            <input value={form.vehicleNumber} onChange={(e) => set('vehicleNumber', e.target.value)} className={drawerInputCls} placeholder="HR26 AB 1234" />
+            <input {...register('vehicleNumber')} className={drawerInputCls} placeholder="HR26 AB 1234" />
           </Field>
           <Field label="Vehicle model">
-            <input value={form.vehicleModel} onChange={(e) => set('vehicleModel', e.target.value)} className={drawerInputCls} placeholder="Honda Activa" />
+            <input {...register('vehicleModel')} className={drawerInputCls} placeholder="Honda Activa" />
           </Field>
         </div>
       </DrawerSection>
@@ -203,40 +224,58 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
       <DrawerSection title="KYC documents">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Driving licence no.">
-            <input value={form.drivingLicenseNumber} onChange={(e) => set('drivingLicenseNumber', e.target.value)} className={drawerInputCls} />
+            <input {...register('drivingLicenseNumber')} className={drawerInputCls} />
           </Field>
           <Field label="DL expiry">
-            <input value={form.dlExpiryDate} onChange={(e) => set('dlExpiryDate', e.target.value)} type="date" className={drawerInputCls} />
+            <input {...register('dlExpiryDate')} type="date" className={drawerInputCls} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Aadhaar (masked)">
-            <input value={form.aadhaarNumberMasked} onChange={(e) => set('aadhaarNumberMasked', e.target.value)} className={drawerInputCls} placeholder="Leave blank to keep" />
+            <input {...register('aadhaarNumberMasked')} className={drawerInputCls} placeholder="Leave blank to keep" />
           </Field>
           <Field label="PAN">
-            <input value={form.panNumber} onChange={(e) => set('panNumber', e.target.value)} className={drawerInputCls} placeholder="Leave blank to keep" />
+            <input
+              {...register('panNumber')}
+              aria-invalid={!!errors.panNumber}
+              className={drawerInputCls}
+              placeholder="Leave blank to keep"
+            />
+            <FieldError message={errors.panNumber?.message} />
           </Field>
         </div>
         <Field label="Insurance expiry">
-          <input value={form.insuranceExpiryDate} onChange={(e) => set('insuranceExpiryDate', e.target.value)} type="date" className={drawerInputCls} />
+          <input {...register('insuranceExpiryDate')} type="date" className={drawerInputCls} />
         </Field>
       </DrawerSection>
 
       <DrawerSection title="Payout details">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Bank account no.">
-            <input value={form.bankAccountNumber} onChange={(e) => set('bankAccountNumber', e.target.value)} className={drawerInputCls} placeholder="Leave blank to keep" />
+            <input {...register('bankAccountNumber')} className={drawerInputCls} placeholder="Leave blank to keep" />
           </Field>
           <Field label="IFSC">
-            <input value={form.bankIfsc} onChange={(e) => set('bankIfsc', e.target.value)} className={drawerInputCls} placeholder="HDFC0001234" />
+            <input
+              {...register('bankIfsc')}
+              aria-invalid={!!errors.bankIfsc}
+              className={drawerInputCls}
+              placeholder="HDFC0001234"
+            />
+            <FieldError message={errors.bankIfsc?.message} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Account holder name">
-            <input value={form.bankAccountName} onChange={(e) => set('bankAccountName', e.target.value)} className={drawerInputCls} />
+            <input {...register('bankAccountName')} className={drawerInputCls} />
           </Field>
           <Field label="UPI ID">
-            <input value={form.upiId} onChange={(e) => set('upiId', e.target.value)} className={drawerInputCls} placeholder="rider@upi" />
+            <input
+              {...register('upiId')}
+              aria-invalid={!!errors.upiId}
+              className={drawerInputCls}
+              placeholder="rider@upi"
+            />
+            <FieldError message={errors.upiId?.message} />
           </Field>
         </div>
         <p className="flex items-start gap-1.5 text-xs text-gray-400">
@@ -249,13 +288,35 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
       <DrawerSection title="Capacity & service">
         <div className="grid grid-cols-3 gap-3">
           <Field label="Daily pickups">
-            <input value={form.dailyPickupCapacity} onChange={(e) => set('dailyPickupCapacity', e.target.value)} type="number" min="0" className={drawerInputCls} />
+            <input
+              {...register('dailyPickupCapacity', { valueAsNumber: true })}
+              type="number"
+              min="0"
+              aria-invalid={!!errors.dailyPickupCapacity}
+              className={drawerInputCls}
+            />
+            <FieldError message={errors.dailyPickupCapacity?.message} />
           </Field>
           <Field label="Daily deliveries">
-            <input value={form.dailyDeliveryCapacity} onChange={(e) => set('dailyDeliveryCapacity', e.target.value)} type="number" min="0" className={drawerInputCls} />
+            <input
+              {...register('dailyDeliveryCapacity', { valueAsNumber: true })}
+              type="number"
+              min="0"
+              aria-invalid={!!errors.dailyDeliveryCapacity}
+              className={drawerInputCls}
+            />
+            <FieldError message={errors.dailyDeliveryCapacity?.message} />
           </Field>
           <Field label="Service radius (km)">
-            <input value={form.serviceRadiusKm} onChange={(e) => set('serviceRadiusKm', e.target.value)} type="number" min="0" step="0.5" className={drawerInputCls} />
+            <input
+              {...register('serviceRadiusKm', { valueAsNumber: true })}
+              type="number"
+              min="0"
+              step="0.5"
+              aria-invalid={!!errors.serviceRadiusKm}
+              className={drawerInputCls}
+            />
+            <FieldError message={errors.serviceRadiusKm?.message} />
           </Field>
         </div>
       </DrawerSection>

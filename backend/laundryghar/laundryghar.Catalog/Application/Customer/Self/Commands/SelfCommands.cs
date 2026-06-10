@@ -360,6 +360,17 @@ public sealed class CreateDeletionRequestHandler : IRequestHandler<CreateDeletio
 
     public async Task<AccountDeletionRequestDto> Handle(CreateDeletionRequestCommand cmd, CancellationToken ct)
     {
+        // Idempotency: return an existing pending request instead of creating a duplicate.
+        var existing = await _db.AccountDeletionRequests
+            .Where(r => r.CustomerId == cmd.CustomerId && r.Status == "pending")
+            .OrderByDescending(r => r.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (existing is not null)
+            return new AccountDeletionRequestDto(
+                existing.Id, existing.Status, existing.RequestSource, existing.Reason,
+                existing.RequestedAt, existing.GracePeriodEndsAt, existing.CancelledAt);
+
         var now = DateTimeOffset.UtcNow;
 
         var e = new AccountDeletionRequest
@@ -380,7 +391,56 @@ public sealed class CreateDeletionRequestHandler : IRequestHandler<CreateDeletio
             CreatedBy           = cmd.CustomerId
         };
 
+        // Stamp the customer's status so the UI can reflect the pending state.
+        // customers_status_check: active|blocked|deletion_requested|deleted
+        var customer = await _db.Customers.FindAsync([cmd.CustomerId], ct);
+        if (customer is not null && customer.Status == "active")
+        {
+            customer.Status    = "deletion_requested";
+            customer.UpdatedAt = now;
+            customer.Version++;
+        }
+
         _db.AccountDeletionRequests.Add(e);
+        await _db.SaveChangesAsync(ct);
+
+        return new AccountDeletionRequestDto(
+            e.Id, e.Status, e.RequestSource, e.Reason,
+            e.RequestedAt, e.GracePeriodEndsAt, e.CancelledAt);
+    }
+}
+
+public sealed record CancelDeletionRequestCommand(Guid CustomerId) : IRequest<AccountDeletionRequestDto?>;
+
+public sealed class CancelDeletionRequestHandler : IRequestHandler<CancelDeletionRequestCommand, AccountDeletionRequestDto?>
+{
+    private readonly LaundryGharDbContext _db;
+
+    public CancelDeletionRequestHandler(LaundryGharDbContext db) => _db = db;
+
+    public async Task<AccountDeletionRequestDto?> Handle(CancelDeletionRequestCommand cmd, CancellationToken ct)
+    {
+        var e = await _db.AccountDeletionRequests
+            .Where(r => r.CustomerId == cmd.CustomerId && r.Status == "pending")
+            .OrderByDescending(r => r.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        // No pending request — 404 at the endpoint.
+        if (e is null) return null;
+
+        var now = DateTimeOffset.UtcNow;
+        e.Status      = "cancelled";
+        e.CancelledAt = now;
+
+        // Restore customer status to active if it was stamped deletion_requested.
+        var customer = await _db.Customers.FindAsync([cmd.CustomerId], ct);
+        if (customer is not null && customer.Status == "deletion_requested")
+        {
+            customer.Status    = "active";
+            customer.UpdatedAt = now;
+            customer.Version++;
+        }
+
         await _db.SaveChangesAsync(ct);
 
         return new AccountDeletionRequestDto(
@@ -391,9 +451,42 @@ public sealed class CreateDeletionRequestHandler : IRequestHandler<CreateDeletio
 
 public sealed class CreateAddressValidator : AbstractValidator<CreateMyAddressCommand>
 {
+    /// <summary>
+    /// DEF-033: Mirrors the customer_addresses_label_check DB constraint so callers
+    /// receive a 422 with a friendly message instead of a raw 23514 violation.
+    /// </summary>
+    private static readonly string[] AllowedLabels = ["home", "office", "other"];
+
     public CreateAddressValidator()
     {
-        RuleFor(x => x.Request.Label).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.Request.Label)
+            .NotEmpty()
+            .MaximumLength(50)
+            .Must(l => AllowedLabels.Contains(l))
+            .WithMessage($"label must be one of: {string.Join(", ", AllowedLabels)}.");
+        RuleFor(x => x.Request.AddressLine1).NotEmpty().MaximumLength(255);
+        RuleFor(x => x.Request.City).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Request.State).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Request.Pincode).NotEmpty().MaximumLength(10);
+        RuleFor(x => x.Request.CountryCode).NotEmpty().Length(2);
+    }
+}
+
+/// <summary>
+/// DEF-033: Mirrors the customer_addresses_label_check DB constraint so callers
+/// receive a 422 with a friendly message instead of a raw 23514 violation.
+/// </summary>
+public sealed class UpdateAddressValidator : AbstractValidator<UpdateMyAddressCommand>
+{
+    private static readonly string[] AllowedLabels = ["home", "office", "other"];
+
+    public UpdateAddressValidator()
+    {
+        RuleFor(x => x.Request.Label)
+            .NotEmpty()
+            .MaximumLength(50)
+            .Must(l => AllowedLabels.Contains(l))
+            .WithMessage($"label must be one of: {string.Join(", ", AllowedLabels)}.");
         RuleFor(x => x.Request.AddressLine1).NotEmpty().MaximumLength(255);
         RuleFor(x => x.Request.City).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Request.State).NotEmpty().MaximumLength(100);

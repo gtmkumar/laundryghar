@@ -1,6 +1,7 @@
 using FluentValidation;
 using laundryghar.Engagement.Application.Cms.Dtos;
 using MediatR;
+using Microsoft.AspNetCore.Hosting;
 
 namespace laundryghar.Engagement.Application.Cms.Commands;
 
@@ -208,68 +209,92 @@ public sealed class DeleteAppBannerHandler
 /// <summary>Shared banner-field validation. Link targets (cta_deeplink/external_url/image_url)
 /// are surfaced to the mobile clients and handed to router.push / Linking.openURL, so we
 /// allowlist safe forms only and reject arbitrary URI schemes (intent://, file://, content://,
-/// javascript:, …) at write time.</summary>
+/// javascript:, …) at write time.
+///
+/// <para>
+/// <paramref name="isDevelopment"/> controls whether plain <c>http://</c> URLs are accepted:
+/// in non-Development environments only <c>https://</c> is allowed for HTTP URLs, preventing
+/// mixed-content and MITM risks in production banner assets. Development is kept permissive
+/// so local HTTP CDN / mock servers work without extra setup.
+/// </para></summary>
 internal static class AppBannerRules
 {
     internal static readonly string[] ValidPlacements =
         ["home_top", "home_middle", "home_bottom", "services_top", "cart_top", "order_success", "profile"];
 
-    // Allowed: empty/null, an in-app relative path ("/..."), an http(s) URL, or the app's own
-    // "laundryghar://" deep-link scheme. Anything else is rejected.
-    internal static bool IsAllowedDeeplink(string? value)
+    // Allowed: empty/null, an in-app relative path ("/..."), an https URL, or the app's own
+    // "laundryghar://" deep-link scheme. In Development, plain http:// is also accepted.
+    // Anything else (intent://, file://, javascript:, ...) is rejected.
+    internal static bool IsAllowedDeeplink(string? value, bool isDevelopment)
     {
         if (string.IsNullOrWhiteSpace(value)) return true;
         if (value.StartsWith('/')) return true;
         if (value.StartsWith("laundryghar://", StringComparison.OrdinalIgnoreCase)) return true;
-        return Uri.TryCreate(value, UriKind.Absolute, out var uri)
-            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
+        if (uri.Scheme == Uri.UriSchemeHttps) return true;
+        // Allow plain http only in Development (e.g. local mock servers / tunnels).
+        return isDevelopment && uri.Scheme == Uri.UriSchemeHttp;
     }
 
-    // Allowed: empty/null or an http(s) absolute URL.
-    internal static bool IsAllowedHttpUrl(string? value)
+    // Allowed: empty/null, or an https absolute URL.
+    // In Development, plain http:// is also accepted.
+    internal static bool IsAllowedHttpUrl(string? value, bool isDevelopment)
     {
         if (string.IsNullOrWhiteSpace(value)) return true;
-        return Uri.TryCreate(value, UriKind.Absolute, out var uri)
-            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
+        if (uri.Scheme == Uri.UriSchemeHttps) return true;
+        return isDevelopment && uri.Scheme == Uri.UriSchemeHttp;
     }
 }
 
 public sealed class CreateAppBannerValidator : AbstractValidator<CreateAppBannerCommand>
 {
-    public CreateAppBannerValidator()
+    public CreateAppBannerValidator(IWebHostEnvironment env)
     {
+        var isDev = env.IsDevelopment();
+
         RuleFor(x => x.Request.Placement).NotEmpty()
             .Must(p => AppBannerRules.ValidPlacements.Contains(p))
             .WithMessage("placement must be one of: home_top, home_middle, home_bottom, services_top, cart_top, order_success, profile");
         RuleFor(x => x.Request.TitleLocalized).NotEmpty();
         RuleFor(x => x.Request.SubtitleLocalized).NotEmpty();
         RuleFor(x => x.Request.ImageUrl).NotEmpty()
-            .Must(AppBannerRules.IsAllowedHttpUrl).WithMessage("imageUrl must be an http(s) URL.");
+            .Must(u => AppBannerRules.IsAllowedHttpUrl(u, isDev))
+            .WithMessage(isDev ? "imageUrl must be an http(s) URL." : "imageUrl must be an https URL.");
         RuleFor(x => x.Request.ImageDarkUrl)
-            .Must(AppBannerRules.IsAllowedHttpUrl).WithMessage("imageDarkUrl must be an http(s) URL.");
+            .Must(u => AppBannerRules.IsAllowedHttpUrl(u, isDev))
+            .WithMessage(isDev ? "imageDarkUrl must be an http(s) URL." : "imageDarkUrl must be an https URL.");
         RuleFor(x => x.Request.CtaDeeplink)
-            .Must(AppBannerRules.IsAllowedDeeplink).WithMessage("ctaDeeplink must be a relative path, an http(s) URL, or a laundryghar:// link.");
+            .Must(u => AppBannerRules.IsAllowedDeeplink(u, isDev))
+            .WithMessage("ctaDeeplink must be a relative path, an https URL, or a laundryghar:// link.");
         RuleFor(x => x.Request.ExternalUrl)
-            .Must(AppBannerRules.IsAllowedHttpUrl).WithMessage("externalUrl must be an http(s) URL.");
+            .Must(u => AppBannerRules.IsAllowedHttpUrl(u, isDev))
+            .WithMessage(isDev ? "externalUrl must be an http(s) URL." : "externalUrl must be an https URL.");
     }
 }
 
 public sealed class UpdateAppBannerValidator : AbstractValidator<UpdateAppBannerCommand>
 {
-    public UpdateAppBannerValidator()
+    public UpdateAppBannerValidator(IWebHostEnvironment env)
     {
+        var isDev = env.IsDevelopment();
+
         RuleFor(x => x.Request.Placement).NotEmpty()
             .Must(p => AppBannerRules.ValidPlacements.Contains(p))
             .WithMessage("placement must be one of: home_top, home_middle, home_bottom, services_top, cart_top, order_success, profile");
         RuleFor(x => x.Request.TitleLocalized).NotEmpty();
         RuleFor(x => x.Request.SubtitleLocalized).NotEmpty();
         RuleFor(x => x.Request.ImageUrl).NotEmpty()
-            .Must(AppBannerRules.IsAllowedHttpUrl).WithMessage("imageUrl must be an http(s) URL.");
+            .Must(u => AppBannerRules.IsAllowedHttpUrl(u, isDev))
+            .WithMessage(isDev ? "imageUrl must be an http(s) URL." : "imageUrl must be an https URL.");
         RuleFor(x => x.Request.ImageDarkUrl)
-            .Must(AppBannerRules.IsAllowedHttpUrl).WithMessage("imageDarkUrl must be an http(s) URL.");
+            .Must(u => AppBannerRules.IsAllowedHttpUrl(u, isDev))
+            .WithMessage(isDev ? "imageDarkUrl must be an http(s) URL." : "imageDarkUrl must be an https URL.");
         RuleFor(x => x.Request.CtaDeeplink)
-            .Must(AppBannerRules.IsAllowedDeeplink).WithMessage("ctaDeeplink must be a relative path, an http(s) URL, or a laundryghar:// link.");
+            .Must(u => AppBannerRules.IsAllowedDeeplink(u, isDev))
+            .WithMessage("ctaDeeplink must be a relative path, an https URL, or a laundryghar:// link.");
         RuleFor(x => x.Request.ExternalUrl)
-            .Must(AppBannerRules.IsAllowedHttpUrl).WithMessage("externalUrl must be an http(s) URL.");
+            .Must(u => AppBannerRules.IsAllowedHttpUrl(u, isDev))
+            .WithMessage(isDev ? "externalUrl must be an http(s) URL." : "externalUrl must be an https URL.");
     }
 }

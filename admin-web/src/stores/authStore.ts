@@ -46,6 +46,15 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'lg-admin-auth',
       storage: createJSONStorage(() => localStorage),
+      // SECURITY: never persist the refresh token to localStorage (XSS exfiltration risk).
+      // It lives in memory only (for the logout-revoke call) and, more importantly, in the
+      // HttpOnly `lg_refresh` cookie set by Identity — which JS cannot read. A hard reload
+      // drops the in-memory refreshToken; the session is restored via the cookie-backed
+      // silent refresh in api/client.ts. accessToken is still persisted (short-lived, 15 min).
+      partialize: (state) => ({
+        accessToken: state.accessToken,
+        user: state.user,
+      }),
     },
   ),
 )

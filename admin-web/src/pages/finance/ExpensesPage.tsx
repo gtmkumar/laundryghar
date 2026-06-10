@@ -6,6 +6,7 @@ import { AddExpenseDrawer, RejectExpenseDrawer } from './FinanceDrawers'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
+import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
@@ -191,7 +192,7 @@ export function ExpensesPage() {
         {isLoading ? (
           <LoadingState message="Loading expenses..." />
         ) : isError ? (
-          <ErrorState error={error as Error} onRetry={() => void refetch()} />
+          isForbiddenError(error) ? <ForbiddenState /> : <ErrorState error={error as Error} onRetry={() => void refetch()} />
         ) : (
           <FilterableTable
             columns={columns}

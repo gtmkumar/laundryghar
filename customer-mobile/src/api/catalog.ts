@@ -4,14 +4,17 @@
  */
 import { catalogClient, unwrapList, unwrapSingle } from '@/api/client';
 import type {
+  CreateAddressRequest,
   CustomerAddressDto,
   CustomerProfileDto,
   ListResponse,
   PatchProfileRequest,
   PriceListItemDto,
   ServiceCategoryDto,
+  ServiceabilityDto,
   ServiceDto,
   SingleResponse,
+  UpdateAddressRequest,
 } from '@/types/api';
 
 // ── Catalog reads ────────────────────────────────────────────────────────────
@@ -70,4 +73,43 @@ export async function getAddresses(): Promise<CustomerAddressDto[]> {
     '/customer/addresses/',
   );
   return unwrapList(res.data);
+}
+
+/** POST /api/v1/customer/addresses */
+export async function createAddress(
+  body: CreateAddressRequest,
+): Promise<CustomerAddressDto> {
+  const res = await catalogClient.post<SingleResponse<CustomerAddressDto>>(
+    '/customer/addresses/',
+    body,
+  );
+  return unwrapSingle(res.data);
+}
+
+/** PUT /api/v1/customer/addresses/{id} */
+export async function updateAddress(
+  id: string,
+  body: UpdateAddressRequest,
+): Promise<CustomerAddressDto> {
+  const res = await catalogClient.put<SingleResponse<CustomerAddressDto>>(
+    `/customer/addresses/${id}`,
+    body,
+  );
+  return unwrapSingle(res.data);
+}
+
+/** DELETE /api/v1/customer/addresses/{id} */
+export async function deleteAddress(id: string): Promise<void> {
+  await catalogClient.delete(`/customer/addresses/${id}`);
+}
+
+/** GET /api/v1/customer/serviceability?pincode= */
+export async function checkServiceability(
+  pincode: string,
+): Promise<ServiceabilityDto> {
+  const res = await catalogClient.get<SingleResponse<ServiceabilityDto>>(
+    '/customer/serviceability/',
+    { params: { pincode } },
+  );
+  return unwrapSingle(res.data);
 }

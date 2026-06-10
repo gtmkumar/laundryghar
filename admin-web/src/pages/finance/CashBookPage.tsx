@@ -8,6 +8,7 @@ import { OpenCashBookDrawer } from './FinanceDrawers'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
+import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { type Column } from '@/components/shared/DataTable'
@@ -148,7 +149,7 @@ export function CashBookPage() {
         {isLoading ? (
           <LoadingState message="Loading cash books..." />
         ) : isError ? (
-          <ErrorState error={error as Error} onRetry={() => void refetch()} />
+          isForbiddenError(error) ? <ForbiddenState /> : <ErrorState error={error as Error} onRetry={() => void refetch()} />
         ) : (
           <FilterableTable
             columns={columns}

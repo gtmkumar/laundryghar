@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Bike, UserPlus, Lock } from 'lucide-react'
 import { useAccessFranchises } from '@/hooks/useAccessControl'
 import { useStores } from '@/hooks/useTenancy'
@@ -6,6 +9,8 @@ import { useEffectiveBrandId } from '@/hooks/useBrandContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useOnboardRider } from '@/hooks/useRiders'
 import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
+import { FieldError } from '@/components/ui/FieldError'
+import { requiredEmail, optionalPhone, optionalPan, optionalIfsc, optionalUpi, nonNegativeInt } from '@/lib/validation'
 import type { RiderEmploymentType, RiderVehicleType } from '@/types/api'
 
 interface Props {
@@ -28,15 +33,46 @@ const VEHICLE_TYPES: { value: RiderVehicleType; label: string }[] = [
   { value: 'foot', label: 'On foot' },
 ]
 
-const blankForm = {
+// ── Zod schema ────────────────────────────────────────────────────────────────
+
+const schema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: requiredEmail,
+  phone: optionalPhone,
+  franchiseId: z.string().min(1, 'Pick a franchise for this rider.'),
+  primaryStoreId: z.string().optional(),
+  employmentType: z.enum(['employee', 'contractor', 'gig', 'outsourced'] as const),
+  vehicleType: z.enum(['two_wheeler', 'three_wheeler', 'four_wheeler', 'cycle', 'foot'] as const),
+  vehicleNumber: z.string().optional(),
+  vehicleModel: z.string().optional(),
+  drivingLicenseNumber: z.string().optional(),
+  dlExpiryDate: z.string().optional(),
+  aadhaarNumberMasked: z.string().optional(),
+  panNumber: optionalPan,
+  insuranceExpiryDate: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  bankIfsc: optionalIfsc,
+  bankAccountName: z.string().optional(),
+  upiId: optionalUpi,
+  dailyPickupCapacity: nonNegativeInt,
+  dailyDeliveryCapacity: nonNegativeInt,
+  serviceRadiusKm: z
+    .number({ error: 'Must be a number' })
+    .gte(0, 'Must be 0 or greater'),
+})
+
+type FormValues = z.infer<typeof schema>
+
+const defaultValues: FormValues = {
   firstName: '',
   lastName: '',
   email: '',
   phone: '',
   franchiseId: '',
   primaryStoreId: '',
-  employmentType: 'employee' as RiderEmploymentType,
-  vehicleType: 'two_wheeler' as RiderVehicleType,
+  employmentType: 'employee',
+  vehicleType: 'two_wheeler',
   vehicleNumber: '',
   vehicleModel: '',
   drivingLicenseNumber: '',
@@ -48,9 +84,9 @@ const blankForm = {
   bankIfsc: '',
   bankAccountName: '',
   upiId: '',
-  dailyPickupCapacity: '20',
-  dailyDeliveryCapacity: '20',
-  serviceRadiusKm: '5',
+  dailyPickupCapacity: 20,
+  dailyDeliveryCapacity: 20,
+  serviceRadiusKm: 5,
 }
 
 export function OnboardRiderDrawer({ open, onClose }: Props) {
@@ -59,34 +95,47 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
   const franchisesQ = useAccessFranchises()
   const onboard = useOnboardRider()
 
-  const [form, setForm] = useState(blankForm)
-  const [error, setError] = useState<string | null>(null)
-
   // Franchise-scoped users (e.g. franchise owners) can only ever onboard riders
   // for their own franchise, so we lock the selector to it. The backend enforces
   // this regardless; the UI just reflects it.
   const lockFranchise = isFranchiseScoped && !!scopedFranchiseId
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues,
+  })
+
+  const franchiseId = watch('franchiseId')
+
   useEffect(() => {
     if (open) {
-      setForm({ ...blankForm, franchiseId: lockFranchise ? scopedFranchiseId! : '' })
-      setError(null)
+      reset({
+        ...defaultValues,
+        franchiseId: lockFranchise ? (scopedFranchiseId ?? '') : '',
+      })
     }
-  }, [open, lockFranchise, scopedFranchiseId])
+  }, [open, lockFranchise, scopedFranchiseId, reset])
 
   // Stores filtered server-side to the chosen franchise.
   const storesQ = useStores(
-    form.franchiseId ? { brandId: brandId ?? undefined, franchiseId: form.franchiseId } : {},
+    franchiseId ? { brandId: brandId ?? undefined, franchiseId } : {},
   )
-  const stores = form.franchiseId ? storesQ.data?.list ?? [] : []
+  const stores = franchiseId ? storesQ.data?.list ?? [] : []
 
   const franchises = useMemo(
     () => franchisesQ.data?.pages.flatMap((p) => p.list) ?? [],
     [franchisesQ.data],
   )
 
-  // Label for the locked franchise (franchise-scoped users): prefer the matching
-  // option's name, fall back to a generic label until the list resolves.
+  // Label for the locked franchise (franchise-scoped users).
   const lockedFranchiseName = useMemo(
     () => (lockFranchise ? franchises.find((f) => f.id === scopedFranchiseId)?.name : undefined),
     [lockFranchise, franchises, scopedFranchiseId],
@@ -94,52 +143,47 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
 
   if (!open) return null
 
-  const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
-    setForm((f) => ({ ...f, [key]: value }))
+  const onFranchiseChange = (value: string) => {
+    setValue('franchiseId', value, { shouldValidate: true })
+    setValue('primaryStoreId', '')
+  }
 
-  // Clear the selected store whenever the franchise changes.
-  const onFranchiseChange = (value: string) => setForm((f) => ({ ...f, franchiseId: value, primaryStoreId: '' }))
-
-  const submit = async () => {
-    setError(null)
-    if (!form.email.trim()) return setError('Email is required.')
-    if (!form.franchiseId) return setError('Pick a franchise for this rider.')
-
+  const submit = handleSubmit(async (values) => {
     try {
       await onboard.mutateAsync({
         invite: {
-          email: form.email.trim(),
-          phone: form.phone.trim() || undefined,
-          firstName: form.firstName.trim() || undefined,
-          lastName: form.lastName.trim() || undefined,
-          franchiseId: form.franchiseId,
+          email: values.email.trim(),
+          phone: values.phone?.trim() || undefined,
+          firstName: values.firstName?.trim() || undefined,
+          lastName: values.lastName?.trim() || undefined,
+          franchiseId: values.franchiseId,
         },
         profile: {
-          franchiseId: form.franchiseId,
-          primaryStoreId: form.primaryStoreId || undefined,
-          employmentType: form.employmentType,
-          vehicleType: form.vehicleType,
-          vehicleNumber: form.vehicleNumber.trim() || undefined,
-          vehicleModel: form.vehicleModel.trim() || undefined,
-          drivingLicenseNumber: form.drivingLicenseNumber.trim() || undefined,
-          dlExpiryDate: form.dlExpiryDate || undefined,
-          aadhaarNumberMasked: form.aadhaarNumberMasked.trim() || undefined,
-          panNumber: form.panNumber.trim() || undefined,
-          insuranceExpiryDate: form.insuranceExpiryDate || undefined,
-          bankAccountNumber: form.bankAccountNumber.trim() || undefined,
-          bankIfsc: form.bankIfsc.trim() || undefined,
-          bankAccountName: form.bankAccountName.trim() || undefined,
-          upiId: form.upiId.trim() || undefined,
-          dailyPickupCapacity: Number(form.dailyPickupCapacity) || 0,
-          dailyDeliveryCapacity: Number(form.dailyDeliveryCapacity) || 0,
-          serviceRadiusKm: Number(form.serviceRadiusKm) || 0,
+          franchiseId: values.franchiseId,
+          primaryStoreId: values.primaryStoreId || undefined,
+          employmentType: values.employmentType,
+          vehicleType: values.vehicleType,
+          vehicleNumber: values.vehicleNumber?.trim() || undefined,
+          vehicleModel: values.vehicleModel?.trim() || undefined,
+          drivingLicenseNumber: values.drivingLicenseNumber?.trim() || undefined,
+          dlExpiryDate: values.dlExpiryDate || undefined,
+          aadhaarNumberMasked: values.aadhaarNumberMasked?.trim() || undefined,
+          panNumber: values.panNumber?.trim() || undefined,
+          insuranceExpiryDate: values.insuranceExpiryDate || undefined,
+          bankAccountNumber: values.bankAccountNumber?.trim() || undefined,
+          bankIfsc: values.bankIfsc?.trim() || undefined,
+          bankAccountName: values.bankAccountName?.trim() || undefined,
+          upiId: values.upiId?.trim() || undefined,
+          dailyPickupCapacity: values.dailyPickupCapacity,
+          dailyDeliveryCapacity: values.dailyDeliveryCapacity,
+          serviceRadiusKm: values.serviceRadiusKm,
         },
       })
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not onboard the rider.')
+      setError('root', { message: e instanceof Error ? e.message : 'Could not onboard the rider.' })
     }
-  }
+  })
 
   return (
     <FormDrawer
@@ -149,22 +193,44 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
       eyebrow="Logistics"
       title="Onboard rider"
       width="md"
-      error={error}
-      onSubmit={submit}
+      error={errors.root?.message}
+      onSubmit={() => void submit()}
       submitLabel="Onboard rider"
       submittingLabel="Onboarding…"
       submitIcon={UserPlus}
-      submitting={onboard.isPending}
+      submitting={isSubmitting || onboard.isPending}
     >
       {/* Section A — account & franchise */}
       <DrawerSection title="Account & franchise">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="First name"><input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} className={drawerInputCls} placeholder="Arjun" /></Field>
-          <Field label="Last name"><input value={form.lastName} onChange={(e) => set('lastName', e.target.value)} className={drawerInputCls} placeholder="Mehta" /></Field>
+          <Field label="First name">
+            <input {...register('firstName')} className={drawerInputCls} placeholder="Arjun" />
+          </Field>
+          <Field label="Last name">
+            <input {...register('lastName')} className={drawerInputCls} placeholder="Mehta" />
+          </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Email *"><input value={form.email} onChange={(e) => set('email', e.target.value)} type="email" className={drawerInputCls} placeholder="arjun@laundryghar.in" /></Field>
-          <Field label="Phone"><input value={form.phone} onChange={(e) => set('phone', e.target.value)} className={drawerInputCls} placeholder="+91 98xxxxxxxx" /></Field>
+          <Field label="Email *">
+            <input
+              {...register('email')}
+              type="email"
+              aria-invalid={!!errors.email}
+              aria-required="true"
+              className={drawerInputCls}
+              placeholder="arjun@laundryghar.in"
+            />
+            <FieldError message={errors.email?.message} />
+          </Field>
+          <Field label="Phone">
+            <input
+              {...register('phone')}
+              aria-invalid={!!errors.phone}
+              className={drawerInputCls}
+              placeholder="+91 98xxxxxxxx"
+            />
+            <FieldError message={errors.phone?.message} />
+          </Field>
         </div>
         <Field label="Franchise *">
           {lockFranchise ? (
@@ -173,23 +239,30 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
               <span className="truncate">{lockedFranchiseName ?? 'Your franchise'}</span>
             </div>
           ) : (
-            <select value={form.franchiseId} onChange={(e) => onFranchiseChange(e.target.value)} className={drawerInputCls} disabled={franchisesQ.isLoading}>
+            <select
+              value={franchiseId}
+              onChange={(e) => onFranchiseChange(e.target.value)}
+              aria-invalid={!!errors.franchiseId}
+              aria-required="true"
+              className={drawerInputCls}
+              disabled={franchisesQ.isLoading}
+            >
               <option value="">{franchisesQ.isLoading ? 'Loading franchises…' : 'Select a franchise…'}</option>
               {franchises.map((f) => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
           )}
+          <FieldError message={errors.franchiseId?.message} />
         </Field>
         <Field label="Primary store (optional)">
           <select
-            value={form.primaryStoreId}
-            onChange={(e) => set('primaryStoreId', e.target.value)}
+            {...register('primaryStoreId')}
             className={drawerInputCls}
-            disabled={!form.franchiseId || storesQ.isLoading}
+            disabled={!franchiseId || storesQ.isLoading}
           >
             <option value="">
-              {!form.franchiseId ? 'Pick a franchise first' : storesQ.isLoading ? 'Loading stores…' : 'No primary store'}
+              {!franchiseId ? 'Pick a franchise first' : storesQ.isLoading ? 'Loading stores…' : 'No primary store'}
             </option>
             {stores.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
@@ -202,45 +275,113 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
       <DrawerSection title="Rider profile">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Employment type">
-            <select value={form.employmentType} onChange={(e) => set('employmentType', e.target.value as RiderEmploymentType)} className={drawerInputCls}>
+            <select {...register('employmentType')} className={drawerInputCls}>
               {EMPLOYMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </Field>
           <Field label="Vehicle type">
-            <select value={form.vehicleType} onChange={(e) => set('vehicleType', e.target.value as RiderVehicleType)} className={drawerInputCls}>
+            <select {...register('vehicleType')} className={drawerInputCls}>
               {VEHICLE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Vehicle number"><input value={form.vehicleNumber} onChange={(e) => set('vehicleNumber', e.target.value)} className={drawerInputCls} placeholder="HR26 AB 1234" /></Field>
-          <Field label="Vehicle model"><input value={form.vehicleModel} onChange={(e) => set('vehicleModel', e.target.value)} className={drawerInputCls} placeholder="Honda Activa" /></Field>
+          <Field label="Vehicle number">
+            <input {...register('vehicleNumber')} className={drawerInputCls} placeholder="HR26 AB 1234" />
+          </Field>
+          <Field label="Vehicle model">
+            <input {...register('vehicleModel')} className={drawerInputCls} placeholder="Honda Activa" />
+          </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Driving licence no."><input value={form.drivingLicenseNumber} onChange={(e) => set('drivingLicenseNumber', e.target.value)} className={drawerInputCls} /></Field>
-          <Field label="DL expiry"><input value={form.dlExpiryDate} onChange={(e) => set('dlExpiryDate', e.target.value)} type="date" className={drawerInputCls} /></Field>
+          <Field label="Driving licence no.">
+            <input {...register('drivingLicenseNumber')} className={drawerInputCls} />
+          </Field>
+          <Field label="DL expiry">
+            <input {...register('dlExpiryDate')} type="date" className={drawerInputCls} />
+          </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Aadhaar (masked)"><input value={form.aadhaarNumberMasked} onChange={(e) => set('aadhaarNumberMasked', e.target.value)} className={drawerInputCls} placeholder="XXXX XXXX 1234" /></Field>
-          <Field label="PAN"><input value={form.panNumber} onChange={(e) => set('panNumber', e.target.value)} className={drawerInputCls} placeholder="AAAAA0000A" /></Field>
+          <Field label="Aadhaar (masked)">
+            <input {...register('aadhaarNumberMasked')} className={drawerInputCls} placeholder="XXXX XXXX 1234" />
+          </Field>
+          <Field label="PAN">
+            <input
+              {...register('panNumber')}
+              aria-invalid={!!errors.panNumber}
+              className={drawerInputCls}
+              placeholder="AAAAA0000A"
+            />
+            <FieldError message={errors.panNumber?.message} />
+          </Field>
         </div>
-        <Field label="Insurance expiry"><input value={form.insuranceExpiryDate} onChange={(e) => set('insuranceExpiryDate', e.target.value)} type="date" className={drawerInputCls} /></Field>
+        <Field label="Insurance expiry">
+          <input {...register('insuranceExpiryDate')} type="date" className={drawerInputCls} />
+        </Field>
 
         <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Payout details</p>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Bank account no."><input value={form.bankAccountNumber} onChange={(e) => set('bankAccountNumber', e.target.value)} className={drawerInputCls} /></Field>
-          <Field label="IFSC"><input value={form.bankIfsc} onChange={(e) => set('bankIfsc', e.target.value)} className={drawerInputCls} placeholder="HDFC0001234" /></Field>
+          <Field label="Bank account no.">
+            <input {...register('bankAccountNumber')} className={drawerInputCls} />
+          </Field>
+          <Field label="IFSC">
+            <input
+              {...register('bankIfsc')}
+              aria-invalid={!!errors.bankIfsc}
+              className={drawerInputCls}
+              placeholder="HDFC0001234"
+            />
+            <FieldError message={errors.bankIfsc?.message} />
+          </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Account holder name"><input value={form.bankAccountName} onChange={(e) => set('bankAccountName', e.target.value)} className={drawerInputCls} /></Field>
-          <Field label="UPI ID"><input value={form.upiId} onChange={(e) => set('upiId', e.target.value)} className={drawerInputCls} placeholder="arjun@upi" /></Field>
+          <Field label="Account holder name">
+            <input {...register('bankAccountName')} className={drawerInputCls} />
+          </Field>
+          <Field label="UPI ID">
+            <input
+              {...register('upiId')}
+              aria-invalid={!!errors.upiId}
+              className={drawerInputCls}
+              placeholder="arjun@upi"
+            />
+            <FieldError message={errors.upiId?.message} />
+          </Field>
         </div>
 
         <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Capacity</p>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Daily pickups"><input value={form.dailyPickupCapacity} onChange={(e) => set('dailyPickupCapacity', e.target.value)} type="number" min="0" className={drawerInputCls} /></Field>
-          <Field label="Daily deliveries"><input value={form.dailyDeliveryCapacity} onChange={(e) => set('dailyDeliveryCapacity', e.target.value)} type="number" min="0" className={drawerInputCls} /></Field>
-          <Field label="Service radius (km)"><input value={form.serviceRadiusKm} onChange={(e) => set('serviceRadiusKm', e.target.value)} type="number" min="0" step="0.5" className={drawerInputCls} /></Field>
+          <Field label="Daily pickups">
+            <input
+              {...register('dailyPickupCapacity', { valueAsNumber: true })}
+              type="number"
+              min="0"
+              aria-invalid={!!errors.dailyPickupCapacity}
+              className={drawerInputCls}
+            />
+            <FieldError message={errors.dailyPickupCapacity?.message} />
+          </Field>
+          <Field label="Daily deliveries">
+            <input
+              {...register('dailyDeliveryCapacity', { valueAsNumber: true })}
+              type="number"
+              min="0"
+              aria-invalid={!!errors.dailyDeliveryCapacity}
+              className={drawerInputCls}
+            />
+            <FieldError message={errors.dailyDeliveryCapacity?.message} />
+          </Field>
+          <Field label="Service radius (km)">
+            <input
+              {...register('serviceRadiusKm', { valueAsNumber: true })}
+              type="number"
+              min="0"
+              step="0.5"
+              aria-invalid={!!errors.serviceRadiusKm}
+              className={drawerInputCls}
+            />
+            <FieldError message={errors.serviceRadiusKm?.message} />
+          </Field>
         </div>
       </DrawerSection>
     </FormDrawer>

@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using laundryghar.Identity.Application.Auth.Dtos;
 using laundryghar.Identity.Infrastructure.Auth;
 using laundryghar.Identity.Infrastructure.Services;
@@ -15,12 +14,18 @@ namespace laundryghar.Identity.Application.Auth.Commands;
 /// - Issues a customer JWT (token_use=customer) + rotating refresh token.
 /// - L2: phone masked in logs outside Development.
 /// - Writes login_history with customer_id.
+///
+/// Security properties enforced:
+///   SEC1 — Rolling-window lockout check before loading the OTP row (no existence oracle).
+///   SEC2 — HMAC-SHA256 verify with per-row salt; falls back to legacy SHA-256 for
+///           pre-migration rows (code_salt IS NULL).
 /// </summary>
 public sealed class CustomerOtpVerifyHandler : IRequestHandler<CustomerOtpVerifyCommand, CustomerTokenResponse>
 {
     private readonly LaundryGharDbContext _db;
     private readonly IJwtTokenService     _jwt;
     private readonly JwtSettings          _jwtSettings;
+    private readonly OtpSettings          _otpSettings;
     private readonly IHostEnvironment     _env;
     private readonly ILogger<CustomerOtpVerifyHandler> _logger;
 
@@ -28,19 +33,38 @@ public sealed class CustomerOtpVerifyHandler : IRequestHandler<CustomerOtpVerify
         LaundryGharDbContext db,
         IJwtTokenService jwt,
         IOptions<JwtSettings> jwtOptions,
+        IOptions<OtpSettings> otpOptions,
         IHostEnvironment env,
         ILogger<CustomerOtpVerifyHandler> logger)
     {
         _db          = db;
         _jwt         = jwt;
         _jwtSettings = jwtOptions.Value;
+        _otpSettings = otpOptions.Value;
         _env         = env;
         _logger      = logger;
     }
 
     public async Task<CustomerTokenResponse> Handle(CustomerOtpVerifyCommand cmd, CancellationToken ct)
     {
-        var codeHash = HashOtp(cmd.Code.Trim());
+        // SEC1: Rolling-window lockout — brand-scoped, checked BEFORE loading the OTP row.
+        var lockoutWindowCutoff = DateTimeOffset.UtcNow.AddMinutes(-_otpSettings.LockoutWindowMinutes);
+        var windowAttempts = await _db.OtpCodes
+            .Where(o => o.Identifier     == cmd.Phone
+                     && o.IdentifierType == "phone"
+                     && o.Purpose        == OtpPurpose.Login
+                     && o.ReferenceId    == cmd.ResolvedBrandId
+                     && o.ReferenceType  == "brand"
+                     && o.CreatedAt      > lockoutWindowCutoff)
+            .Select(o => o.Attempts)
+            .ToListAsync(ct);
+
+        var totalAttempts = OtpSecurityHelper.SumWindowAttempts(windowAttempts);
+        if (OtpSecurityHelper.ExceedsLockoutThreshold(totalAttempts, _otpSettings.LockoutThreshold))
+        {
+            throw new laundryghar.Utilities.Exceptions.BusinessRuleException(
+                $"Too many attempts. Try again in {_otpSettings.LockoutDurationMinutes} minutes.");
+        }
 
         // Find the most recent valid OTP for this phone scoped to this brand
         var otpCode = await _db.OtpCodes
@@ -60,7 +84,15 @@ public sealed class CustomerOtpVerifyHandler : IRequestHandler<CustomerOtpVerify
         if (otpCode.Attempts >= otpCode.MaxAttempts)
             throw new UnauthorizedAccessException("Maximum OTP attempts exceeded.");
 
-        if (!string.Equals(otpCode.CodeHash, codeHash, StringComparison.OrdinalIgnoreCase))
+        // SEC2: Verify using salted HMAC, falling back to legacy SHA-256 for pre-migration rows
+        var hmacKey = OtpSecurityHelper.ResolveHmacKey(_otpSettings, _env.IsDevelopment());
+        var isValid = OtpSecurityHelper.VerifyCode(
+            hmacKey,
+            otpCode.CodeSalt,
+            otpCode.CodeHash,
+            cmd.Code.Trim());
+
+        if (!isValid)
         {
             otpCode.Attempts++;
             await _db.SaveChangesAsync(ct);
@@ -96,10 +128,6 @@ public sealed class CustomerOtpVerifyHandler : IRequestHandler<CustomerOtpVerify
                 LoyaltyPointsBalance = 0,
                 WalletBalance    = 0,
                 // L1 (DPDP Act 2023): all marketing-class opt-ins default to false.
-                // Affirmative consent for each channel is captured later via
-                // the dedicated consent endpoints (dpdp_consents).
-                // Transactional communications (OTP, order status) are separately
-                // justified and do not depend on these flags.
                 MarketingOptIn   = false,
                 SmsOptIn         = false,
                 WhatsappOptIn    = false,
@@ -111,7 +139,6 @@ public sealed class CustomerOtpVerifyHandler : IRequestHandler<CustomerOtpVerify
             };
             _db.Customers.Add(customer);
             await _db.SaveChangesAsync(ct);
-            // L2: mask phone PII outside Development
             var logPhone = _env.IsDevelopment() ? cmd.Phone : CustomerOtpSendHandler.MaskPhone(cmd.Phone);
             _logger.LogInformation(
                 "Created new customer {CustomerId} for phone {Phone} brand {BrandId}.",
@@ -119,7 +146,6 @@ public sealed class CustomerOtpVerifyHandler : IRequestHandler<CustomerOtpVerify
         }
         else
         {
-            // Update last active + verify phone if not yet set
             if (customer!.PhoneVerifiedAt is null)
                 customer.PhoneVerifiedAt = DateTimeOffset.UtcNow;
             customer.LastActiveAt = DateTimeOffset.UtcNow;
@@ -150,7 +176,7 @@ public sealed class CustomerOtpVerifyHandler : IRequestHandler<CustomerOtpVerify
             Id         = rtId,
             CustomerId = customer.Id,
             TokenHash  = tokenHash,
-            FamilyId   = rtId,   // root: self-referential
+            FamilyId   = rtId,
             IpAddress  = ipAddress,
             UserAgent  = cmd.UserAgent,
             IssuedAt   = DateTimeOffset.UtcNow,
@@ -182,14 +208,13 @@ public sealed class CustomerOtpVerifyHandler : IRequestHandler<CustomerOtpVerify
             IsNewCustomer:    isNew);
     }
 
-    /// <summary>Generates a unique 10-char alphanumeric customer code for the brand.</summary>
     private async Task<string> GenerateUniqueCodeAsync(Guid brandId, CancellationToken ct)
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         for (int attempt = 0; attempt < 10; attempt++)
         {
             var code = new string(Enumerable.Range(0, 10)
-                .Select(_ => chars[RandomNumberGenerator.GetInt32(chars.Length)])
+                .Select(_ => chars[System.Security.Cryptography.RandomNumberGenerator.GetInt32(chars.Length)])
                 .ToArray());
 
             var exists = await _db.Customers
@@ -197,13 +222,6 @@ public sealed class CustomerOtpVerifyHandler : IRequestHandler<CustomerOtpVerify
 
             if (!exists) return code;
         }
-        // Fallback: Guid-based code (collision-safe but less pretty)
         return Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();
-    }
-
-    private static string HashOtp(string code)
-    {
-        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(code));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

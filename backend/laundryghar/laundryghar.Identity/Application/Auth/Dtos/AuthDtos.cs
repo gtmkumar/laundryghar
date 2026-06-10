@@ -10,7 +10,21 @@ public sealed record OtpVerifyRequest(string Identifier, string IdentifierType, 
 
 public sealed record RefreshTokenRequest(string RefreshToken);
 
+// System-user refresh body: RefreshToken is nullable so admin-web can omit it and
+// supply the token via the HttpOnly `lg_refresh` cookie instead. The endpoint resolves
+// body-first, cookie-fallback before building the command. pos-web / mobile system users
+// keep sending the token in the body (body wins for backward compat). Kept separate from
+// the shared RefreshTokenRequest so the customer lane's non-null contract is untouched.
+public sealed record SystemRefreshTokenRequest(string? RefreshToken = null);
+
 public sealed record LogoutRequest(string RefreshToken);
+
+// System-user logout body: RefreshToken is optional so admin-web can log out after a
+// hard reload (when it no longer holds the token in memory and the HttpOnly cookie is
+// path-scoped to /refresh, hence not sent to /logout). The endpoint always clears the
+// cookie; it only revokes the token family when a token is actually supplied. Separate
+// from the shared LogoutRequest so the customer lane's non-null contract is untouched.
+public sealed record SystemLogoutRequest(string? RefreshToken = null);
 
 public sealed record ForgotPasswordRequest(string Identifier, string IdentifierType);
 

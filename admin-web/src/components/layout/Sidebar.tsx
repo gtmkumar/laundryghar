@@ -197,7 +197,7 @@ export function Sidebar() {
               <p className="text-sm font-medium text-white truncate leading-tight">{displayName}</p>
               <p className="text-xs text-gray-500 leading-tight">{user?.user_type === 'platform_admin' ? 'Super Admin' : 'Member'}</p>
             </div>
-            <button type="button" title="Toggle theme" className="text-gray-500 hover:text-gray-300 transition-colors">
+            <button type="button" title="Toggle theme" aria-label="Toggle theme" className="text-gray-500 hover:text-gray-300 transition-colors">
               <Sun className="h-4 w-4" />
             </button>
           </>

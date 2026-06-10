@@ -12,21 +12,37 @@
  * dev build + key and is tracked as a follow-up.
  */
 import React, { useState } from 'react';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useQueryClient } from '@tanstack/react-query';
+import * as ImagePicker from 'expo-image-picker';
 import { useRiderTask, taskKeys } from '@/hooks/useRiderTasks';
 import { useTaskOverrideStore } from '@/store/taskOverrideStore';
-import { updateTaskStatus, verifyTaskOtp } from '@/api/tasks';
+import { useOfflineQueueStore } from '@/store/offlineQueueStore';
+import { useOfflineQueueFlush } from '@/hooks/useOfflineQueueFlush';
+import { updateTaskStatus, verifyTaskOtp, uploadProofPhoto, failTaskStatus } from '@/api/tasks';
 import { FEATURES } from '@/constants/config';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Button } from '@/components/ui/Button';
 import { OtpInput } from '@/components/ui/OtpInput';
 import { Avatar } from '@/components/ui/Avatar';
+import { useTranslation } from 'react-i18next';
+
+// ── Failure reason metadata ───────────────────────────────────────────────────
+
+type FailureReason = 'customer_unavailable' | 'address_issue' | 'customer_refused' | 'other';
+
+const FAILURE_REASONS: { key: FailureReason; label: string }[] = [
+  { key: 'customer_unavailable', label: 'Customer unavailable' },
+  { key: 'address_issue',        label: 'Address issue' },
+  { key: 'customer_refused',     label: 'Customer refused' },
+  { key: 'other',                label: 'Other' },
+];
 
 function MapPreview({ km, eta }: { km: number; eta?: number }) {
   return (
@@ -61,14 +77,38 @@ function MapPreview({ km, eta }: { km: number; eta?: number }) {
 
 export default function TaskDetailScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { task, isLoading } = useRiderTask(id);
-  const complete = useTaskOverrideStore((s) => s.complete);
+  const complete  = useTaskOverrideStore((s) => s.complete);
+  const enqueue   = useOfflineQueueStore((s) => s.enqueue);
+  const { pendingCount, flushOfflineQueue } = useOfflineQueueFlush();
 
   const [code, setCode] = useState('');
   const [otpError, setOtpError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // ── Failure reason modal ──────────────────────────────────────────────────
+  const [failModalVisible, setFailModalVisible] = useState(false);
+  const [failReason, setFailReason] = useState<FailureReason | null>(null);
+  const [failNote, setFailNote] = useState('');
+  const [failBusy, setFailBusy] = useState(false);
+
+  // Flush offline queue each time the task detail screen gains focus.
+  useFocusEffect(
+    React.useCallback(() => {
+      void flushOfflineQueue();
+    }, [flushOfflineQueue]),
+  );
+
+  // ── Proof photo (optional) ────────────────────────────────────────────────
+  // The confirm flow works regardless of whether a photo is attached.
+  // uploadState: idle | uploading | done | error
+  const [proofUri, setProofUri] = useState<string | null>(null);
+  const [proofMime, setProofMime] = useState<string>('image/jpeg');
+  const [photoUploadState, setPhotoUploadState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+  const [photoError, setPhotoError] = useState('');
 
   if (isLoading) return <ScreenLoader />;
   if (!task) return <ErrorState message="This task could not be found." />;
@@ -88,6 +128,43 @@ export default function TaskDetailScreen() {
     : isDropStep   ? `Drop #${task.orderNumber}`
     : isDelivery   ? `Delivering #${task.orderNumber}`
     :                `Picking up #${task.orderNumber}`;
+
+  /** Pick a photo from the camera or library. Degrades gracefully on permission denial. */
+  async function pickProofPhoto() {
+    setPhotoError('');
+    // Request media library permission — graceful degradation on denial.
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      setPhotoError('Photo library access denied. Grant permission in Settings to attach a photo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.75,       // reduce size; still well within the 10 MB limit
+      allowsEditing: false,
+      exif: false,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setProofUri(asset.uri);
+      setProofMime(asset.mimeType ?? 'image/jpeg');
+      setPhotoUploadState('idle');
+    }
+  }
+
+  /** Upload the selected proof photo separately from the main confirm flow. */
+  async function uploadPhoto() {
+    if (!task || !proofUri || photoUploadState === 'uploading') return;
+    setPhotoUploadState('uploading');
+    setPhotoError('');
+    try {
+      await uploadProofPhoto(task.id, proofUri, proofMime);
+      setPhotoUploadState('done');
+    } catch (e) {
+      setPhotoUploadState('error');
+      setPhotoError(e instanceof Error ? e.message : 'Photo upload failed. Tap retry.');
+    }
+  }
 
   async function confirm() {
     if (!task || busy) return;
@@ -120,9 +197,45 @@ export default function TaskDetailScreen() {
       void queryClient.invalidateQueries({ queryKey: taskKeys.today() });
       router.replace(`/(app)/delivered?id=${task.id}`);
     } catch (e) {
+      // Network failure — queue for retry on reconnect.
+      if (FEATURES.riderTasksApi) {
+        await enqueue({ taskId: task.id, status: 'completed' });
+        Alert.alert(
+          t('common.ok'),
+          'No connection right now. The task will be marked complete when you are back online.',
+          [{ text: t('common.ok') }],
+        );
+        setBusy(false);
+        return;
+      }
       setOtpError(e instanceof Error ? e.message : 'Could not confirm. Try again.');
       setCode('');
       setBusy(false);
+    }
+  }
+
+  /** Submit the failure reason + note to the server. */
+  async function handleFail() {
+    if (!task || failBusy || !failReason) return;
+    setFailBusy(true);
+    try {
+      if (FEATURES.riderTasksApi) {
+        await failTaskStatus(task.id, failReason, failNote.trim() || undefined);
+      }
+      void queryClient.invalidateQueries({ queryKey: taskKeys.today() });
+      setFailModalVisible(false);
+      router.back();
+    } catch {
+      // Queue the failure update for later retry.
+      await enqueue({ taskId: task.id, status: 'failed', reason: failReason, note: failNote.trim() || undefined });
+      setFailModalVisible(false);
+      Alert.alert(
+        t('common.ok'),
+        'No connection right now. The failure will be reported when you are back online.',
+        [{ text: t('common.ok') }],
+      );
+    } finally {
+      setFailBusy(false);
     }
   }
 
@@ -134,7 +247,7 @@ export default function TaskDetailScreen() {
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
         {/* Header */}
         <View className="flex-row items-center px-4 pb-2 pt-1">
-          <Pressable onPress={() => router.back()} hitSlop={8} className="h-9 w-9 items-center justify-center active:opacity-60">
+          <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('a11y.back')} className="h-9 w-9 items-center justify-center active:opacity-60">
             <Ionicons name="chevron-back" size={24} color="#1E2119" />
           </Pressable>
           <Text className="flex-1 text-center text-base font-extrabold text-ink">{title}</Text>
@@ -159,17 +272,46 @@ export default function TaskDetailScreen() {
                 <Pressable
                   onPress={() => void Linking.openURL(`tel:${task.customerPhone}`)}
                   className="h-10 w-10 items-center justify-center rounded-full border border-cream-300 active:opacity-70"
-                  accessibilityLabel="Call customer"
+                  accessibilityLabel={t('a11y.callCustomer')}
+                  accessibilityRole="button"
                 >
                   <Ionicons name="call-outline" size={18} color="#4A552A" />
                 </Pressable>
                 <Pressable
                   onPress={() => void Linking.openURL(`sms:${task.customerPhone}`)}
                   className="h-10 w-10 items-center justify-center rounded-full bg-olive-600 active:opacity-80"
-                  accessibilityLabel="Message customer"
+                  accessibilityLabel={t('a11y.messageCustomer')}
+                  accessibilityRole="button"
                 >
                   <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFFFFF" />
                 </Pressable>
+                {/* Directions — opens Google Maps universal URL when customer lat/lng are available */}
+                {task.lat != null && task.lng != null ? (
+                  <Pressable
+                    onPress={() => {
+                      const url = `https://www.google.com/maps/dir/?api=1&destination=${task.lat},${task.lng}`;
+                      void Linking.openURL(url);
+                    }}
+                    className="h-10 w-10 items-center justify-center rounded-full bg-gold-400 active:opacity-80"
+                    accessibilityLabel={t('a11y.openDirections')}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="navigate" size={18} color="#3B4423" />
+                  </Pressable>
+                ) : task.addressLine ? (
+                  // Fallback — no coords, use address text as a query
+                  <Pressable
+                    onPress={() => {
+                      const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(task.addressLine)}`;
+                      void Linking.openURL(url);
+                    }}
+                    className="h-10 w-10 items-center justify-center rounded-full bg-gold-400 active:opacity-80"
+                    accessibilityLabel={t('a11y.openDirections')}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="navigate" size={18} color="#3B4423" />
+                  </Pressable>
+                ) : null}
               </View>
             ) : null}
           </View>
@@ -178,13 +320,13 @@ export default function TaskDetailScreen() {
           {needsOtp ? (
             <View className="mt-4 rounded-3xl bg-gold-50 p-5">
               <Text className="text-center text-xs font-bold uppercase tracking-widest text-gold-700">
-                {isDelivery ? 'Delivery OTP' : 'Pickup OTP'}
+                {isDelivery ? t('taskDetail.otpSection') : t('taskDetail.otpSection')}
               </Text>
               <View className="mt-3">
                 <OtpInput value={code} onChangeText={(t) => { setOtpError(''); setCode(t); }} length={4} accent="gold" hasError={!!otpError} autoFocus />
               </View>
               <Text className={`mt-3 text-center text-xs ${otpError ? 'text-danger' : 'text-ink-muted'}`}>
-                {otpError || `Ask the customer for the 4-digit code to confirm ${isDelivery ? 'delivery' : 'pickup'}.`}
+                {otpError || t('taskDetail.otpInstruction')}
               </Text>
             </View>
           ) : null}
@@ -194,7 +336,7 @@ export default function TaskDetailScreen() {
             <View className="mt-4 flex-row items-center rounded-3xl bg-olive-100 p-5">
               <MaterialCommunityIcons name="storefront-outline" size={28} color="#4A552A" />
               <View className="ml-3 flex-1">
-                <Text className="text-base font-extrabold text-ink">Collected — drop at the laundry</Text>
+                <Text className="text-base font-extrabold text-ink">{t('taskDetail.markComplete')}</Text>
                 <Text className="mt-0.5 text-xs text-ink-muted">
                   Ride to your store and confirm the drop. We auto-detect arrival, or tap below.
                 </Text>
@@ -217,6 +359,88 @@ export default function TaskDetailScreen() {
             )}
           </View>
 
+          {/* ── Optional proof photo (delivery / drop step) ───────────────── */}
+          {/* Shown only on non-completed delivery/drop steps. The confirm flow  */}
+          {/* works whether or not a photo is attached.                          */}
+          {!isCompleted && (isDelivery || isDropStep) ? (
+            <View className="mt-4 rounded-3xl bg-white p-4" style={{ elevation: 1 }}>
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center gap-2">
+                  <Ionicons name="camera-outline" size={18} color="#4A552A" />
+                  <Text className="text-sm font-bold text-ink">Proof photo</Text>
+                  <Text className="text-xs text-ink-muted">(optional)</Text>
+                </View>
+                {proofUri ? (
+                  <Pressable
+                    onPress={() => { setProofUri(null); setPhotoUploadState('idle'); setPhotoError(''); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('a11y.removePhoto')}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#888" />
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {proofUri ? (
+                // Thumbnail + upload action
+                <View className="mt-3">
+                  <Image
+                    source={{ uri: proofUri }}
+                    style={{ width: '100%', height: 140, borderRadius: 12 }}
+                    resizeMode="cover"
+                    accessibilityLabel="Selected proof photo"
+                  />
+                  {photoUploadState === 'done' ? (
+                    <View className="mt-2 flex-row items-center gap-1.5">
+                      <Ionicons name="checkmark-circle" size={16} color="#4F8A4F" />
+                      <Text className="text-xs font-semibold text-success">Photo uploaded</Text>
+                    </View>
+                  ) : photoUploadState === 'error' ? (
+                    <View className="mt-2">
+                      <Text className="text-xs text-danger">{photoError}</Text>
+                      <Pressable
+                        onPress={() => void uploadPhoto()}
+                        className="mt-1.5 self-start rounded-xl bg-olive-600 px-3 py-1.5 active:opacity-70"
+                        accessibilityRole="button"
+                        accessibilityLabel={t('a11y.retryPhotoUpload')}
+                      >
+                        <Text className="text-xs font-bold text-white">Retry upload</Text>
+                      </Pressable>
+                    </View>
+                  ) : photoUploadState === 'uploading' ? (
+                    <Text className="mt-2 text-xs text-ink-muted">Uploading…</Text>
+                  ) : (
+                    // idle with photo selected — offer to upload
+                    <Pressable
+                      onPress={() => void uploadPhoto()}
+                      className="mt-2 self-start rounded-xl bg-olive-600 px-3 py-1.5 active:opacity-70"
+                      accessibilityRole="button"
+                      accessibilityLabel={t('a11y.uploadPhoto')}
+                    >
+                      <Text className="text-xs font-bold text-white">Upload photo</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : (
+                // No photo selected yet
+                <View className="mt-3">
+                  {photoError ? (
+                    <Text className="mb-2 text-xs text-danger">{photoError}</Text>
+                  ) : null}
+                  <Pressable
+                    onPress={() => void pickProofPhoto()}
+                    className="flex-row items-center gap-2 self-start rounded-2xl border border-olive-200 bg-olive-50 px-4 py-2 active:opacity-70"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('a11y.addProofPhoto')}
+                  >
+                    <Ionicons name="image-outline" size={18} color="#4A552A" />
+                    <Text className="text-sm font-semibold text-olive-700">Add proof photo</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          ) : null}
+
           {isCompleted ? (
             <View className="mt-4 items-center rounded-3xl bg-olive-100 p-5">
               <Ionicons name="checkmark-done-circle" size={32} color="#4A552A" />
@@ -228,19 +452,29 @@ export default function TaskDetailScreen() {
           ) : null}
         </ScrollView>
 
-        {/* Confirm */}
+        {/* Offline queue banner */}
+        {pendingCount > 0 ? (
+          <View className="mx-5 mb-1 flex-row items-center gap-2 rounded-2xl bg-gold-100 px-4 py-2.5">
+            <Ionicons name="cloud-offline-outline" size={16} color="#8A641D" />
+            <Text className="flex-1 text-xs font-semibold text-gold-800">
+              {pendingCount} update{pendingCount > 1 ? 's' : ''} queued — will retry when online.
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Confirm + Can't complete */}
         {!isCompleted ? (
-          <View className="px-5 pb-3 pt-1">
+          <View className="px-5 pb-3 pt-1 gap-2">
             {otpError && !needsOtp ? (
-              <Text className="mb-2 text-center text-xs text-danger" accessibilityRole="alert">
+              <Text className="mb-1 text-center text-xs text-danger" accessibilityRole="alert">
                 {otpError}
               </Text>
             ) : null}
             <Button
               title={
-                isDropStep ? 'Confirm drop at laundry'
-                : isDelivery ? 'Confirm delivered'
-                : 'Confirm collection'
+                isDropStep ? t('taskDetail.markComplete')
+                : isDelivery ? t('taskDetail.markComplete')
+                : t('taskDetail.markCollected')
               }
               iconLeft="checkmark"
               variant="confirm"
@@ -250,8 +484,84 @@ export default function TaskDetailScreen() {
               disabled={!canConfirm}
               onPress={() => void confirm()}
             />
+            <Button
+              title={t('taskDetail.failureModal.title')}
+              variant="secondary"
+              size="md"
+              fullWidth
+              disabled={busy}
+              onPress={() => setFailModalVisible(true)}
+            />
           </View>
         ) : null}
+
+        {/* Failure reason modal */}
+        <Modal
+          visible={failModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setFailModalVisible(false)}
+        >
+          <View className="flex-1 justify-end bg-black/40">
+            <View className="rounded-t-3xl bg-cream px-5 pb-8 pt-5">
+              <View className="mb-4 flex-row items-center">
+                <Text className="flex-1 text-base font-extrabold text-ink">{t('taskDetail.failureModal.title')}</Text>
+                <Pressable
+                  onPress={() => setFailModalVisible(false)}
+                  hitSlop={8}
+                  accessibilityLabel={t('a11y.close')}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="close" size={22} color="#3C3F35" />
+                </Pressable>
+              </View>
+
+              {FAILURE_REASONS.map((r) => {
+                const reasonLabel = t(`taskDetail.failureModal.reasons.${r.key}`, { defaultValue: r.label });
+                return (
+                  <Pressable
+                    key={r.key}
+                    onPress={() => setFailReason(r.key)}
+                    className={`mb-2 flex-row items-center rounded-2xl border px-4 py-3.5 active:opacity-70 ${failReason === r.key ? 'border-olive-500 bg-olive-50' : 'border-cream-300 bg-white'}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: failReason === r.key }}
+                    accessibilityLabel={reasonLabel}
+                  >
+                    <View className={`h-5 w-5 items-center justify-center rounded-full border-2 ${failReason === r.key ? 'border-olive-600 bg-olive-600' : 'border-cream-400 bg-white'}`}>
+                      {failReason === r.key ? <View className="h-2 w-2 rounded-full bg-white" /> : null}
+                    </View>
+                    <Text className={`ml-3 text-sm font-semibold ${failReason === r.key ? 'text-olive-800' : 'text-ink'}`}>
+                      {reasonLabel}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+
+              <TextInput
+                className="mt-2 rounded-2xl border border-cream-300 bg-white px-4 py-3 text-sm text-ink"
+                placeholder="Optional note (e.g. 'Door was locked')"
+                placeholderTextColor="#A8A493"
+                value={failNote}
+                onChangeText={setFailNote}
+                multiline
+                maxLength={200}
+                accessibilityLabel="Optional failure note"
+              />
+
+              <View className="mt-4">
+                <Button
+                  title={t('taskDetail.failureModal.submit')}
+                  variant="danger"
+                  fullWidth
+                  size="lg"
+                  loading={failBusy}
+                  disabled={!failReason || failBusy}
+                  onPress={() => void handleFail()}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );

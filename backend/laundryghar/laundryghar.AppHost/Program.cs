@@ -88,9 +88,12 @@ builder
     .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 
 // ── Worker — no HTTP endpoint; drains notifications_outbox + outbox_events ──────────
+// Generic host: reads DOTNET_ENVIRONMENT (ASPNETCORE_ENVIRONMENT is web-host only).
+// Without it the Worker sees "Production" and the PII cipher fails closed at startup.
 builder
     .AddProject<Projects.laundryghar_Worker>("worker")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
     .WithEnvironment("ConnectionStrings__Default", connStr)
     .WithEnvironment("ConnectionStrings__Admin", adminConnStr);
 

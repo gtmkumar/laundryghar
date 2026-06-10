@@ -36,6 +36,109 @@ export interface PaginatedListResponse<T> extends BaseResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Engagement / CMS DTOs — mirrors PublicEngagementEndpoints + EngagementDtos.cs
+// ---------------------------------------------------------------------------
+
+/** Mirrors OnboardingSlideDto */
+export interface OnboardingSlideDto {
+  id: string;
+  brandId: string;
+  appType: string;
+  title: string;
+  titleLocalized: string;
+  description?: string | null;
+  descriptionLocalized: string;
+  imageUrl: string;
+  imageDarkUrl?: string | null;
+  animationUrl?: string | null;
+  ctaText?: string | null;
+  ctaDeeplink?: string | null;
+  backgroundColor?: string | null;
+  textColor?: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  showFrom?: string | null;
+  showUntil?: string | null;
+  minAppVersion?: string | null;
+  maxAppVersion?: string | null;
+  targetSegments?: string[] | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Mirrors AppBannerDto */
+export interface AppBannerDto {
+  id: string;
+  brandId: string;
+  appType: string;
+  placement: string;
+  title?: string | null;
+  titleLocalized: string;
+  subtitle?: string | null;
+  subtitleLocalized: string;
+  imageUrl: string;
+  imageDarkUrl?: string | null;
+  ctaText?: string | null;
+  ctaDeeplink?: string | null;
+  externalUrl?: string | null;
+  promotionId?: string | null;
+  couponId?: string | null;
+  backgroundColor?: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  showFrom?: string | null;
+  showUntil?: string | null;
+  targetAudience?: string | null;
+  targetSegments?: string[] | null;
+  targetCities?: string[] | null;
+  impressionsCount: number;
+  clicksCount: number;
+  minAppVersion?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Mirrors MobileAppConfigDto — each row is a key/value config entry */
+export interface MobileAppConfigDto {
+  id: string;
+  brandId: string;
+  appType: string;
+  platform: string;
+  configKey: string;
+  configValue: string;
+  description?: string | null;
+  isForceUpdate: boolean;
+  minAppVersion?: string | null;
+  maxAppVersion?: string | null;
+  targetSegments?: string[] | null;
+  rolloutPercent?: number | null;
+  isActive: boolean;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Parsed shape of configValue for the "app_settings" configKey.
+ * The backend stores this as a JSON string — parse defensively.
+ *
+ * Version-gate contract (read by versionGate.ts):
+ *   min_version           — soft minimum: show dismissible banner if app < min_version
+ *   force_update_version  — hard minimum: blocking modal if app < force_update_version
+ *   store_url             — deep-link / https URL to open for forced updates (optional)
+ */
+export interface AppSettingsConfigValue {
+  min_version?: string;
+  force_update_version?: string;
+  /** App Store / Play Store URL shown in the force-update modal. */
+  store_url?: string;
+  maintenance_mode?: boolean;
+  feature_flags?: Record<string, boolean>;
+}
+
+// ---------------------------------------------------------------------------
 // Auth DTOs — rider uses the shared password login endpoint
 // POST /api/v1/auth/password/login  →  TokenResponse
 // POST /api/v1/auth/refresh         →  TokenResponse
@@ -231,6 +334,38 @@ export type RiderTaskPhase =
   | 'completed'
   | 'failed'
   | 'cancelled';
+
+// ---------------------------------------------------------------------------
+// Rider payouts DTOs — mirrors RiderPayoutSummaryDto / RiderPayoutDayDto
+// ---------------------------------------------------------------------------
+
+export interface RiderPayoutDayDto {
+  date:         string;   // DateOnly as "YYYY-MM-DD"
+  taskCount:    number;
+  totalPayout:  number;
+}
+
+export interface RiderPayoutSummaryDto {
+  totalPayout: number;
+  avgPerTask:  number;
+  days:        number;
+  breakdown:   RiderPayoutDayDto[];
+}
+
+// ---------------------------------------------------------------------------
+// Rider cash summary DTOs — mirrors RiderCashSummaryDto
+// ---------------------------------------------------------------------------
+
+export interface RiderCashSettlementItemDto {
+  settledAt: string;   // ISO-8601
+  amount:    number;
+}
+
+export interface RiderCashSummaryDto {
+  cashInHand:          number;
+  lastSettlementAt:    string | null;
+  recentSettlements:   RiderCashSettlementItemDto[];
+}
 
 // ---------------------------------------------------------------------------
 // Location ping DTOs — mirrors LocationPingInput / PingBatchResponse

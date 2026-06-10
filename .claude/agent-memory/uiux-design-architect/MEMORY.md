@@ -1,0 +1,2 @@
+- [LG palette contrast](lg-palette-contrast.md) — WCAG AA contrast ratios for LaundryGhar brand tokens; which combos fail and the fixes
+- [Web a11y component map](web-a11y-component-map.md) — where shared a11y primitives live in admin-web/pos-web + which files are off-limits

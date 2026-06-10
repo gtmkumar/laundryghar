@@ -1,6 +1,6 @@
 # LaundryGhar OLMS — Handoff
 
-_Last updated: 2026-06-09 (customer-mobile v2 redesign + live-test bug-fix sweep; Rider Ops initiative — Phases 1-4 + Maps settings)_
+_Last updated: 2026-06-10 (gap-analysis remediation initiative — ~25 of 32 tasks done, see §6 and `docs/GAP_ANALYSIS.md` Status; previously: customer-mobile v2 redesign + live-test bug-fix sweep; Rider Ops Phases 1-4 + Maps settings)_
 
 ## 1. What this is
 
@@ -580,15 +580,19 @@ service-to-service plumbing). Commits on `main` (newest first):
 
 ## 6. Remaining backlog (prod-hardening)
 
-> **2026-06-10 — full gap analysis completed.** A six-track review (backend, web clients,
-> mobile, security, docs, industry research) produced a consolidated gap register with 29
-> owner-assigned, prioritized tasks: see **`docs/GAP_ANALYSIS.md`**. Headlines: payment
-> gateway is a dev stub registered in ALL envs (CRITICAL — signature verify always passes),
-> no refund flow / cumulative cap, notifications never send (logging stub), PAN/bank PII
-> plaintext + returned in UserDto, no GST invoice, no DPDP erasure, subscriptions (ADR-010)
-> schema-only, no auto-dispatch / photo-PoD / TAT alerting, zero i18n & push notifications.
-> The items below predate that review and remain valid; the gap register supersedes this
-> list as the working backlog.
+> **2026-06-10 — full gap analysis completed AND largely remediated the same day.** A
+> six-track review (backend, web clients, mobile, security, docs, industry research)
+> produced a consolidated gap register (**`docs/GAP_ANALYSIS.md`**) that grew to 32
+> owner-assigned tasks; orchestrated specialist-agent rounds then closed **~25 of 32** —
+> including the Top-5 security items (env-gated real payment gateway, refund caps, PII
+> encryption/masking, IDOR sweep, OTP throttling), notification senders + push, booking
+> persistence, auto-dispatch, TAT alerting, royalty automation, GST invoices, DPDP
+> erasure, the subscriptions schema deployment (`db/patches/subscriptions_module.sql`),
+> and a docs-conformance cleanup (INDEX files, ADRs 001–010 in `docs/ADRs/`). Still
+> open at EOD: subscriptions service code (#17 follow-up), i18n (#23), QA regression
+> baseline (#26), accessibility (#28) — see the Status section atop `docs/GAP_ANALYSIS.md`
+> and the session task list for live truth. The items below predate that review; most are
+> now closed by it, and the gap register supersedes this list as the working backlog.
 
 - ~~**Secrets → a real manager**~~ ✅ DONE (2026-06-06, cloud-agnostic abstraction): added
   `ISecretsProvider` in `laundryghar.ServiceDefaults/Secrets/` (`EnvironmentSecretsProvider`

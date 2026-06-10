@@ -7,6 +7,7 @@ import {
   useDeleteOnboardingSlide,
 } from '@/hooks/useCms'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
+import { usePermissions } from '@/hooks/usePermissions'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { DataTable, type Column } from '@/components/shared/DataTable'
@@ -342,6 +343,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function OnboardingSlidesTab() {
+  // Backend gate: every slide mutation requires permission:cms.onboarding.manage.
+  const { hasPermission } = usePermissions()
+  const canManage = hasPermission('cms.onboarding.manage')
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<OnboardingSlideDto | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<OnboardingSlideDto | null>(null)
@@ -398,35 +402,37 @@ export function OnboardingSlidesTab() {
     },
     { header: 'Status', accessor: (r) => <StatusBadge status={r.status} /> },
     { header: 'Updated', accessor: (r) => formatDate(r.updatedAt) },
-    {
-      header: '',
-      accessor: (r) => (
-        <div className="flex gap-1 justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleEdit(r)
-            }}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              setDeleteTarget(r)
-            }}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-          >
-            Archive
-          </Button>
-        </div>
-      ),
-      className: 'w-36',
-    },
+    ...(canManage
+      ? [{
+          header: '',
+          accessor: (r: OnboardingSlideDto) => (
+            <div className="flex gap-1 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEdit(r)
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDeleteTarget(r)
+                }}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Archive
+              </Button>
+            </div>
+          ),
+          className: 'w-36',
+        } satisfies Column<OnboardingSlideDto>]
+      : []),
   ]
 
   if (isLoading) return <LoadingState message="Loading onboarding slides..." />
@@ -441,9 +447,11 @@ export function OnboardingSlidesTab() {
         {total !== undefined && (
           <p className="text-sm text-gray-500">{total} slide{total === 1 ? '' : 's'}</p>
         )}
-        <Button size="sm" onClick={() => setShowForm(true)} className="ml-auto">
-          + New Slide
-        </Button>
+        {canManage && (
+          <Button size="sm" onClick={() => setShowForm(true)} className="ml-auto">
+            + New Slide
+          </Button>
+        )}
       </div>
 
       <DataTable

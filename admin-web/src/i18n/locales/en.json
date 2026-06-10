@@ -1,0 +1,54 @@
+{
+  "common": {
+    "appName": "Laundry Ghar Admin",
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "save": "Save",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "signOut": "Sign out",
+    "export": "Export",
+    "today": "Today",
+    "days7": "7 days",
+    "days30": "30 days",
+    "new": "New",
+    "live": "Live"
+  },
+  "language": {
+    "title": "Language",
+    "english": "English",
+    "hindi": "हिन्दी"
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "signInConsole": "Sign in to your console",
+    "useCredentials": "Use your store or admin credentials.",
+    "yourRole": "Your Role",
+    "email": "Email",
+    "password": "Password",
+    "rememberDevice": "Remember this device",
+    "forgot": "Forgot?",
+    "signInArrow": "Sign in →",
+    "signingIn": "Signing in…",
+    "securityNote": "Protected by JWT + OTP MFA · TLS 1.3",
+    "troubleSignIn": "Trouble signing in? Contact IT · v2.0",
+    "loginFailed": "Login failed. Please check your credentials.",
+    "roles": {
+      "super_admin": "Super Admin",
+      "super_admin_sub": "All stores · system config",
+      "store_admin": "Store Admin",
+      "store_admin_sub": "Single store · staff & reports",
+      "warehouse": "Warehouse",
+      "warehouse_sub": "Check-in · QC · reconciliation"
+    }
+  },
+  "topbar": {
+    "operationsDashboard": "Operations · Dashboard",
+    "greeting_morning": "Good morning",
+    "greeting_afternoon": "Good afternoon",
+    "greeting_evening": "Good evening",
+    "searchPlaceholder": "Search orders, customers, riders…",
+    "stores_one": "All {{count}} store",
+    "stores_other": "All {{count}} stores"
+  }
+}

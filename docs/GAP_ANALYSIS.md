@@ -6,6 +6,21 @@ _Date: 2026-06-10 · Produced by a six-track review: backend implementation audi
 
 ---
 
+## Status (2026-06-10 EOD)
+
+The remediation initiative ran the same day this register was produced: **~25 of 32 tasks
+completed** via orchestrated specialist-agent rounds (payments hardening, refunds, PII
+encryption/masking, IDOR sweep, OTP throttling, notification senders + push, booking
+persistence, auto-dispatch, TAT alerting, royalty automation, GST invoices, DPDP erasure,
+warehouse/cash-book/expense admin features, and this docs cleanup #29). Still in flight or
+pending at EOD: **#17 subscriptions** (schema deployed 2026-06-10 via
+`db/patches/subscriptions_module.sql` — service entities/endpoints/dunning follow-up),
+**#23 i18n**, **#26 QA regression baseline**, **#28 accessibility**. The **session task
+list is the live source of truth** for per-task status; the register below is the
+point-in-time morning snapshot and is *not* updated per-row.
+
+---
+
 ## Executive summary
 
 The platform is architecturally strong (RS256/JWKS, enforced RLS under `app_user`, granular RBAC, transactional outbox, clean payment-gateway seam) and the operational core (order state machine, garment QC, rider ops, COD settlement, cash book) is real. What separates it from production is concentrated in five clusters:

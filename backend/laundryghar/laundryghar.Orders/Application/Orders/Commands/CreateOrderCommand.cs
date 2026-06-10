@@ -2,8 +2,10 @@ using System.Text.Json;
 using FluentValidation;
 using laundryghar.Orders.Application.Common;
 using laundryghar.Orders.Application.Orders.Dtos;
+using laundryghar.SharedDataModel.Entities.Commerce;
 using Microsoft.Extensions.Options;
 using MediatR;
+using laundryghar.SharedDataModel.Entities.CustomerCatalog;
 
 namespace laundryghar.Orders.Application.Orders.Commands;
 
@@ -47,6 +49,10 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
         var itemEntities  = new List<OrderItem>();
         var addonEntities = new List<OrderAddon>();
 
+        // Collect per-service TAT hours to feed the TAT calculator after the loop.
+        // Key: ServiceId → TAT hours (express or base depending on order type).
+        var serviceTatMap = new Dictionary<Guid, int>();
+
         for (int i = 0; i < req.Items.Length; i++)
         {
             var line = req.Items[i];
@@ -61,6 +67,19 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
                                    : resolved.BasePrice;
             var lineSubtotal = unitPrice * line.Quantity;
             subtotal += lineSubtotal;
+
+            // Collect service TAT (deduplicated per service; one DB fetch per unique service)
+            if (!serviceTatMap.ContainsKey(line.ServiceId))
+            {
+                var svc = await _db.Services
+                    .AsNoTracking()
+                    .Where(s => s.Id == line.ServiceId && s.BrandId == brandId)
+                    .Select(s => new { s.BaseTatHours, s.ExpressTatHours })
+                    .FirstOrDefaultAsync(ct);
+
+                if (svc is not null)
+                    serviceTatMap[line.ServiceId] = req.IsExpress ? svc.ExpressTatHours : svc.BaseTatHours;
+            }
 
             itemEntities.Add(new OrderItem
             {
@@ -93,6 +112,12 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
                 Status              = "active"
             });
         }
+
+        // ── Compute promised delivery date (TAT engine) ─────────────────────
+        // Uses MAX(service TAT hours) across all distinct services on the order.
+        // Falls back to config defaults when catalog TAT is absent (see TatCalculator).
+        var promisedDeliveryAt = TatCalculator.Compute(
+            now, req.IsExpress, [.. serviceTatMap.Values], _settings);
 
         // ── Process add-ons ─────────────────────────────────────────────────
         foreach (var aReq in req.Addons)
@@ -137,7 +162,81 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             ? Math.Round(subtotal * (_settings.ExpressSurchargePercent / 100m), 2)
             : 0m;
 
-        var taxableAmount = subtotal + addonTotal + expressSurcharge;
+        // ── Coupon resolution (server-side, mirrors Commerce ValidateApplyCouponHandler) ──
+        // Validate eligibility + compute discount before taxable amount so the
+        // discount reduces the tax base. Redemption row is inserted inside the
+        // transaction below to remain atomic with the order insert.
+        Coupon?          coupon          = null;
+        decimal          couponDiscount  = 0m;
+        CouponRedemption? couponRedemption = null;
+
+        if (!string.IsNullOrWhiteSpace(req.CouponCode))
+        {
+            var now2 = DateTimeOffset.UtcNow;
+            coupon = await _db.Coupons
+                .FirstOrDefaultAsync(x => x.Code == req.CouponCode.ToUpperInvariant()
+                                       && x.BrandId == brandId
+                                       && x.DeletedAt == null, ct);
+
+            if (coupon is null)
+                throw new BusinessRuleException($"Coupon '{req.CouponCode}' not found.");
+            if (coupon.Status != "active")
+                throw new BusinessRuleException("Coupon is not active.");
+            if (coupon.ValidFrom > now2)
+                throw new BusinessRuleException("Coupon is not yet valid.");
+            if (coupon.ValidUntil.HasValue && coupon.ValidUntil < now2)
+                throw new BusinessRuleException("Coupon has expired.");
+            if (coupon.MaxTotalUses.HasValue && coupon.CurrentUsageCount >= coupon.MaxTotalUses.Value)
+                throw new BusinessRuleException("Coupon has reached its maximum global usage limit.");
+
+            // Subtotal for minimum-order check (pre-coupon, pre-tax).
+            var orderSubtotal = subtotal + addonTotal + expressSurcharge;
+            if (orderSubtotal < coupon.MinOrderValue)
+                throw new BusinessRuleException(
+                    $"Order subtotal must be at least {coupon.MinOrderValue} to use this coupon.");
+
+            // Per-customer usage
+            var customerUsage = await _db.CouponRedemptions
+                .CountAsync(r => r.CouponId == coupon.Id
+                              && r.CustomerId == req.CustomerId
+                              && r.RevertedAt == null, ct);
+
+            if (coupon.IsSingleUsePerCust && customerUsage >= 1)
+                throw new BusinessRuleException("This coupon can only be used once per customer.");
+            if (customerUsage >= coupon.MaxUsesPerCustomer)
+                throw new BusinessRuleException(
+                    $"You have reached the maximum uses ({coupon.MaxUsesPerCustomer}) for this coupon.");
+
+            // Compute discount
+            couponDiscount = coupon.CouponType == "percent"
+                ? Math.Round(orderSubtotal * (coupon.DiscountValue / 100m), 2)
+                : coupon.DiscountValue;
+
+            if (coupon.MaxDiscountAmount.HasValue && couponDiscount > coupon.MaxDiscountAmount.Value)
+                couponDiscount = coupon.MaxDiscountAmount.Value;
+            if (couponDiscount > orderSubtotal)
+                couponDiscount = orderSubtotal;
+
+            // Build redemption entity (FK filled after order ID is known)
+            couponRedemption = new CouponRedemption
+            {
+                Id                    = Guid.NewGuid(),
+                CouponId              = coupon.Id,
+                BrandId               = brandId,
+                CustomerId            = req.CustomerId,
+                CouponCode            = coupon.Code,
+                DiscountAmount        = couponDiscount,
+                OrderSubtotalSnapshot = orderSubtotal,
+                RedeemedAt            = now2,
+                Metadata              = "{}",
+                CreatedAt             = now2,
+                CreatedBy             = req.CustomerId
+            };
+        }
+
+        var taxableAmount = subtotal + addonTotal + expressSurcharge - couponDiscount;
+        if (taxableAmount < 0m) taxableAmount = 0m;
+
         var halfRate      = _settings.TaxRatePercent / 2m;
         var taxTotal      = Math.Round(taxableAmount * (_settings.TaxRatePercent / 100m), 2);
         var cgst          = Math.Round(taxableAmount * (halfRate / 100m), 2);
@@ -177,10 +276,12 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             ExpressSurcharge = expressSurcharge,
             PickupCharge     = 0,
             DeliveryCharge   = 0,
-            DiscountTotal    = 0,
-            CouponDiscount   = 0,
+            DiscountTotal    = couponDiscount,
+            CouponDiscount   = couponDiscount,
             LoyaltyDiscount  = 0,
             PackageDiscount  = 0,
+            CouponId         = coupon?.Id,
+            CouponCode       = coupon?.Code,
             TaxableAmount    = taxableAmount,
             TaxTotal         = taxTotal,
             Cgst             = cgst,
@@ -193,11 +294,12 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             CurrencyCode     = _settings.DefaultCurrencyCode,
             TotalItems       = req.Items.Length,
             TotalGarments    = 0,
-            Status           = OrderStatus.Placed,
-            PaymentStatus    = "pending",
-            PlacedAt         = now,
-            NotesCustomer    = req.NotesCustomer,
-            Metadata         = "{}",
+            Status              = OrderStatus.Placed,
+            PaymentStatus       = "pending",
+            PlacedAt            = now,
+            PromisedDeliveryAt  = promisedDeliveryAt,
+            NotesCustomer       = req.NotesCustomer,
+            Metadata            = "{}",
             UpdatedAt        = now,
             CreatedBy        = cmd.ActorId,
             UpdatedBy        = cmd.ActorId,
@@ -245,14 +347,15 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             EventVersion  = 1,
             Payload       = JsonSerializer.Serialize(new
             {
-                orderId     = order.Id,
-                orderNumber = order.OrderNumber,
-                brandId     = brandId,
-                storeId     = req.StoreId,
-                customerId  = req.CustomerId,
-                grandTotal  = grandTotal,
-                currency    = _settings.DefaultCurrencyCode,
-                placedAt    = now
+                orderId            = order.Id,
+                orderNumber        = order.OrderNumber,
+                brandId            = brandId,
+                storeId            = req.StoreId,
+                customerId         = req.CustomerId,
+                grandTotal         = grandTotal,
+                currency           = _settings.DefaultCurrencyCode,
+                placedAt           = now,
+                promisedDeliveryAt = promisedDeliveryAt
             }),
             Metadata      = "{}",
             OccurredAt    = now,
@@ -271,6 +374,17 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             _db.OrderAddons.AddRange(addonEntities);
             _db.OrderStatusHistories.Add(history);
             _db.OutboxEvents.Add(outbox);
+
+            // Coupon: insert redemption + increment usage count atomically with the order.
+            if (couponRedemption is not null && coupon is not null)
+            {
+                couponRedemption.OrderId        = order.Id;
+                couponRedemption.OrderCreatedAt = order.CreatedAt;
+                _db.CouponRedemptions.Add(couponRedemption);
+                coupon.CurrentUsageCount++;
+                coupon.UpdatedAt = now;
+            }
+
             await _db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
         });
@@ -300,8 +414,10 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
         o.Id, o.CreatedAt, o.OrderNumber, o.BrandId, o.StoreId, o.CustomerId,
         o.Channel, o.OrderType, o.IsExpress,
         o.Subtotal, o.AddonTotal, o.ExpressSurcharge, o.TaxTotal, o.Cgst, o.Sgst,
+        o.DiscountTotal,
         o.GrandTotal, o.AmountPaid, o.AmountDue, o.CurrencyCode,
         o.TotalItems, o.Status, o.PaymentStatus, o.PlacedAt, o.UpdatedAt,
+        o.PromisedDeliveryAt,
         items?.Select(i => new OrderItemDto(
             i.Id, i.ServiceId, i.ItemId, i.ItemVariantId,
             i.ItemNameSnapshot, i.ServiceNameSnapshot,
@@ -312,7 +428,10 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             a.PricingType, a.UnitPrice, a.Quantity, a.TotalCharge)).ToList(),
         history?.Select(h => new OrderStatusHistoryDto(
             h.Id, h.FromStatus, h.ToStatus, h.ChangedAt, h.ChangedByType,
-            h.Reason, h.CustomerNotified)).ToList()
+            h.Reason, h.CustomerNotified)).ToList(),
+        o.Rating,
+        o.RatingComment,
+        o.RatedAt
     );
 }
 

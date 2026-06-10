@@ -42,6 +42,16 @@ public static class AdminPickupEndpoints
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<DeliveryAssignmentDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:pickup.assign");
 
+        // POST /pickup-requests/{id}/reject
+        // Permission: pickup.assign — no dedicated pickup.reject code exists; reusing pickup.assign
+        // is the correct choice because rejection and assignment are the two administrative
+        // disposition actions on a pending request and are always held by the same role.
+        pickups.MapPost("/{id:guid}/reject", async (Guid id, RejectPickupRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new RejectPickupCommand(id, req.Reason, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PickupRequestDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:pickup.assign");
+
         // ── Delivery slots ────────────────────────────────────────────────────
         var slots = group.MapGroup("/delivery-slots").WithTags("Admin - Delivery Slots");
 

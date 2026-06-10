@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useState } from 'react'
 import { Loader2, User, Lock } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { loginSchema, type LoginFormValues } from '@/types/schemas'
 import { passwordLogin } from '@/api/auth'
 import { useAuthStore } from '@/stores/authStore'
@@ -37,6 +38,7 @@ function landingPath(userType: string | undefined): string {
 }
 
 export function LoginPage() {
+  const { t } = useTranslation()
   const { accessToken, user, setTokens } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
@@ -69,7 +71,7 @@ export function LoginPage() {
       const dest = from !== '/' ? from : landingPath(useAuthStore.getState().user?.user_type)
       navigate(dest, { replace: true })
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.')
+      setServerError(err instanceof Error ? err.message : t('auth.loginFailed'))
     }
   }
 
@@ -156,14 +158,14 @@ export function LoginPage() {
 
             {/* Eyebrow + headline */}
             <div className="space-y-1">
-              <p className="text-xs font-semibold tracking-widest uppercase text-lg-green">Welcome back</p>
-              <h2 className="text-2xl font-bold text-gray-900">Sign in to your console</h2>
-              <p className="text-sm text-gray-500">Use your store or admin credentials.</p>
+              <p className="text-xs font-semibold tracking-widest uppercase text-lg-green">{t('auth.welcomeBack')}</p>
+              <h2 className="text-2xl font-bold text-gray-900">{t('auth.signInConsole')}</h2>
+              <p className="text-sm text-gray-500">{t('auth.useCredentials')}</p>
             </div>
 
             {/* Role selector */}
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Your Role</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{t('auth.yourRole')}</p>
               <div className="flex flex-col gap-2">
                 {ROLES.map((role) => {
                   const active = selectedRole === role.key
@@ -212,7 +214,7 @@ export function LoginPage() {
               {/* Email field */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase tracking-wider text-gray-500" htmlFor="identifier">
-                  Email
+                  {t('auth.email')}
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -238,7 +240,7 @@ export function LoginPage() {
               {/* Password field */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase tracking-wider text-gray-500" htmlFor="password">
-                  Password
+                  {t('auth.password')}
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -270,13 +272,13 @@ export function LoginPage() {
                     onChange={(e) => setRememberDevice(e.target.checked)}
                     className="rounded border-gray-300 accent-[#5C6E2E]"
                   />
-                  Remember this device
+                  {t('auth.rememberDevice')}
                 </label>
                 <button
                   type="button"
                   className="text-sm font-medium text-lg-green hover:underline"
                 >
-                  Forgot?
+                  {t('auth.forgot')}
                 </button>
               </div>
 
@@ -288,14 +290,14 @@ export function LoginPage() {
                 style={{ background: isSubmitting ? 'var(--lg-amber-hover, #d08f28)' : 'var(--lg-amber)', cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
               >
                 {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isSubmitting ? 'Signing in…' : 'Sign in →'}
+                {isSubmitting ? t('auth.signingIn') : t('auth.signInArrow')}
               </button>
             </form>
 
             {/* Footer */}
             <div className="text-center space-y-1">
-              <p className="text-xs text-gray-400">🔒 Protected by JWT + OTP MFA · TLS 1.3</p>
-              <p className="text-xs text-gray-400">Trouble signing in? Contact IT · v2.0</p>
+              <p className="text-xs text-gray-400">{t('auth.securityNote')}</p>
+              <p className="text-xs text-gray-400">{t('auth.troubleSignIn')}</p>
             </div>
           </div>
         </div>

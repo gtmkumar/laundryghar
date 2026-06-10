@@ -6,6 +6,7 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
+import { initialisePushNotifications } from '@/lib/pushNotifications';
 
 const CREAM = '#F3EEE3';
 
@@ -18,6 +19,14 @@ export default function AppLayout() {
       router.replace('/(auth)/onboarding');
     }
   }, [accessToken, isHydrated, router]);
+
+  // Register for push notifications when the customer is authenticated.
+  // Best-effort — failures never block navigation or render.
+  useEffect(() => {
+    if (isHydrated && accessToken) {
+      void initialisePushNotifications();
+    }
+  }, [isHydrated, accessToken]);
 
   return (
     <Stack

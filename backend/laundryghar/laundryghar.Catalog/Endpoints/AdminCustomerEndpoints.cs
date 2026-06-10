@@ -15,6 +15,12 @@ public static class AdminCustomerEndpoints
     {
         var customers = group.MapGroup("/customers").WithTags("Admin - Customers");
 
+        customers.MapPost("/", async (AdminCreateCustomerRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new AdminCreateCustomerCommand(req, u.UserId), ct);
+            return Results.Created($"/api/v1/admin/customers/{r.Id}", new SingleResponse<AdminCustomerDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:customer.create");
+
         customers.MapGet("/", async (
             [FromServices] ISender sender, CancellationToken ct,
             int page = 1, int pageSize = 20, string? status = null, string? search = null) =>

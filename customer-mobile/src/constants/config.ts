@@ -44,6 +44,35 @@ export type ServiceName = keyof typeof CONFIG;
 // scheduling a real pickup request. Flip this on once the endpoint ships.
 // ---------------------------------------------------------------------------
 export const FEATURES = {
-  bookingApi: false,
+  bookingApi: true,   // POST /api/v1/customer/pickup-requests is live with cart items
   socialLogin: false, // Google / Apple sign-in buttons are presentational for now
+  /**
+   * Push notifications — Expo push token registration + foreground handler.
+   * Requires a dev/production build for full iOS support (Expo Go iOS cannot
+   * obtain push tokens). Set to false to skip all push initialisation.
+   */
+  pushNotifications: true,
+  /**
+   * Wallet top-up — gates the Razorpay payment sheet.
+   * Set to false until the native Razorpay SDK is integrated (requires custom dev build).
+   * When false, 'Add money' shows a 'coming soon' bottom sheet explaining amounts.
+   */
+  walletTopUp: false,
+  /**
+   * Sentry crash reporting — gates initialiseSentry() in lib/sentry.ts.
+   * Sentry is ALSO disabled when no DSN is configured or when __DEV__ === true,
+   * regardless of this flag. Set to false to fully opt-out of crash reporting.
+   */
+  crashReporting: true,
+  /**
+   * OTA updates — gates the expo-updates check on boot.
+   * Always a no-op in Expo Go (Updates.isEnabled === false) and in dev builds.
+   * Set to false to disable the update check without removing the package.
+   */
+  otaUpdates: true,
+  /**
+   * Version gate — evaluates min/force-update versions from app_settings config.
+   * When false the version-gate UI is never shown, even if the backend signals an update.
+   */
+  versionGate: true,
 } as const;

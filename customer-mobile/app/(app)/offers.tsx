@@ -86,6 +86,7 @@ export default function OffersScreen() {
       <Pressable
         onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)/(tabs)/home'))}
         className="h-10 w-10 items-center justify-center rounded-full bg-white"
+        accessibilityRole="button"
         accessibilityLabel="Go back"
       >
         <Ionicons name="chevron-back" size={22} color="#3C3F35" />

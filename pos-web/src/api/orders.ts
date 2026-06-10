@@ -56,3 +56,26 @@ export async function updateOrderStatus(
   )
   return unwrap(data)
 }
+
+// ── Invoice ───────────────────────────────────────────────────────────────────
+// POST /api/v1/admin/orders/{id}/invoice   → generate (idempotent); gated to
+//   billable statuses (ready | delivered | closed) by the backend.
+// GET  /api/v1/admin/orders/{id}/invoice.pdf → PDF bytes (existing invoice only).
+
+export async function generateInvoice(id: string): Promise<void> {
+  await ordersClient.post(`${ADMIN}/orders/${id}/invoice`)
+}
+
+/**
+ * Fetches the rendered invoice PDF as a Blob.
+ * The order must already have an invoice (call generateInvoice first when the
+ * status allows). The axios client attaches the auth + brand headers so we can
+ * authenticate the binary fetch without exposing the token in a URL.
+ */
+export async function getInvoicePdf(id: string): Promise<Blob> {
+  const { data } = await ordersClient.get<Blob>(
+    `${ADMIN}/orders/${id}/invoice.pdf`,
+    { responseType: 'blob' },
+  )
+  return data
+}

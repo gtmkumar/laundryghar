@@ -27,6 +27,10 @@ public sealed class PickupRequestConfiguration : IEntityTypeConfiguration<Pickup
         b.Property(e => e.EstimatedAmount).HasColumnName("estimated_amount").HasColumnType("numeric(14,2)");
         b.Property(e => e.ServicesRequested).HasColumnName("services_requested").HasColumnType("uuid[]").IsRequired();
         b.Property(e => e.CustomerNotes).HasColumnName("customer_notes");
+        b.Property(e => e.RequestedItems).HasColumnName("requested_items").HasColumnType("jsonb").IsRequired()
+            .HasDefaultValueSql("'[]'::jsonb");
+        b.Property(e => e.PaymentPreference).HasColumnName("payment_preference").HasMaxLength(20).IsRequired()
+            .HasDefaultValue("cod");
         // Scalar-only composite FK columns to orders — no navigation configured (nullable composite FK)
         b.Property(e => e.ConvertedOrderId).HasColumnName("converted_order_id");
         b.Property(e => e.ConvertedOrderCreatedAt).HasColumnName("converted_order_created_at");

@@ -33,3 +33,11 @@ public sealed record AdminUpdateCustomerRequest(
     string? CustomerSegment,
     string? RiskFlag
 );
+
+/// <summary>Request body for POST /api/v1/admin/customers (counter / admin customer creation).</summary>
+public sealed record AdminCreateCustomerRequest(
+    string Phone,
+    string? FirstName,
+    string? LastName,
+    string? Email
+);

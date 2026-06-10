@@ -146,6 +146,8 @@ if (runSeed)
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
+// No-op in Development. Must run before UseCors so headers appear on preflight responses.
+app.UseSecurityHeaders();
 app.UseCors();
 app.UseMiddleware<ExceptionHandler>();
 app.UseAuthentication();
@@ -185,9 +187,11 @@ var v1 = app.MapGroup("/api/v1");
 var admin = v1.MapGroup("/admin").RequireAuthorization();
 admin.MapAdminOrderEndpoints();
 admin.MapAdminPickupEndpoints();
+admin.MapAdminInvoiceEndpoints();
 
 var customer = v1.MapGroup("/customer").RequireAuthorization("CustomerOnly");
 customer.MapCustomerOrderEndpoints();
+customer.MapCustomerInvoiceEndpoints();
 
 // ─── Aspire default health endpoints (/health + /alive, Development only) ─────────────
 app.MapDefaultEndpoints();

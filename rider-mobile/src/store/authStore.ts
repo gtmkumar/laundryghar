@@ -10,6 +10,7 @@ import * as SecureStore from 'expo-secure-store';
 import { configureApiAuth } from '@/api/client';
 import { logout as apiLogout } from '@/api/auth';
 import type { RiderDto, TokenResponse } from '@/types/api';
+import { deregisterPushNotifications } from '@/lib/pushNotifications';
 
 // ---------------------------------------------------------------------------
 // SecureStore keys
@@ -52,6 +53,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   logout: async () => {
     const { refreshToken } = get();
+    // Deactivate push token BEFORE clearing auth state — the API call needs
+    // the Bearer token still valid. Best-effort — never blocks logout.
+    await deregisterPushNotifications();
     // Clear the local session FIRST so the (app) auth guard redirects to login
     // immediately — even if the network revoke below hangs or 401s (which is
     // exactly the case when the token has already expired/been invalidated).

@@ -10,6 +10,7 @@ global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Logging;
 global using laundryghar.SharedDataModel.Persistence;
 global using laundryghar.SharedDataModel.Entities.FinanceRoyalty;
+global using laundryghar.SharedDataModel.Entities.FinanceRoyalty.Subscriptions;
 global using laundryghar.SharedDataModel.Entities.TenancyOrg;
 global using laundryghar.SharedDataModel.Enums;
 global using laundryghar.Utilities.ApiResponse.ResponseUtil;

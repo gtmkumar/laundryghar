@@ -1,6 +1,7 @@
 import { useAnalyticsDashboard } from '@/hooks/useAnalytics'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
+import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ShoppingCart, DollarSign, Users, TrendingUp } from 'lucide-react'
 
@@ -45,7 +46,7 @@ export function AnalyticsDashboardTab() {
   const { data, isLoading, isError, error, refetch } = useAnalyticsDashboard()
 
   if (isLoading) return <LoadingState message="Loading dashboard..." />
-  if (isError) return <ErrorState error={error as Error} onRetry={() => void refetch()} />
+  if (isError) return isForbiddenError(error) ? <ForbiddenState /> : <ErrorState error={error as Error} onRetry={() => void refetch()} />
   if (!data) return null
 
   const { today, thisMonth, topCustomersByLtv } = data

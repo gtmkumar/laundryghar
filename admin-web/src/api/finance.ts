@@ -9,6 +9,11 @@ import type {
   ExpenseCategoryDto,
   CreateExpensePayload,
   OpenCashBookPayload,
+  RoyaltyInvoiceDto,
+  RoyaltyListParams,
+  GenerateRoyaltyInvoicePayload,
+  IssueRoyaltyInvoicePayload,
+  RecordRoyaltyPaymentPayload,
 } from '@/types/api'
 
 const ADMIN = '/api/v1/admin'
@@ -75,6 +80,57 @@ export async function markExpensePaid(id: string, notes?: string): Promise<Expen
   const { data } = await financeClient.post<ApiResponse<ExpenseDto>>(
     `${ADMIN}/expenses/${id}/mark-paid`,
     { notes: notes ?? null },
+  )
+  return unwrap(data)
+}
+
+// ── Royalty invoices ─────────────────────────────────────────────────────────
+
+export async function getRoyaltyInvoices(
+  params: RoyaltyListParams = {},
+): Promise<PaginatedList<RoyaltyInvoiceDto>> {
+  const { data } = await financeClient.get<ApiResponse<PaginatedList<RoyaltyInvoiceDto>>>(
+    `${ADMIN}/royalty-invoices`,
+    { params: { page: 1, pageSize: 100, ...params } },
+  )
+  return unwrapPaginated(data)
+}
+
+export async function getRoyaltyInvoice(id: string): Promise<RoyaltyInvoiceDto> {
+  const { data } = await financeClient.get<ApiResponse<RoyaltyInvoiceDto>>(
+    `${ADMIN}/royalty-invoices/${id}`,
+  )
+  return unwrap(data)
+}
+
+export async function generateRoyaltyInvoice(
+  payload: GenerateRoyaltyInvoicePayload,
+): Promise<RoyaltyInvoiceDto> {
+  const { data } = await financeClient.post<ApiResponse<RoyaltyInvoiceDto>>(
+    `${ADMIN}/royalty-invoices/generate`,
+    payload,
+  )
+  return unwrap(data)
+}
+
+export async function issueRoyaltyInvoice(
+  id: string,
+  payload: IssueRoyaltyInvoicePayload,
+): Promise<RoyaltyInvoiceDto> {
+  const { data } = await financeClient.post<ApiResponse<RoyaltyInvoiceDto>>(
+    `${ADMIN}/royalty-invoices/${id}/issue`,
+    payload,
+  )
+  return unwrap(data)
+}
+
+export async function recordRoyaltyPayment(
+  id: string,
+  payload: RecordRoyaltyPaymentPayload,
+): Promise<RoyaltyInvoiceDto> {
+  const { data } = await financeClient.post<ApiResponse<RoyaltyInvoiceDto>>(
+    `${ADMIN}/royalty-invoices/${id}/record-payment`,
+    payload,
   )
   return unwrap(data)
 }

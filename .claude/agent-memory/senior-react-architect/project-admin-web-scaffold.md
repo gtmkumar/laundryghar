@@ -13,7 +13,7 @@ Admin-web lives at `admin-web/` (repo root). Stack: React 19 + Vite + TypeScript
 - `/` — DashboardPage
 - `/tenancy` — TenancyPage (stores + franchises tabs)
 - `/catalog` — CatalogPage (service categories + services + price lists tabs)
-- `/orders` — OrdersPage (paginated list + status filter)
+- `/orders` — OrdersPage (infinite-scroll list + status filter; row click opens OrderDetailDrawer with status actions, notes, invoice). Status state-machine mirrored client-side in `pages/orders/orderStatus.ts` (must track `laundryghar.Orders/Application/Common/OrderStateMachine.cs`). Orders perm codes: `orders.read`, `orders.status.update` (PATCH status — NOT orders.update), `orders.cancel`, `orders.notes.manage`, `orders.update` (POST invoice generate). Invoice only generatable in ready/delivered/closed; PDF via responseType:'blob' + object URL in api/orders.ts.
 - `/cms` — CmsPage (Engagement service, port 5007) — added 2026-06-06
 - `/analytics` — AnalyticsPage (Analytics service, port 5008) — added 2026-06-06
 

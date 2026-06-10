@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FluentValidation;
 using laundryghar.Orders.Application.Common;
 using laundryghar.Orders.Application.Orders.Dtos;
 using laundryghar.SharedDataModel.Entities.Commerce;
@@ -78,12 +79,15 @@ public sealed class CancelOrderHandler : IRequestHandler<CancelOrderCommand, Ord
             EventVersion  = 1,
             Payload       = JsonSerializer.Serialize(new
             {
-                orderId    = order.Id,
+                orderId     = order.Id,
+                orderNumber = order.OrderNumber,
                 brandId,
                 fromStatus,
-                toStatus   = OrderStatus.Cancelled,
-                reason     = cmd.Reason,
-                changedAt  = now
+                toStatus    = OrderStatus.Cancelled,
+                reason      = cmd.Reason,
+                changedAt   = now,
+                // ISO date (yyyy-MM-dd) when a pickup slot was booked; null otherwise.
+                pickupDate  = order.PickupScheduledAt?.ToString("yyyy-MM-dd")
             }),
             Metadata    = "{}",
             OccurredAt  = now,
@@ -95,7 +99,7 @@ public sealed class CancelOrderHandler : IRequestHandler<CancelOrderCommand, Ord
         _db.OrderStatusHistories.Add(history);
         _db.OutboxEvents.Add(outbox);
 
-        // ── Refund initiation (best-effort) ────────────────────────────────────
+        // ── Refund initiation (best-effort) ─────────────────────────────────────
         // If the cancelled order has a captured/completed payment, create a
         // pending refund row and emit a refund.initiated outbox event.
         // Runs in the same SaveChangesAsync call for atomicity.
@@ -140,7 +144,7 @@ public sealed class CancelOrderHandler : IRequestHandler<CancelOrderCommand, Ord
             OrderCreatedAt    = order.CreatedAt,
             CustomerId        = payment.CustomerId,
             RefundNumber      = refundNumber,
-            RefundType        = "gateway",
+            RefundType        = "full",
             Amount            = payment.Amount,
             Reason            = "order_cancelled",
             ReasonText        = order.CancellationReason,
@@ -184,5 +188,29 @@ public sealed class CancelOrderHandler : IRequestHandler<CancelOrderCommand, Ord
         };
 
         _db.OutboxEvents.Add(refundOutbox);
+    }
+}
+
+// ── Validators ────────────────────────────────────────────────────────────────
+
+public sealed class CancelOrderValidator : AbstractValidator<CancelOrderCommand>
+{
+    public CancelOrderValidator()
+    {
+        RuleFor(x => x.OrderId).NotEmpty();
+        RuleFor(x => x.Reason)
+            .MaximumLength(500)
+            .When(x => x.Reason is not null);
+    }
+}
+
+public sealed class CancelOrderByCustomerValidator : AbstractValidator<CancelOrderByCustomerCommand>
+{
+    public CancelOrderByCustomerValidator()
+    {
+        RuleFor(x => x.OrderId).NotEmpty();
+        RuleFor(x => x.Reason)
+            .MaximumLength(500)
+            .When(x => x.Reason is not null);
     }
 }

@@ -11,10 +11,17 @@ export async function passwordLogin(req: PasswordLoginRequest): Promise<TokenRes
   return unwrap(data)
 }
 
+/**
+ * Refresh against Identity. The refresh token is supplied by the HttpOnly
+ * `lg_refresh` cookie (withCredentials), with an optional in-memory body token
+ * for backward compat. Most refreshes go through refreshAccessToken() in
+ * api/client.ts; this remains for any direct caller.
+ */
 export async function refreshTokens(req: RefreshTokenRequest): Promise<TokenResponse> {
   const { data } = await identityClient.post<ApiResponse<TokenResponse>>(
     `${BASE}/refresh`,
     req,
+    { withCredentials: true },
   )
   return unwrap(data)
 }
