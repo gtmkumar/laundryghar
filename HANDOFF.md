@@ -74,16 +74,96 @@ self-service, full-profile edit) is built, security-gated, and verified live + i
 on `user_profiles`, and their **primary role can be changed** from the Access-control person
 drawer (fix a wrongly-assigned role) — see §4.
 The **Rider Ops initiative (Phases 1-4)** is complete (see §4): a live tracking board, geofence
-auto-status + drop-at-laundry round-trip, COD cash + settlement reconciliation, and a configurable
-payout engine — plus a provider-pluggable Maps setting (OSM default; Google/Mapbox via Settings).
-Last full clean rebuild + run validated green: all 9 HTTP services + Worker healthy.
+auto-status + drop-at-laundry round-trip, COD cash + settlement reconciliation (now **also posting
+to the finance cash book**), and a configurable payout engine. The live map renders on **all three
+providers for real** (OSM default; Google + Mapbox via Settings → Maps); rider COD `TotalKm` is
+computed from the **GPS breadcrumb**; rider-mobile has **background GPS** (needs a dev build).
+The **admin console is now built on two shared components** — `FilterableTable` (every list) and
+`FormDrawer` (every add/edit/view drawer) — and several placeholder screens are live: **Customers**,
+**Cash book**, and **Expenses** (all with search/filter/sort; finance has create + approval flows).
 The **customer-mobile app was redesigned to "v2"** (warm cream/olive/gold, bottom tabs + FAB,
-full pickup booking flow) and **live-tested on iOS + Android** — 6 runtime bugs found & fixed
-(see §4). First customer-mobile commit `237b8ff` predates those fixes, so the v2 fixes are uncommitted.
+full pickup booking flow) and **live-tested on iOS + Android** — 6 runtime bugs found & fixed (see §4).
+Last full clean rebuild + run validated green: all 9 HTTP services + Worker healthy.
 
 ## 4. What changed in recent sessions
 
-### 2026-06-09 (latest) — customer-mobile "v2" redesign + live-test bug-fix sweep
+### 2026-06-10 (latest) — admin-web shared components + finance/tenancy build-out + map providers + rider-ops polish
+
+A big admin-web consistency pass plus several backend/mobile features. **All committed** (`cce98ed`
+→ `0c90a07`); working tree clean. New deps: admin-web `@vis.gl/react-google-maps` + dev
+`@types/google.maps`; rider-mobile `expo-task-manager`.
+
+**Two shared components now back the whole admin (the headline):**
+
+- **`admin-web/src/components/shared/FilterableTable.tsx`** — wraps `DataTable` with a search box,
+  config-driven dropdown `filters`, header sorting (`Column.sortKey`/`sortAccessor`), and a result
+  count. **Every list uses it:** Tenancy (Stores / Franchises / Warehouses), Customers, Cash book,
+  Expenses. Client-side over already-loaded rows. **Riders roster is deliberately NOT on it** — it
+  does server-side search/filter/sort (correct at scale; converting would regress it).
+- **`admin-web/src/components/shared/FormDrawer.tsx`** — the ONE right-side drawer chrome for
+  add/edit/view. Props: `header`/`headerAction`/`headerExtra`, `bodyClassName`, `elevated` (z-[60]
+  layering), `footer` (node = custom, `null` = hidden, omit = standard Cancel+submit). Body
+  primitives exported here too: `DrawerSection`, `Field`, `drawerInputCls`, and read-only
+  `DetailSection` (`plain` variant) / `DetailRow` (optional `icon`). **All 11 drawers migrated** —
+  no hand-rolled `fixed inset-0` overlays left (tenancy store/warehouse, rider onboard/edit/detail,
+  customer view/edit, access-control invite/franchise-team/person-detail). When adding a new admin
+  list or drawer, **compose these — don't hand-roll.**
+
+**Tenancy (`pages/tenancy/`):**
+
+- **Stores:** "Add store" (franchise selector = the store↔franchise mapping; store type per the DB
+  `store_type` check; a **"Same as franchise address"** checkbox that pulls the franchise's
+  operational/billing address via the onboarding endpoint). Row actions: **Edit**, **Activate**
+  (→`active`) / **Deactivate** (→`paused`). New **Franchise** column + search/filter/sort.
+- **Franchises:** got search + Status/Onboarding filters + sortable columns for free.
+- **Warehouses (new tab):** Add / View / Edit / Activate / Deactivate. **Backend gap filled** —
+  added `UpdateWarehouse` (PUT `/api/v1/admin/warehouses/{id}`) + command/handler + the
+  **`warehouses.update` permission** (seeded + granted to brand_admin / franchise_owner). ⚠️ **Needs
+  a backend restart + users re-login** for the new permission to land in the JWT.
+
+**Customers (`pages/customers/`) — new page** (was a ComingSoon placeholder). FilterableTable list
+(search code/name/phone/email; Status/Segment filters) + **View** drawer + **Edit** drawer
+(`AdminUpdateCustomer`; gender & risk-flag are constrained `<select>`s matching the DB checks:
+risk_flag ∈ normal/watchlist/blocked/vip). Route wired in `App.tsx`.
+
+**Finance (`pages/finance/`) — two new pages** (Cash book + Expenses, both ComingSoon before). Added
+`financeClient` (the one missing service client), `api/finance.ts`, `hooks/useFinance.ts`. Read-only
+FilterableTable lists, plus **create flows**: **Open cash book** (store→derives franchise, date,
+shift, opening balance), **Add expense** (franchise/store/category, amount/tax/mode, submit-vs-draft),
+**Reject** drawer. Expense **row actions**: Approve / Reject(reason) / Mark-paid (permission-aware).
+All Finance endpoints already existed.
+
+**Finance cash_book posting on rider COD settlement (backend) —** the long-deferred follow-up.
+`SettleRiderCodHandler` (Logistics) now mirrors the handed-over cash into the store's finance cash
+book **in the same `SaveChanges`** (all services share one `LaundryGharDbContext`, so it writes
+`finance_royalty.cash_book*` directly — no cross-service call). Finds-or-opens that day's `full_day`
+book for the settlement's store, adds a `cash_in` / `order_payment` / +1 / cash entry
+(`reference_type='rider_settlement'`), bumps `CashInflow`. **Best-effort:** a no-op when there's no
+store or the day's book is already closed (the `rider_settlements` row always stands). Magic strings
+replaced with named `const`s in that file. Verified live (settle ₹350 → entry posted + book
+auto-opened); test data restored.
+
+**Map providers — all three now render for real** (`components/map/`). The provider abstraction +
+Settings → Maps panel already existed but google/mapbox fell back to OSM. Now: **Mapbox** =
+`RiderLeafletMap` with Mapbox raster tiles (no new dep); **Google** = `RiderGoogleMap` via
+`@vis.gl/react-google-maps` (imperative markers/trail/fit on the `google.maps.Map`; `@types/
+google.maps` force-included with `/// <reference>` since `tsconfig.app.json` pins `types`). A keyed
+provider activates only once its key/token is saved in **Settings → Maps**; otherwise OSM. Verified
+Google live with a user key (gitignored `.env.local`, removed after). Stale MapsPanel footnote fixed.
+
+**rider-mobile background GPS —** `src/lib/backgroundLocation.ts` defines an `expo-task-manager`
+task that posts the freshest fix; `useLocationTracking` is now **background-first** (falls back to
+the 25s foreground interval when background can't run — Expo Go / denied Always). Native config in
+`app.config.ts` (iOS `UIBackgroundModes`, Android background+foreground-service perms, expo-location
+background flags). Task registered via side-effect import in `app/_layout.tsx`. **Needs a dev/prod
+build to exercise** (background location isn't available in Expo Go).
+
+**Rider stats `TotalKm` —** was `sum(distance_km)` over completed legs (read **0.0 km** for an
+active-but-unfinished shift). Now = **actual distance from the GPS breadcrumb** (haversine over
+consecutive `rider_location_pings`, steps <15 m dropped as jitter), falling back to completed-leg
+distance only when there are no pings. Verified: a 15-ping trail → 0.88 km. See `GetRiderStatsHandler`.
+
+### 2026-06-09 — customer-mobile "v2" redesign + live-test bug-fix sweep
 
 Full visual + flow redesign of **`customer-mobile/`** to the v2 mockups (`customerappscreen/`):
 warm **cream/olive/gold** palette (copied from rider-mobile's `tailwind.config.js`), a **custom
@@ -535,10 +615,11 @@ service-to-service plumbing). Commits on `main` (newest first):
   columns, no endpoint).
 - **Rider Ops (Phases 1-4) follow-ups** (see §4): (i) **rider-session live E2E** of geofence
   auto-arrival / two-step pickup / COD-at-delivery / payout-at-completion — built + verified by
-  logic/DB/preview but not fired through a real OTP-gated rider login; (ii) **background GPS** in
-  rider-mobile (today foreground-only while on duty — geofence needs continuous pings); (iii)
-  **finance cash-book posting** on COD settlement (logistics-only today); (iv) **Google/Mapbox tile
-  renderers** (the setting selects them; the board still renders on OSM until wired).
+  logic/DB/preview but **still not fired through a real OTP-gated rider login** (the one remaining
+  item); (ii) ~~background GPS~~ ✅ DONE 2026-06-10 (needs a dev build to exercise); (iii) ~~finance
+  cash-book posting on COD settlement~~ ✅ DONE 2026-06-10; (iv) ~~Google/Mapbox tile renderers~~ ✅
+  DONE 2026-06-10 (all three providers render for real). New small follow-up: a **Google JS-SDK
+  Map ID** for AdvancedMarker (currently uses legacy `Marker`, which works key-less).
 - **rider-mobile live map** — `tasks/[id]` uses a stylised map placeholder; a real map needs
   `react-native-maps` (dev build + Maps key, not Expo Go). (Admin live map IS real — Leaflet/OSM.)
 - **admin-web stores the refresh token in `localStorage`** (`src/stores/authStore.ts`) — XSS→token-theft
