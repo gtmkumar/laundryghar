@@ -13,6 +13,13 @@ import {
   generateRoyaltyInvoice,
   issueRoyaltyInvoice,
   recordRoyaltyPayment,
+  listPlatformPlans,
+  createPlatformPlan,
+  updatePlatformPlan,
+  deletePlatformPlan,
+  listFranchiseSubscriptions,
+  assignFranchisePlan,
+  cancelFranchiseSubscription,
 } from '@/api/finance'
 import type {
   CashBookListParams,
@@ -23,6 +30,11 @@ import type {
   GenerateRoyaltyInvoicePayload,
   IssueRoyaltyInvoicePayload,
   RecordRoyaltyPaymentPayload,
+  PlatformPlanListParams,
+  CreatePlatformPlanPayload,
+  UpdatePlatformPlanPayload,
+  FranchiseSubscriptionListParams,
+  AssignFranchisePlanPayload,
 } from '@/types/api'
 
 export const financeKeys = {
@@ -31,6 +43,8 @@ export const financeKeys = {
   expenseCategories: () => ['finance', 'expenseCategories'] as const,
   royaltyInvoices: (params?: object) => ['finance', 'royaltyInvoices', params] as const,
   royaltyInvoice: (id: string) => ['finance', 'royaltyInvoice', id] as const,
+  platformPlans: (params?: object) => ['finance', 'platformPlans', params] as const,
+  franchiseSubscriptions: (params?: object) => ['finance', 'franchiseSubscriptions', params] as const,
 }
 
 export function useCashBooks(params: CashBookListParams = {}) {
@@ -129,6 +143,65 @@ export function useRoyaltyInvoiceActions() {
     recordPayment: useMutation({
       mutationFn: ({ id, payload }: { id: string; payload: RecordRoyaltyPaymentPayload }) =>
         recordRoyaltyPayment(id, payload),
+      onSuccess: refresh,
+    }),
+  }
+}
+
+// ── Platform plans (SaaS) ──────────────────────────────────────────────────────
+
+export function usePlatformPlans(params: PlatformPlanListParams = {}) {
+  return useQuery({
+    queryKey: financeKeys.platformPlans(params),
+    queryFn: () => listPlatformPlans(params),
+  })
+}
+
+export function useCreatePlatformPlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreatePlatformPlanPayload) => createPlatformPlan(payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['finance', 'platformPlans'] }),
+  })
+}
+
+export function useUpdatePlatformPlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdatePlatformPlanPayload }) =>
+      updatePlatformPlan(id, payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['finance', 'platformPlans'] }),
+  })
+}
+
+export function useDeletePlatformPlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deletePlatformPlan(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['finance', 'platformPlans'] }),
+  })
+}
+
+// ── Franchise subscriptions (SaaS) ─────────────────────────────────────────────
+
+export function useFranchiseSubscriptions(params: FranchiseSubscriptionListParams = {}) {
+  return useQuery({
+    queryKey: financeKeys.franchiseSubscriptions(params),
+    queryFn: () => listFranchiseSubscriptions(params),
+  })
+}
+
+export function useFranchiseSubscriptionActions() {
+  const qc = useQueryClient()
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['finance', 'franchiseSubscriptions'] })
+  return {
+    assign: useMutation({
+      mutationFn: (payload: AssignFranchisePlanPayload) => assignFranchisePlan(payload),
+      onSuccess: refresh,
+    }),
+    cancel: useMutation({
+      mutationFn: ({ id, reason }: { id: string; reason: string | null }) =>
+        cancelFranchiseSubscription(id, reason),
       onSuccess: refresh,
     }),
   }

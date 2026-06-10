@@ -6,8 +6,18 @@ import {
   updateProvisioning,
   updateMapsSettings,
   updatePayoutSettings,
+  updatePaymentGatewaySettings,
+  updateWhatsAppSettings,
+  updateSmsSettings,
 } from '@/api/settings'
-import type { UpdateEmailPayload, UpdateMapsPayload, UpdatePayoutPayload } from '@/types/api'
+import type {
+  UpdateEmailPayload,
+  UpdateMapsPayload,
+  UpdatePayoutPayload,
+  UpdatePaymentGatewayPayload,
+  UpdateWhatsAppPayload,
+  UpdateSmsPayload,
+} from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
 
 export function useSettings() {
@@ -53,6 +63,30 @@ export function useUpdatePayoutSettings() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: UpdatePayoutPayload) => updatePayoutSettings(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+  })
+}
+
+export function useUpdatePaymentGatewaySettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: UpdatePaymentGatewayPayload) => updatePaymentGatewaySettings(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+  })
+}
+
+export function useUpdateWhatsAppSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: UpdateWhatsAppPayload) => updateWhatsAppSettings(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+  })
+}
+
+export function useUpdateSmsSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: UpdateSmsPayload) => updateSmsSettings(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
   })
 }

@@ -181,7 +181,7 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
             ))}
           </select>
         </Field>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           KYC is approved or rejected from the rider's detail view, not here.
         </p>
         <Field label="Primary store">
@@ -238,10 +238,11 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
             <input
               {...register('panNumber')}
               aria-invalid={!!errors.panNumber}
+              aria-describedby={errors.panNumber ? 'rideredit-pan-error' : undefined}
               className={drawerInputCls}
               placeholder="Leave blank to keep"
             />
-            <FieldError message={errors.panNumber?.message} />
+            <FieldError id="rideredit-pan-error" message={errors.panNumber?.message} />
           </Field>
         </div>
         <Field label="Insurance expiry">
@@ -258,10 +259,11 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
             <input
               {...register('bankIfsc')}
               aria-invalid={!!errors.bankIfsc}
+              aria-describedby={errors.bankIfsc ? 'rideredit-ifsc-error' : undefined}
               className={drawerInputCls}
               placeholder="HDFC0001234"
             />
-            <FieldError message={errors.bankIfsc?.message} />
+            <FieldError id="rideredit-ifsc-error" message={errors.bankIfsc?.message} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -272,13 +274,14 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
             <input
               {...register('upiId')}
               aria-invalid={!!errors.upiId}
+              aria-describedby={errors.upiId ? 'rideredit-upi-error' : undefined}
               className={drawerInputCls}
               placeholder="rider@upi"
             />
-            <FieldError message={errors.upiId?.message} />
+            <FieldError id="rideredit-upi-error" message={errors.upiId?.message} />
           </Field>
         </div>
-        <p className="flex items-start gap-1.5 text-xs text-gray-400">
+        <p className="flex items-start gap-1.5 text-xs text-gray-500">
           <ShieldAlert className="mt-0.5 h-3 w-3 shrink-0" />
           For privacy, the current Aadhaar, PAN and bank details aren't shown. Leave a
           field blank to keep it unchanged; type a new value to overwrite it.
@@ -293,9 +296,10 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
               type="number"
               min="0"
               aria-invalid={!!errors.dailyPickupCapacity}
+              aria-describedby={errors.dailyPickupCapacity ? 'rideredit-pickupcap-error' : undefined}
               className={drawerInputCls}
             />
-            <FieldError message={errors.dailyPickupCapacity?.message} />
+            <FieldError id="rideredit-pickupcap-error" message={errors.dailyPickupCapacity?.message} />
           </Field>
           <Field label="Daily deliveries">
             <input
@@ -303,9 +307,10 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
               type="number"
               min="0"
               aria-invalid={!!errors.dailyDeliveryCapacity}
+              aria-describedby={errors.dailyDeliveryCapacity ? 'rideredit-deliverycap-error' : undefined}
               className={drawerInputCls}
             />
-            <FieldError message={errors.dailyDeliveryCapacity?.message} />
+            <FieldError id="rideredit-deliverycap-error" message={errors.dailyDeliveryCapacity?.message} />
           </Field>
           <Field label="Service radius (km)">
             <input
@@ -314,9 +319,10 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
               min="0"
               step="0.5"
               aria-invalid={!!errors.serviceRadiusKm}
+              aria-describedby={errors.serviceRadiusKm ? 'rideredit-radius-error' : undefined}
               className={drawerInputCls}
             />
-            <FieldError message={errors.serviceRadiusKm?.message} />
+            <FieldError id="rideredit-radius-error" message={errors.serviceRadiusKm?.message} />
           </Field>
         </div>
       </DrawerSection>

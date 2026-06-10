@@ -1,5 +1,8 @@
+using laundryghar.SharedDataModel.Persistence;
 using laundryghar.Worker.Abstractions;
 using laundryghar.Worker.Infrastructure.Stubs;
+using laundryghar.Worker.Options;
+using Microsoft.Extensions.Options;
 
 namespace laundryghar.Worker.Infrastructure.Channels;
 
@@ -13,49 +16,153 @@ namespace laundryghar.Worker.Infrastructure.Channels;
 ///   "push"     → <see cref="ExpoPushChannelSender"/>       (or logging fallback)
 ///   anything else → logging fallback
 ///
-/// Each sender is registered conditionally by <c>Program.cs</c>; if a provider
-/// is not enabled/configured its service is null and the fallback kicks in.
-/// This means zero configuration = log-only behavior in Development.
+/// Settings-first resolution (WhatsApp + SMS only):
+///   If <c>kernel.system_settings</c> has an enabled row with credentials
+///   (TTL-cached via <see cref="NotificationSettingsCache"/>), those credentials
+///   override the env-config options. Falls back to env config when no DB row
+///   exists or it is disabled. Falls back to <see cref="LoggingChannelSender"/>
+///   when neither source provides credentials — existing zero-config dev behaviour
+///   is fully preserved.
 /// </summary>
 internal sealed class RoutingChannelSender : IChannelSender
 {
+    private readonly NotificationSettingsCache?  _settingsCache;
+    private readonly LaundryGharDbContext        _db;
+    private readonly IOptions<WhatsAppOptions>   _whatsAppEnvOpts;
+    private readonly IOptions<SmsOptions>        _smsEnvOpts;
     private readonly WhatsAppCloudChannelSender? _whatsApp;
     private readonly Msg91SmsChannelSender?      _sms;
     private readonly ExpoPushChannelSender?      _push;
     private readonly LoggingChannelSender        _fallback;
+    private readonly IHttpClientFactory          _httpFactory;
     private readonly ILogger<RoutingChannelSender> _logger;
 
     public RoutingChannelSender(
+        LaundryGharDbContext             db,
+        IOptions<WhatsAppOptions>        whatsAppEnvOpts,
+        IOptions<SmsOptions>             smsEnvOpts,
+        IHttpClientFactory               httpFactory,
         LoggingChannelSender             fallback,
         ILogger<RoutingChannelSender>    logger,
-        WhatsAppCloudChannelSender?      whatsApp = null,
-        Msg91SmsChannelSender?           sms      = null,
-        ExpoPushChannelSender?           push     = null)
+        WhatsAppCloudChannelSender?      whatsApp       = null,
+        Msg91SmsChannelSender?           sms            = null,
+        ExpoPushChannelSender?           push           = null,
+        NotificationSettingsCache?       settingsCache  = null)
     {
-        _whatsApp = whatsApp;
-        _sms      = sms;
-        _push     = push;
-        _fallback = fallback;
-        _logger   = logger;
+        _db              = db;
+        _whatsAppEnvOpts = whatsAppEnvOpts;
+        _smsEnvOpts      = smsEnvOpts;
+        _httpFactory     = httpFactory;
+        _whatsApp        = whatsApp;
+        _sms             = sms;
+        _push            = push;
+        _fallback        = fallback;
+        _logger          = logger;
+        _settingsCache   = settingsCache;
     }
 
-    public Task<ChannelSendResult> SendAsync(ChannelSendRequest request, CancellationToken ct = default)
+    public async Task<ChannelSendResult> SendAsync(ChannelSendRequest request, CancellationToken ct = default)
     {
-        IChannelSender sender = request.Channel.ToLowerInvariant() switch
+        var channel = request.Channel.ToLowerInvariant();
+
+        if (channel == "whatsapp")
         {
-            "whatsapp" when _whatsApp is not null => _whatsApp,
-            "sms"      when _sms      is not null => _sms,
-            "push"     when _push     is not null => _push,
-            _                                     => _fallback
+            var sender = await ResolveWhatsAppAsync(ct);
+            return await sender.SendAsync(request, ct);
+        }
+
+        if (channel == "sms")
+        {
+            var sender = await ResolveSmsAsync(ct);
+            return await sender.SendAsync(request, ct);
+        }
+
+        IChannelSender routedSender = channel switch
+        {
+            "push" when _push is not null => _push,
+            _                             => _fallback
         };
 
-        if (sender == _fallback && request.Channel is not ("in_app" or "email" or "voice"))
+        if (routedSender == _fallback && channel is not ("in_app" or "email" or "voice"))
         {
             _logger.LogDebug(
                 "[Router] No real provider configured for channel={Channel}; using logging stub. OutboxId={OutboxId}",
-                request.Channel, request.OutboxId);
+                channel, request.OutboxId);
         }
 
-        return sender.SendAsync(request, ct);
+        return await routedSender.SendAsync(request, ct);
+    }
+
+    // ── Settings-first resolution ─────────────────────────────────────────────
+
+    private async Task<IChannelSender> ResolveWhatsAppAsync(CancellationToken ct)
+    {
+        if (_settingsCache is not null)
+        {
+            var (wa, _) = await _settingsCache.GetAsync(_db, ct);
+            if (wa.Enabled
+                && !string.IsNullOrWhiteSpace(wa.AccessToken)
+                && !string.IsNullOrWhiteSpace(wa.PhoneNumberId))
+            {
+                _logger.LogDebug("[Router] WhatsApp: resolved from DB settings.");
+                var opts = new WhatsAppOptions
+                {
+                    Enabled       = true,
+                    AccessToken   = wa.AccessToken,
+                    PhoneNumberId = wa.PhoneNumberId,
+                };
+                return new WhatsAppCloudChannelSender(
+                    _httpFactory,
+                    Microsoft.Extensions.Options.Options.Create(opts),
+                    _logger as ILogger<WhatsAppCloudChannelSender>
+                        ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<WhatsAppCloudChannelSender>.Instance);
+            }
+        }
+
+        // Env config fallback (registered sender from Program.cs)
+        if (_whatsApp is not null)
+        {
+            _logger.LogDebug("[Router] WhatsApp: resolved from env config.");
+            return _whatsApp;
+        }
+
+        _logger.LogDebug("[Router] WhatsApp: no credentials — using logging stub.");
+        return _fallback;
+    }
+
+    private async Task<IChannelSender> ResolveSmsAsync(CancellationToken ct)
+    {
+        if (_settingsCache is not null)
+        {
+            var (_, sms) = await _settingsCache.GetAsync(_db, ct);
+            if (sms.Enabled
+                && !string.IsNullOrWhiteSpace(sms.AuthKey)
+                && !string.IsNullOrWhiteSpace(sms.SenderId))
+            {
+                _logger.LogDebug("[Router] SMS: resolved from DB settings.");
+                var opts = new SmsOptions
+                {
+                    Enabled       = true,
+                    AuthKey       = sms.AuthKey,
+                    SenderId      = sms.SenderId,
+                    DltTemplateId = sms.DltTemplateId,
+                };
+                return new Msg91SmsChannelSender(
+                    _httpFactory,
+                    Microsoft.Extensions.Options.Options.Create(opts),
+                    _logger as ILogger<Msg91SmsChannelSender>
+                        ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<Msg91SmsChannelSender>.Instance);
+            }
+        }
+
+        // Env config fallback
+        if (_sms is not null)
+        {
+            _logger.LogDebug("[Router] SMS: resolved from env config.");
+            return _sms;
+        }
+
+        _logger.LogDebug("[Router] SMS: no credentials — using logging stub.");
+        return _fallback;
     }
 }

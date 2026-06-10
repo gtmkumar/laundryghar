@@ -196,7 +196,7 @@ export function Field({
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-gray-500">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-gray-400">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-gray-500">{hint}</span>}
     </label>
   )
 }
@@ -220,7 +220,7 @@ export function DetailSection({
   if (plain) {
     return (
       <div>
-        {title && <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{title}</h3>}
+        {title && <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>}
         {children}
       </div>
     )
@@ -250,7 +250,7 @@ export function DetailRow({
     return (
       <div className="flex items-center gap-2 text-sm">
         <span className="text-gray-300">{icon}</span>
-        <span className="text-gray-400">{label}</span>
+        <span className="text-gray-500">{label}</span>
         <span className="ml-auto truncate font-medium text-gray-700">{value}</span>
       </div>
     )

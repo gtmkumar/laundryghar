@@ -22,10 +22,13 @@ import { WarehouseBoardPage } from '@/pages/warehouse/WarehouseBoardPage'
 import { AccessControlPage } from '@/pages/access-control/AccessControlPage'
 import { RidersPage } from '@/pages/riders/RidersPage'
 import { CustomersPage } from '@/pages/customers/CustomersPage'
+import { PackagesPage } from '@/pages/packages/PackagesPage'
+import { CouponsPage } from '@/pages/coupons/CouponsPage'
 import { CashBookPage } from '@/pages/finance/CashBookPage'
 import { ExpensesPage } from '@/pages/finance/ExpensesPage'
 import { RoyaltyPage } from '@/pages/finance/RoyaltyPage'
-import { ComingSoonPage } from '@/pages/ComingSoonPage'
+import { PlatformPlansPage } from '@/pages/finance/PlatformPlansPage'
+import { SubscriptionsPage } from '@/pages/subscriptions/SubscriptionsPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,11 +68,13 @@ const router = createBrowserRouter([
           // New sidebar routes that don't have pages yet — lightweight placeholders
           { path: 'customers',     element: <CustomersPage /> },
           { path: 'riders',        element: <RidersPage /> },
-          { path: 'packages',      element: <ComingSoonPage name="Packages" /> },
-          { path: 'coupons',       element: <ComingSoonPage name="Coupons" /> },
+          { path: 'packages',      element: <PackagesPage /> },
+          { path: 'coupons',       element: <CouponsPage /> },
+          { path: 'subscriptions', element: <SubscriptionsPage /> },
           { path: 'cashbook',      element: <CashBookPage /> },
           { path: 'expenses',      element: <ExpensesPage /> },
           { path: 'royalty',       element: <RoyaltyPage /> },
+          { path: 'platform-plans', element: <PlatformPlansPage /> },
           { path: '*',             element: <Navigate to="/" replace /> },
         ],
       },

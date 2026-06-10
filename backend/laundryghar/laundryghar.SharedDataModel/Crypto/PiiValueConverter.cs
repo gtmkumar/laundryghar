@@ -54,6 +54,22 @@ public sealed class PiiValueConverter : ValueConverter<string?, string?>
         Instance._cipher = cipher;
     }
 
+    /// <summary>
+    /// Returns the cipher instance used by the converter.
+    /// Throws if <see cref="Configure"/> has not yet been called.
+    /// Used by <see cref="laundryghar.SharedDataModel.DependencyInjection"/> to register
+    /// <see cref="IFieldCipher"/> in the DI container so that application services can
+    /// encrypt/decrypt settings secrets without duplicating cipher construction.
+    /// </summary>
+    public static IFieldCipher GetCipher()
+    {
+        if (Instance is null)
+            throw new InvalidOperationException(
+                "PiiValueConverter has not been configured. " +
+                "Ensure AddSharedDataModel() is called before resolving IFieldCipher.");
+        return Instance._cipher;
+    }
+
     // Retained so the idempotency guard can compare references.
     private IFieldCipher _cipher = null!;
 }

@@ -1,7 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using laundryghar.Commerce.Infrastructure.Gateway;
+using laundryghar.SharedDataModel.Crypto;
 using laundryghar.SharedDataModel.Entities.Kernel;
+using laundryghar.SharedDataModel.Persistence;
 using MediatR;
 
 namespace laundryghar.Commerce.Application.Webhooks;
@@ -40,17 +43,23 @@ public sealed class ProcessRazorpayWebhookHandler
     private readonly LaundryGharDbContext _db;
     private readonly IConfiguration _config;
     private readonly IHostEnvironment _env;
+    private readonly GatewaySettingsCache? _cache;
+    private readonly IFieldCipher? _cipher;
     private readonly ILogger<ProcessRazorpayWebhookHandler> _logger;
 
     public ProcessRazorpayWebhookHandler(
         LaundryGharDbContext db,
         IConfiguration config,
         IHostEnvironment env,
-        ILogger<ProcessRazorpayWebhookHandler> logger)
+        ILogger<ProcessRazorpayWebhookHandler> logger,
+        GatewaySettingsCache? cache = null,
+        IFieldCipher? cipher = null)
     {
         _db     = db;
         _config = config;
         _env    = env;
+        _cache  = cache;
+        _cipher = cipher;
         _logger = logger;
     }
 
@@ -59,7 +68,16 @@ public sealed class ProcessRazorpayWebhookHandler
     {
         // ── 1. HMAC verification ──────────────────────────────────────────────
 
-        var webhookSecret = _config["Razorpay:WebhookSecret"];
+        // Resolution order: DB settings → env config → skip in Development / reject in Production.
+        string? webhookSecret = null;
+        if (_cache is not null && _cipher is not null)
+        {
+            var dbSettings = await _cache.GetAsync(_db, ct);
+            if (!string.IsNullOrWhiteSpace(dbSettings.WebhookSecret))
+                webhookSecret = dbSettings.WebhookSecret;
+        }
+
+        webhookSecret ??= _config["Razorpay:WebhookSecret"];
 
         if (string.IsNullOrWhiteSpace(webhookSecret))
         {

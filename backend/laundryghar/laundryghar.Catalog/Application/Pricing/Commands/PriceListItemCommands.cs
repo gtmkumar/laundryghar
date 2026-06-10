@@ -125,5 +125,24 @@ public sealed class CreatePriceListItemValidator : AbstractValidator<CreatePrice
         RuleFor(x => x.Request.ItemId).NotEmpty();
         RuleFor(x => x.Request.BasePrice).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Request.TaxRatePercent).InclusiveBetween(0, 100);
+        RuleFor(x => x.Request.MinimumQuantity).GreaterThanOrEqualTo(1);
+        // display_label is first-class: NULL labels made the customer app render UUID
+        // fragments. Require a non-empty label so every priced row is human-readable.
+        RuleFor(x => x.Request.DisplayLabel)
+            .NotEmpty().WithMessage("Display label is required.")
+            .MaximumLength(200);
+    }
+}
+
+public sealed class UpdatePriceListItemValidator : AbstractValidator<UpdatePriceListItemCommand>
+{
+    public UpdatePriceListItemValidator()
+    {
+        RuleFor(x => x.Request.BasePrice).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Request.TaxRatePercent).InclusiveBetween(0, 100);
+        RuleFor(x => x.Request.MinimumQuantity).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.Request.DisplayLabel)
+            .NotEmpty().WithMessage("Display label is required.")
+            .MaximumLength(200);
     }
 }

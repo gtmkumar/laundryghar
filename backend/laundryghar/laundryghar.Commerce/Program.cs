@@ -46,9 +46,10 @@ builder.Services.Configure<JwtSettings>(jwtSection);
 
 // ─── Payment gateway ────────────────────────────────────────────────────────
 // Development → DevPaymentGateway (stub, always succeeds).
-// All other environments → RazorpayPaymentGateway.
-// Fail closed: missing Razorpay:KeyId / Razorpay:KeySecret in non-Development
-// throws at startup — mirrors RsaJwtKeyProvider's approach.
+// All other environments → SettingsFirstPaymentGateway:
+//   resolution order: DB settings row (TTL-cached, 60 s) → env config → fail-closed.
+//   Razorpay:KeyId / Razorpay:KeySecret remain supported as the env-config fallback
+//   so existing deployments are not broken when no DB row exists yet.
 
 if (builder.Environment.IsDevelopment())
 {
@@ -56,25 +57,23 @@ if (builder.Environment.IsDevelopment())
 }
 else
 {
+    // Bind env config as fallback (may be empty — SettingsFirstPaymentGateway handles that).
     var rzpSection = builder.Configuration.GetSection(RazorpaySettings.SectionName);
-    var rzpKeyId     = rzpSection["KeyId"];
-    var rzpKeySecret = rzpSection["KeySecret"];
-
-    if (string.IsNullOrWhiteSpace(rzpKeyId) || string.IsNullOrWhiteSpace(rzpKeySecret))
-        throw new InvalidOperationException(
-            "Razorpay:KeyId and Razorpay:KeySecret are required outside Development. " +
-            "Provide them via environment variables or Key Vault — never hardcode.");
-
     builder.Services.Configure<RazorpaySettings>(rzpSection);
 
-    // Named HttpClient "razorpay" — base address + sensible timeout
+    // Named HttpClient "razorpay" — base address + sensible timeout.
+    // Used by both RazorpayPaymentGateway instances (settings-built and env-built).
     builder.Services.AddHttpClient("razorpay", http =>
     {
         http.BaseAddress = new Uri("https://api.razorpay.com/");
         http.Timeout     = TimeSpan.FromSeconds(30);
     });
 
-    builder.Services.AddSingleton<IPaymentGateway, RazorpayPaymentGateway>();
+    // Singleton TTL cache — shared across requests; holds decrypted creds for up to 60 s.
+    builder.Services.AddSingleton<GatewaySettingsCache>();
+
+    // Scoped wrapper — resolves a fresh DbContext per request (required for EF Core scoped lifetime).
+    builder.Services.AddScoped<IPaymentGateway, SettingsFirstPaymentGateway>();
 }
 
 // ─── MediatR + FluentValidation ─────────────────────────────────────────────

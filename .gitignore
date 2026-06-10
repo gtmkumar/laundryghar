@@ -58,6 +58,8 @@ android/
 .env.*
 !.env.example
 *.pem
+# Dev PII key — one per AppHost, never committed
+**/keys/*.b64
 
 # ───────────────────────── logs / temp ─────────────────────────
 *.log

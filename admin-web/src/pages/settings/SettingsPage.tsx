@@ -1,19 +1,28 @@
 import { useState } from 'react'
-import { Mail, UserCog, Loader2, Map as MapIcon, Coins } from 'lucide-react'
+import { Mail, UserCog, Loader2, Map as MapIcon, Coins, CreditCard, MessageCircle, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettings } from '@/hooks/useSettings'
 import { EmailPanel } from './EmailPanel'
 import { ProvisioningPanel } from './ProvisioningPanel'
 import { MapsPanel } from './MapsPanel'
 import { PayoutPanel } from './PayoutPanel'
+import { PaymentsPanel } from './PaymentsPanel'
+import { WhatsAppPanel } from './WhatsAppPanel'
+import { SmsPanel } from './SmsPanel'
 
-type Key = 'email' | 'maps' | 'payout' | 'provisioning'
+type Key = 'email' | 'maps' | 'payout' | 'provisioning' | 'payments' | 'whatsapp' | 'sms'
 
 const NAV: { section: string; items: { key: Key; label: string; icon: React.ElementType }[] }[] = [
-  { section: 'Integrations', items: [
-    { key: 'email', label: 'Email & SMTP', icon: Mail },
-    { key: 'maps', label: 'Maps', icon: MapIcon },
-  ] },
+  {
+    section: 'Integrations',
+    items: [
+      { key: 'email', label: 'Email & SMTP', icon: Mail },
+      { key: 'payments', label: 'Payments', icon: CreditCard },
+      { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+      { key: 'sms', label: 'SMS', icon: Smartphone },
+      { key: 'maps', label: 'Maps', icon: MapIcon },
+    ],
+  },
   { section: 'Operations', items: [{ key: 'payout', label: 'Rider payouts', icon: Coins }] },
   { section: 'Platform', items: [{ key: 'provisioning', label: 'User Provisioning', icon: UserCog }] },
 ]
@@ -35,7 +44,9 @@ export function SettingsPage() {
           <div className="rounded-2xl border border-gray-200 bg-white p-2 space-y-3">
             {NAV.map((group) => (
               <div key={group.section}>
-                <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{group.section}</p>
+                <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                  {group.section}
+                </p>
                 {group.items.map((item) => {
                   const Icon = item.icon
                   const on = active === item.key
@@ -63,12 +74,18 @@ export function SettingsPage() {
         <section className="flex-1 min-w-0">
           {settings.isLoading ? (
             <div className="flex items-center justify-center py-24 text-gray-400">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading settings…
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading settings...
             </div>
           ) : settings.isError || !settings.data ? (
-            <div className="py-24 text-center text-sm text-red-600">Couldn’t load settings.</div>
+            <div className="py-24 text-center text-sm text-red-600">Could not load settings.</div>
           ) : active === 'email' ? (
             <EmailPanel settings={settings.data} />
+          ) : active === 'payments' ? (
+            <PaymentsPanel settings={settings.data} />
+          ) : active === 'whatsapp' ? (
+            <WhatsAppPanel settings={settings.data} />
+          ) : active === 'sms' ? (
+            <SmsPanel settings={settings.data} />
           ) : active === 'maps' ? (
             <MapsPanel settings={settings.data} />
           ) : active === 'payout' ? (

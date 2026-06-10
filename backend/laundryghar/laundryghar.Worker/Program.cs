@@ -86,12 +86,18 @@ builder.Services.AddHttpClient("push", client =>
             new AuthenticationHeaderValue("Bearer", accessToken);
 });
 
+// ─── Settings-first notification cache (TTL 60 s) ───────────────────────────────────
+// Singleton — holds decrypted notification creds across all poll scopes.
+// IFieldCipher is registered as singleton by AddSharedDataModel above.
+builder.Services.AddSingleton<NotificationSettingsCache>();
+
 // ─── Channel senders (fail-safe conditional registration) ────────────────────────────
 // LoggingChannelSender is ALWAYS registered — it is the universal fallback.
 builder.Services.AddScoped<LoggingChannelSender>();
 
-// Real senders are registered only when enabled; the RoutingChannelSender
-// receives them as optional nullable constructor parameters.
+// Real senders are registered only when ENABLED VIA ENV CONFIG.
+// DB-settings-sourced senders are constructed dynamically inside RoutingChannelSender;
+// env-config senders remain as optional nullable constructor parameters (existing behaviour).
 var whatsAppEnabled = builder.Configuration.GetValue<bool>("Notifications:WhatsApp:Enabled")
     && !string.IsNullOrWhiteSpace(builder.Configuration["Notifications:WhatsApp:AccessToken"])
     && !string.IsNullOrWhiteSpace(builder.Configuration["Notifications:WhatsApp:PhoneNumberId"]);
@@ -118,6 +124,8 @@ else
     builder.Services.AddScoped<ExpoPushChannelSender>(_ => null!);
 
 // The routing sender IS the IChannelSender resolved by the dispatcher.
+// RoutingChannelSender now receives NotificationSettingsCache (singleton) and performs
+// settings-first resolution: DB settings → env config → logging fallback.
 builder.Services.AddScoped<IChannelSender, RoutingChannelSender>();
 
 // ─── Event publisher (dev stub — outbox relay publishes to log only) ──────────────────

@@ -108,7 +108,9 @@ export function RiderGoogleMap({ apiKey, ...layer }: Props) {
         gestureHandling="greedy"
         disableDefaultUI={false}
         clickableIcons={false}
-        className="h-full w-full overflow-hidden rounded-2xl"
+        // `isolate relative z-0`: scope Google Maps' internal z-indexed panes so they
+        // can't paint over right-side drawers.
+        className="isolate relative z-0 h-full w-full overflow-hidden rounded-2xl"
         style={{ minHeight: 420 }}
       >
         <GoogleLayer {...layer} />

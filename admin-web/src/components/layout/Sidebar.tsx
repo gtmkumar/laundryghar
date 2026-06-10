@@ -16,6 +16,8 @@ import {
   ShieldCheck,
   Network,
   Coins,
+  CreditCard,
+  Layers,
   Monitor,
   Settings,
   LayoutGrid,
@@ -29,7 +31,7 @@ import { useOnboardingUi } from '@/stores/onboardingStore'
 // Icon-name (from the modules table) → lucide component.
 const ICONS: Record<string, React.ElementType> = {
   LayoutDashboard, Building2, ShoppingCart, Users, Bike, Tag, Package, Bell,
-  BarChart2, BookOpen, Receipt, Warehouse, ShieldCheck, Network, Coins, Monitor, Settings,
+  BarChart2, BookOpen, Receipt, Warehouse, ShieldCheck, Network, Coins, CreditCard, Layers, Monitor, Settings,
 }
 
 type NavItem = { key: string; label: string; icon: string | null; route: string | null }

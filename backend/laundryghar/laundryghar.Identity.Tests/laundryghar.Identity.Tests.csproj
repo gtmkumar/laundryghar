@@ -19,9 +19,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Reference Identity only for OtpSecurityHelper and OtpSettings.
          Identity is an SDK.Web project; test runner does not start the host. -->
     <ProjectReference Include="..\laundryghar.Identity\laundryghar.Identity.csproj" />
+    <ProjectReference Include="..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
   </ItemGroup>
 
 </Project>

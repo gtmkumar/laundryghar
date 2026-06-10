@@ -55,7 +55,9 @@ export function RiderLeafletMap({ riders, selectedId, trail, onSelect, tiles = O
       center={DEFAULT_CENTER}
       zoom={DEFAULT_ZOOM}
       scrollWheelZoom
-      className="h-full w-full rounded-2xl"
+      // `isolate relative z-0`: keep Leaflet's internal panes (z 200–1000) inside a
+      // local stacking context so they can't paint over right-side drawers.
+      className="isolate relative z-0 h-full w-full rounded-2xl"
       // Leaflet needs an explicit size; the parent provides height.
       style={{ minHeight: 420 }}
     >

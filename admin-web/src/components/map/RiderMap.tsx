@@ -13,7 +13,7 @@ interface Props {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute right-3 top-3 z-[500] flex items-center gap-1.5 rounded-lg bg-white/90 px-2.5 py-1 text-xs text-gray-500 shadow">
+    <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-lg bg-white/90 px-2.5 py-1 text-xs text-gray-500 shadow">
       <MapPin className="h-3 w-3" /> {children}
     </div>
   )
@@ -36,7 +36,7 @@ export function RiderMap(props: Props) {
 
   if (provider === 'mapbox' && mapboxToken) {
     return (
-      <div className="relative h-full w-full">
+      <div className="relative z-0 h-full w-full isolate">
         <RiderLeafletMap {...props} tiles={mapboxTiles(mapboxToken)} />
         <Badge>Mapbox</Badge>
       </div>

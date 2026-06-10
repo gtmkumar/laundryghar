@@ -13,3 +13,4 @@
 - [Security hardening (Task #27)](project-security-hardening.md) — header hook pattern (no shared pipeline in ServiceDefaults), password policy alignment rationale, banner http:// env-gating, sweep findings
 - [POS gaps (Task #31)](project-pos-gaps.md) — admin create-customer, offline payment record (Commerce 5005), coupon on order create; permission risk_level='normal', cash-book mirrored server-side
 - [Subscriptions ADR-010 (Task #17)](project-subscriptions-adr010.md) — schema placement, gateway seam design, Worker dunning service, DB patch canonicalization, known deferred gateway wiring
+- [Integration settings (Task #39)](project-integration-settings.md) — payment/whatsapp/sms schema, masking rule, IFieldCipher now a DI singleton, SettingsFirstPaymentGateway Scoped+TTL cache, Worker routing changes

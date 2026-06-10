@@ -217,19 +217,21 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
               type="email"
               aria-invalid={!!errors.email}
               aria-required="true"
+              aria-describedby={errors.email ? 'rider-email-error' : undefined}
               className={drawerInputCls}
               placeholder="arjun@laundryghar.in"
             />
-            <FieldError message={errors.email?.message} />
+            <FieldError id="rider-email-error" message={errors.email?.message} />
           </Field>
           <Field label="Phone">
             <input
               {...register('phone')}
               aria-invalid={!!errors.phone}
+              aria-describedby={errors.phone ? 'rider-phone-error' : undefined}
               className={drawerInputCls}
               placeholder="+91 98xxxxxxxx"
             />
-            <FieldError message={errors.phone?.message} />
+            <FieldError id="rider-phone-error" message={errors.phone?.message} />
           </Field>
         </div>
         <Field label="Franchise *">
@@ -244,6 +246,7 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
               onChange={(e) => onFranchiseChange(e.target.value)}
               aria-invalid={!!errors.franchiseId}
               aria-required="true"
+              aria-describedby={errors.franchiseId ? 'rider-franchise-error' : undefined}
               className={drawerInputCls}
               disabled={franchisesQ.isLoading}
             >
@@ -253,7 +256,7 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
               ))}
             </select>
           )}
-          <FieldError message={errors.franchiseId?.message} />
+          <FieldError id="rider-franchise-error" message={errors.franchiseId?.message} />
         </Field>
         <Field label="Primary store (optional)">
           <select
@@ -309,10 +312,11 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
             <input
               {...register('panNumber')}
               aria-invalid={!!errors.panNumber}
+              aria-describedby={errors.panNumber ? 'rider-pan-error' : undefined}
               className={drawerInputCls}
               placeholder="AAAAA0000A"
             />
-            <FieldError message={errors.panNumber?.message} />
+            <FieldError id="rider-pan-error" message={errors.panNumber?.message} />
           </Field>
         </div>
         <Field label="Insurance expiry">
@@ -328,10 +332,11 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
             <input
               {...register('bankIfsc')}
               aria-invalid={!!errors.bankIfsc}
+              aria-describedby={errors.bankIfsc ? 'rider-ifsc-error' : undefined}
               className={drawerInputCls}
               placeholder="HDFC0001234"
             />
-            <FieldError message={errors.bankIfsc?.message} />
+            <FieldError id="rider-ifsc-error" message={errors.bankIfsc?.message} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -342,10 +347,11 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
             <input
               {...register('upiId')}
               aria-invalid={!!errors.upiId}
+              aria-describedby={errors.upiId ? 'rider-upi-error' : undefined}
               className={drawerInputCls}
               placeholder="arjun@upi"
             />
-            <FieldError message={errors.upiId?.message} />
+            <FieldError id="rider-upi-error" message={errors.upiId?.message} />
           </Field>
         </div>
 
@@ -357,9 +363,10 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
               type="number"
               min="0"
               aria-invalid={!!errors.dailyPickupCapacity}
+              aria-describedby={errors.dailyPickupCapacity ? 'rider-pickupcap-error' : undefined}
               className={drawerInputCls}
             />
-            <FieldError message={errors.dailyPickupCapacity?.message} />
+            <FieldError id="rider-pickupcap-error" message={errors.dailyPickupCapacity?.message} />
           </Field>
           <Field label="Daily deliveries">
             <input
@@ -367,9 +374,10 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
               type="number"
               min="0"
               aria-invalid={!!errors.dailyDeliveryCapacity}
+              aria-describedby={errors.dailyDeliveryCapacity ? 'rider-deliverycap-error' : undefined}
               className={drawerInputCls}
             />
-            <FieldError message={errors.dailyDeliveryCapacity?.message} />
+            <FieldError id="rider-deliverycap-error" message={errors.dailyDeliveryCapacity?.message} />
           </Field>
           <Field label="Service radius (km)">
             <input
@@ -378,9 +386,10 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
               min="0"
               step="0.5"
               aria-invalid={!!errors.serviceRadiusKm}
+              aria-describedby={errors.serviceRadiusKm ? 'rider-radius-error' : undefined}
               className={drawerInputCls}
             />
-            <FieldError message={errors.serviceRadiusKm?.message} />
+            <FieldError id="rider-radius-error" message={errors.serviceRadiusKm?.message} />
           </Field>
         </div>
       </DrawerSection>

@@ -221,9 +221,10 @@ export function CustomerEditDrawer({
             {...register('email')}
             type="email"
             aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? 'customer-email-error' : undefined}
             className={drawerInputCls}
           />
-          <FieldError message={errors.email?.message} />
+          <FieldError id="customer-email-error" message={errors.email?.message} />
         </Field>
         <Field label="Gender">
           <select {...register('gender')} className={drawerInputCls}>
@@ -249,7 +250,7 @@ export function CustomerEditDrawer({
         </Field>
       </DrawerSection>
 
-      <p className="text-xs text-gray-400">Phone, code, loyalty and wallet balances are managed elsewhere.</p>
+      <p className="text-xs text-gray-500">Phone, code, loyalty and wallet balances are managed elsewhere.</p>
     </FormDrawer>
   )
 }

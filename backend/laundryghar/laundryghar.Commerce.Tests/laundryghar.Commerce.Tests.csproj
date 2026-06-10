@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\laundryghar.Commerce\laundryghar.Commerce.csproj" />
+    <ProjectReference Include="..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
   </ItemGroup>
 
 </Project>

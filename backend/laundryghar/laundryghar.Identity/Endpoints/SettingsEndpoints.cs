@@ -4,6 +4,7 @@ using laundryghar.Identity.Application.Settings.Queries;
 using laundryghar.Identity.Infrastructure.Services;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
 
 namespace laundryghar.Identity.Endpoints;
 
@@ -58,6 +59,27 @@ public static class SettingsEndpoints
             var r = await sender.Send(new UpdatePayoutCommand(req, u), ct);
             return Results.Ok(new SingleResponse<PayoutSettingsView> { Status = true, Data = r });
         }).WithName("UpdatePayoutSettings");
+
+        s.MapPut("/payment-gateway", async ([FromBody] UpdatePaymentGatewayRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            if (Forbidden(u, out var deny)) return deny;
+            var r = await sender.Send(new UpdatePaymentGatewayCommand(req, u), ct);
+            return Results.Ok(new SingleResponse<PaymentGatewaySettingsView> { Status = true, Data = r });
+        }).WithName("UpdatePaymentGatewaySettings");
+
+        s.MapPut("/whatsapp", async ([FromBody] UpdateWhatsAppRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            if (Forbidden(u, out var deny)) return deny;
+            var r = await sender.Send(new UpdateWhatsAppCommand(req, u), ct);
+            return Results.Ok(new SingleResponse<WhatsAppSettingsView> { Status = true, Data = r });
+        }).WithName("UpdateWhatsAppSettings");
+
+        s.MapPut("/sms", async ([FromBody] UpdateSmsRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            if (Forbidden(u, out var deny)) return deny;
+            var r = await sender.Send(new UpdateSmsCommand(req, u), ct);
+            return Results.Ok(new SingleResponse<SmsSettingsView> { Status = true, Data = r });
+        }).WithName("UpdateSmsSettings");
 
         return group;
     }

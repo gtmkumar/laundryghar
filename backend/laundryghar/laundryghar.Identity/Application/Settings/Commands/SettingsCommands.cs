@@ -2,6 +2,7 @@ using laundryghar.Identity.Application.Settings.Dtos;
 using laundryghar.Identity.Infrastructure.Email;
 using laundryghar.SharedDataModel.Common;
 using laundryghar.Identity.Infrastructure.Services;
+using laundryghar.SharedDataModel.Crypto;
 using laundryghar.SharedDataModel.Persistence;
 using laundryghar.Utilities.Exceptions;
 using MediatR;
@@ -170,5 +171,136 @@ public sealed class UpdatePayoutHandler : IRequestHandler<UpdatePayoutCommand, P
         };
         await SettingsStore.UpsertAsync(_db, brandId, "payout", "rider", value, isEncrypted: false, cmd.User.UserId, ct);
         return new PayoutSettingsView(value.BaseFare, value.PerKm, value.ExpressBonus, value.CodBonus, value.RoundToNearest);
+    }
+}
+
+// ── Update payment gateway config ───────────────────────────────────────────
+public sealed record UpdatePaymentGatewayCommand(UpdatePaymentGatewayRequest Request, ICurrentUser User) : IRequest<PaymentGatewaySettingsView>;
+
+public sealed class UpdatePaymentGatewayHandler : IRequestHandler<UpdatePaymentGatewayCommand, PaymentGatewaySettingsView>
+{
+    private readonly LaundryGharDbContext _db;
+    private readonly IFieldCipher _cipher;
+
+    public UpdatePaymentGatewayHandler(LaundryGharDbContext db, IFieldCipher cipher)
+    {
+        _db     = db;
+        _cipher = cipher;
+    }
+
+    public async Task<PaymentGatewaySettingsView> Handle(UpdatePaymentGatewayCommand cmd, CancellationToken ct)
+    {
+        var r       = cmd.Request;
+        var brandId = await SettingsStore.ResolveBrandIdAsync(cmd.User, _db, ct);
+
+        // Preserve stored secrets when the client sends blank (SMTP pattern).
+        var existing    = await SettingsStore.LoadPaymentGatewayAsync(_db, brandId, _cipher, ct);
+        var keySecret    = string.IsNullOrEmpty(r.KeySecret)    ? existing.KeySecret    : r.KeySecret;
+        var webhookSecret = string.IsNullOrEmpty(r.WebhookSecret) ? existing.WebhookSecret : r.WebhookSecret;
+
+        // Persist secrets encrypted; plaintext stays in memory only.
+        var value = new PaymentGatewaySettings
+        {
+            Provider      = "razorpay",
+            Enabled       = r.Enabled,
+            KeyId         = r.KeyId?.Trim(),
+            KeySecret     = _cipher.Encrypt(keySecret),
+            WebhookSecret = _cipher.Encrypt(webhookSecret),
+            CodEnabled    = r.CodEnabled,
+        };
+
+        await SettingsStore.UpsertAsync(_db, brandId, "payment", "gateway", value, isEncrypted: true, cmd.User.UserId, ct);
+
+        return new PaymentGatewaySettingsView(
+            Provider:          value.Provider,
+            Enabled:           value.Enabled,
+            KeyId:             value.KeyId,
+            KeySecretTail:     SettingsStore.MaskSecret(keySecret),
+            KeySecretSet:      !string.IsNullOrEmpty(keySecret),
+            WebhookSecretTail: SettingsStore.MaskSecret(webhookSecret),
+            WebhookSecretSet:  !string.IsNullOrEmpty(webhookSecret),
+            CodEnabled:        value.CodEnabled);
+    }
+}
+
+// ── Update WhatsApp config ───────────────────────────────────────────────────
+public sealed record UpdateWhatsAppCommand(UpdateWhatsAppRequest Request, ICurrentUser User) : IRequest<WhatsAppSettingsView>;
+
+public sealed class UpdateWhatsAppHandler : IRequestHandler<UpdateWhatsAppCommand, WhatsAppSettingsView>
+{
+    private readonly LaundryGharDbContext _db;
+    private readonly IFieldCipher _cipher;
+
+    public UpdateWhatsAppHandler(LaundryGharDbContext db, IFieldCipher cipher)
+    {
+        _db     = db;
+        _cipher = cipher;
+    }
+
+    public async Task<WhatsAppSettingsView> Handle(UpdateWhatsAppCommand cmd, CancellationToken ct)
+    {
+        var r       = cmd.Request;
+        var brandId = await SettingsStore.ResolveBrandIdAsync(cmd.User, _db, ct);
+
+        var existing    = await SettingsStore.LoadWhatsAppAsync(_db, brandId, _cipher, ct);
+        var accessToken = string.IsNullOrEmpty(r.AccessToken) ? existing.AccessToken : r.AccessToken;
+
+        var value = new WhatsAppSettings
+        {
+            Enabled       = r.Enabled,
+            PhoneNumberId = r.PhoneNumberId?.Trim(),
+            AccessToken   = _cipher.Encrypt(accessToken),
+        };
+
+        await SettingsStore.UpsertAsync(_db, brandId, "whatsapp", "cloud", value, isEncrypted: true, cmd.User.UserId, ct);
+
+        return new WhatsAppSettingsView(
+            Enabled:         value.Enabled,
+            PhoneNumberId:   value.PhoneNumberId,
+            AccessTokenTail: SettingsStore.MaskSecret(accessToken),
+            AccessTokenSet:  !string.IsNullOrEmpty(accessToken));
+    }
+}
+
+// ── Update SMS config ────────────────────────────────────────────────────────
+public sealed record UpdateSmsCommand(UpdateSmsRequest Request, ICurrentUser User) : IRequest<SmsSettingsView>;
+
+public sealed class UpdateSmsHandler : IRequestHandler<UpdateSmsCommand, SmsSettingsView>
+{
+    private readonly LaundryGharDbContext _db;
+    private readonly IFieldCipher _cipher;
+
+    public UpdateSmsHandler(LaundryGharDbContext db, IFieldCipher cipher)
+    {
+        _db     = db;
+        _cipher = cipher;
+    }
+
+    public async Task<SmsSettingsView> Handle(UpdateSmsCommand cmd, CancellationToken ct)
+    {
+        var r       = cmd.Request;
+        var brandId = await SettingsStore.ResolveBrandIdAsync(cmd.User, _db, ct);
+
+        var existing = await SettingsStore.LoadSmsAsync(_db, brandId, _cipher, ct);
+        var authKey  = string.IsNullOrEmpty(r.AuthKey) ? existing.AuthKey : r.AuthKey;
+
+        var value = new SmsSettings
+        {
+            Provider      = "msg91",
+            Enabled       = r.Enabled,
+            AuthKey       = _cipher.Encrypt(authKey),
+            SenderId      = r.SenderId?.Trim(),
+            DltTemplateId = r.DltTemplateId?.Trim(),
+        };
+
+        await SettingsStore.UpsertAsync(_db, brandId, "sms", "provider", value, isEncrypted: true, cmd.User.UserId, ct);
+
+        return new SmsSettingsView(
+            Provider:      value.Provider,
+            Enabled:       value.Enabled,
+            AuthKeyTail:   SettingsStore.MaskSecret(authKey),
+            AuthKeySet:    !string.IsNullOrEmpty(authKey),
+            SenderId:      value.SenderId,
+            DltTemplateId: value.DltTemplateId);
     }
 }

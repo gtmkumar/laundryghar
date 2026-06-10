@@ -4,14 +4,42 @@ import {
   getServiceCategories,
   getServices,
   getItems,
+  getFabricTypes,
+  getItemGroups,
   getPriceLists,
+  getPriceListItems,
   getAdminCustomers,
   updateAdminCustomer,
+  createServiceCategory,
+  updateServiceCategory,
+  deleteServiceCategory,
+  createService,
+  updateService,
+  deleteService,
+  createItem,
+  updateItem,
+  deleteItem,
+  createPriceList,
+  updatePriceList,
+  publishPriceList,
+  deletePriceList,
+  createPriceListItem,
+  updatePriceListItem,
 } from '@/api/catalog'
 import type {
   PaginationParams,
   AdminCustomerListParams,
   AdminUpdateCustomerPayload,
+  CreateServiceCategoryPayload,
+  UpdateServiceCategoryPayload,
+  CreateServicePayload,
+  UpdateServicePayload,
+  CreateItemPayload,
+  UpdateItemPayload,
+  CreatePriceListPayload,
+  UpdatePriceListPayload,
+  CreatePriceListItemPayload,
+  UpdatePriceListItemPayload,
 } from '@/types/api'
 
 export const catalogKeys = {
@@ -20,8 +48,12 @@ export const catalogKeys = {
   services: (params?: object) => ['catalog', 'services', params] as const,
   servicesInfinite: (params?: object) => ['catalog', 'services', 'infinite', params] as const,
   items: (params?: object) => ['catalog', 'items', params] as const,
+  itemsInfinite: (params?: object) => ['catalog', 'items', 'infinite', params] as const,
+  fabricTypes: (params?: object) => ['catalog', 'fabricTypes', params] as const,
+  itemGroups: (params?: object) => ['catalog', 'itemGroups', params] as const,
   priceLists: (params?: object) => ['catalog', 'priceLists', params] as const,
   priceListsInfinite: (params?: object) => ['catalog', 'priceLists', 'infinite', params] as const,
+  priceListItems: (priceListId: string) => ['catalog', 'priceListItems', priceListId] as const,
   adminCustomers: (params?: object) => ['catalog', 'adminCustomers', params] as const,
 }
 
@@ -70,6 +102,34 @@ export function useItems(params: PaginationParams & { itemGroupId?: string } = {
   })
 }
 
+export function useItemsInfinite() {
+  return useInfiniteQuery({
+    queryKey: catalogKeys.itemsInfinite(),
+    queryFn: ({ pageParam }) => getItems({ page: pageParam, pageSize: CATALOG_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasNextPage ? allPages.length + 1 : undefined,
+  })
+}
+
+/** Flat fabric-type lookup (first 100) — feeds the price-list item editor. */
+export function useFabricTypes() {
+  return useQuery({
+    queryKey: catalogKeys.fabricTypes(),
+    queryFn: () => getFabricTypes(),
+    staleTime: 5 * 60_000,
+  })
+}
+
+/** Flat item-group lookup (first 100) — feeds item + price-list item editors. */
+export function useItemGroups() {
+  return useQuery({
+    queryKey: catalogKeys.itemGroups(),
+    queryFn: () => getItemGroups(),
+    staleTime: 5 * 60_000,
+  })
+}
+
 export function usePriceLists(params: PaginationParams = {}) {
   return useQuery({
     queryKey: catalogKeys.priceLists(params),
@@ -85,6 +145,148 @@ export function usePriceListsInfinite() {
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.hasNextPage ? allPages.length + 1 : undefined,
+  })
+}
+
+/** Priced rows inside one price list. */
+export function usePriceListItems(priceListId: string | null) {
+  return useQuery({
+    queryKey: catalogKeys.priceListItems(priceListId ?? ''),
+    queryFn: () => getPriceListItems(priceListId as string),
+    enabled: !!priceListId,
+  })
+}
+
+// ── Catalog mutations ─────────────────────────────────────────────────────────
+
+function invalidate(qc: ReturnType<typeof useQueryClient>, ...keys: readonly (readonly unknown[])[]) {
+  for (const key of keys) void qc.invalidateQueries({ queryKey: key })
+}
+
+export function useCreateServiceCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateServiceCategoryPayload) => createServiceCategory(payload),
+    onSuccess: () => invalidate(qc, ['catalog', 'categories']),
+  })
+}
+
+export function useUpdateServiceCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateServiceCategoryPayload }) =>
+      updateServiceCategory(id, payload),
+    onSuccess: () => invalidate(qc, ['catalog', 'categories']),
+  })
+}
+
+export function useDeleteServiceCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteServiceCategory(id),
+    onSuccess: () => invalidate(qc, ['catalog', 'categories']),
+  })
+}
+
+export function useCreateService() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateServicePayload) => createService(payload),
+    onSuccess: () => invalidate(qc, ['catalog', 'services']),
+  })
+}
+
+export function useUpdateService() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateServicePayload }) =>
+      updateService(id, payload),
+    onSuccess: () => invalidate(qc, ['catalog', 'services']),
+  })
+}
+
+export function useDeleteService() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteService(id),
+    onSuccess: () => invalidate(qc, ['catalog', 'services']),
+  })
+}
+
+export function useCreateItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateItemPayload) => createItem(payload),
+    onSuccess: () => invalidate(qc, ['catalog', 'items']),
+  })
+}
+
+export function useUpdateItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateItemPayload }) =>
+      updateItem(id, payload),
+    onSuccess: () => invalidate(qc, ['catalog', 'items']),
+  })
+}
+
+export function useDeleteItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteItem(id),
+    onSuccess: () => invalidate(qc, ['catalog', 'items']),
+  })
+}
+
+// ── Pricing mutations ─────────────────────────────────────────────────────────
+
+export function useCreatePriceList() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreatePriceListPayload) => createPriceList(payload),
+    onSuccess: () => invalidate(qc, ['catalog', 'priceLists']),
+  })
+}
+
+export function useUpdatePriceList() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdatePriceListPayload }) =>
+      updatePriceList(id, payload),
+    onSuccess: () => invalidate(qc, ['catalog', 'priceLists']),
+  })
+}
+
+export function usePublishPriceList() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => publishPriceList(id),
+    onSuccess: () => invalidate(qc, ['catalog', 'priceLists']),
+  })
+}
+
+export function useDeletePriceList() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deletePriceList(id),
+    onSuccess: () => invalidate(qc, ['catalog', 'priceLists']),
+  })
+}
+
+export function useCreatePriceListItem(priceListId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreatePriceListItemPayload) => createPriceListItem(priceListId, payload),
+    onSuccess: () => invalidate(qc, catalogKeys.priceListItems(priceListId)),
+  })
+}
+
+export function useUpdatePriceListItem(priceListId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdatePriceListItemPayload }) =>
+      updatePriceListItem(priceListId, id, payload),
+    onSuccess: () => invalidate(qc, catalogKeys.priceListItems(priceListId)),
   })
 }
 

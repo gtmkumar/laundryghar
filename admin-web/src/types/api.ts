@@ -264,6 +264,181 @@ export interface PriceListItemDto {
   updatedAt: string
 }
 
+export interface FabricTypeDto {
+  id: string
+  brandId: string
+  code: string
+  name: string
+  nameLocalized: string
+  description: string | null
+  careInstructions: string | null
+  priceMultiplier: number
+  requiresSpecialCare: boolean
+  displayOrder: number
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ItemGroupDto {
+  id: string
+  brandId: string
+  code: string
+  name: string
+  nameLocalized: string
+  iconUrl: string | null
+  displayOrder: number
+  isVisibleMobile: boolean
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+// ── Catalog write payloads ────────────────────────────────────────────────────
+// `nameLocalized` is a jsonb column — serialize as a JSON-object string
+// (`{"en":"…","hi":"…"}`) on submit. A bare string 400s with 22P02.
+
+export interface CreateServiceCategoryPayload {
+  code: string
+  name: string
+  nameLocalized: string
+  description: string | null
+  iconUrl: string | null
+  imageUrl: string | null
+  colorHex: string | null
+  displayOrder: number
+  isVisibleMobile: boolean
+  isVisiblePos: boolean
+  requiresWarehouseCap: string[]
+}
+
+export interface UpdateServiceCategoryPayload {
+  name: string
+  nameLocalized: string
+  description: string | null
+  iconUrl: string | null
+  imageUrl: string | null
+  colorHex: string | null
+  displayOrder: number
+  isVisibleMobile: boolean
+  isVisiblePos: boolean
+  status: string
+}
+
+export interface CreateServicePayload {
+  categoryId: string
+  code: string
+  name: string
+  nameLocalized: string
+  description: string | null
+  pricingModel: string
+  baseTatHours: number
+  expressTatHours: number
+  expressMultiplier: number
+  isExpressAvailable: boolean
+  requiresInspection: boolean
+  requiresQc: boolean
+  iconUrl: string | null
+  displayOrder: number
+}
+
+export interface UpdateServicePayload {
+  name: string
+  nameLocalized: string
+  description: string | null
+  pricingModel: string
+  baseTatHours: number
+  expressTatHours: number
+  expressMultiplier: number
+  isExpressAvailable: boolean
+  requiresInspection: boolean
+  requiresQc: boolean
+  iconUrl: string | null
+  displayOrder: number
+  status: string
+}
+
+export interface CreateItemPayload {
+  itemGroupId: string | null
+  code: string
+  name: string
+  nameLocalized: string
+  description: string | null
+  iconUrl: string | null
+  imageUrl: string | null
+  typicalWeightGrams: number | null
+  requiresPerSidePrice: boolean
+  aliases: string[] | null
+  displayOrder: number
+}
+
+export interface UpdateItemPayload {
+  itemGroupId: string | null
+  name: string
+  nameLocalized: string
+  description: string | null
+  iconUrl: string | null
+  imageUrl: string | null
+  typicalWeightGrams: number | null
+  requiresPerSidePrice: boolean
+  aliases: string[] | null
+  displayOrder: number
+  status: string
+}
+
+// ── Pricing write payloads ────────────────────────────────────────────────────
+
+export interface CreatePriceListPayload {
+  code: string
+  name: string
+  description: string | null
+  currencyCode: string
+  scopeType: string
+  franchiseId: string | null
+  storeId: string | null
+  parentPriceListId: string | null
+  effectiveFrom: string
+  effectiveTo: string | null
+  isDefault: boolean
+  notes: string | null
+}
+
+export interface UpdatePriceListPayload {
+  name: string
+  description: string | null
+  effectiveFrom: string
+  effectiveTo: string | null
+  isDefault: boolean
+  notes: string | null
+  status: string
+}
+
+export interface CreatePriceListItemPayload {
+  serviceId: string
+  itemId: string
+  itemVariantId: string | null
+  fabricTypeId: string | null
+  itemGroupId: string | null
+  basePrice: number
+  expressPrice: number | null
+  minimumQuantity: number
+  taxRatePercent: number
+  isTaxable: boolean
+  displayLabel: string | null
+  notes: string | null
+}
+
+export interface UpdatePriceListItemPayload {
+  basePrice: number
+  expressPrice: number | null
+  minimumQuantity: number
+  taxRatePercent: number
+  isTaxable: boolean
+  displayLabel: string | null
+  notes: string | null
+  isActive: boolean
+}
+
 // ── Orders ──────────────────────────────────────────────────────────────────
 
 export interface OrderItemDto {
@@ -1118,6 +1293,143 @@ export interface CouponDto {
   updatedAt: string
 }
 
+/** POST /admin/coupons body. `code` is upper-cased server-side. */
+export interface CreateCouponPayload {
+  code: string
+  name: string
+  description: string | null
+  couponType: string
+  discountValue: number
+  maxDiscountAmount: number | null
+  minOrderValue: number
+  applicableServices: string[] | null
+  applicableStores: string[] | null
+  applicableFranchises: string[] | null
+  customerEligibility: string
+  eligibleCustomerIds: string[] | null
+  eligibleSegments: string[] | null
+  isFirstOrderOnly: boolean
+  isSingleUsePerCust: boolean
+  maxTotalUses: number | null
+  maxUsesPerCustomer: number
+  isStackable: boolean
+  isPublic: boolean
+  isAutoApply: boolean
+  validFrom: string
+  validUntil: string | null
+}
+
+/** PUT /admin/coupons/{id} body. `code` is immutable; adds `status`. */
+export interface UpdateCouponPayload {
+  name: string
+  description: string | null
+  discountValue: number
+  maxDiscountAmount: number | null
+  minOrderValue: number
+  applicableServices: string[] | null
+  applicableStores: string[] | null
+  applicableFranchises: string[] | null
+  customerEligibility: string
+  eligibleCustomerIds: string[] | null
+  eligibleSegments: string[] | null
+  isFirstOrderOnly: boolean
+  isSingleUsePerCust: boolean
+  maxTotalUses: number | null
+  maxUsesPerCustomer: number
+  isStackable: boolean
+  isPublic: boolean
+  isAutoApply: boolean
+  validFrom: string
+  validUntil: string | null
+  status: string
+}
+
+// ── Packages ────────────────────────────────────────────────────────────────
+
+export interface PackageDto {
+  id: string
+  brandId: string
+  code: string
+  name: string
+  nameLocalized: string
+  tier: string
+  description: string | null
+  price: number
+  creditValue: number
+  discountPercent: number
+  creditMultiplier: number
+  validityDays: number | null
+  isUnlimitedValidity: boolean
+  applicableServices: string[]
+  excludedServices: string[]
+  minimumOrderValue: number | null
+  maxUsagePerOrder: number | null
+  maxPurchasesPerCust: number | null
+  iconUrl: string | null
+  colorHex: string | null
+  displayOrder: number
+  isFeatured: boolean
+  termsAndConditions: string | null
+  status: string
+  availableFrom: string | null
+  availableTo: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** POST /admin/packages body. Status defaults to "active" server-side. */
+export interface CreatePackagePayload {
+  code: string
+  name: string
+  nameLocalized: string
+  tier: string
+  description: string | null
+  price: number
+  creditValue: number
+  discountPercent: number
+  creditMultiplier: number
+  validityDays: number | null
+  isUnlimitedValidity: boolean
+  applicableServices: string[] | null
+  excludedServices: string[] | null
+  minimumOrderValue: number | null
+  maxUsagePerOrder: number | null
+  maxPurchasesPerCust: number | null
+  iconUrl: string | null
+  colorHex: string | null
+  displayOrder: number
+  isFeatured: boolean
+  termsAndConditions: string | null
+  availableFrom: string | null
+  availableTo: string | null
+}
+
+/** PUT /admin/packages/{id} body. `code`/`tier` immutable; adds `status`. */
+export interface UpdatePackagePayload {
+  name: string
+  nameLocalized: string
+  description: string | null
+  price: number
+  creditValue: number
+  discountPercent: number
+  creditMultiplier: number
+  validityDays: number | null
+  isUnlimitedValidity: boolean
+  applicableServices: string[] | null
+  excludedServices: string[] | null
+  minimumOrderValue: number | null
+  maxUsagePerOrder: number | null
+  maxPurchasesPerCust: number | null
+  iconUrl: string | null
+  colorHex: string | null
+  displayOrder: number
+  isFeatured: boolean
+  termsAndConditions: string | null
+  availableFrom: string | null
+  availableTo: string | null
+  status: string
+}
+
 // ── Warehouse kanban board ─────────────────────────────────────────────────────
 
 export interface WarehouseGarmentCard {
@@ -1319,12 +1631,69 @@ export interface PayoutSettingsView {
 
 export type UpdatePayoutPayload = PayoutSettingsView
 
+// ── Settings — Payment Gateway ───────────────────────────────────────────────
+
+export interface PaymentGatewaySettingsView {
+  provider: string               // 'razorpay'
+  enabled: boolean
+  keyId: string | null
+  keySecretTail: string | null   // '••••XXXX' or null
+  keySecretSet: boolean
+  webhookSecretTail: string | null
+  webhookSecretSet: boolean
+  codEnabled: boolean
+}
+
+export interface UpdatePaymentGatewayPayload {
+  enabled: boolean
+  keyId?: string
+  keySecret?: string             // omit/blank to keep stored secret
+  webhookSecret?: string         // omit/blank to keep stored secret
+  codEnabled: boolean
+}
+
+// ── Settings — WhatsApp ──────────────────────────────────────────────────────
+
+export interface WhatsAppSettingsView {
+  enabled: boolean
+  phoneNumberId: string | null
+  accessTokenTail: string | null
+  accessTokenSet: boolean
+}
+
+export interface UpdateWhatsAppPayload {
+  enabled: boolean
+  phoneNumberId?: string
+  accessToken?: string           // omit/blank to keep stored token
+}
+
+// ── Settings — SMS ───────────────────────────────────────────────────────────
+
+export interface SmsSettingsView {
+  provider: string               // 'msg91'
+  enabled: boolean
+  authKeyTail: string | null
+  authKeySet: boolean
+  senderId: string | null
+  dltTemplateId: string | null
+}
+
+export interface UpdateSmsPayload {
+  enabled: boolean
+  authKey?: string               // omit/blank to keep stored key
+  senderId?: string
+  dltTemplateId?: string
+}
+
 export interface AdminSettings {
   email: EmailSettingsView
   provisioning: ProvisioningView
   app: AppUrlsView
   maps: MapsSettingsView
   payout: PayoutSettingsView
+  paymentGateway: PaymentGatewaySettingsView
+  whatsApp: WhatsAppSettingsView
+  sms: SmsSettingsView
 }
 
 export interface UpdateEmailPayload {
@@ -2019,4 +2388,267 @@ export interface IssueRoyaltyInvoicePayload {
 export interface RecordRoyaltyPaymentPayload {
   amountPaid: number
   notes?: string | null
+}
+
+// ── Subscriptions (Commerce: plans + customer subscriptions) ───────────────────
+
+export interface SubscriptionPlanDto {
+  id: string
+  brandId: string
+  code: string
+  name: string
+  /** JSON-object string, e.g. '{"en":"Basic","hi":"बेसिक"}'. */
+  nameLocalized: string
+  description: string | null
+  tier: string
+  billingInterval: string
+  intervalCount: number
+  price: number
+  setupFee: number
+  currencyCode: string
+  trialDays: number
+  quotaType: string
+  quotaValue: number | null
+  rolloverUnused: boolean
+  maxRollover: number | null
+  overageDiscountPercent: number
+  applicableServices: string[]
+  excludedServices: string[]
+  pickupIncluded: boolean
+  deliveryIncluded: boolean
+  expressIncluded: boolean
+  maxActiveSubscribers: number | null
+  currentSubscriberCount: number
+  gateway: string | null
+  gatewayPlanId: string | null
+  termsAndConditions: string | null
+  iconUrl: string | null
+  colorHex: string | null
+  displayOrder: number
+  isPublic: boolean
+  isFeatured: boolean
+  status: string
+  availableFrom: string | null
+  availableTo: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateSubscriptionPlanPayload {
+  code: string
+  name: string
+  nameLocalized: string
+  description?: string | null
+  tier: string
+  billingInterval: string
+  intervalCount: number
+  price: number
+  setupFee: number
+  currencyCode: string
+  trialDays: number
+  quotaType: string
+  quotaValue?: number | null
+  rolloverUnused: boolean
+  maxRollover?: number | null
+  overageDiscountPercent: number
+  applicableServices?: string[] | null
+  excludedServices?: string[] | null
+  pickupIncluded: boolean
+  deliveryIncluded: boolean
+  expressIncluded: boolean
+  maxActiveSubscribers?: number | null
+  gateway?: string | null
+  gatewayPlanId?: string | null
+  termsAndConditions?: string | null
+  iconUrl?: string | null
+  colorHex?: string | null
+  displayOrder: number
+  isPublic: boolean
+  isFeatured: boolean
+  availableFrom?: string | null
+  availableTo?: string | null
+}
+
+export interface UpdateSubscriptionPlanPayload {
+  name: string
+  nameLocalized: string
+  description?: string | null
+  tier: string
+  price: number
+  setupFee: number
+  quotaType: string
+  quotaValue?: number | null
+  rolloverUnused: boolean
+  maxRollover?: number | null
+  overageDiscountPercent: number
+  applicableServices?: string[] | null
+  excludedServices?: string[] | null
+  pickupIncluded: boolean
+  deliveryIncluded: boolean
+  expressIncluded: boolean
+  maxActiveSubscribers?: number | null
+  gateway?: string | null
+  gatewayPlanId?: string | null
+  termsAndConditions?: string | null
+  iconUrl?: string | null
+  colorHex?: string | null
+  displayOrder: number
+  isPublic: boolean
+  isFeatured: boolean
+  status: string
+  availableFrom?: string | null
+  availableTo?: string | null
+}
+
+export interface CustomerSubscriptionDto {
+  id: string
+  brandId: string
+  customerId: string
+  planId: string
+  subscriptionNumber: string
+  priceSnapshot: number
+  billingInterval: string
+  intervalCount: number
+  quotaType: string
+  quotaValue: number | null
+  currencyCode: string
+  status: string
+  autoRenew: boolean
+  currentPeriodStart: string | null
+  currentPeriodEnd: string | null
+  nextBillingAt: string | null
+  creditsRemaining: number
+  cancelAtPeriodEnd: boolean
+  cancelledAt: string | null
+  dunningAttempts: number
+  totalCyclesBilled: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CustomerSubscriptionListParams extends PaginationParams {
+  customerId?: string
+  status?: string
+}
+
+// ── Platform plans + franchise subscriptions (Finance SaaS) ────────────────────
+
+export interface PlatformPlanDto {
+  id: string
+  brandId: string | null
+  code: string
+  name: string
+  description: string | null
+  tier: string
+  billingInterval: string
+  intervalCount: number
+  price: number
+  setupFee: number
+  annualDiscountPercent: number
+  currencyCode: string
+  trialDays: number
+  maxStores: number | null
+  maxWarehouses: number | null
+  maxUsers: number | null
+  maxOrdersPerMonth: number | null
+  maxRiders: number | null
+  overagePerOrder: number
+  overagePerStore: number
+  overagePerUser: number
+  /** JSON-object string of feature flags/limits. */
+  features: string
+  supportLevel: string
+  isPublic: boolean
+  isFeatured: boolean
+  displayOrder: number
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreatePlatformPlanPayload {
+  brandId?: string | null
+  code: string
+  name: string
+  description?: string | null
+  tier: string
+  billingInterval: string
+  intervalCount: number
+  price: number
+  setupFee: number
+  annualDiscountPercent: number
+  currencyCode: string
+  trialDays: number
+  maxStores?: number | null
+  maxWarehouses?: number | null
+  maxUsers?: number | null
+  maxOrdersPerMonth?: number | null
+  maxRiders?: number | null
+  overagePerOrder: number
+  overagePerStore: number
+  overagePerUser: number
+  features: string
+  supportLevel: string
+  isPublic: boolean
+  isFeatured: boolean
+  displayOrder: number
+}
+
+export interface UpdatePlatformPlanPayload {
+  name: string
+  description?: string | null
+  tier: string
+  price: number
+  setupFee: number
+  annualDiscountPercent: number
+  maxStores?: number | null
+  maxWarehouses?: number | null
+  maxUsers?: number | null
+  maxOrdersPerMonth?: number | null
+  maxRiders?: number | null
+  overagePerOrder: number
+  overagePerStore: number
+  overagePerUser: number
+  features: string
+  supportLevel: string
+  isPublic: boolean
+  isFeatured: boolean
+  displayOrder: number
+  status: string
+}
+
+export interface PlatformPlanListParams extends PaginationParams {
+  status?: string
+}
+
+export interface FranchiseSubscriptionDto {
+  id: string
+  brandId: string
+  franchiseId: string
+  platformPlanId: string
+  subscriptionNumber: string
+  priceSnapshot: number
+  billingInterval: string
+  status: string
+  autoRenew: boolean
+  currentPeriodStart: string | null
+  currentPeriodEnd: string | null
+  nextBillingAt: string | null
+  dunningAttempts: number
+  suspendedAt: string | null
+  totalCyclesBilled: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FranchiseSubscriptionListParams extends PaginationParams {
+  franchiseId?: string
+  status?: string
+}
+
+export interface AssignFranchisePlanPayload {
+  franchiseId: string
+  platformPlanId: string
+  paymentMethod: string
+  autoRenew: boolean
 }

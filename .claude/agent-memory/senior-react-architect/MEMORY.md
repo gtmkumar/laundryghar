@@ -3,3 +3,6 @@
 - [Dashboard redesign](project-dashboard-redesign.md) — Warm LG theme: login + dashboard redesigned; enabled-gate pattern for brand-scoped queries; auto brand select in AppShell
 - [Admin pickups + slots](project-admin-pickups-slots.md) — Pickup-request queue (Orders ?tab=pickups) + delivery-slot mgmt (Tenancy tab); contracts, no reject endpoint
 - [Backend "Body was inferred" 500](project-backend-inferred-body-500.md) — Stale AppHost build makes some GET list endpoints (riders, customers) 500; restart, not a contract bug
+- [jsonb name_localized contract](project-jsonb-name-localized-contract.md) — Commerce name_localized is Postgres jsonb; send `{"en":"..."}` JSON string not bare string, else 400 22P02
+- [Subscriptions admin UI](project-subscriptions-admin-ui.md) — Task #36: subscription-plans/platform-plans CRUD; nameLocalized+features are validated JSON-object strings (422); apiErrorMessage helper; navigator seed applied
+- [Catalog & Pricing admin](project-catalog-pricing-admin.md) — Task #38: /pricing rebuilt w/ CRUD + price-list editor; backend was complete; pricing_model CHECK=per_item not per_piece; apiErrorMessage in interceptor

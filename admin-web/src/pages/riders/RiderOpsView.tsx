@@ -73,7 +73,10 @@ export function RiderOpsView() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Map */}
         <div className="lg:col-span-2">
-          <div className="h-[560px] overflow-hidden rounded-2xl border border-gray-200 bg-white">
+          {/* `isolate` (isolation: isolate) + `relative z-0` confine Leaflet/Google's
+              internal z-index panes (200–1000) to a local stacking context, so they
+              can't paint over right-side drawers (FormDrawer z-50 / z-[60]). */}
+          <div className="relative z-0 h-[560px] isolate overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <RiderMap riders={riders} selectedId={selectedId} trail={trail} onSelect={setSelectedId} />
           </div>
         </div>

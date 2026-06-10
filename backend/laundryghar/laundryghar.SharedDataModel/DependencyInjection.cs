@@ -40,6 +40,11 @@ public static class DependencyInjection
         // ── PII field cipher ──────────────────────────────────────────────────────
         ConfigurePiiCipher(configuration, environment);
 
+        // Expose IFieldCipher as a DI singleton so application services (e.g. settings
+        // commands that encrypt/decrypt gateway secrets) can inject it without coupling
+        // to the PiiValueConverter static or duplicating cipher construction.
+        services.AddSingleton<IFieldCipher>(_ => PiiValueConverter.GetCipher());
+
         // LIFETIME RATIONALE (H1 security fix):
         // RlsConnectionInterceptor must be Scoped (per-request) for two reasons:
         //   1. It captures ICurrentTenant, which is itself Scoped (backed by HttpContext).

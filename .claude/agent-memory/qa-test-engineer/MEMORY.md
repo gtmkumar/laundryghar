@@ -7,3 +7,4 @@
 - [Round 5A Verification 2026-06-10](project_round5a_verification.md) — #19/#20/#31/#32/#22 all PASS; DailyRecon dry-run confirmed; pickup reject + slot decrement + notifications verified
 - [Task #26 Test Baseline](project_task26_test_baseline.md) — 528 backend + 115 customer + 63 rider + smoke 22/22 PASS; jest-expo@52, jest@29; screen tests deferred
 - [Closing Verification June 2026](project_closing_verification_june2026.md) — #17/#33 PASS with 1 blocker: Wave-0 RLS 22P02 blocks admin subscription-plans GET/PUT + Worker dunning cycle
+- [Round 6 Verification 2026-06-11](project_round6_verification.md) — #39 PASS-WITH-DEFECT (DEF-39-A: dev cipher key mismatch Worker crash); #38-remainder PASS (displayLabel + minQty validators live)

@@ -20,6 +20,7 @@ import type { ApiResponse, PaginatedList, TokenResponse } from '@/types/api'
 import { useAuthStore } from '@/stores/authStore'
 import { useBrandStore } from '@/stores/brandStore'
 import { showToast } from '@/stores/toastStore'
+import { apiErrorMessage } from '@/lib/apiError'
 
 const IDENTITY_URL = import.meta.env.VITE_IDENTITY_URL as string
 const CATALOG_URL = import.meta.env.VITE_CATALOG_URL as string
@@ -131,9 +132,20 @@ function createInstance(baseURL: string): AxiosInstance {
       const axiosError = error as {
         response?: { status: number }
         config: AxiosRequestConfig & { _retried?: boolean }
+        message?: string
       }
 
       const status = axiosError.response?.status
+
+      // Surface the backend's field-level validator text (e.g. the 422 from a
+      // jsonb name_localized or a negative price) onto Error.message so every
+      // catch site that reads `e.message` shows the real reason instead of the
+      // generic "Request failed with status code 4xx". Skip 401 — that path is
+      // retried/refreshed below and never shown to the user.
+      if (status && status !== 401 && error instanceof Error) {
+        const rich = apiErrorMessage(error, error.message)
+        if (rich && rich !== error.message) error.message = rich
+      }
 
       // 403 = authenticated but not authorized. This is NOT a session problem, so
       // never refresh or log out — surface a non-blocking toast and let the page

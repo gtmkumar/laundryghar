@@ -25,7 +25,43 @@ public sealed record PayoutSettingsView(
 
 public sealed record AdminSettingsView(
     EmailSettingsView Email, ProvisioningView Provisioning, AppUrlsView App,
-    MapsSettingsView Maps, PayoutSettingsView Payout);
+    MapsSettingsView Maps, PayoutSettingsView Payout,
+    PaymentGatewaySettingsView PaymentGateway,
+    WhatsAppSettingsView WhatsApp,
+    SmsSettingsView Sms);
+
+// ── Read models — Payment Gateway ───────────────────────────────────────────
+
+/// <summary>
+/// Payment gateway config for the admin Settings UI.
+/// SECRET fields (KeySecret, WebhookSecret) are returned as a masked tail view
+/// ("••••XXXX") plus a hasValue flag — the real value is never sent over the wire.
+/// </summary>
+public sealed record PaymentGatewaySettingsView(
+    string  Provider,
+    bool    Enabled,
+    string? KeyId,
+    string? KeySecretTail,
+    bool    KeySecretSet,
+    string? WebhookSecretTail,
+    bool    WebhookSecretSet,
+    bool    CodEnabled);
+
+/// <summary>WhatsApp config. AccessToken is masked/hasValue only.</summary>
+public sealed record WhatsAppSettingsView(
+    bool    Enabled,
+    string? PhoneNumberId,
+    string? AccessTokenTail,
+    bool    AccessTokenSet);
+
+/// <summary>SMS (MSG91) config. AuthKey is masked/hasValue only.</summary>
+public sealed record SmsSettingsView(
+    string  Provider,
+    bool    Enabled,
+    string? AuthKeyTail,
+    bool    AuthKeySet,
+    string? SenderId,
+    string? DltTemplateId);
 
 // ── Write models ────────────────────────────────────────────────────────────
 /// <summary>
@@ -40,6 +76,38 @@ public sealed record UpdateEmailSettingsRequest(
 public sealed record TestEmailRequest(string To, UpdateEmailSettingsRequest? Settings);
 
 public sealed record TestEmailResult(bool Sent, string? Error);
+
+// ── Write models — Payment Gateway / WhatsApp / SMS ─────────────────────────
+
+/// <summary>
+/// Update payment-gateway config.
+/// KeySecret / WebhookSecret: null/blank = keep existing (SMTP pattern).
+/// </summary>
+public sealed record UpdatePaymentGatewayRequest(
+    bool    Enabled,
+    string? KeyId,
+    string? KeySecret,
+    string? WebhookSecret,
+    bool    CodEnabled);
+
+/// <summary>
+/// Update WhatsApp Cloud API config.
+/// AccessToken: null/blank = keep existing.
+/// </summary>
+public sealed record UpdateWhatsAppRequest(
+    bool    Enabled,
+    string? PhoneNumberId,
+    string? AccessToken);
+
+/// <summary>
+/// Update SMS (MSG91) config.
+/// AuthKey: null/blank = keep existing.
+/// </summary>
+public sealed record UpdateSmsRequest(
+    bool    Enabled,
+    string? AuthKey,
+    string? SenderId,
+    string? DltTemplateId);
 
 public sealed record UpdateProvisioningRequest(string Mode);
 

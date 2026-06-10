@@ -2,6 +2,7 @@ using System.Text.Json;
 using laundryghar.Identity.Infrastructure.Email;
 using laundryghar.Identity.Infrastructure.Services;
 using laundryghar.SharedDataModel.Common;
+using laundryghar.SharedDataModel.Crypto;
 using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -90,6 +91,53 @@ public static class SettingsStore
         // Web options (camelCase, case-insensitive) — see LoadMapsAsync note.
         try { return JsonSerializer.Deserialize<RiderPayoutSettings>(row.SettingValue, Json) ?? new RiderPayoutSettings(); }
         catch (JsonException) { return new RiderPayoutSettings(); }
+    }
+
+    /// <summary>
+    /// Loads payment gateway settings, decrypting secret fields with <paramref name="cipher"/>.
+    /// Returns a default (disabled) instance when no row exists.
+    /// </summary>
+    public static async Task<PaymentGatewaySettings> LoadPaymentGatewayAsync(
+        LaundryGharDbContext db, Guid? brandId, IFieldCipher cipher, CancellationToken ct)
+    {
+        var row = await FindAsync(db, brandId, "payment", "gateway", ct);
+        return PaymentGatewaySettings.FromJson(row?.SettingValue, cipher);
+    }
+
+    /// <summary>
+    /// Loads WhatsApp settings, decrypting the access token with <paramref name="cipher"/>.
+    /// Returns a default (disabled) instance when no row exists.
+    /// </summary>
+    public static async Task<WhatsAppSettings> LoadWhatsAppAsync(
+        LaundryGharDbContext db, Guid? brandId, IFieldCipher cipher, CancellationToken ct)
+    {
+        var row = await FindAsync(db, brandId, "whatsapp", "cloud", ct);
+        return WhatsAppSettings.FromJson(row?.SettingValue, cipher);
+    }
+
+    /// <summary>
+    /// Loads SMS settings, decrypting the auth key with <paramref name="cipher"/>.
+    /// Returns a default (disabled) instance when no row exists.
+    /// </summary>
+    public static async Task<SmsSettings> LoadSmsAsync(
+        LaundryGharDbContext db, Guid? brandId, IFieldCipher cipher, CancellationToken ct)
+    {
+        var row = await FindAsync(db, brandId, "sms", "provider", ct);
+        return SmsSettings.FromJson(row?.SettingValue, cipher);
+    }
+
+    // ── Masking helper ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns "••••" + the last 4 characters of <paramref name="plaintext"/>,
+    /// or null when the value is null/empty.
+    /// </summary>
+    public static string? MaskSecret(string? plaintext)
+    {
+        if (string.IsNullOrEmpty(plaintext)) return null;
+        return plaintext.Length >= 4
+            ? $"••••{plaintext[^4..]}"
+            : "••••";
     }
 
     /// <summary>Upsert a setting's JSON value, creating the row if it does not exist yet.</summary>

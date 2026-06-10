@@ -124,6 +124,7 @@ export function OpenCashBookDrawer({ open, onClose }: { open: boolean; onClose: 
             {...register('storeId')}
             aria-invalid={!!errors.storeId}
             aria-required="true"
+            aria-describedby={errors.storeId ? 'cashbook-store-error' : undefined}
             className={drawerInputCls}
             disabled={storesQ.isLoading}
           >
@@ -132,7 +133,7 @@ export function OpenCashBookDrawer({ open, onClose }: { open: boolean; onClose: 
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
-          <FieldError message={errors.storeId?.message} />
+          <FieldError id="cashbook-store-error" message={errors.storeId?.message} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Book date *">
@@ -141,9 +142,10 @@ export function OpenCashBookDrawer({ open, onClose }: { open: boolean; onClose: 
               type="date"
               aria-invalid={!!errors.bookDate}
               aria-required="true"
+              aria-describedby={errors.bookDate ? 'cashbook-date-error' : undefined}
               className={drawerInputCls}
             />
-            <FieldError message={errors.bookDate?.message} />
+            <FieldError id="cashbook-date-error" message={errors.bookDate?.message} />
           </Field>
           <Field label="Shift">
             <select {...register('shiftLabel')} className={drawerInputCls}>
@@ -158,9 +160,10 @@ export function OpenCashBookDrawer({ open, onClose }: { open: boolean; onClose: 
             min="0"
             step="0.01"
             aria-invalid={!!errors.openingBalance}
+            aria-describedby={errors.openingBalance ? 'cashbook-opening-error' : undefined}
             className={drawerInputCls}
           />
-          <FieldError message={errors.openingBalance?.message} />
+          <FieldError id="cashbook-opening-error" message={errors.openingBalance?.message} />
         </Field>
       </DrawerSection>
     </FormDrawer>
@@ -293,6 +296,7 @@ export function AddExpenseDrawer({ open, onClose }: { open: boolean; onClose: ()
             onChange={(e) => onFranchiseChange(e.target.value)}
             aria-invalid={!!errors.franchiseId}
             aria-required="true"
+            aria-describedby={errors.franchiseId ? 'expense-franchise-error' : undefined}
             className={drawerInputCls}
             disabled={franchisesQ.isLoading}
           >
@@ -301,7 +305,7 @@ export function AddExpenseDrawer({ open, onClose }: { open: boolean; onClose: ()
               <option key={f.id} value={f.id}>{f.legalName} ({f.code})</option>
             ))}
           </select>
-          <FieldError message={errors.franchiseId?.message} />
+          <FieldError id="expense-franchise-error" message={errors.franchiseId?.message} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Store (optional)">
@@ -323,6 +327,7 @@ export function AddExpenseDrawer({ open, onClose }: { open: boolean; onClose: ()
               {...register('categoryId')}
               aria-invalid={!!errors.categoryId}
               aria-required="true"
+              aria-describedby={errors.categoryId ? 'expense-category-error' : undefined}
               className={drawerInputCls}
               disabled={categoriesQ.isLoading}
             >
@@ -331,7 +336,7 @@ export function AddExpenseDrawer({ open, onClose }: { open: boolean; onClose: ()
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <FieldError message={errors.categoryId?.message} />
+            <FieldError id="expense-category-error" message={errors.categoryId?.message} />
           </Field>
         </div>
       </DrawerSection>
@@ -346,10 +351,11 @@ export function AddExpenseDrawer({ open, onClose }: { open: boolean; onClose: ()
               step="0.01"
               aria-invalid={!!errors.amount}
               aria-required="true"
+              aria-describedby={errors.amount ? 'expense-amount-error' : undefined}
               className={drawerInputCls}
               placeholder="0.00"
             />
-            <FieldError message={errors.amount?.message} />
+            <FieldError id="expense-amount-error" message={errors.amount?.message} />
           </Field>
           <Field label="Tax (₹)">
             <input
@@ -358,9 +364,10 @@ export function AddExpenseDrawer({ open, onClose }: { open: boolean; onClose: ()
               min="0"
               step="0.01"
               aria-invalid={!!errors.taxAmount}
+              aria-describedby={errors.taxAmount ? 'expense-tax-error' : undefined}
               className={drawerInputCls}
             />
-            <FieldError message={errors.taxAmount?.message} />
+            <FieldError id="expense-tax-error" message={errors.taxAmount?.message} />
           </Field>
           <Field label="Payment mode">
             <select {...register('paymentMode')} className={drawerInputCls}>
@@ -374,9 +381,10 @@ export function AddExpenseDrawer({ open, onClose }: { open: boolean; onClose: ()
             type="date"
             aria-invalid={!!errors.expenseDate}
             aria-required="true"
+            aria-describedby={errors.expenseDate ? 'expense-date-error' : undefined}
             className={drawerInputCls}
           />
-          <FieldError message={errors.expenseDate?.message} />
+          <FieldError id="expense-date-error" message={errors.expenseDate?.message} />
         </Field>
       </DrawerSection>
 
@@ -386,10 +394,11 @@ export function AddExpenseDrawer({ open, onClose }: { open: boolean; onClose: ()
             {...register('description')}
             aria-invalid={!!errors.description}
             aria-required="true"
+            aria-describedby={errors.description ? 'expense-description-error' : undefined}
             className={drawerInputCls}
             placeholder="e.g. Monthly electricity bill"
           />
-          <FieldError message={errors.description?.message} />
+          <FieldError id="expense-description-error" message={errors.description?.message} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Vendor (optional)">
@@ -466,7 +475,7 @@ export function RejectExpenseDrawer({
       <Field label="Reason for rejection *">
         <input value={reason} onChange={(e) => setReason(e.target.value)} className={drawerInputCls} placeholder="e.g. Missing bill / duplicate" autoFocus />
       </Field>
-      <p className="text-xs text-gray-400">The submitter will see this reason.</p>
+      <p className="text-xs text-gray-500">The submitter will see this reason.</p>
     </FormDrawer>
   )
 }
@@ -629,7 +638,7 @@ export function GenerateRoyaltyDrawer({ open, onClose }: GenerateRoyaltyDrawerPr
             placeholder="Leave blank to sum from payments"
           />
         </Field>
-        <p className="text-xs text-gray-400">If provided, this figure is used as gross revenue instead of summing commerce payments for the period.</p>
+        <p className="text-xs text-gray-500">If provided, this figure is used as gross revenue instead of summing commerce payments for the period.</p>
       </DrawerSection>
 
       <DrawerSection title="Notes">
@@ -736,19 +745,19 @@ export function RoyaltyDetailDrawer({ invoice, onClose, canManage }: RoyaltyDeta
       <DrawerSection>
         <div className="flex items-center justify-between">
           <RoyaltyStatusBadge status={invoice.status} />
-          <span className="text-xs text-gray-400">Due {formatDate(invoice.dueDate)}</span>
+          <span className="text-xs text-gray-500">Due {formatDate(invoice.dueDate)}</span>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-3 rounded-xl bg-gray-50 p-4 text-sm">
           <div>
-            <p className="text-xs text-gray-400">Gross revenue</p>
+            <p className="text-xs text-gray-500">Gross revenue</p>
             <p className="font-semibold tabular-nums">{formatCurrency(invoice.grossRevenue)}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-400">Grand total</p>
+            <p className="text-xs text-gray-500">Grand total</p>
             <p className="font-semibold tabular-nums">{formatCurrency(invoice.grandTotal)}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-400">Amount due</p>
+            <p className="text-xs text-gray-500">Amount due</p>
             <p className="font-semibold tabular-nums text-red-600">{formatCurrency(invoice.amountDue ?? invoice.grandTotal - invoice.amountPaid)}</p>
           </div>
         </div>
@@ -770,7 +779,7 @@ export function RoyaltyDetailDrawer({ invoice, onClose, canManage }: RoyaltyDeta
             ].map(([label, rate, amt]) => (
               <tr key={String(label)} className="text-gray-700">
                 <td className="py-1.5">{label}</td>
-                <td className="py-1.5 text-gray-400">{rate}</td>
+                <td className="py-1.5 text-gray-500">{rate}</td>
                 <td className="py-1.5 text-right tabular-nums font-medium">{formatCurrency(Number(amt))}</td>
               </tr>
             ))}
@@ -793,7 +802,7 @@ export function RoyaltyDetailDrawer({ invoice, onClose, canManage }: RoyaltyDeta
                   <span className="capitalize font-medium">{c.revenueType.replace(/_/g, ' ')}</span>
                   <span className="tabular-nums">{formatCurrency(c.royaltyAmount)}</span>
                 </div>
-                {c.notes && <p className="mt-0.5 text-gray-400">{c.notes}</p>}
+                {c.notes && <p className="mt-0.5 text-gray-500">{c.notes}</p>}
               </div>
             ))}
           </div>
