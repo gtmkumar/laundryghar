@@ -57,6 +57,16 @@ builder.Services.Configure<JwtSettings>(jwtSection);
 builder.Services.Configure<OtpSettings>(
     builder.Configuration.GetSection(OtpSettings.SectionName));  // L6
 
+// Fail closed: the testing master OTP (Otp:TestCode) must never reach Production —
+// the verify path also ignores it there, but a misconfigured deploy should not boot.
+if (builder.Environment.IsProduction()
+    && !string.IsNullOrEmpty(builder.Configuration[$"{OtpSettings.SectionName}:TestCode"]))
+{
+    throw new InvalidOperationException(
+        "Otp:TestCode is set in a Production environment. The testing master OTP is " +
+        "non-production only — remove Otp__TestCode from this environment's configuration.");
+}
+
 builder.Services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<laundryghar.Identity.Infrastructure.Email.ISettingsMailer, laundryghar.Identity.Infrastructure.Email.SettingsMailer>();

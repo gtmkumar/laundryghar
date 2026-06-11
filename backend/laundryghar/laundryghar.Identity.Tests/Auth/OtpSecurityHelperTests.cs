@@ -221,4 +221,36 @@ public sealed class OtpSecurityHelperTests
         var key2 = OtpSecurityHelper.ResolveHmacKey(settings, isDevelopment: true);
         Assert.Equal(key1, key2);
     }
+
+    // ── IsTestCodeAccepted (testing master code) ─────────────────────────────
+
+    [Fact]
+    public void IsTestCodeAccepted_Matches_OutsideProduction()
+    {
+        Assert.True(OtpSecurityHelper.IsTestCodeAccepted("123456", isProduction: false, "123456"));
+    }
+
+    [Fact]
+    public void IsTestCodeAccepted_AlwaysFalse_InProduction_EvenWhenConfiguredAndMatching()
+    {
+        Assert.False(OtpSecurityHelper.IsTestCodeAccepted("123456", isProduction: true, "123456"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void IsTestCodeAccepted_False_WhenNotConfigured(string? testCode)
+    {
+        Assert.False(OtpSecurityHelper.IsTestCodeAccepted(testCode, isProduction: false, "123456"));
+    }
+
+    [Theory]
+    [InlineData("654321")]   // wrong code
+    [InlineData("12345")]    // shorter
+    [InlineData("1234567")]  // longer
+    [InlineData("")]         // empty submission
+    public void IsTestCodeAccepted_False_WhenSubmittedCodeDiffers(string submitted)
+    {
+        Assert.False(OtpSecurityHelper.IsTestCodeAccepted("123456", isProduction: false, submitted));
+    }
 }

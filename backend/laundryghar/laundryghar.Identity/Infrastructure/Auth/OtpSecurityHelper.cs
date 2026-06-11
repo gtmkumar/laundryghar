@@ -92,6 +92,23 @@ public static class OtpSecurityHelper
     }
 
     /// <summary>
+    /// TESTING ONLY: returns true when a non-empty <see cref="OtpSettings.TestCode"/>
+    /// is configured, the environment is NOT Production, and the submitted code
+    /// matches it (fixed-time comparison). Lets testers/app-store reviewers log in
+    /// with a known code in dev/staging; in Production this always returns false
+    /// regardless of configuration (and Identity refuses to start with TestCode set).
+    /// </summary>
+    public static bool IsTestCodeAccepted(string? testCode, bool isProduction, string candidateCode)
+    {
+        if (isProduction || string.IsNullOrEmpty(testCode) || string.IsNullOrEmpty(candidateCode))
+            return false;
+
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(testCode),
+            Encoding.UTF8.GetBytes(candidateCode));
+    }
+
+    /// <summary>
     /// Sums the <c>Attempts</c> values from <paramref name="windowRows"/> to get the
     /// total failed guess count within the rolling window for an identifier.
     /// </summary>

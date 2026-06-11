@@ -74,13 +74,15 @@ public sealed class OtpVerifyHandler : IRequestHandler<OtpVerifyCommand, OtpVeri
         if (otpCode.Attempts >= otpCode.MaxAttempts)
             throw new UnauthorizedAccessException("Maximum OTP attempts exceeded.");
 
-        // SEC2: Verify using salted HMAC, falling back to legacy SHA-256 for pre-migration rows
+        // SEC2: Verify using salted HMAC, falling back to legacy SHA-256 for pre-migration rows.
+        // Non-production additionally accepts the configured Otp:TestCode (testing master code).
         var hmacKey = OtpSecurityHelper.ResolveHmacKey(_otpSettings, _env.IsDevelopment());
-        var isValid = OtpSecurityHelper.VerifyCode(
-            hmacKey,
-            otpCode.CodeSalt,
-            otpCode.CodeHash,
-            cmd.Code.Trim());
+        var isValid = OtpSecurityHelper.IsTestCodeAccepted(_otpSettings.TestCode, _env.IsProduction(), cmd.Code.Trim())
+                   || OtpSecurityHelper.VerifyCode(
+                          hmacKey,
+                          otpCode.CodeSalt,
+                          otpCode.CodeHash,
+                          cmd.Code.Trim());
 
         if (!isValid)
         {
