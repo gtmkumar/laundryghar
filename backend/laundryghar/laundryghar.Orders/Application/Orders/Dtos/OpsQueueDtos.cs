@@ -16,7 +16,11 @@ public sealed record OpsOrderDto(
     /// <summary>Hours the order is overdue (positive if past promised_delivery_at). Null when not overdue.</summary>
     double? HoursOverdue,
     /// <summary>Hours since the last status_history entry. Populated for the "stuck" queue.</summary>
-    double? HoursStuck
+    double? HoursStuck,
+    /// <summary>Owning store id — lets the UI join a store name without an extra fetch.</summary>
+    Guid StoreId,
+    /// <summary>Minutes since the order was created. Drives the "needs action" age badge.</summary>
+    double AgeMinutes
 );
 
 /// <summary>Summary counts for a single ops queue bucket.</summary>
@@ -29,7 +33,8 @@ public sealed record OpsQueueBucketSummary(int Count);
 public sealed record OpsQueuesResponse(
     OpsQueueBucket DueToday,
     OpsQueueBucket Overdue,
-    OpsQueueBucket Stuck
+    OpsQueueBucket Stuck,
+    OpsQueueBucket Unactioned
 );
 
 public sealed record OpsQueueBucket(

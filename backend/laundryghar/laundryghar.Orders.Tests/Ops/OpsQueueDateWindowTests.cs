@@ -1,3 +1,5 @@
+using laundryghar.SharedDataModel.Enums;
+
 namespace laundryghar.Orders.Tests.Ops;
 
 /// <summary>
@@ -130,4 +132,39 @@ public sealed class OpsQueueDateWindowTests
         var lastChanged = Now.AddHours(-72); // 3 days
         Assert.True(IsStuck(lastChanged, Now, 24));
     }
+
+    // ── Unactioned ("needs action") bucket ────────────────────────────────────
+    // The unactioned bucket = non-terminal orders still sitting in 'placed'.
+    // Mirrors the predicate `o.Status == OrderStatus.Placed` in OpsQueuesHandler.
+
+    private static bool IsUnactioned(string status)
+        => string.Equals(status, OrderStatus.Placed, StringComparison.Ordinal);
+
+    [Fact]
+    public void IsUnactioned_Placed_True()
+        => Assert.True(IsUnactioned(OrderStatus.Placed));
+
+    [Theory]
+    [InlineData(OrderStatus.PickupScheduled)]
+    [InlineData(OrderStatus.Received)]
+    [InlineData(OrderStatus.InProcess)]
+    [InlineData(OrderStatus.OutForDelivery)]
+    [InlineData(OrderStatus.Delivered)]
+    public void IsUnactioned_AnyNonPlaced_False(string status)
+        => Assert.False(IsUnactioned(status));
+
+    // ── AgeMinutes calculation ────────────────────────────────────────────────
+    // Mirrors `Math.Max(0, (now - createdAt).TotalMinutes)` in OpsQueuesHandler.
+
+    private static double AgeMinutes(DateTimeOffset createdAt, DateTimeOffset now)
+        => Math.Max(0, (now - createdAt).TotalMinutes);
+
+    [Fact]
+    public void AgeMinutes_TwoHoursOld_ReturnsOneTwenty()
+        => Assert.Equal(120, AgeMinutes(Now.AddHours(-2), Now));
+
+    [Fact]
+    public void AgeMinutes_FutureCreatedAt_ClampedToZero()
+        // Defensive: a clock-skewed createdAt in the future never yields a negative age.
+        => Assert.Equal(0, AgeMinutes(Now.AddMinutes(5), Now));
 }

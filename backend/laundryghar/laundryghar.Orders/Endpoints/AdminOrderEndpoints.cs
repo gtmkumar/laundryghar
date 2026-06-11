@@ -15,11 +15,11 @@ public static class AdminOrderEndpoints
         orders.MapGet("/", async (
             [FromServices] ISender sender, CancellationToken ct,
             int page = 1, int pageSize = 20, string? status = null, Guid? storeId = null,
-            string? dateFrom = null, string? dateTo = null) =>
+            string? dateFrom = null, string? dateTo = null, string? statusGroup = null) =>
         {
             DateOnly? from = dateFrom is not null && DateOnly.TryParse(dateFrom, out var df) ? df : null;
             DateOnly? to   = dateTo   is not null && DateOnly.TryParse(dateTo, out var dt)   ? dt : null;
-            var r = await sender.Send(new GetOrdersQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status, storeId, from, to), ct);
+            var r = await sender.Send(new GetOrdersQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status, storeId, from, to, statusGroup), ct);
             return Results.Ok(new PaginatedListResponse<OrderDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:orders.list");
 

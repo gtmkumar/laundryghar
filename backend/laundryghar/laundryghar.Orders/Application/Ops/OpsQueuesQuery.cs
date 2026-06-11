@@ -78,7 +78,7 @@ public sealed class OpsQueuesHandler : IRequestHandler<OpsQueuesQuery, OpsQueues
                   c => c.Id,
                   (o, c) => new
                   {
-                      o.Id, o.CreatedAt, o.OrderNumber, o.Status,
+                      o.Id, o.CreatedAt, o.OrderNumber, o.Status, o.StoreId,
                       o.PromisedDeliveryAt,
                       CustomerName = (c.DisplayName ?? (c.FirstName + " " + c.LastName)).Trim()
                   })
@@ -100,7 +100,29 @@ public sealed class OpsQueuesHandler : IRequestHandler<OpsQueuesQuery, OpsQueues
                   c => c.Id,
                   (o, c) => new
                   {
-                      o.Id, o.CreatedAt, o.OrderNumber, o.Status,
+                      o.Id, o.CreatedAt, o.OrderNumber, o.Status, o.StoreId,
+                      o.PromisedDeliveryAt,
+                      CustomerName = (c.DisplayName ?? (c.FirstName + " " + c.LastName)).Trim()
+                  })
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        // ── Unactioned ("needs action") ──────────────────────────────────────
+        // Orders still sitting in 'placed' — nobody has scheduled a pickup yet.
+        // Oldest first so the most-aged (most urgent) bubble to the top.
+        var unactionedQuery = baseQuery
+            .Where(o => o.Status == OrderStatus.Placed)
+            .OrderBy(o => o.CreatedAt);
+
+        var unactionedTotal = await unactionedQuery.CountAsync(ct);
+        var unactionedRows  = await unactionedQuery
+            .Join(_db.Customers,
+                  o => o.CustomerId,
+                  c => c.Id,
+                  (o, c) => new
+                  {
+                      o.Id, o.CreatedAt, o.OrderNumber, o.Status, o.StoreId,
                       o.PromisedDeliveryAt,
                       CustomerName = (c.DisplayName ?? (c.FirstName + " " + c.LastName)).Trim()
                   })
@@ -137,6 +159,7 @@ public sealed class OpsQueuesHandler : IRequestHandler<OpsQueuesQuery, OpsQueues
                       x.Order.CreatedAt,
                       x.Order.OrderNumber,
                       x.Order.Status,
+                      x.Order.StoreId,
                       x.Order.PromisedDeliveryAt,
                       x.LastChanged,
                       CustomerName = (c.DisplayName ?? (c.FirstName + " " + c.LastName)).Trim()
@@ -149,7 +172,7 @@ public sealed class OpsQueuesHandler : IRequestHandler<OpsQueuesQuery, OpsQueues
 
         static OpsOrderDto ToOpsDto(
             Guid id, DateTimeOffset createdAt, string orderNumber, string customerName,
-            string status, DateTimeOffset? promisedDeliveryAt,
+            string status, DateTimeOffset? promisedDeliveryAt, Guid storeId,
             DateTimeOffset now, DateTimeOffset? lastChanged = null)
         {
             double? hoursOverdue = promisedDeliveryAt.HasValue && promisedDeliveryAt.Value < now
@@ -160,15 +183,17 @@ public sealed class OpsQueuesHandler : IRequestHandler<OpsQueuesQuery, OpsQueues
                 ? (now - lastChanged.Value).TotalHours
                 : null;
 
+            double ageMinutes = Math.Max(0, (now - createdAt).TotalMinutes);
+
             return new OpsOrderDto(id, createdAt, orderNumber, customerName,
-                status, promisedDeliveryAt, hoursOverdue, hoursStuck);
+                status, promisedDeliveryAt, hoursOverdue, hoursStuck, storeId, ageMinutes);
         }
 
         var dueTodayBucket = new OpsQueueBucket(
             Count: dueTodayTotal,
             List: dueTodayRows.Select(r => ToOpsDto(
                 r.Id, r.CreatedAt, r.OrderNumber, r.CustomerName,
-                r.Status, r.PromisedDeliveryAt, now)).ToList(),
+                r.Status, r.PromisedDeliveryAt, r.StoreId, now)).ToList(),
             HasNextPage: (page * pageSize) < dueTodayTotal,
             TotalCount: dueTodayTotal);
 
@@ -176,7 +201,7 @@ public sealed class OpsQueuesHandler : IRequestHandler<OpsQueuesQuery, OpsQueues
             Count: overdueTotal,
             List: overdueRows.Select(r => ToOpsDto(
                 r.Id, r.CreatedAt, r.OrderNumber, r.CustomerName,
-                r.Status, r.PromisedDeliveryAt, now)).ToList(),
+                r.Status, r.PromisedDeliveryAt, r.StoreId, now)).ToList(),
             HasNextPage: (page * pageSize) < overdueTotal,
             TotalCount: overdueTotal);
 
@@ -184,10 +209,18 @@ public sealed class OpsQueuesHandler : IRequestHandler<OpsQueuesQuery, OpsQueues
             Count: stuckTotal,
             List: stuckRows.Select(r => ToOpsDto(
                 r.Id, r.CreatedAt, r.OrderNumber, r.CustomerName,
-                r.Status, r.PromisedDeliveryAt, now, r.LastChanged)).ToList(),
+                r.Status, r.PromisedDeliveryAt, r.StoreId, now, r.LastChanged)).ToList(),
             HasNextPage: (page * pageSize) < stuckTotal,
             TotalCount: stuckTotal);
 
-        return new OpsQueuesResponse(dueTodayBucket, overdueBucket, stuckBucket);
+        var unactionedBucket = new OpsQueueBucket(
+            Count: unactionedTotal,
+            List: unactionedRows.Select(r => ToOpsDto(
+                r.Id, r.CreatedAt, r.OrderNumber, r.CustomerName,
+                r.Status, r.PromisedDeliveryAt, r.StoreId, now)).ToList(),
+            HasNextPage: (page * pageSize) < unactionedTotal,
+            TotalCount: unactionedTotal);
+
+        return new OpsQueuesResponse(dueTodayBucket, overdueBucket, stuckBucket, unactionedBucket);
     }
 }

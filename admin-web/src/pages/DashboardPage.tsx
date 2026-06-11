@@ -17,13 +17,16 @@
 
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react'
+import { ArrowUpRight, ArrowDownRight, RefreshCw, Zap } from 'lucide-react'
 import { useAnalyticsDashboard, useDailyStoreRevenue } from '@/hooks/useAnalytics'
 import { useOrders } from '@/hooks/useOrders'
 import { useStores } from '@/hooks/useTenancy'
 import { useCustomerNameMap } from '@/hooks/useCatalog'
 import { useBrandStore } from '@/stores/brandStore'
 import type { OrderDto, DailyStoreRevenueDto, StoreDto } from '@/types/api'
+import { useStatusLabel, paymentTone, PAYMENT_TONE_CLASS } from './orders/orderFormat'
+import { ActiveRidersPanel } from './dashboard/ActiveRidersPanel'
+import { NeedsActionPanel } from './dashboard/NeedsActionPanel'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -291,14 +294,14 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 }
 
 function StatusPill({ status }: { status: string }) {
+  const labelFor = useStatusLabel()
   const colors = STATUS_COLORS[status] ?? { bg: '#f3f4f6', text: '#6b7280' }
-  const label = status.replace(/_/g, ' ')
   return (
     <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize whitespace-nowrap"
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
       style={{ background: colors.bg, color: colors.text }}
     >
-      {label}
+      {labelFor(status)}
     </span>
   )
 }
@@ -371,13 +374,32 @@ function LiveOrderFeed({ orders, stores, customerNameMap, loading, isRefetching 
                     {customerNameMap.get(order.customerId) ?? `…${order.customerId.slice(-6)}`}
                   </td>
                   <td className="px-2 py-2.5 text-xs text-gray-600 max-w-[140px] truncate">
-                    {storeMap.get(order.storeId) ?? `…${order.storeId.slice(-4)}`}
+                    <span className="flex items-center gap-1">
+                      <span className="truncate">{storeMap.get(order.storeId) ?? `…${order.storeId.slice(-4)}`}</span>
+                      {order.channel && (
+                        <span className="shrink-0 rounded bg-gray-100 px-1 text-[9px] font-medium uppercase text-gray-400">
+                          {order.channel}
+                        </span>
+                      )}
+                    </span>
                   </td>
                   <td className="px-2 py-2.5 text-xs text-gray-600 text-center tabular">
                     {order.totalItems}
                   </td>
                   <td className="px-2 py-2.5">
-                    <StatusPill status={order.status} />
+                    <div className="flex flex-wrap items-center gap-1">
+                      <StatusPill status={order.status} />
+                      {order.isExpress && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                          <Zap className="h-2.5 w-2.5" />
+                        </span>
+                      )}
+                      <span
+                        className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${PAYMENT_TONE_CLASS[paymentTone(order.paymentStatus)]}`}
+                      >
+                        {order.paymentStatus}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-2 py-2.5 text-xs font-semibold text-gray-800 tabular whitespace-nowrap">
                     {fmtINR(order.grandTotal)}
@@ -572,6 +594,12 @@ export function DashboardPage() {
           sub="en route"
           loading={deliveryQ.isLoading}
         />
+      </div>
+
+      {/* Ops row: Active riders + Needs action — live operational panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ActiveRidersPanel />
+        <NeedsActionPanel />
       </div>
 
       {/* Row 2: Revenue chart + Store leaderboard */}

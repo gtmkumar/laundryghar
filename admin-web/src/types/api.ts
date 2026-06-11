@@ -532,6 +532,10 @@ export interface OpsOrderDto {
   hoursOverdue: number | null
   /** Hours since last status history entry. Populated in the stuck queue. */
   hoursStuck: number | null
+  /** Owning store id — join a store name without an extra fetch. */
+  storeId: string
+  /** Minutes since the order was created — drives the "needs action" age badge. */
+  ageMinutes: number
 }
 
 export interface OpsQueueBucket {
@@ -545,6 +549,8 @@ export interface OpsQueuesResponse {
   dueToday: OpsQueueBucket
   overdue: OpsQueueBucket
   stuck: OpsQueueBucket
+  /** Orders still in 'placed' with no pickup scheduled — the "needs action" queue. */
+  unactioned: OpsQueueBucket
 }
 
 export interface OpsQueuesParams {
@@ -611,6 +617,8 @@ export interface OrderListParams extends PaginationParams {
   storeId?: string
   dateFrom?: string
   dateTo?: string
+  /** Server-side split: 'active' = non-terminal, 'history' = terminal. Ignored when `status` is set. */
+  statusGroup?: 'active' | 'history'
 }
 
 // ── CMS / Engagement ─────────────────────────────────────────────────────────

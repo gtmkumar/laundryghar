@@ -10,13 +10,23 @@ namespace laundryghar.Orders.Application.Orders.Queries;
 public sealed record GetOrdersQuery(
     int Page, int PageSize,
     string? Status, Guid? StoreId,
-    DateOnly? DateFrom, DateOnly? DateTo
+    DateOnly? DateFrom, DateOnly? DateTo,
+    string? StatusGroup = null
 ) : IRequest<PaginatedList<OrderDto>>;
 
 public sealed class GetOrdersHandler : IRequestHandler<GetOrdersQuery, PaginatedList<OrderDto>>
 {
     private readonly LaundryGharDbContext _db;
     private readonly ICurrentUser _user;
+
+    /// <summary>Terminal statuses — an order in any of these is "done" and lands in history.</summary>
+    private static readonly string[] TerminalStatuses =
+    {
+        OrderStatus.Delivered,
+        OrderStatus.Cancelled,
+        OrderStatus.Closed,
+        OrderStatus.Returned,
+    };
 
     public GetOrdersHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
@@ -25,7 +35,21 @@ public sealed class GetOrdersHandler : IRequestHandler<GetOrdersQuery, Paginated
         var brandId = _user.RequireBrandId();
         var query   = _db.Orders.Where(o => o.BrandId == brandId);
 
-        if (!string.IsNullOrEmpty(q.Status))  query = query.Where(o => o.Status == q.Status);
+        // A specific status filter takes precedence; otherwise the statusGroup
+        // splits the list into the live "active" board vs terminal "history".
+        if (!string.IsNullOrEmpty(q.Status))
+        {
+            query = query.Where(o => o.Status == q.Status);
+        }
+        else if (string.Equals(q.StatusGroup, "active", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(o => !TerminalStatuses.Contains(o.Status));
+        }
+        else if (string.Equals(q.StatusGroup, "history", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(o => TerminalStatuses.Contains(o.Status));
+        }
+
         if (q.StoreId.HasValue)                query = query.Where(o => o.StoreId == q.StoreId.Value);
         if (q.DateFrom.HasValue)
             query = query.Where(o => o.CreatedAt >= q.DateFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));

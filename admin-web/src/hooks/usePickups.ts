@@ -34,12 +34,14 @@ export const slotKeys = {
  * platform-admin doesn't fire the query before a brand is selected (the same
  * pattern the riders/tenancy hooks use).
  */
-export function usePickupRequests(params: PickupRequestListParams = {}) {
+export function usePickupRequests(params: PickupRequestListParams = {}, refetchInterval?: number) {
   const brandId = useEffectiveBrandId()
   return useQuery({
     queryKey: pickupKeys.list({ brandId, ...params }),
     queryFn: () => getPickupRequests(params),
     enabled: !!brandId,
+    refetchInterval,
+    placeholderData: (prev) => prev,
   })
 }
 

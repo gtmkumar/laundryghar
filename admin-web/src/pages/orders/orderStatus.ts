@@ -34,6 +34,9 @@ export const ORDER_STATUS = {
 
 export type OrderStatusCode = keyof typeof ORDER_STATUS
 
+/** All status codes in lifecycle order — drives the status filter dropdown. */
+export const ORDER_STATUS_LIST: string[] = Object.values(ORDER_STATUS)
+
 const S = ORDER_STATUS
 
 /** Mirror of OrderStateMachine.AllowedTransitions (verbatim targets, incl. cancelled). */
@@ -78,8 +81,36 @@ export function invoiceAvailable(status: string): boolean {
   return INVOICE_STATUSES.has(status)
 }
 
+/**
+ * Title-cases a raw status code: 'pickup_in_progress' → 'Pickup In Progress'.
+ * This is the i18n FALLBACK. Prefer {@link statusLabelKey} + the t() helper at
+ * call sites so locale files can override; this guarantees a clean label even
+ * for statuses not yet translated.
+ */
 export function statusLabel(status: string): string {
-  return status.replace(/_/g, ' ')
+  return status
+    .split('_')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+/** i18n key for a status label, e.g. 'orders.status.pickup_in_progress'. */
+export function statusLabelKey(status: string): string {
+  return `orders.status.${status}`
+}
+
+/** Terminal statuses — an order in any of these is "done" (history, not active). */
+export const TERMINAL_STATUSES = new Set<string>([
+  S.delivered,
+  S.cancelled,
+  S.closed,
+  S.returned,
+])
+
+/** True when the order is in a non-terminal (active board) status. */
+export function isActiveStatus(status: string): boolean {
+  return !TERMINAL_STATUSES.has(status)
 }
 
 type BadgeVariant = 'default' | 'secondary' | 'success' | 'warning' | 'destructive'

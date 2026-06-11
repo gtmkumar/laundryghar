@@ -6,3 +6,4 @@
 - [jsonb name_localized contract](project-jsonb-name-localized-contract.md) — Commerce name_localized is Postgres jsonb; send `{"en":"..."}` JSON string not bare string, else 400 22P02
 - [Subscriptions admin UI](project-subscriptions-admin-ui.md) — Task #36: subscription-plans/platform-plans CRUD; nameLocalized+features are validated JSON-object strings (422); apiErrorMessage helper; navigator seed applied
 - [Catalog & Pricing admin](project-catalog-pricing-admin.md) — Task #38: /pricing rebuilt w/ CRUD + price-list editor; backend was complete; pricing_model CHECK=per_item not per_piece; apiErrorMessage in interceptor
+- [Dashboard ops + live Orders](project-dashboard-ops-orders-live.md) — Tasks #41/#42: riders+needs-action panels, Orders active-cards/history split, new-booking chime/toast; backend ops-queues unactioned bucket + statusGroup param; shared orderFormat/chime/detector infra

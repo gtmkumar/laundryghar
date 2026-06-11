@@ -28,6 +28,8 @@ export function useOrders(params: OrderListParams = {}, refetchInterval?: number
     queryFn: () => getOrders(params),
     refetchInterval,
     enabled,
+    // Keep prior rows visible across polls so the card grid never flashes empty.
+    placeholderData: (prev) => prev,
   })
 }
 
