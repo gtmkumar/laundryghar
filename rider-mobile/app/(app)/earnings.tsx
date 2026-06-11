@@ -4,23 +4,20 @@
  * Header: period total + average payout per task.
  * Body: per-day list (date, task count, payout). Each DayRow is tappable — it
  * expands in-line to show the individual tasks behind that day's total, fetched
- * by date-filtering the cached today+history task query.
- *
- * MOB-15: date-filtered tasks are resolved client-side from the React Query
- * cache (today's tasks via useRiderTasks; historical tasks would require a
- * date-range endpoint — noted for backend follow-up).
+ * from GET /api/v1/rider/tasks?date=YYYY-MM-DD (MOB-15 backend now live).
  */
-import React, { useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useQuery } from '@tanstack/react-query';
 import { useMyPayouts } from '@/hooks/useEarnings';
-import { useRiderTasks } from '@/hooks/useRiderTasks';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useTranslation } from 'react-i18next';
+import { getTasksByDate } from '@/api/tasks';
 import type { RiderPayoutDayDto, RiderTask } from '@/types/api';
 
 function formatDate(iso: string): string {
@@ -67,19 +64,27 @@ function TaskLine({ task, onPress }: { task: RiderTask; onPress: () => void }) {
 
 function DayRow({
   item,
-  tasks,
   expanded,
   onToggle,
   onTaskPress,
 }: {
   item: RiderPayoutDayDto;
-  tasks: RiderTask[];
   expanded: boolean;
   onToggle: () => void;
   onTaskPress: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const isToday = item.date === todayIso();
+
+  // Fetch this day's tasks from the backend when the row is expanded.
+  // enabled: only fires when the row is open (lazy — no pre-fetch).
+  // staleTime: 5 min so rapid open/close doesn't hammer the server.
+  const { data: tasks, isLoading: tasksLoading } = useQuery({
+    queryKey: ['riderTasksByDate', item.date],
+    queryFn:  () => getTasksByDate(item.date),
+    enabled:  expanded,
+    staleTime: 5 * 60 * 1000,
+  });
 
   return (
     <View
@@ -119,8 +124,12 @@ function DayRow({
       {expanded ? (
         <View className="px-4 pb-4">
           <View className="mb-2 h-px bg-cream-200" />
-          {tasks.length > 0 ? (
-            tasks.map((task) => (
+          {tasksLoading ? (
+            <View className="items-center py-3">
+              <ActivityIndicator size="small" color="#4A552A" />
+            </View>
+          ) : (tasks ?? []).length > 0 ? (
+            (tasks ?? []).map((task) => (
               <TaskLine
                 key={task.id}
                 task={task}
@@ -130,9 +139,7 @@ function DayRow({
           ) : (
             <View className="py-3">
               <Text className="text-center text-xs text-ink-muted">
-                {isToday
-                  ? 'No completed tasks yet today.'
-                  : 'Task detail not available for past dates — backend date-range endpoint pending (MOB-15).'}
+                {isToday ? 'No completed tasks yet today.' : 'No tasks completed on this day.'}
               </Text>
             </View>
           )}
@@ -149,26 +156,6 @@ export default function EarningsScreen() {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   const { data, isLoading, isError, refetch, isRefetching } = useMyPayouts(days);
-  // Tasks available in the client cache (today's set)
-  const { tasks: cachedTasks } = useRiderTasks();
-
-  const today = todayIso();
-
-  /**
-   * For today we can drill into the cached task set. For past dates we do not
-   * yet have a date-range query — the row expands with an explanatory note.
-   * When the backend ships GET /rider/tasks?date=YYYY-MM-DD this should call
-   * that endpoint via a new query.
-   */
-  const tasksForDate = useMemo<Map<string, RiderTask[]>>(() => {
-    const map = new Map<string, RiderTask[]>();
-    // Only map today's completed tasks — historical data requires a backend endpoint.
-    const todayDone = cachedTasks.filter(
-      (t) => t.status === 'completed' && t.completedAt?.startsWith(today),
-    );
-    if (todayDone.length > 0) map.set(today, todayDone);
-    return map;
-  }, [cachedTasks, today]);
 
   if (isLoading) return <ScreenLoader />;
   if (isError) return <ErrorState message="Could not load earnings. Pull to refresh." />;
@@ -251,7 +238,6 @@ export default function EarningsScreen() {
         renderItem={({ item }) => (
           <DayRow
             item={item}
-            tasks={tasksForDate.get(item.date) ?? []}
             expanded={expandedDate === item.date}
             onToggle={() => setExpandedDate((prev) => (prev === item.date ? null : item.date))}
             onTaskPress={(id) => router.push(`/(app)/tasks/${id}` as never)}

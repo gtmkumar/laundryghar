@@ -2,9 +2,11 @@
  * Rider tasks API.
  *
  *   GET   /api/v1/rider/tasks/today              → ListResponse<RiderTask>
+ *   GET   /api/v1/rider/tasks?date=YYYY-MM-DD    → ListResponse<RiderTask>  (earnings drill-down)
  *   PATCH /api/v1/rider/tasks/{id}/status        → started | arrived | completed | failed
  *   POST  /api/v1/rider/tasks/{id}/verify-otp    → server-side OTP check (code never returned)
  *   POST  /api/v1/rider/tasks/{id}/proof-photo   → multipart photo upload (optional PoD)
+ *   POST  /api/v1/rider/tasks/{id}/inspection    → pickup garment condition evidence
  *
  * When FEATURES.riderTasksApi is false the app falls back to the labelled demo
  * set (src/data/demoTasks.ts) so the flow still works offline / pre-backend.
@@ -36,6 +38,31 @@ export async function fetchRiderTasks(): Promise<RiderTasksResult> {
     return { tasks: unwrapList(res.data).map(normalize), isDemo: false };
   }
   return { tasks: DEMO_TASKS, isDemo: true };
+}
+
+/**
+ * Fetch completed tasks for a specific IST calendar date.
+ * Used by the earnings drill-down: tapping a past day calls this so the rider
+ * sees the individual tasks behind that day's total payout.
+ *
+ * @param dateIso  Calendar date in YYYY-MM-DD format (device local / IST).
+ *                 The server applies the IST boundary (UTC+05:30) so late-night
+ *                 completions bucket correctly regardless of server clock timezone.
+ *
+ * Returns an empty array when there are no tasks for that date.
+ * Falls back to an empty array (not a demo set) when the feature flag is off,
+ * since historical data has no meaningful offline fallback.
+ */
+export async function getTasksByDate(dateIso: string): Promise<RiderTask[]> {
+  if (!FEATURES.riderTasksApi) return [];
+  try {
+    const res = await logisticsClient.get<ListResponse<RiderTask>>('/rider/tasks', {
+      params: { date: dateIso },
+    });
+    return unwrapList(res.data).map(normalize);
+  } catch (e) {
+    throw toApiError(e, `Could not load tasks for ${dateIso}. Try again.`);
+  }
 }
 
 /** Turns a 4xx envelope (axios rejects on those) into an ApiError carrying the server message. */

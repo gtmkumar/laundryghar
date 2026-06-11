@@ -445,6 +445,96 @@ public static class LogisticsEndpoints
         .DisableAntiforgery()
         .WithMetadata(new RequestSizeLimitAttribute(11 * 1024 * 1024)); // 10 MB + envelope overhead
 
+        // POST /api/v1/rider/tasks/{id}/inspection
+        // Rider submits pickup garment inspection evidence (condition photos + flags).
+        // Front photo is required; back is optional.  Conditions are a JSON string
+        // matching ConditionFlags: { stains, tears, missingButtons }.
+        // Notes are capped at 500 chars.
+        // DisableAntiforgery() required for multipart in .NET 10 minimal APIs.
+        riderSelf.MapPost("/tasks/{id:guid}/inspection", async (
+            Guid id,
+            HttpContext ctx,
+            ISender sender,
+            CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            // Parse multipart fields manually — IFormFile injection doesn't work for
+            // named optional files alongside non-file fields in minimal APIs.
+            var form = ctx.Request.Form;
+
+            var frontFile = form.Files["front"];
+            if (frontFile is null)
+                return Results.BadRequest(new Response { Status = false,
+                    Message = new Message { ResponseMessage = "front photo is required." } });
+
+            var backFile = form.Files.GetFile("back"); // null when absent
+
+            // Parse conditions JSON string from the form field.
+            InspectionConditions conditions;
+            var condRaw = form["conditions"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(condRaw))
+                return Results.BadRequest(new Response { Status = false,
+                    Message = new Message { ResponseMessage = "conditions field is required." } });
+
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<ConditionsFlagsInput>(condRaw,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                conditions = new InspectionConditions(
+                    parsed?.Stains         ?? false,
+                    parsed?.Tears          ?? false,
+                    parsed?.MissingButtons ?? false);
+            }
+            catch
+            {
+                return Results.BadRequest(new Response { Status = false,
+                    Message = new Message { ResponseMessage = "conditions must be valid JSON with stains/tears/missingButtons booleans." } });
+            }
+
+            var notes = form["notes"].FirstOrDefault()?.Trim();
+            if (notes?.Length > 500)
+                return Results.BadRequest(new Response { Status = false,
+                    Message = new Message { ResponseMessage = "notes must not exceed 500 characters." } });
+
+            var result = await sender.Send(
+                new SubmitPickupInspectionCommand(id, userId, brandId, frontFile, backFile, conditions, notes), ct);
+
+            if (result.Outcome == "inspection_ok" && result.Error is not null)
+            {
+                var data = JsonSerializer.Deserialize<RiderInspectionResult>(result.Error);
+                return Results.Ok(new SingleResponse<RiderInspectionResult> { Status = true, Data = data! });
+            }
+
+            return ToTaskResult(result);
+        })
+        .DisableAntiforgery()
+        .WithMetadata(new RequestSizeLimitAttribute(22 * 1024 * 1024)); // 2 × 10 MB photos + overhead
+
+        // GET /api/v1/rider/tasks?date=YYYY-MM-DD
+        // Returns the rider's tasks completed on the given calendar date (IST boundary).
+        // Same RiderTaskDto shape as /tasks/today. When date is absent callers should
+        // use /tasks/today which includes open tasks.
+        riderSelf.MapGet("/tasks", async (
+            HttpContext ctx, ISender sender, CancellationToken ct,
+            string? date = null) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            // Require explicit date — this endpoint is the earnings drill-down,
+            // not a general task list. /tasks/today handles the live feed.
+            if (!DateOnly.TryParse(date, out var parsedDate))
+                return Results.BadRequest(new Response { Status = false,
+                    Message = new Message { ResponseMessage = "date query param is required in YYYY-MM-DD format." } });
+
+            var list = await sender.Send(new GetMyTasksByDateQuery(userId, brandId, parsedDate), ct);
+            return Results.Ok(new ListResponse<RiderTaskDto> { Status = true, Data = list });
+        });
+
         // ── Push Tokens ───────────────────────────────────────────────────────
         // Expo push token registration / deactivation for rider devices.
         // Both endpoints are RiderOnly (JWT sub = userId, user_type = rider).
