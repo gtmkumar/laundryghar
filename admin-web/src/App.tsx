@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react'
 import {
   createBrowserRouter,
   RouterProvider,
@@ -9,26 +10,18 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { Toaster } from '@/components/shared/Toaster'
-import { LoginPage } from '@/pages/auth/LoginPage'
-import { AcceptInvitePage } from '@/pages/auth/AcceptInvitePage'
-import { DashboardPage } from '@/pages/DashboardPage'
-import { SettingsPage } from '@/pages/settings/SettingsPage'
-import { TenancyPage } from '@/pages/tenancy/TenancyPage'
-import { CatalogPage } from '@/pages/catalog/CatalogPage'
-import { OrdersPage } from '@/pages/orders/OrdersPage'
-import { CmsPage } from '@/pages/cms/CmsPage'
-import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage'
-import { WarehouseBoardPage } from '@/pages/warehouse/WarehouseBoardPage'
-import { AccessControlPage } from '@/pages/access-control/AccessControlPage'
-import { RidersPage } from '@/pages/riders/RidersPage'
-import { CustomersPage } from '@/pages/customers/CustomersPage'
-import { PackagesPage } from '@/pages/packages/PackagesPage'
-import { CouponsPage } from '@/pages/coupons/CouponsPage'
-import { CashBookPage } from '@/pages/finance/CashBookPage'
-import { ExpensesPage } from '@/pages/finance/ExpensesPage'
-import { RoyaltyPage } from '@/pages/finance/RoyaltyPage'
-import { PlatformPlansPage } from '@/pages/finance/PlatformPlansPage'
-import { SubscriptionsPage } from '@/pages/subscriptions/SubscriptionsPage'
+
+// Route-level code splitting: each page is its own chunk, loaded on first
+// visit instead of shipping every page in the startup bundle. Pages use
+// named exports, so map them onto the Component key react-router expects.
+function lazyPage(
+  load: () => Promise<Record<string, unknown>>,
+  name: string,
+) {
+  return async () => ({
+    Component: (await load())[name] as ComponentType,
+  })
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,39 +36,41 @@ const queryClient = new QueryClient({
 const router = createBrowserRouter([
   {
     path: '/login',
-    element: <LoginPage />,
+    lazy: lazyPage(() => import('@/pages/auth/LoginPage'), 'LoginPage'),
   },
   {
     path: '/accept-invite',
-    element: <AcceptInvitePage />,
+    lazy: lazyPage(() => import('@/pages/auth/AcceptInvitePage'), 'AcceptInvitePage'),
   },
   {
     element: <ProtectedRoute />,
     children: [
       // Full-screen operator board — no admin sidebar/topbar shell.
-      { path: 'warehouse/board', element: <WarehouseBoardPage /> },
+      {
+        path: 'warehouse/board',
+        lazy: lazyPage(() => import('@/pages/warehouse/WarehouseBoardPage'), 'WarehouseBoardPage'),
+      },
       {
         element: <AppShell />,
         children: [
-          { index: true,           element: <DashboardPage /> },
-          { path: 'tenancy',       element: <TenancyPage /> },
-          { path: 'catalog',       element: <CatalogPage /> },
-          { path: 'orders',        element: <OrdersPage /> },
-          { path: 'cms',           element: <CmsPage /> },
-          { path: 'analytics',     element: <AnalyticsPage /> },
-          { path: 'access-control', element: <AccessControlPage /> },
-          { path: 'settings',      element: <SettingsPage /> },
-          // New sidebar routes that don't have pages yet — lightweight placeholders
-          { path: 'customers',     element: <CustomersPage /> },
-          { path: 'riders',        element: <RidersPage /> },
-          { path: 'packages',      element: <PackagesPage /> },
-          { path: 'coupons',       element: <CouponsPage /> },
-          { path: 'subscriptions', element: <SubscriptionsPage /> },
-          { path: 'cashbook',      element: <CashBookPage /> },
-          { path: 'expenses',      element: <ExpensesPage /> },
-          { path: 'royalty',       element: <RoyaltyPage /> },
-          { path: 'platform-plans', element: <PlatformPlansPage /> },
-          { path: '*',             element: <Navigate to="/" replace /> },
+          { index: true,            lazy: lazyPage(() => import('@/pages/DashboardPage'), 'DashboardPage') },
+          { path: 'tenancy',        lazy: lazyPage(() => import('@/pages/tenancy/TenancyPage'), 'TenancyPage') },
+          { path: 'catalog',        lazy: lazyPage(() => import('@/pages/catalog/CatalogPage'), 'CatalogPage') },
+          { path: 'orders',         lazy: lazyPage(() => import('@/pages/orders/OrdersPage'), 'OrdersPage') },
+          { path: 'cms',            lazy: lazyPage(() => import('@/pages/cms/CmsPage'), 'CmsPage') },
+          { path: 'analytics',      lazy: lazyPage(() => import('@/pages/analytics/AnalyticsPage'), 'AnalyticsPage') },
+          { path: 'access-control', lazy: lazyPage(() => import('@/pages/access-control/AccessControlPage'), 'AccessControlPage') },
+          { path: 'settings',       lazy: lazyPage(() => import('@/pages/settings/SettingsPage'), 'SettingsPage') },
+          { path: 'customers',      lazy: lazyPage(() => import('@/pages/customers/CustomersPage'), 'CustomersPage') },
+          { path: 'riders',         lazy: lazyPage(() => import('@/pages/riders/RidersPage'), 'RidersPage') },
+          { path: 'packages',       lazy: lazyPage(() => import('@/pages/packages/PackagesPage'), 'PackagesPage') },
+          { path: 'coupons',        lazy: lazyPage(() => import('@/pages/coupons/CouponsPage'), 'CouponsPage') },
+          { path: 'subscriptions',  lazy: lazyPage(() => import('@/pages/subscriptions/SubscriptionsPage'), 'SubscriptionsPage') },
+          { path: 'cashbook',       lazy: lazyPage(() => import('@/pages/finance/CashBookPage'), 'CashBookPage') },
+          { path: 'expenses',       lazy: lazyPage(() => import('@/pages/finance/ExpensesPage'), 'ExpensesPage') },
+          { path: 'royalty',        lazy: lazyPage(() => import('@/pages/finance/RoyaltyPage'), 'RoyaltyPage') },
+          { path: 'platform-plans', lazy: lazyPage(() => import('@/pages/finance/PlatformPlansPage'), 'PlatformPlansPage') },
+          { path: '*',              element: <Navigate to="/" replace /> },
         ],
       },
     ],

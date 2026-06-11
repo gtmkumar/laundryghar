@@ -11,4 +11,20 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        advancedChunks: {
+          groups: [
+            // Long-cached vendor chunk: React core changes far less often
+            // than app code, so split it from the main bundle.
+            {
+              name: 'react-vendor',
+              test: /node_modules[\\/](react|react-dom|scheduler|react-router)/,
+            },
+          ],
+        },
+      },
+    },
+  },
 })
