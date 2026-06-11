@@ -275,6 +275,14 @@ public static class LogisticsEndpoints
             .RequireAuthorization("RiderOnly")
             .WithTags("Rider Self-Service");
 
+        // Permission lanes within the rider group (combine with RiderOnly):
+        //   session lane (me/duty/location/push-token) — RiderOnly alone; revoking
+        //     task permissions must not brick login or live tracking.
+        //   read lane   — permission:rider.tasks.read   (task/assignment/earnings views)
+        //   write lane  — permission:rider.tasks.update (status, OTP, photos, inspection)
+        const string TasksRead   = "permission:rider.tasks.read";
+        const string TasksUpdate = "permission:rider.tasks.update";
+
         // GET /api/v1/rider/me
         riderSelf.MapGet("/me", async (HttpContext ctx, ISender sender, CancellationToken ct) =>
         {
@@ -296,7 +304,7 @@ public static class LogisticsEndpoints
 
             var list = await sender.Send(new GetMyAssignmentsTodayQuery(userId, brandId), ct);
             return Results.Ok(new ListResponse<RiderAssignmentDto> { Status = true, Data = list });
-        });
+        }).RequireAuthorization(TasksRead);
 
         // POST /api/v1/rider/location/ping
         riderSelf.MapPost("/location/ping", async (
@@ -359,7 +367,7 @@ public static class LogisticsEndpoints
             return result is null
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderAssignmentDto> { Status = true, Data = result });
-        });
+        }).RequireAuthorization(TasksUpdate);
 
         // ── Per-order tasks (pickup/delivery legs) ────────────────────────────
         // GET /api/v1/rider/tasks/today
@@ -371,7 +379,7 @@ public static class LogisticsEndpoints
 
             var list = await sender.Send(new GetMyTasksTodayQuery(userId, brandId), ct);
             return Results.Ok(new ListResponse<RiderTaskDto> { Status = true, Data = list });
-        });
+        }).RequireAuthorization(TasksRead);
 
         // PATCH /api/v1/rider/tasks/{id}/status
         riderSelf.MapMethods("/tasks/{id:guid}/status", ["PATCH"], async (
@@ -385,7 +393,7 @@ public static class LogisticsEndpoints
             var result = await sender.Send(
                 new UpdateMyTaskStatusCommand(id, userId, brandId, req.Status, req.Reason, req.Note), ct);
             return ToTaskResult(result);
-        });
+        }).RequireAuthorization(TasksUpdate);
 
         // POST /api/v1/rider/tasks/{id}/verify-otp
         riderSelf.MapPost("/tasks/{id:guid}/verify-otp", async (
@@ -398,7 +406,7 @@ public static class LogisticsEndpoints
 
             var result = await sender.Send(new VerifyTaskOtpCommand(id, userId, brandId, req.Code), ct);
             return ToTaskResult(result);
-        });
+        }).RequireAuthorization(TasksUpdate);
 
         // PATCH /api/v1/rider/duty
         // Toggle the authenticated rider's duty state.
@@ -442,6 +450,7 @@ public static class LogisticsEndpoints
                 new UploadProofPhotoCommand(id, userId, brandId, file), ct);
             return ToTaskResult(result);
         })
+        .RequireAuthorization(TasksUpdate)
         .DisableAntiforgery()
         .WithMetadata(new RequestSizeLimitAttribute(11 * 1024 * 1024)); // 10 MB + envelope overhead
 
@@ -510,6 +519,7 @@ public static class LogisticsEndpoints
 
             return ToTaskResult(result);
         })
+        .RequireAuthorization(TasksUpdate)
         .DisableAntiforgery()
         .WithMetadata(new RequestSizeLimitAttribute(22 * 1024 * 1024)); // 2 × 10 MB photos + overhead
 
@@ -533,7 +543,7 @@ public static class LogisticsEndpoints
 
             var list = await sender.Send(new GetMyTasksByDateQuery(userId, brandId, parsedDate), ct);
             return Results.Ok(new ListResponse<RiderTaskDto> { Status = true, Data = list });
-        });
+        }).RequireAuthorization(TasksRead);
 
         // ── Push Tokens ───────────────────────────────────────────────────────
         // Expo push token registration / deactivation for rider devices.
@@ -590,7 +600,7 @@ public static class LogisticsEndpoints
             return result is null
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderPayoutSummaryDto> { Status = true, Data = result });
-        });
+        }).RequireAuthorization(TasksRead);
 
         // ── COD cash self-summary ─────────────────────────────────────────────
         // GET /api/v1/rider/cash/summary
@@ -606,7 +616,7 @@ public static class LogisticsEndpoints
             return result is null
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderCashSummaryDto> { Status = true, Data = result });
-        });
+        }).RequireAuthorization(TasksRead);
     }
 
     // Maps a RiderTaskResult onto an HTTP result: ok→200, not_found→404, conflict→400.

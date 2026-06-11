@@ -183,6 +183,11 @@ public sealed class IdentitySeeder
         ("rider.assignment.read",        "rider","assignment.read",   "Read rider assignments",        "low"),
         ("rider.assignment.manage",      "rider","assignment.manage", "Manage rider assignments",      "normal"),
         ("rider.capacity.manage",        "rider","capacity.manage",   "Manage rider capacity configs", "normal"),
+        // Self-scope codes for the rider mobile lane (/api/v1/rider/*). The RiderOnly
+        // policy remains the hard boundary; these make the admin permission matrix
+        // truthful and let it actually gate what the rider app may do.
+        ("rider.tasks.read",             "rider","tasks.read",        "View own assigned pickup/delivery tasks", "low"),
+        ("rider.tasks.update",           "rider","tasks.update",      "Progress own assigned tasks (status, OTP, photos, inspection)", "normal"),
         // ── BC-6: Commerce permissions ────────────────────────────────────────
         ("paymentmethod.manage",         "paymentmethod","manage",    "Manage payment methods",        "high"),
         ("packages.manage",              "packages","manage",         "Manage packages",               "normal"),
@@ -463,9 +468,11 @@ public sealed class IdentitySeeder
             "warehouse.process.scan",
         ]);
 
-        // rider
+        // rider — self-scope task permissions only. Riders never touch admin order
+        // APIs; their order mutations flow through /api/v1/rider/* which is gated
+        // by RiderOnly + these codes (least privilege: no orders.* grants).
         Grant("rider", [
-            "orders.list","orders.update",
+            "rider.tasks.read","rider.tasks.update",
         ]);
 
         // auditor
