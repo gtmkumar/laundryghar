@@ -1,6 +1,6 @@
 # LaundryGhar OLMS — Handoff
 
-_Last updated: 2026-06-10 (gap-analysis remediation initiative — ~25 of 32 tasks done, see §6 and `docs/GAP_ANALYSIS.md` Status; previously: customer-mobile v2 redesign + live-test bug-fix sweep; Rider Ops Phases 1-4 + Maps settings)_
+_Last updated: 2026-06-11 (gap-analysis remediation initiative **COMPLETE — all 42 tasks**, plus the 2026-06-11 feature round: catalog/pricing management, integration settings, live ops dashboard + orders cards; see §4 and `docs/GAP_ANALYSIS.md`)_
 
 ## 1. What this is
 
@@ -83,11 +83,103 @@ The **admin console is now built on two shared components** — `FilterableTable
 **Cash book**, and **Expenses** (all with search/filter/sort; finance has create + approval flows).
 The **customer-mobile app was redesigned to "v2"** (warm cream/olive/gold, bottom tabs + FAB,
 full pickup booking flow) and **live-tested on iOS + Android** — 6 runtime bugs found & fixed (see §4).
-Last full clean rebuild + run validated green: all 9 HTTP services + Worker healthy.
+
+**As of 2026-06-11 the gap-analysis remediation initiative is COMPLETE (42/42 tasks):**
+payments/refunds/webhooks are real (env-gated Razorpay), notifications send (WhatsApp/SMS/push
+senders + lifecycle mapping), customer booking persists (cart items on pickup requests),
+auto-dispatch + duty + load tracking run, QC/PoD photo uploads work, GST invoices + DPDP
+erasure + PII encryption ship, the full subscriptions module (ADR-010) is implemented with
+admin UI, i18n (en/hi) + accessibility + Sentry/OTA cover all four clients, and admin-web
+gained: order detail drawer + ops queues + pickup queue + slots, Packages/Coupons,
+Royalty, Subscriptions, **Catalog & Pricing management (price-list editor)**, **integration
+settings (Payments/WhatsApp/SMS, encrypted + runtime-consumed)**, and a **live ops dashboard**
+(active riders, needs-action ages, active-order cards, new-booking chime). Test floor:
+**586 backend + 178 mobile automated tests, `scripts/smoke.sh` 22 probes** (see `TESTING.md`).
+Last validated green 2026-06-11: build 0 errors, all tests, smoke 22/22, 9 services + Worker healthy.
 
 ## 4. What changed in recent sessions
 
-### 2026-06-10 (latest) — admin-web shared components + finance/tenancy build-out + map providers + rider-ops polish
+### 2026-06-10 → 11 (latest) — gap-analysis remediation initiative (42 tasks) + the 06-11 feature round
+
+The whole arc ran as **orchestrated specialist-agent rounds**: implementation agents with
+strict file lanes, then an independent QA-verifier per round that live-tested against the
+running stack before anything was marked done. The verifiers caught a real defect almost
+every round (DB CHECK-literal mismatches, EF-untranslatable LINQ, PostGIS `st_y(geography)`,
+a varchar overflow, DELETE-with-body route poisoning, a masked-PII round-trip that would
+have corrupted data, and the subscriptions RLS cast bug) — **never skip the verification
+round**. All committed across `a333863` → `0022773`; working tree clean. Final gate:
+**586 backend + 178 mobile tests green, smoke 22/22, no secret leakage**.
+
+**Initiative highlights (Tasks #1–33, full register in `docs/GAP_ANALYSIS.md`):**
+
+- **Payments are real:** env-gated `RazorpayPaymentGateway` (fail-closed, HMAC verify,
+  webhook `POST /api/v1/webhooks/razorpay`), refunds with cumulative cap + DB trigger,
+  cancellation→refund, idempotency keys; POS offline-payment endpoint (`payment.record`)
+  that updates the order AND posts the cash book server-side; coupons redeemable at order
+  create (`couponCode`, `discountTotal` on OrderDto).
+- **Notifications are real:** WhatsApp Cloud / MSG91 / Expo-push senders behind a
+  config-driven router (log-only with zero config), lifecycle event→template mapping
+  (27+ templates seeded), single-best-channel ladder (WhatsApp→SMS→push — product call
+  pending on fan-out), push tokens registered by both apps with tap deep-links.
+- **Booking persists:** customer pickup requests carry cart items + payment preference
+  (`FEATURES.bookingApi=true`); admin pickup queue with assign + reject (slot release);
+  delivery-slot management UI.
+- **Ops at scale:** auto-dispatch Worker job (opt-in, least-loaded + nearest ranking),
+  rider duty endpoint + `CurrentLoad` maintained everywhere, file storage + QC/PoD photo
+  uploads, promised-date TAT engine + Due-today/Overdue/Stuck/Unactioned ops queues,
+  warehouse scan-in/recon/lost-garment flow + DailyRecon job, royalty monthly job + UI.
+- **Compliance & security:** PAN/bank AES-256-GCM at rest + masked DTOs
+  (`users.read_financial`), OTP per-identifier lockout + salted HMAC, cross-brand FK sweep
+  (14 handlers), GST invoices (QuestPDF, SAC 999712, atomic numbering), DPDP erasure +
+  retention Worker jobs, HttpOnly refresh cookie for admin-web (body token kept for
+  pos/mobile), security headers in all 9 services, https-only banner URLs (non-dev).
+- **Quality rails:** FluentValidation sweep + RHF/Zod admin forms, i18n en/hi across all
+  four clients (a11y namespace included), accessibility pass (web + mobile), Sentry + OTA
+  + version-gate in both apps, QA baseline (`scripts/smoke.sh` 22 probes, `TESTING.md`,
+  mobile Jest 178 tests), docs cleanup (both INDEX files fixed, **ADRs 001–010 now exist**
+  in `docs/ADRs/`, canonical schema = `database_scripts/` + `db/patches/`, 109 tables).
+- **Subscriptions (ADR-010) fully implemented:** 10 tables + 2 MRR MVs deployed, Commerce
+  module A (plans, mandate seam, customer subscribe/cancel) + Finance module B (platform
+  plans, franchise subscriptions), Worker dunning ladder (opt-in), admin UI for all of it.
+  ⚠️ Its RLS policies initially inlined an unprotected `::uuid` cast and broke platform-admin
+  reads + the dunning cycle — fixed to the house pattern (see §5 gotcha).
+
+**2026-06-11 feature round (Tasks #34–42, user-driven):**
+
+- **Map z-index fix:** the riders Live map painted OVER right-side drawers — Leaflet panes
+  (z 200–1000) escaped into the global stacking context. Fixed by containment (`isolate` +
+  `relative z-0` on all three map renderers + host), verified by hit-test.
+- **Packages + Coupons pages** (the last ComingSoon stubs) — full CRUD on the house
+  components; coupon usage surfaced (POS redemptions).
+- **Catalog & Pricing management** (`pages/catalog/`, the "how do I set item prices" ask):
+  CRUD for categories/services (incl. TAT hours + pricing model)/items, and a **price-list
+  editor** — scope picker (brand/franchise/store), draft→publish, inline item rows with
+  REQUIRED `display_label` (server-validated now; the null-label seed bug can't recur) —
+  customer-facing prices verified end-to-end. Backend was already complete (BC-3); only
+  validators were added.
+- **Integration settings** (Settings → Payments / WhatsApp / SMS): secrets AES-encrypted
+  (`enc:v1`) in `kernel.system_settings`, masked GETs, blank-keeps-secret PUTs, and
+  **consumed at runtime** — Commerce gateway + Worker senders resolve settings-first with
+  env fallback (60s TTL cache), fail-closed prod posture preserved. Includes a read-only
+  webhook-URL copy field.
+- **DEF-39-A fix:** dev services each auto-generated their own PII key, so the Worker
+  couldn't decrypt Identity-encrypted settings. AppHost now injects ONE shared dev key
+  (`Pii__EncryptionKey`) into all 10 projects (gitignored `**/keys/*.b64`), and the
+  settings accessors catch `CryptographicException` → disabled defaults.
+- **Live ops dashboard + orders UX:** dashboard gains an **Active riders** panel (from
+  `/riders/live`) and a **Needs-action** panel (placed orders + unassigned pickups with
+  amber/red age badges, deep-links); Orders page = **active-order card grid** over the
+  history table (`statusGroup=active|history` + `unactioned` ops-queue bucket backend
+  additions), 20s live polling with pulse highlight on new arrivals, and a **new-booking
+  chime** (Web-Audio, persisted mute toggle, gesture-unlocked) + toast. Raw
+  `Pickup_in_progress`-style labels replaced by a centralized i18n-wired formatter.
+
+**Open user decisions:** (1) FormDrawer Escape-to-close + focus trap (exact diffs prepared
+in the accessibility report, not applied); (2) `lg-amber #E6A23C` fails WCAG AA (2.19:1) as
+text/button fill — needs a darker token for text uses; mobile `ink-muted` marginal on cream;
+(3) notification ladder is single-best-channel — confirm for critical events (garment lost).
+
+### 2026-06-10 — admin-web shared components + finance/tenancy build-out + map providers + rider-ops polish
 
 A big admin-web consistency pass plus several backend/mobile features. **All committed** (`cce98ed`
 → `0c90a07`); working tree clean. New deps: admin-web `@vis.gl/react-google-maps` + dev
@@ -546,6 +638,37 @@ service-to-service plumbing). Commits on `main` (newest first):
 
 ## 5. ⚠️ Critical gotchas (read before running or changing anything)
 
+- **RLS policies MUST use the house pattern** — `kernel.rls_bypass() OR brand_id =
+  kernel.current_brand_id()` (the function NULLIF-guards the `::uuid` cast). Inlining
+  `current_setting('app.current_brand_id')::uuid` throws `22P02` for every platform-admin
+  request and every Worker query (empty brand context) — this took down the subscriptions
+  module until `db/patches/subscriptions_rls_fix.sql`.
+- **jsonb columns take JSON-object STRINGS from clients** — `name_localized`, platform-plan
+  `features` etc. reject bare strings with `22P02`/400. Frontend convention: serialize
+  `{"en":…,"hi":…}` (see `pages/catalog/localized.ts`); backend validators enforce
+  valid-JSON-object on the new endpoints.
+- **Shared dev PII key:** the AppHost generates ONE `Pii__EncryptionKey` and injects it into
+  all 10 services (file at `laundryghar.AppHost/bin/.../keys/dev-pii-key.b64`, gitignored via
+  `**/keys/*.b64`). If the file is deleted, existing `enc:v1` setting secrets become
+  unreadable — the accessors degrade to disabled defaults; just re-save the settings panels.
+  Never set per-service keys in dev. Production: one `Pii__EncryptionKey` via secrets manager.
+- **Minimal-API DELETE endpoints with a body need `[FromBody]`** — an unannotated complex
+  param poisons the WHOLE service at startup ("Body was inferred…" 500 on every route,
+  including /health). This took Catalog + Logistics down once.
+- **The Worker is a generic host** — it reads `DOTNET_ENVIRONMENT`, not
+  `ASPNETCORE_ENVIRONMENT`; the AppHost injects both. Without it the Worker sees
+  "Production" and the PII cipher fails closed at startup.
+- **Agents/sessions must leave the AppHost RUNNING** — verify 9×200 + `pgrep -f
+  laundryghar.Worker` after any restart; `bash scripts/smoke.sh` (22 probes) is the fast
+  health stamp. The Worker has no port — a "9 services healthy" check does NOT cover it.
+- **Worker jobs are opt-in, default OFF** (`Worker:` config): AutoDispatch, DailyRecon,
+  RoyaltyGeneration, SubscriptionBilling. Dev dry-runs flip the flag in
+  `appsettings.Development.json` + restart — always revert after.
+- **Integration settings beat env config** (Commerce gateway, Worker WhatsApp/SMS senders;
+  60s TTL cache) — but Development keeps `DevPaymentGateway`/logging senders unless a
+  settings row is enabled with real creds. Secrets in `kernel.system_settings` are
+  `enc:v1` AES-GCM; GETs return masked tails; blank-on-save keeps the existing secret.
+
 - **Runtime runs as `app_user` → RLS is ENFORCED.** Services using `postgres` would silently
   bypass RLS. Each request sets `app.current_brand_id` via `RlsConnectionInterceptor` (from the
   JWT `brand_id` claim). A query with no brand context returns **0 rows** — that is correct, not a bug.
@@ -588,11 +711,21 @@ service-to-service plumbing). Commits on `main` (newest first):
 > encryption/masking, IDOR sweep, OTP throttling), notification senders + push, booking
 > persistence, auto-dispatch, TAT alerting, royalty automation, GST invoices, DPDP
 > erasure, the subscriptions schema deployment (`db/patches/subscriptions_module.sql`),
-> and a docs-conformance cleanup (INDEX files, ADRs 001–010 in `docs/ADRs/`). Still
-> open at EOD: subscriptions service code (#17 follow-up), i18n (#23), QA regression
-> baseline (#26), accessibility (#28) — see the Status section atop `docs/GAP_ANALYSIS.md`
-> and the session task list for live truth. The items below predate that review; most are
-> now closed by it, and the gap register supersedes this list as the working backlog.
+> and a docs-conformance cleanup (INDEX files, ADRs 001–010 in `docs/ADRs/`).
+> **2026-06-11 update: the initiative finished at 42/42** — subscriptions service code +
+> admin UI, i18n, QA baseline, accessibility, plus the 06-11 feature round (catalog/pricing
+> editor, integration settings, live ops dashboard) all shipped and verified (§4). The items
+> below predate the review and are CLOSED by it. **What actually remains:**
+> (a) the three open user decisions in §4 (FormDrawer keyboard diffs, lg-amber contrast
+> token, notification fan-out); (b) production go-live config per
+> `backend/laundryghar/PRODUCTION_ENV.md` (real Razorpay/WhatsApp/MSG91 creds, shared
+> `Pii__EncryptionKey`, OTP HMAC key, storage provider, enabling the opt-in Worker jobs,
+> EAS project IDs + Sentry DSN, rider `mobile_app_config` version rows);
+> (c) device-level testing that needs EAS dev builds (push on iOS, background GPS, PoD
+> camera); (d) nice-to-haves: admin-web full i18n extraction beyond the exemplar
+> (convention in `admin-web/src/i18n/README.md`), real Razorpay UPI-AutoPay mandate
+> wiring (gateway seam exists), customer/rider/pos list-pagination lockstep, rider
+> in-app live map (dev build).
 
 - ~~**Secrets → a real manager**~~ ✅ DONE (2026-06-06, cloud-agnostic abstraction): added
   `ISecretsProvider` in `laundryghar.ServiceDefaults/Secrets/` (`EnvironmentSecretsProvider`
