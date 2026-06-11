@@ -1,6 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace laundryghar.Identity.Application.OAuth;
 
 // ── RFC 7591 Dynamic Client Registration ────────────────────────────────────
+// RFC-facing DTOs carry explicit snake_case wire names: OAuth clients
+// (Claude, Gemini CLI, any MCP host) send/expect client_name, access_token
+// etc., not the camelCase the app-wide JSON options would produce.
 
 /// <param name="ClientName">Human-readable name for the client application.</param>
 /// <param name="RedirectUris">
@@ -8,14 +13,14 @@ namespace laundryghar.Identity.Application.OAuth;
 /// http://localhost / http://127.0.0.1 (port-agnostic loopback). All other http:// rejected.
 /// </param>
 public sealed record OAuthRegisterRequest(
-    string ClientName,
-    string[] RedirectUris
+    [property: JsonPropertyName("client_name")] string ClientName,
+    [property: JsonPropertyName("redirect_uris")] string[] RedirectUris
 );
 
 public sealed record OAuthRegisterResponse(
-    string ClientId,
-    string ClientName,
-    string[] RedirectUris
+    [property: JsonPropertyName("client_id")] string ClientId,
+    [property: JsonPropertyName("client_name")] string ClientName,
+    [property: JsonPropertyName("redirect_uris")] string[] RedirectUris
 );
 
 // ── /oauth/authorize backing endpoints ──────────────────────────────────────
@@ -46,9 +51,9 @@ public sealed record OAuthApproveResponse(string RedirectUrl);
 /// Emitted by /oauth/token for both authorization_code and refresh_token grants.
 /// </summary>
 public sealed record OAuthTokenResponse(
-    string AccessToken,
-    string TokenType,
-    int ExpiresIn,
-    string RefreshToken,
-    string Scope
+    [property: JsonPropertyName("access_token")] string AccessToken,
+    [property: JsonPropertyName("token_type")] string TokenType,
+    [property: JsonPropertyName("expires_in")] int ExpiresIn,
+    [property: JsonPropertyName("refresh_token")] string RefreshToken,
+    [property: JsonPropertyName("scope")] string Scope
 );
