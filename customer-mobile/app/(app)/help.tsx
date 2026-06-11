@@ -89,7 +89,7 @@ const FAQ_ITEMS: FaqItem[] = [
     category: 'Account',
     question: 'How do I delete my account?',
     answer:
-      'Go to Profile → Account → Request account deletion. A 30-day grace period applies per DPDP guidelines. You can cancel the request during this period.',
+      'Go to Profile → scroll down → tap "Delete account". A 30-day grace period applies per DPDP Act guidelines. Your data is erased after the grace period. You can cancel the request any time before that from the same screen.',
   },
 ];
 

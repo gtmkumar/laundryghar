@@ -25,6 +25,7 @@ import { useAppConfig } from '@/hooks/useEngagement';
 import { initialiseSentry, withSentry } from '@/lib/sentry';
 import { checkAndFetchOtaUpdate } from '@/lib/otaUpdates';
 import { evaluateVersionGate } from '@/lib/versionGate';
+import { setPushQueryClient } from '@/lib/pushNotifications';
 import { FEATURES } from '@/constants/config';
 import type { MobileAppConfigDto } from '@/types/api';
 
@@ -49,6 +50,10 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Inject queryClient into the push notification handler so it can invalidate
+// caches when a foreground notification arrives. (MOB-6)
+setPushQueryClient(queryClient);
 
 // ---------------------------------------------------------------------------
 // Blocking screens (maintenance / force-update)

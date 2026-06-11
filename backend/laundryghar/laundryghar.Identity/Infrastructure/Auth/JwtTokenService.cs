@@ -75,6 +75,28 @@ public sealed class JwtTokenService : IJwtTokenService
         return WriteToken(claimsList, creds);
     }
 
+    /// <inheritdoc/>
+    public string CreateOAuthCustomerAccessToken(CustomerTokenClaims claims, string scope)
+    {
+        var creds = new SigningCredentials(_keys.SigningKey, SecurityAlgorithms.RsaSha256);
+
+        // OAuth 2.1 / MCP path — token_use=customer_mcp distinguishes this from the regular
+        // customer token so the MCP CustomerOnly policy can enforce scope independently.
+        // The Catalog/Orders services reject this token (they only accept token_use=customer),
+        // which is intentional: OAuth tokens must not grant access to non-MCP endpoints.
+        var claimsList = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, claims.CustomerId.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("token_use", CustomerTokenClaims.OAuthTokenUseValue),
+            new("brand_id",  claims.BrandId.ToString()),
+            new("phone",     claims.Phone),
+            new("scope",     scope),
+        };
+
+        return WriteToken(claimsList, creds);
+    }
+
     private string WriteToken(IEnumerable<Claim> claims, SigningCredentials creds)
     {
         var token = new JwtSecurityToken(

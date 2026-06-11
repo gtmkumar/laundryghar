@@ -3,7 +3,12 @@ import type {
   ApiResponse,
   PaginatedList,
   CashBookSummaryDto,
+  CashBookDto,
   CashBookListParams,
+  CloseCashBookPayload,
+  ShiftHandoverDto,
+  ShiftHandoverListParams,
+  CreateShiftHandoverPayload,
   ExpenseDto,
   ExpenseListParams,
   ExpenseCategoryDto,
@@ -39,6 +44,43 @@ export async function getCashBooks(
 
 export async function openCashBook(payload: OpenCashBookPayload): Promise<CashBookSummaryDto> {
   const { data } = await financeClient.post<ApiResponse<CashBookSummaryDto>>(`${ADMIN}/cash-books`, payload)
+  return unwrap(data)
+}
+
+/** Full detail incl. line entries (GET /cash-books/{id}). */
+export async function getCashBook(id: string): Promise<CashBookDto> {
+  const { data } = await financeClient.get<ApiResponse<CashBookDto>>(`${ADMIN}/cash-books/${id}`)
+  return unwrap(data)
+}
+
+/** Close (reconcile) an open cash book; backend derives the variance. */
+export async function closeCashBook(id: string, payload: CloseCashBookPayload): Promise<CashBookDto> {
+  const { data } = await financeClient.post<ApiResponse<CashBookDto>>(
+    `${ADMIN}/cash-books/${id}/close`,
+    payload,
+  )
+  return unwrap(data)
+}
+
+// ── Shift handovers ───────────────────────────────────────────────────────────
+
+export async function getShiftHandovers(
+  params: ShiftHandoverListParams = {},
+): Promise<PaginatedList<ShiftHandoverDto>> {
+  const { data } = await financeClient.get<ApiResponse<PaginatedList<ShiftHandoverDto>>>(
+    `${ADMIN}/shift-handovers`,
+    { params: { page: 1, pageSize: 50, ...params } },
+  )
+  return unwrapPaginated(data)
+}
+
+export async function createShiftHandover(
+  payload: CreateShiftHandoverPayload,
+): Promise<ShiftHandoverDto> {
+  const { data } = await financeClient.post<ApiResponse<ShiftHandoverDto>>(
+    `${ADMIN}/shift-handovers`,
+    payload,
+  )
   return unwrap(data)
 }
 
@@ -171,6 +213,22 @@ export async function updatePlatformPlan(
   const { data } = await financeClient.put<ApiResponse<PlatformPlanDto>>(
     `${ADMIN}/platform-plans/${id}`,
     payload,
+  )
+  return unwrap(data)
+}
+
+/**
+ * Status-only transition (publish/archive). PATCHes just `{ status }` so a
+ * concurrent edit to price/quota/features is NOT clobbered by re-POSTing a stale
+ * full DTO — the backend bumps the row Version itself (WEB-6 lost-update fix).
+ */
+export async function patchPlatformPlanStatus(
+  id: string,
+  status: string,
+): Promise<PlatformPlanDto> {
+  const { data } = await financeClient.patch<ApiResponse<PlatformPlanDto>>(
+    `${ADMIN}/platform-plans/${id}/status`,
+    { status },
   )
   return unwrap(data)
 }

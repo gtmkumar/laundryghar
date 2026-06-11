@@ -37,6 +37,20 @@ interface DecodedClaims {
   permissions?: string | string[]
 }
 
+/**
+ * Mirrors the Identity SettingsEndpoints `Forbidden` check: the /admin/settings
+ * group is not gated by a granular permission code — it is restricted to
+ * platform admins or brand admins by user_type. Panels use this to gate the
+ * Save controls so the UI matches the server's authorization exactly.
+ */
+export function useCanManageSettings(): boolean {
+  const accessToken = useAuthStore((s) => s.accessToken)
+  return useMemo(() => {
+    const claims = decodeClaims(accessToken)
+    return claims.user_type === 'platform_admin' || claims.user_type === 'brand_admin'
+  }, [accessToken])
+}
+
 function decodeClaims(token: string | null): DecodedClaims {
   if (!token) return {}
   try {

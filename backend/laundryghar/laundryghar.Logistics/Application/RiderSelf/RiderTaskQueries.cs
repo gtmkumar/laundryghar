@@ -1,7 +1,11 @@
+using System.Text.Json;
 using laundryghar.Logistics.Application.Payout;
 using laundryghar.SharedDataModel.Common;
+using laundryghar.SharedDataModel.Entities.Commerce;
 using laundryghar.SharedDataModel.Entities.CustomerCatalog;
+using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.SharedDataModel.Enums;
 using laundryghar.SharedDataModel.Logistics;
 using MediatR;
 
@@ -21,32 +25,32 @@ namespace laundryghar.Logistics.Application.RiderSelf;
 
 /// <summary>Mobile-facing view of one pickup/delivery/return leg.</summary>
 public sealed record RiderTaskDto(
-    Guid     Id,
-    string   OrderNumber,
-    string   LegType,        // "pickup" | "delivery" | "return"
-    string   Status,         // assigned | started | arrived | completed | failed | cancelled
-    bool     IsExpress,
-    string   CustomerName,
-    string?  CustomerPhone,  // E.164
-    string   AddressLine,
-    string?  ZoneLabel,
+    Guid Id,
+    string OrderNumber,
+    string LegType,        // "pickup" | "delivery" | "return"
+    string Status,         // assigned | started | arrived | completed | failed | cancelled
+    bool IsExpress,
+    string CustomerName,
+    string? CustomerPhone,  // E.164
+    string AddressLine,
+    string? ZoneLabel,
     decimal? DistanceKm,
-    int?     EtaMinutes,
-    string?  ScheduledTime,  // "HH:mm" (IST)
-    int      GarmentCount,
-    decimal  AmountDue,
-    bool     IsPaid,
-    bool     RequiresOtp,    // delivery/return legs that have an OTP on the order
-    bool     OtpVerified,
-    decimal  Payout,         // server-estimated rider earning for this leg (₹)
-    double?  Lat,
-    double?  Lng,
-    short?   SequenceNumber,
+    int? EtaMinutes,
+    string? ScheduledTime,  // "HH:mm" (IST)
+    int GarmentCount,
+    decimal AmountDue,
+    bool IsPaid,
+    bool RequiresOtp,    // delivery/return legs that have an OTP on the order
+    bool OtpVerified,
+    decimal Payout,         // server-estimated rider earning for this leg (₹)
+    double? Lat,
+    double? Lng,
+    short? SequenceNumber,
     DateTimeOffset? CompletedAt,
     // ── Phase 2: drop-at-laundry round-trip ──────────────────────────────
     DateTimeOffset? CollectedAt,  // pickup: items collected from customer
     DateTimeOffset? DroppedAt,    // pickup: items dropped at the store/laundry
-    string   Phase);              // to_customer|at_customer|to_store|dropped|completed|failed|cancelled|assigned
+    string Phase);              // to_customer|at_customer|to_store|dropped|completed|failed|cancelled|assigned
 
 // ── Shared mapping / helpers ───────────────────────────────────────────────────
 
@@ -61,10 +65,10 @@ internal static class RiderTaskMapper
     /// <summary>Maps backend DeliveryAssignmentStatus → the slimmer status the app understands.</summary>
     private static string MapStatus(string s) => s switch
     {
-        "accepted"    => "assigned",   // employee riders skip an explicit accept step
-        "rejected"    => "cancelled",
+        "accepted" => "assigned",   // employee riders skip an explicit accept step
+        "rejected" => "cancelled",
         "rescheduled" => "assigned",
-        _             => s,            // assigned/started/arrived/completed/failed/cancelled pass through
+        _ => s,            // assigned/started/arrived/completed/failed/cancelled pass through
     };
 
     private static string BuildAddressLine(CustomerAddress? a)
@@ -86,7 +90,7 @@ internal static class RiderTaskMapper
     private static string CustomerName(Customer? c, CustomerAddress? a)
     {
         if (!string.IsNullOrWhiteSpace(a?.RecipientName)) return a!.RecipientName!;
-        if (!string.IsNullOrWhiteSpace(c?.DisplayName))   return c!.DisplayName!;
+        if (!string.IsNullOrWhiteSpace(c?.DisplayName)) return c!.DisplayName!;
         var full = $"{c?.FirstName} {c?.LastName}".Trim();
         if (!string.IsNullOrWhiteSpace(full)) return full;
         return "Customer";
@@ -104,9 +108,9 @@ internal static class RiderTaskMapper
 
         if (da.LegType == "pickup")
         {
-            if (da.DroppedAt is not null)   return "dropped";      // dropped at the laundry
+            if (da.DroppedAt is not null) return "dropped";      // dropped at the laundry
             if (da.CollectedAt is not null) return "to_store";     // collected, heading to the store
-            if (st == "arrived")            return "at_customer";  // on site, awaiting collection
+            if (st == "arrived") return "at_customer";  // on site, awaiting collection
             return st == "started" ? "to_customer" : "assigned";
         }
 
@@ -117,20 +121,20 @@ internal static class RiderTaskMapper
 
     public static RiderTaskDto ToDto(DeliveryAssignment da, Order? o, Customer? c, CustomerAddress? addr, RiderPayoutSettings payout)
     {
-        var isExpress    = o?.IsExpress ?? false;
-        var amountDue    = o?.AmountDue ?? 0m;
-        var isDelivery   = da.LegType is "delivery" or "return";
+        var isExpress = o?.IsExpress ?? false;
+        var amountDue = o?.AmountDue ?? 0m;
+        var isDelivery = da.LegType is "delivery" or "return";
         // OTP applies to BOTH legs: the customer reads it out to confirm the handover —
         // collecting items at pickup AND receiving them at delivery.
-        var legOtp       = isDelivery ? o?.DeliveryOtp : o?.PickupOtp;
-        var requiresOtp  = !string.IsNullOrWhiteSpace(legOtp);
+        var legOtp = isDelivery ? o?.DeliveryOtp : o?.PickupOtp;
+        var requiresOtp = !string.IsNullOrWhiteSpace(legOtp);
 
         // Scheduled time from the relevant order timestamp, rendered in IST.
         var scheduledAt = isDelivery ? o?.PromisedDeliveryAt : o?.PickupScheduledAt;
-        var scheduled   = scheduledAt?.ToOffset(Ist).ToString("HH:mm");
+        var scheduled = scheduledAt?.ToOffset(Ist).ToString("HH:mm");
 
         // Prefer the assignment's own geo, else the address geo.
-        var pt  = da.GeoLocation ?? addr?.GeoLocation;
+        var pt = da.GeoLocation ?? addr?.GeoLocation;
         double? lat = pt?.Y;
         double? lng = pt?.X;
 
@@ -141,31 +145,31 @@ internal static class RiderTaskMapper
         var payoutAmt = da.PayoutAmount ?? payout.Compute(da.DistanceKm, isExpress, hasCod);
 
         return new RiderTaskDto(
-            Id:            da.Id,
-            OrderNumber:   o?.OrderNumber ?? "—",
-            LegType:       da.LegType,
-            Status:        MapStatus(da.Status),
-            IsExpress:     isExpress,
-            CustomerName:  CustomerName(c, addr),
+            Id: da.Id,
+            OrderNumber: o?.OrderNumber ?? "—",
+            LegType: da.LegType,
+            Status: MapStatus(da.Status),
+            IsExpress: isExpress,
+            CustomerName: CustomerName(c, addr),
             CustomerPhone: addr?.RecipientPhone ?? c?.PhoneE164,
-            AddressLine:   BuildAddressLine(addr),
-            ZoneLabel:     BuildZone(addr),
-            DistanceKm:    da.DistanceKm,
-            EtaMinutes:    da.DurationMinutes,
+            AddressLine: BuildAddressLine(addr),
+            ZoneLabel: BuildZone(addr),
+            DistanceKm: da.DistanceKm,
+            EtaMinutes: da.DurationMinutes,
             ScheduledTime: scheduled,
-            GarmentCount:  o?.TotalGarments ?? 0,
-            AmountDue:     amountDue,
-            IsPaid:        (o?.PaymentStatus == "paid") || amountDue <= 0m,
-            RequiresOtp:   requiresOtp,
-            OtpVerified:   da.OtpVerified,
-            Payout:        payoutAmt,
-            Lat:           lat,
-            Lng:           lng,
+            GarmentCount: o?.TotalGarments ?? 0,
+            AmountDue: amountDue,
+            IsPaid: (o?.PaymentStatus == "paid") || amountDue <= 0m,
+            RequiresOtp: requiresOtp,
+            OtpVerified: da.OtpVerified,
+            Payout: payoutAmt,
+            Lat: lat,
+            Lng: lng,
             SequenceNumber: da.SequenceNumber,
-            CompletedAt:   da.CompletedAt,
-            CollectedAt:   da.CollectedAt,
-            DroppedAt:     da.DroppedAt,
-            Phase:         Phase(da));
+            CompletedAt: da.CompletedAt,
+            CollectedAt: da.CollectedAt,
+            DroppedAt: da.DroppedAt,
+            Phase: Phase(da));
     }
 }
 
@@ -251,9 +255,9 @@ public sealed record UpdateMyTaskStatusCommand(
 /// <summary>Result of a status/OTP mutation. Outcome distinguishes the 404/409 cases for the endpoint.</summary>
 public sealed record RiderTaskResult(string Outcome, RiderTaskDto? Task = null, string? Error = null)
 {
-    public static RiderTaskResult NotFound()             => new("not_found");
-    public static RiderTaskResult Conflict(string e)     => new("conflict", Error: e);
-    public static RiderTaskResult Ok(RiderTaskDto t)     => new("ok", Task: t);
+    public static RiderTaskResult NotFound() => new("not_found");
+    public static RiderTaskResult Conflict(string e) => new("conflict", Error: e);
+    public static RiderTaskResult Ok(RiderTaskDto t) => new("ok", Task: t);
 }
 
 public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStatusCommand, RiderTaskResult>
@@ -309,8 +313,8 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
         da.Status = cmd.Status;
         switch (cmd.Status)
         {
-            case "started":   da.StartedAt   ??= now; break;
-            case "arrived":   da.ArrivedAt   ??= now; break;
+            case "started": da.StartedAt ??= now; break;
+            case "arrived": da.ArrivedAt ??= now; break;
             case "failed":
                 // Persist the structured reason code and free-text note provided by the rider.
                 // CancellationReason re-used for failure reason; Notes appended idempotently.
@@ -345,7 +349,138 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
         }
         da.UpdatedAt = now;
         da.UpdatedBy = cmd.UserId;
-        await _db.SaveChangesAsync(ct);
+
+        // ── DOC-1: Transactional delivery-completion side-effects ─────────────────
+        // When a delivery/return leg completes, atomically:
+        //   1. Transition the order out_for_delivery → delivered
+        //   2. Append an order_status_history row
+        //   3. Create a COD payment row (if cash was collected)
+        //   4. Emit a delivery.completed outbox event
+        // All mutations share one SaveChanges inside a retry-capable transaction.
+        // The RiderLoadHelper.DecrementAsync call is deliberately kept outside the
+        // transaction because it issues its own SaveChanges and does not need to
+        // roll back if the outer tx succeeds.
+        var isDeliveryCompletion = cmd.Status == "completed"
+                                && da.LegType is "delivery" or "return"
+                                && o is not null;
+
+        var strategy = _db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+            // H1 idempotency: the ENTIRE side-effect block (history row, COD payment,
+            // outbox event) is gated on first-completion only (DeliveredAt == null).
+            // A rider double-tap on an already-delivered order is a no-op — the
+            // assignment status update above is still saved (da.CompletedAt ??= now),
+            // but none of the order-level side effects fire again.
+            if (isDeliveryCompletion && o!.DeliveredAt == null)
+            {
+                // 1. Order status transition
+                o.Status = "delivered";
+                o.DeliveredAt = now;
+                o.Version += 1;
+                o.UpdatedAt = now;
+                o.UpdatedBy = cmd.UserId;
+
+                // 2. Order status history
+                _db.OrderStatusHistories.Add(new OrderStatusHistory
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = o.Id,
+                    OrderCreatedAt = o.CreatedAt,
+                    BrandId = da.BrandId,
+                    FromStatus = "out_for_delivery",
+                    ToStatus = "delivered",
+                    ChangedAt = now,
+                    ChangedByType = "system",
+                    ChangedById = cmd.UserId,
+                    Reason = "Delivery completed by rider",
+                    CustomerNotified = false,
+                    Metadata = "{}",
+                    CreatedAt = now,
+                    CreatedBy = cmd.UserId,
+                });
+
+                // 3. COD payment row — only when cash was collected AND no completed
+                //    payment already exists for this assignment (re-call guard).
+                if (da.CodAmount is > 0m)
+                {
+                    var codAlreadyRecorded = await _db.Payments
+                        .AnyAsync(p => p.Gateway == "cod"
+                                    && p.OrderId == o.Id
+                                    && p.BrandId == da.BrandId
+                                    && p.Status == CommercePaymentStatus.Succeeded, ct);
+
+                    if (!codAlreadyRecorded)
+                    {
+                        var cod = da.CodAmount!.Value;
+                        _db.Payments.Add(new Payment
+                        {
+                            Id = Guid.NewGuid(),
+                            BrandId = da.BrandId,
+                            CustomerId = o.CustomerId,
+                            OrderId = o.Id,
+                            OrderCreatedAt = o.CreatedAt,
+                            // DEF-A1: must use constraint-valid values from PaymentPurpose / CommercePaymentStatus.
+                            // "order_payment" violates the CHECK; valid value is "order".
+                            // "completed"     violates the CHECK; valid value is "succeeded".
+                            PaymentPurpose = PaymentPurpose.Order,
+                            PaymentNumber = $"COD-{o.OrderNumber}-{now:yyyyMMddHHmmss}",
+                            Amount = cod,
+                            ConvenienceFee = 0m,
+                            GatewayCharge = 0m,
+                            NetAmount = cod,
+                            CurrencyCode = o.CurrencyCode,
+                            Direction = 1,
+                            Gateway = "cod",
+                            Status = CommercePaymentStatus.Succeeded,
+                            InitiatedAt = now,
+                            CompletedAt = now,
+                            Metadata = "{}",
+                            CreatedAt = now,
+                            UpdatedAt = now,
+                            CreatedBy = cmd.UserId,
+                            UpdatedBy = cmd.UserId,
+                        });
+
+                        o.AmountPaid += cod;
+                        if (o.AmountPaid >= o.GrandTotal)
+                            o.PaymentStatus = "paid";
+                    }
+                }
+
+                // 4. Outbox event
+                _db.OutboxEvents.Add(new OutboxEvent
+                {
+                    Id = Guid.NewGuid(),
+                    BrandId = da.BrandId,
+                    AggregateType = "order",
+                    AggregateId = o.Id,
+                    EventType = "delivery.completed",
+                    EventVersion = 1,
+                    Payload = JsonSerializer.Serialize(new
+                    {
+                        orderId = o.Id,
+                        orderNumber = o.OrderNumber,
+                        brandId = da.BrandId,
+                        riderId = da.RiderId,
+                        assignmentId = da.Id,
+                        legType = da.LegType,
+                        codCollected = da.CodAmount ?? 0m,
+                        deliveredAt = now,
+                    }),
+                    Metadata = "{}",
+                    OccurredAt = now,
+                    Status = "pending",
+                    CreatedAt = now,
+                    CreatedBy = cmd.UserId,
+                });
+            }
+
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        });
 
         // Decrement current_load when this leg reaches a terminal state.
         if (cmd.Status is "completed" or "failed")
@@ -400,7 +535,7 @@ public sealed class VerifyTaskOtpHandler : IRequestHandler<VerifyTaskOtpCommand,
             : null;
 
         var isDelivery = da.LegType is "delivery" or "return";
-        var expected   = isDelivery ? o?.DeliveryOtp : o?.PickupOtp;
+        var expected = isDelivery ? o?.DeliveryOtp : o?.PickupOtp;
 
         var now = DateTimeOffset.UtcNow;
         da.OtpAttemptedAt = now;

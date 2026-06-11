@@ -9,7 +9,16 @@ using laundryghar.SharedDataModel.Entities.CustomerCatalog;
 
 namespace laundryghar.Orders.Application.Orders.Commands;
 
-public sealed record CreateOrderCommand(CreateOrderRequest Request, Guid? ActorId)
+public sealed record CreateOrderCommand(
+    CreateOrderRequest Request,
+    Guid? ActorId,
+    /// <summary>
+    /// Client-supplied idempotency key (from <c>Idempotency-Key</c> header or request body).
+    /// When provided, a second identical call within the same brand returns the already-created
+    /// order without re-executing balance mutations (loyalty burn, package debit, etc.).
+    /// Stored in <c>Order.Metadata</c> as <c>{"idempotency_key":"..."}</c>.
+    /// </summary>
+    string? ResolvedIdempotencyKey = null)
     : IRequest<OrderDto>;
 
 public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, OrderDto>
@@ -30,6 +39,41 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
         var brandId = _user.RequireBrandId();
         var req     = cmd.Request;
         var now     = DateTimeOffset.UtcNow;
+
+        // ── B2: Idempotency dedup guard ──────────────────────────────────────
+        // When the caller supplies an idempotency key (POS double-tap, network retry),
+        // return the already-created order without re-running any balance mutations.
+        // Key is stored in Order.Metadata (jsonb) so no schema migration is required.
+        //
+        // DEF-A3 fix: string.Contains() on a jsonb column translates to LIKE on jsonb,
+        // which Postgres rejects (42883 "operator does not exist: jsonb ~~ jsonb").
+        // Use EF.Functions.JsonContains() which emits the @> containment operator,
+        // e.g.: metadata @> '{"idempotency_key":"<key>"}'::jsonb — fully supported on jsonb.
+        if (!string.IsNullOrWhiteSpace(cmd.ResolvedIdempotencyKey))
+        {
+            var idemTag  = cmd.ResolvedIdempotencyKey.Trim();
+            var idemJson = $"{{\"idempotency_key\":\"{idemTag}\"}}";
+
+            var existingOrder = await _db.Orders
+                .Where(o => o.BrandId == brandId
+                         && EF.Functions.JsonContains(o.Metadata, idemJson))
+                .FirstOrDefaultAsync(ct);
+
+            if (existingOrder is not null)
+            {
+                var existItems   = await _db.OrderItems
+                    .Where(i => i.OrderId == existingOrder.Id && i.BrandId == brandId)
+                    .ToListAsync(ct);
+                var existAddons  = await _db.OrderAddons
+                    .Where(a => a.OrderId == existingOrder.Id)
+                    .ToListAsync(ct);
+                var existHistory = await _db.OrderStatusHistories
+                    .Where(h => h.OrderId == existingOrder.Id && h.BrandId == brandId)
+                    .OrderBy(h => h.ChangedAt)
+                    .ToListAsync(ct);
+                return ToDto(existingOrder, existItems, existAddons, existHistory);
+            }
+        }
 
         // ── Validate store belongs to this brand ────────────────────────────
         var store = await _db.Stores
@@ -234,7 +278,245 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             };
         }
 
-        var taxableAmount = subtotal + addonTotal + expressSurcharge - couponDiscount;
+        // ── Loyalty burn (redeem points for a discount) ─────────────────────
+        // Only burns when:
+        //   (a) customer requests it (LoyaltyPointsToRedeem > 0)
+        //   (b) a program exists and is active
+        //   (c) customer has sufficient balance (>= MinBurnPoints)
+        //   (d) capped by MaxBurnPerOrderPct of the pre-loyalty subtotal
+        decimal loyaltyDiscount   = 0m;
+        int     pointsBurned      = 0;
+        LoyaltyProgram?      loyaltyProgram    = null;
+        LoyaltyPointsLedger? loyaltyDebitEntry = null;
+
+        if (req.LoyaltyPointsToRedeem > 0)
+        {
+            loyaltyProgram = await _db.LoyaltyPrograms
+                .FirstOrDefaultAsync(
+                    lp => lp.BrandId == brandId && lp.IsActive && lp.Status == "active", ct);
+
+            if (loyaltyProgram is not null)
+            {
+                // Re-use the tracked customer entity already checked for brand ownership above.
+                var loyaltyCustomer = await _db.Customers
+                    .FirstOrDefaultAsync(c => c.Id == req.CustomerId && c.BrandId == brandId, ct);
+
+                if (loyaltyCustomer is not null
+                    && loyaltyCustomer.LoyaltyPointsBalance >= loyaltyProgram.MinBurnPoints)
+                {
+                    var pointsToRedeem = Math.Min(
+                        req.LoyaltyPointsToRedeem, loyaltyCustomer.LoyaltyPointsBalance);
+
+                    // Monetary value of points being redeemed (BurnRate = ₹ per point)
+                    var potentialDiscount = pointsToRedeem * loyaltyProgram.BurnRate;
+
+                    // Cap: MaxBurnPerOrderPct of the pre-loyalty subtotal
+                    var orderSubtotalForCap = subtotal + addonTotal + expressSurcharge - couponDiscount;
+                    var maxAllowedDiscount  = loyaltyProgram.MaxBurnPerOrderPct > 0
+                        ? orderSubtotalForCap * (loyaltyProgram.MaxBurnPerOrderPct / 100m)
+                        : potentialDiscount;
+
+                    loyaltyDiscount = Math.Min(potentialDiscount, maxAllowedDiscount);
+                    loyaltyDiscount = Math.Round(loyaltyDiscount, 2);
+
+                    // Back-calculate how many points are actually consumed
+                    pointsBurned = loyaltyProgram.BurnRate > 0
+                        ? (int)Math.Ceiling(loyaltyDiscount / loyaltyProgram.BurnRate)
+                        : 0;
+
+                    if (pointsBurned > 0 && loyaltyDiscount > 0)
+                    {
+                        var balanceBefore = loyaltyCustomer.LoyaltyPointsBalance;
+                        var balanceAfter  = balanceBefore - pointsBurned;
+
+                        loyaltyDebitEntry = new LoyaltyPointsLedger
+                        {
+                            Id               = Guid.NewGuid(),
+                            BrandId          = brandId,
+                            CustomerId       = req.CustomerId,
+                            LoyaltyProgramId = loyaltyProgram.Id,
+                            TransactionType  = "burn",
+                            Direction        = -1,
+                            Points           = pointsBurned,
+                            BalanceBefore    = balanceBefore,
+                            BalanceAfter     = balanceAfter,
+                            MonetaryEquivalent = loyaltyDiscount,
+                            // OrderId / OrderCreatedAt filled after order ID is known
+                            Notes            = $"Redeemed {pointsBurned} points on order",
+                            PerformedByType  = "customer",
+                            PerformedBy      = cmd.ActorId,
+                            OccurredAt       = now,
+                            CreatedAt        = now,
+                            CreatedBy        = cmd.ActorId
+                        };
+
+                        // Decrement customer balance (tracked entity — EF will UPDATE)
+                        loyaltyCustomer.LoyaltyPointsBalance = balanceAfter;
+                        loyaltyCustomer.UpdatedAt = now;
+                        loyaltyCustomer.Version++;
+                    }
+                }
+            }
+        }
+
+        // ── Package credit debit ─────────────────────────────────────────────────
+        // If the request names a CustomerPackageId, or the customer has an active package
+        // with remaining balance, apply the credit as a pre-tax discount.
+        decimal          packageDiscount = 0m;
+        CustomerPackage? activePackage   = null;
+        PackageUsageLedger? packageDebit = null;
+
+        if (req.CustomerPackageId.HasValue)
+        {
+            activePackage = await _db.CustomerPackages
+                .Include(cp => cp.Package)
+                .FirstOrDefaultAsync(cp => cp.Id == req.CustomerPackageId.Value
+                                        && cp.CustomerId == req.CustomerId
+                                        && cp.BrandId == brandId
+                                        && cp.Status == "active", ct);
+        }
+
+        if (activePackage is null)
+        {
+            // Auto-resolve: pick the earliest-expiring active package with remaining balance.
+            activePackage = await _db.CustomerPackages
+                .Include(cp => cp.Package)
+                .Where(cp => cp.CustomerId == req.CustomerId
+                          && cp.BrandId == brandId
+                          && cp.Status == "active"
+                          && (cp.CreditValueRemaining ?? 0) > 0
+                          && (cp.IsUnlimitedValidity || cp.ExpiresAt == null || cp.ExpiresAt > now))
+                .OrderBy(cp => cp.ExpiresAt ?? DateTimeOffset.MaxValue)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        if (activePackage is not null && (activePackage.CreditValueRemaining ?? 0) > 0)
+        {
+            var orderGross  = subtotal + addonTotal + expressSurcharge - couponDiscount - loyaltyDiscount;
+            var available   = activePackage.CreditValueRemaining ?? 0m;
+            packageDiscount = Math.Min(available, orderGross);
+            packageDiscount = Math.Round(packageDiscount, 2);
+
+            if (packageDiscount > 0)
+            {
+                var balanceBefore = available;
+                var balanceAfter  = balanceBefore - packageDiscount;
+
+                packageDebit = new PackageUsageLedger
+                {
+                    Id                = Guid.NewGuid(),
+                    CustomerPackageId = activePackage.Id,
+                    BrandId           = brandId,
+                    CustomerId        = req.CustomerId,
+                    // OrderId / OrderCreatedAt filled after order is created
+                    TransactionType   = "debit",
+                    Amount            = packageDiscount,
+                    BalanceBefore     = balanceBefore,
+                    BalanceAfter      = balanceAfter,
+                    Notes             = "Package credit applied at order create",
+                    ReferenceType     = "order",
+                    PerformedBy       = cmd.ActorId,
+                    OccurredAt        = now,
+                    CreatedAt         = now,
+                    CreatedBy         = cmd.ActorId
+                };
+
+                // Decrement balance on tracked entity — EF will emit UPDATE.
+                // CreditValueRemaining is GENERATED ALWAYS and must not be written.
+                activePackage.CreditValueUsed += packageDiscount;
+                activePackage.UsageCount++;
+                activePackage.LastUsedAt = now;
+                activePackage.UpdatedAt  = now;
+                activePackage.UpdatedBy  = cmd.ActorId;
+            }
+        }
+
+        // ── Promotions evaluation ────────────────────────────────────────────────
+        // Evaluate active promotions for first-order + audience eligibility.
+        // Only one promotion applies (first match wins). Promotions are CRUD-only
+        // until this wiring — this makes them functional.
+        decimal    promotionDiscount = 0m;
+        Promotion? appliedPromotion  = null;
+
+        // Load the customer's lifetime orders count for first-order check.
+        // Using a separate AsNoTracking projection to avoid disturbing the tracked
+        // loyaltyCustomer entity loaded above.
+        var customerForPromo = await _db.Customers
+            .AsNoTracking()
+            .Where(c => c.Id == req.CustomerId && c.BrandId == brandId)
+            .Select(c => new { c.LifetimeOrders, c.CustomerSegment })
+            .FirstOrDefaultAsync(ct);
+
+        var promoNow = DateTimeOffset.UtcNow;
+        var activePromotions = await _db.Promotions
+            .Where(p => p.BrandId == brandId
+                     && p.Status == "active"
+                     && p.ValidFrom <= promoNow
+                     && (p.ValidUntil == null || p.ValidUntil >= promoNow)
+                     && (p.TotalBudget == null || p.SpentBudget < p.TotalBudget))
+            .OrderBy(p => p.CreatedAt)   // deterministic: oldest first
+            .Take(20)
+            .ToListAsync(ct);
+
+        if (customerForPromo is not null)
+        {
+            var orderSubtotalForPromo = subtotal + addonTotal + expressSurcharge
+                                        - couponDiscount - loyaltyDiscount - packageDiscount;
+
+            foreach (var promo in activePromotions)
+            {
+                // Audience check
+                bool audienceMatch = promo.TargetAudience switch
+                {
+                    "all"           => true,
+                    "new_customers" => customerForPromo.LifetimeOrders == 0,
+                    "segment"       => promo.EligibleSegments != null
+                                       && promo.EligibleSegments.Contains(
+                                              customerForPromo.CustomerSegment ?? ""),
+                    _               => false
+                };
+                if (!audienceMatch) continue;
+
+                // Parse RewardConfig (jsonb) to get discount type and value.
+                // Expected shape: { "discount_type": "percent"|"flat", "discount_value": 10, "max_discount": 100 }
+                decimal promoDiscountCandidate = 0m;
+                try
+                {
+                    using var rewardDoc = System.Text.Json.JsonDocument.Parse(promo.RewardConfig);
+                    var reward = rewardDoc.RootElement;
+
+                    if (!reward.TryGetProperty("discount_type", out var dtProp)
+                        || !reward.TryGetProperty("discount_value", out var dvProp)) continue;
+
+                    var discountType  = dtProp.GetString();
+                    var discountValue = dvProp.GetDecimal();
+
+                    promoDiscountCandidate = discountType == "percent"
+                        ? Math.Round(orderSubtotalForPromo * (discountValue / 100m), 2)
+                        : discountValue;
+
+                    // Optional max cap
+                    if (reward.TryGetProperty("max_discount", out var maxProp))
+                    {
+                        var maxDiscount = maxProp.GetDecimal();
+                        if (maxDiscount > 0 && promoDiscountCandidate > maxDiscount)
+                            promoDiscountCandidate = maxDiscount;
+                    }
+
+                    if (promoDiscountCandidate > orderSubtotalForPromo)
+                        promoDiscountCandidate = orderSubtotalForPromo;
+                    if (promoDiscountCandidate <= 0) continue;
+                }
+                catch { continue; }   // malformed RewardConfig — skip silently
+
+                promotionDiscount = promoDiscountCandidate;
+                appliedPromotion  = promo;
+                break;   // first match wins
+            }
+        }
+
+        var taxableAmount = subtotal + addonTotal + expressSurcharge
+                           - couponDiscount - loyaltyDiscount - packageDiscount - promotionDiscount;
         if (taxableAmount < 0m) taxableAmount = 0m;
 
         var halfRate      = _settings.TaxRatePercent / 2m;
@@ -276,10 +558,13 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             ExpressSurcharge = expressSurcharge,
             PickupCharge     = 0,
             DeliveryCharge   = 0,
-            DiscountTotal    = couponDiscount,
+            DiscountTotal    = couponDiscount + loyaltyDiscount + packageDiscount + promotionDiscount,
             CouponDiscount   = couponDiscount,
-            LoyaltyDiscount  = 0,
-            PackageDiscount  = 0,
+            LoyaltyDiscount  = loyaltyDiscount,
+            LoyaltyPointsUsed = pointsBurned,
+            PackageDiscount  = packageDiscount,
+            CustomerPackageId = activePackage?.Id,
+            PackageId        = activePackage?.PackageId,
             CouponId         = coupon?.Id,
             CouponCode       = coupon?.Code,
             TaxableAmount    = taxableAmount,
@@ -299,7 +584,11 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             PlacedAt            = now,
             PromisedDeliveryAt  = promisedDeliveryAt,
             NotesCustomer       = req.NotesCustomer,
-            Metadata            = "{}",
+            // Embed idempotency key in Metadata so dedup guard above can find it without
+            // a dedicated column. Pattern: {"idempotency_key":"<key>"}
+            Metadata            = string.IsNullOrWhiteSpace(cmd.ResolvedIdempotencyKey)
+                                      ? "{}"
+                                      : $"{{\"idempotency_key\":\"{cmd.ResolvedIdempotencyKey.Trim()}\"}}",
             UpdatedAt        = now,
             CreatedBy        = cmd.ActorId,
             UpdatedBy        = cmd.ActorId,
@@ -355,7 +644,9 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
                 grandTotal         = grandTotal,
                 currency           = _settings.DefaultCurrencyCode,
                 placedAt           = now,
-                promisedDeliveryAt = promisedDeliveryAt
+                promisedDeliveryAt = promisedDeliveryAt,
+                promotionId        = appliedPromotion?.Id,
+                promotionDiscount  = promotionDiscount
             }),
             Metadata      = "{}",
             OccurredAt    = now,
@@ -385,6 +676,32 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
                 coupon.UpdatedAt = now;
             }
 
+            // Loyalty burn: debit ledger entry atomically with the order.
+            if (loyaltyDebitEntry is not null)
+            {
+                loyaltyDebitEntry.OrderId        = order.Id;
+                loyaltyDebitEntry.OrderCreatedAt = order.CreatedAt;
+                _db.LoyaltyPointsLedger.Add(loyaltyDebitEntry);
+            }
+
+            // Package credit: debit ledger entry + updated CustomerPackage balance atomically with the order.
+            // activePackage is already tracked (loaded via FirstOrDefaultAsync); EF will UPDATE it.
+            if (packageDebit is not null)
+            {
+                packageDebit.OrderId        = order.Id;
+                packageDebit.OrderCreatedAt = order.CreatedAt;
+                _db.PackageUsageLedger.Add(packageDebit);
+            }
+
+            // Promotion: increment redemption metrics on the promotion entity atomically with the order.
+            // appliedPromotion was loaded as a tracked entity (ToListAsync above is tracking by default).
+            if (appliedPromotion is not null)
+            {
+                appliedPromotion.RedemptionsCount++;
+                appliedPromotion.SpentBudget += promotionDiscount;
+                appliedPromotion.UpdatedAt    = now;
+            }
+
             await _db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
         });
@@ -406,33 +723,56 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             .SingleAsync(ct);
     }
 
+    /// <param name="includeDeliveryOtp">
+    /// Pass <c>true</c> only for customer-self queries. Exposes <c>DeliveryOtp</c>
+    /// when status is <c>out_for_delivery</c>; null otherwise. Admin and staff callers
+    /// should leave this <c>false</c> (default) — they use different UI flows and have
+    /// no need for the rider-handoff OTP.
+    /// </param>
     internal static OrderDto ToDto(
         Order o,
         IEnumerable<OrderItem>? items = null,
         IEnumerable<OrderAddon>? addons = null,
-        IEnumerable<OrderStatusHistory>? history = null) => new(
-        o.Id, o.CreatedAt, o.OrderNumber, o.BrandId, o.StoreId, o.CustomerId,
-        o.Channel, o.OrderType, o.IsExpress,
-        o.Subtotal, o.AddonTotal, o.ExpressSurcharge, o.TaxTotal, o.Cgst, o.Sgst,
-        o.DiscountTotal,
-        o.GrandTotal, o.AmountPaid, o.AmountDue, o.CurrencyCode,
-        o.TotalItems, o.Status, o.PaymentStatus, o.PlacedAt, o.UpdatedAt,
-        o.PromisedDeliveryAt,
-        items?.Select(i => new OrderItemDto(
-            i.Id, i.ServiceId, i.ItemId, i.ItemVariantId,
-            i.ItemNameSnapshot, i.ServiceNameSnapshot,
-            i.UnitPrice, i.Quantity, i.UnitOfMeasure,
-            i.LineSubtotal, i.LineTotal, i.Status)).ToList(),
-        addons?.Select(a => new OrderAddonDto(
-            a.Id, a.OrderItemId, a.AddonId, a.AddonNameSnapshot,
-            a.PricingType, a.UnitPrice, a.Quantity, a.TotalCharge)).ToList(),
-        history?.Select(h => new OrderStatusHistoryDto(
-            h.Id, h.FromStatus, h.ToStatus, h.ChangedAt, h.ChangedByType,
-            h.Reason, h.CustomerNotified)).ToList(),
-        o.Rating,
-        o.RatingComment,
-        o.RatedAt
-    );
+        IEnumerable<OrderStatusHistory>? history = null,
+        bool includeDeliveryOtp = false)
+    {
+        // Derive promotion discount as the residual after named discount components.
+        // For historical orders placed before this feature PromotionDiscount evaluates to 0.
+        var derivedPromotionDiscount = Math.Max(
+            0m, o.DiscountTotal - o.CouponDiscount - o.LoyaltyDiscount - o.PackageDiscount);
+
+        // H4: only the owning customer sees the delivery OTP, and only while the
+        // order is out for delivery. Reveal it by passing includeDeliveryOtp=true
+        // from customer-self query handlers.
+        var deliveryOtp = includeDeliveryOtp && o.Status == "out_for_delivery"
+            ? o.DeliveryOtp
+            : null;
+
+        return new(
+            o.Id, o.CreatedAt, o.OrderNumber, o.BrandId, o.StoreId, o.CustomerId,
+            o.Channel, o.OrderType, o.IsExpress,
+            o.Subtotal, o.AddonTotal, o.ExpressSurcharge, o.TaxTotal, o.Cgst, o.Sgst,
+            o.DiscountTotal,
+            derivedPromotionDiscount,
+            o.GrandTotal, o.AmountPaid, o.AmountDue, o.CurrencyCode,
+            o.TotalItems, o.Status, o.PaymentStatus, o.PlacedAt, o.UpdatedAt,
+            o.PromisedDeliveryAt,
+            items?.Select(i => new OrderItemDto(
+                i.Id, i.ServiceId, i.ItemId, i.ItemVariantId,
+                i.ItemNameSnapshot, i.ServiceNameSnapshot,
+                i.UnitPrice, i.Quantity, i.UnitOfMeasure,
+                i.LineSubtotal, i.LineTotal, i.Status)).ToList(),
+            addons?.Select(a => new OrderAddonDto(
+                a.Id, a.OrderItemId, a.AddonId, a.AddonNameSnapshot,
+                a.PricingType, a.UnitPrice, a.Quantity, a.TotalCharge)).ToList(),
+            history?.Select(h => new OrderStatusHistoryDto(
+                h.Id, h.FromStatus, h.ToStatus, h.ChangedAt, h.ChangedByType,
+                h.Reason, h.CustomerNotified)).ToList(),
+            o.Rating,
+            o.RatingComment,
+            o.RatedAt,
+            deliveryOtp);
+    }
 }
 
 public sealed class CreateOrderValidator : AbstractValidator<CreateOrderCommand>

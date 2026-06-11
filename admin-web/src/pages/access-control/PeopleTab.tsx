@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import type { AccessPeoplePage, AccessPerson, AccessPeopleCounts } from '@/types/api'
 import { PersonRowActions } from './PersonRowActions'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
+import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
 import { PersonDetailDrawer, type PersonSummary } from './PersonDetailDrawer'
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
     data?: { pages: AccessPeoplePage[] }
     isLoading: boolean
     isError: boolean
+    error?: unknown
     hasNextPage: boolean
     isFetchingNextPage: boolean
     fetchNextPage: () => void
@@ -75,7 +77,7 @@ function matchesChip(p: AccessPerson, chip: ChipKey): boolean {
 export function PeopleTab({ query, sort, onSort }: Props) {
   const [chip, setChip] = useState<ChipKey>('all')
   const [selected, setSelected] = useState<PersonSummary | null>(null)
-  const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage } = query
+  const { data, isLoading, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } = query
 
   const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
@@ -87,6 +89,7 @@ export function PeopleTab({ query, sort, onSort }: Props) {
     )
   }
   if (isError || !data) {
+    if (isForbiddenError(error)) return <ForbiddenState message="You don’t have access to the people directory." />
     return <div className="py-24 text-center text-sm text-red-600">Couldn’t load people.</div>
   }
 

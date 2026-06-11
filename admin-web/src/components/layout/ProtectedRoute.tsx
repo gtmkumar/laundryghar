@@ -1,28 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore, isTokenExpired } from '@/stores/authStore'
 import { refreshAccessToken } from '@/api/client'
 
 /** Seconds before access-token expiry at which we proactively refresh. */
 const REFRESH_SKEW_SECONDS = 120
 
-/** Reads the `exp` (epoch seconds) claim from a JWT without verifying it. */
-function readExp(token: string | null): number | null {
-  if (!token) return null
-  try {
-    const payload = token.split('.')[1]
-    const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number }
-    return typeof claims.exp === 'number' ? claims.exp : null
-  } catch {
-    return null
-  }
-}
-
-/** True when the token is missing, unparseable, or within REFRESH_SKEW of expiry. */
+/**
+ * True when the token is missing, unparseable, already expired, or within
+ * REFRESH_SKEW of expiry. Delegates the `exp` decode to the shared store helper
+ * so there's a single source of truth (an already-past exp is covered too —
+ * it satisfies the skew comparison, so we refresh before rendering).
+ */
 function isExpiringSoon(token: string | null): boolean {
-  const exp = readExp(token)
-  if (exp === null) return true
-  return exp - Date.now() / 1000 < REFRESH_SKEW_SECONDS
+  return isTokenExpired(token, REFRESH_SKEW_SECONDS)
 }
 
 /**

@@ -17,8 +17,14 @@ interface ReceiptProps {
   storeName: string
   storeCode?: string
   customerLabel?: string | null
-  /** Amount actually collected at the counter, if a payment was recorded. */
+  /** Amount actually booked against the order (capped at the balance). */
   amountPaid?: number | null
+  /**
+   * POS-3: raw cash handed over. Used to compute real "Change" on the slip —
+   * `tendered - grandTotal`. Falls back to amountPaid when not supplied (UPI/card,
+   * where tender == booked). Without this the slip always printed "Change ₹0".
+   */
+  tendered?: number | null
   paymentMode?: string | null
 }
 
@@ -28,9 +34,15 @@ export function ReceiptSlip({
   storeCode,
   customerLabel,
   amountPaid,
+  tendered,
   paymentMode,
 }: ReceiptProps) {
-  const due = (order.amountDue ?? order.grandTotal) - (amountPaid ?? 0)
+  const grandTotal = order.grandTotal
+  const paid = amountPaid ?? 0
+  const tenderedCash = tendered ?? paid
+  // Change = cash over the grand total (POS-3). Balance = grand total still owed.
+  const change = Math.max(0, tenderedCash - grandTotal)
+  const balanceDue = Math.max(0, grandTotal - paid)
   return (
     <div className="print-area mx-auto w-[300px] text-[12px] leading-tight text-black font-mono">
       <div className="text-center space-y-0.5 pb-2">
@@ -78,18 +90,30 @@ export function ReceiptSlip({
       <Row label="Tax (GST)" value={formatCurrency(order.taxTotal, order.currencyCode)} />
       <Row label="TOTAL" value={formatCurrency(order.grandTotal, order.currencyCode)} bold />
 
-      {amountPaid != null && amountPaid > 0 && (
+      {paid > 0 && (
         <>
+          {/* For cash, show what was tendered so the change line reconciles. */}
+          {tenderedCash > paid && (
+            <Row
+              label="Tendered"
+              value={formatCurrency(tenderedCash, order.currencyCode)}
+            />
+          )}
           <Row
             label={`Paid${paymentMode ? ` (${paymentMode})` : ''}`}
-            value={formatCurrency(amountPaid, order.currencyCode)}
+            value={formatCurrency(paid, order.currencyCode)}
           />
-          <Row
-            label={due > 0 ? 'Balance Due' : 'Change'}
-            value={formatCurrency(Math.abs(due), order.currencyCode)}
-            bold
-          />
+          {change > 0 && (
+            <Row label="Change" value={formatCurrency(change, order.currencyCode)} bold />
+          )}
+          {balanceDue > 0 && (
+            <Row label="Balance Due" value={formatCurrency(balanceDue, order.currencyCode)} bold />
+          )}
         </>
+      )}
+      {/* Pay-later / fully-unpaid order: surface the full balance owed. */}
+      {paid === 0 && balanceDue > 0 && (
+        <Row label="Balance Due" value={formatCurrency(balanceDue, order.currencyCode)} bold />
       )}
 
       <Divider />

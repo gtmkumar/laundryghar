@@ -126,6 +126,11 @@
       "cod": "Cash on Delivery",
       "codSubtitle": "Pay rider on return"
     },
+    "walletInsufficient": "Insufficient balance — add money first",
+    "walletInsufficientAction": "Insufficient balance. Add money to wallet or choose another method.",
+    "onlinePaymentComingSoonTitle": "UPI & Card — coming soon",
+    "onlinePaymentComingSoonBody": "Online payment via UPI or card is not yet available. Please choose Wallet or Cash on Delivery.",
+    "noSlotsForDay": "No pickup slots available for this day. Try another date.",
     "pay": "Pay {{amount}}",
     "confirming": "Confirming…",
     "emptyCart": "Empty cart",
@@ -146,6 +151,7 @@
     "garmentCount_other": "{{count}} garments",
     "express": "Express",
     "paid": "Paid",
+    "whatsappTitle": "Live updates on WhatsApp",
     "whatsappNote": "We'll WhatsApp you when the rider is 10 minutes away. Garment-by-garment tracking starts after pickup.",
     "backToHome": "Back to home",
     "viewOrder": "View order",
@@ -260,7 +266,20 @@
       "arrived": "Rider arrived",
       "completed": "Items collected"
     },
-    "active": "In progress"
+    "active": "In progress",
+    "deliveryOtpLabel": "Your delivery OTP",
+    "deliveryOtpHint": "Share this code with the rider to confirm delivery",
+    "deliveryOtpA11y": "Delivery OTP is {{otp}}",
+    "copyOtp": "Copy OTP",
+    "otpCopied": "Copied!",
+    "bannerDelivered": "Delivered",
+    "bannerInProcess": "In process",
+    "bannerReadyBy": "Ready by {{date}}",
+    "bannerPickupDate": "Pickup on {{date}}",
+    "bannerItemsCollected": "Items collected!",
+    "bannerOrderAtStore": "Order created at store",
+    "bannerPickupCancelled": "Pickup cancelled",
+    "bannerNoResponse": "No response"
   },
   "wallet": {
     "tabLabel": "Wallet",
@@ -304,7 +323,19 @@
     "helpAndSupport": "Help & support",
     "logOut": "Log out",
     "logOutConfirm": "Log out",
-    "logOutMessage": "Are you sure you want to log out?"
+    "logOutMessage": "Are you sure you want to log out?",
+    "deleteAccount": "Delete account",
+    "deleteAccountConfirmMessage": "Your account will be permanently deleted after a 30-day grace period. All your data will be erased as per DPDP Act guidelines. This cannot be undone.",
+    "deleteAccountConfirm": "Request deletion",
+    "deleteRequested": "Deletion requested",
+    "deleteRequestedMessage": "Your account deletion has been scheduled. You can cancel this within the grace period.",
+    "deletionPendingTitle": "Account deletion scheduled",
+    "deletionPendingMessage": "Your account is scheduled for deletion on {{date}}. Cancel before then to keep your account.",
+    "cancelDeleteTitle": "Cancel deletion",
+    "cancelDeleteMessage": "Cancel the account deletion request and restore your account?",
+    "cancelDeleteConfirm": "Keep my account",
+    "deleteRequestCancelled": "Deletion cancelled",
+    "deleteRequestCancelledMessage": "Your account deletion has been cancelled. Welcome back!"
   },
   "addresses": {
     "title": "Saved addresses",

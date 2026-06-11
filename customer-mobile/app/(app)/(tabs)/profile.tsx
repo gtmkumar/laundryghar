@@ -1,9 +1,10 @@
 /**
- * Profile tab — identity card + inline edit + menu + logout.
+ * Profile tab — identity card + inline edit + menu + logout + delete account.
  * GET   {Identity}/customer/auth/me
  * PATCH {Catalog}/api/v1/customer/profile
+ * POST/GET/DELETE {Catalog}/api/v1/customer/account/deletion-request
  */
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,12 @@ import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { Avatar } from '@/components/ui/Avatar';
 import { TextInput } from '@/components/ui/TextInput';
 import { Button } from '@/components/ui/Button';
+import {
+  useAccountDeletionRequest,
+  useCancelAccountDeletion,
+  useCustomerProfile,
+  useRequestAccountDeletion,
+} from '@/hooks/useCatalog';
 import type { PatchProfileRequest } from '@/types/api';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -84,8 +91,10 @@ function EditProfileForm({
     mutationFn: (req: PatchProfileRequest) => patchProfile(req),
     onSuccess: (updated) => {
       void qc.invalidateQueries({ queryKey: ['customer', 'me'] });
+      // Invalidate catalog profile so email updates immediately (MOB-3)
       void qc.invalidateQueries({ queryKey: ['customer', 'profile'] });
-      // Mirror the update into the auth store so the identity card refreshes
+      // Mirror the name/display into the auth store so the identity card refreshes.
+      // Email lives in the catalog profile query (not in CustomerMeResponse).
       const current = useAuthStore.getState().customer;
       if (current) {
         setCustomer({
@@ -180,6 +189,122 @@ function EditProfileForm({
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
+// ── Delete account section ────────────────────────────────────────────────────
+
+function DeleteAccountSection() {
+  const { t } = useTranslation();
+  const { data: deletionReq, isLoading } = useAccountDeletionRequest();
+  const requestDeletion = useRequestAccountDeletion();
+  const cancelDeletion = useCancelAccountDeletion();
+
+  const hasPending = !!deletionReq && deletionReq.status !== 'cancelled';
+
+  const gracePeriodEnd = deletionReq?.gracePeriodEndsAt
+    ? new Date(deletionReq.gracePeriodEndsAt).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : null;
+
+  const handleRequestDelete = () => {
+    Alert.alert(
+      t('profile.deleteAccount'),
+      t('profile.deleteAccountConfirmMessage'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('profile.deleteAccountConfirm'),
+          style: 'destructive',
+          onPress: () => {
+            requestDeletion.mutate(
+              { requestSource: 'customer_app', reason: 'user_requested' },
+              {
+                onSuccess: () =>
+                  Alert.alert(t('profile.deleteRequested'), t('profile.deleteRequestedMessage')),
+                onError: (err) =>
+                  Alert.alert(
+                    t('error.generic'),
+                    err instanceof Error ? err.message : t('error.tryAgain'),
+                  ),
+              },
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const handleCancelDelete = () => {
+    Alert.alert(
+      t('profile.cancelDeleteTitle'),
+      t('profile.cancelDeleteMessage'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('profile.cancelDeleteConfirm'),
+          onPress: () => {
+            cancelDeletion.mutate(undefined, {
+              onSuccess: () =>
+                Alert.alert(t('profile.deleteRequestCancelled'), t('profile.deleteRequestCancelledMessage')),
+              onError: (err) =>
+                Alert.alert(
+                  t('error.generic'),
+                  err instanceof Error ? err.message : t('error.tryAgain'),
+                ),
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  if (isLoading) return null;
+
+  if (hasPending) {
+    return (
+      <View
+        className="mx-6 mt-5 rounded-3xl bg-white px-4 py-4"
+        style={{ shadowColor: '#2E351C', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
+      >
+        <View className="mb-3 flex-row items-center gap-2">
+          <View className="h-9 w-9 items-center justify-center rounded-xl bg-red-50">
+            <Ionicons name="trash-outline" size={18} color="#C0492F" />
+          </View>
+          <Text className="flex-1 text-sm font-bold text-danger">{t('profile.deletionPendingTitle')}</Text>
+        </View>
+        <Text className="mb-3 text-xs leading-5 text-ink-muted">
+          {t('profile.deletionPendingMessage', { date: gracePeriodEnd ?? '30 days' })}
+        </Text>
+        <Pressable
+          onPress={handleCancelDelete}
+          disabled={cancelDeletion.isPending}
+          className="items-center rounded-2xl border border-olive-400 py-3"
+          accessibilityRole="button"
+          accessibilityLabel={t('profile.cancelDeleteTitle')}
+        >
+          <Text className="text-sm font-bold text-olive-700">
+            {cancelDeletion.isPending ? t('common.loading') : t('profile.cancelDeleteConfirm')}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View className="mx-6 mt-5 rounded-3xl bg-white px-4">
+      <MenuItem
+        icon="trash-outline"
+        label={t('profile.deleteAccount')}
+        danger
+        onPress={handleRequestDelete}
+      />
+    </View>
+  );
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
+
 export default function ProfileScreen() {
   const customer = useAuthStore((s) => s.customer);
   const logout = useAuthStore((s) => s.logout);
@@ -198,6 +323,9 @@ export default function ProfileScreen() {
     },
     staleTime: 5 * 60_000,
   });
+
+  // Catalog profile carries email (Identity /me does not)
+  const { data: catalogProfile } = useCustomerProfile();
 
   const handleLogout = () => {
     Alert.alert(t('profile.logOutConfirm'), t('profile.logOutMessage'), [
@@ -224,7 +352,8 @@ export default function ProfileScreen() {
   const name = profile?.displayName ?? profile?.firstName ?? 'Customer';
   const firstName = profile?.firstName ?? '';
   const lastName = profile?.lastName ?? '';
-  const email = '';
+  // MOB-3: email comes from the Catalog profile (Identity /me does not carry email).
+  const email = catalogProfile?.email ?? '';
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
@@ -352,6 +481,9 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+
+        {/* Delete account */}
+        <DeleteAccountSection />
 
         {/* Logout */}
         <View className="mx-6 mt-5 rounded-3xl bg-white px-4">

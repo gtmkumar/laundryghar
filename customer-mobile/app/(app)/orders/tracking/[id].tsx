@@ -13,6 +13,7 @@
  * pickup (order is more common).
  */
 import React from 'react';
+import * as Clipboard from 'expo-clipboard';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -148,6 +149,57 @@ function Header({ orderNumber, banner }: { orderNumber: string; banner: string }
   );
 }
 
+// ── MOB-7: Delivery OTP card ──────────────────────────────────────────────────
+
+function DeliveryOtpCard({ otp }: { otp: string }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = () => {
+    void Clipboard.setStringAsync(otp);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <View className="mx-5 mt-4 overflow-hidden rounded-3xl bg-olive-700">
+      <View className="px-5 pt-5 pb-4">
+        <View className="mb-3 flex-row items-center gap-2">
+          <Ionicons name="lock-closed" size={16} color="#D4B483" />
+          <Text className="text-xs font-bold uppercase tracking-wider text-gold-300">
+            {t('tracking.deliveryOtpLabel')}
+          </Text>
+        </View>
+        <Text
+          selectable
+          className="text-center text-5xl font-extrabold tracking-[12px] text-white"
+          accessibilityLabel={t('tracking.deliveryOtpA11y', { otp })}
+        >
+          {otp}
+        </Text>
+        <Text className="mt-2 text-center text-xs text-olive-200">
+          {t('tracking.deliveryOtpHint')}
+        </Text>
+      </View>
+      <Pressable
+        onPress={handleCopy}
+        className="flex-row items-center justify-center gap-2 bg-olive-800 py-3"
+        accessibilityRole="button"
+        accessibilityLabel={t('tracking.copyOtp')}
+      >
+        <Ionicons
+          name={copied ? 'checkmark-circle' : 'copy-outline'}
+          size={16}
+          color={copied ? '#A8D5A2' : '#D4B483'}
+        />
+        <Text className={`text-sm font-bold ${copied ? 'text-green-300' : 'text-gold-300'}`}>
+          {copied ? t('tracking.otpCopied') : t('tracking.copyOtp')}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // ── Demo (legacy LG-##### ids from local fallback path) ───────────────────────
 
 function DemoTracking({ orderNumber }: { orderNumber: string }) {
@@ -160,7 +212,7 @@ function DemoTracking({ orderNumber }: { orderNumber: string }) {
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        <Header orderNumber={orderNumber} banner="Ready by Sat · 4 PM" />
+        <Header orderNumber={orderNumber} banner={t('tracking.bannerInProcess')} />
         <Text className="mx-5 mb-4 mt-7 text-lg font-extrabold text-ink">{t('tracking.timeline')}</Text>
         <View className="mx-5">
           {timeline.map((row, i) => (
@@ -195,14 +247,14 @@ function PickupTracking({ id }: { id: string }) {
   const isCancelled = pickup.status === 'cancelled';
 
   const banner = pickup.status === 'completed'
-    ? 'Items collected!'
+    ? t('tracking.bannerItemsCollected')
     : pickup.status === 'converted'
-      ? 'Order created at store'
+      ? t('tracking.bannerOrderAtStore')
       : isCancelled
-        ? 'Pickup cancelled'
+        ? t('tracking.bannerPickupCancelled')
         : pickup.status === 'no_response'
-          ? 'No response'
-          : `Pickup on ${pickup.pickupDate}`;
+          ? t('tracking.bannerNoResponse')
+          : t('tracking.bannerPickupDate', { date: pickup.pickupDate });
 
   const itemCount = pickup.estimatedItems
     ?? pickup.cartItems.reduce((n, i) => n + i.quantity, 0);
@@ -369,10 +421,10 @@ function LiveOrderTracking({ id }: { id: string }) {
   const timeline = buildTimeline(ORDER_STEPS, ORDER_RANK, currentRank, times);
 
   const banner = order.readyAt
-    ? `Ready by ${formatDateTime(order.readyAt)}`
+    ? t('tracking.bannerReadyBy', { date: formatDateTime(order.readyAt) })
     : order.status === 'delivered'
-      ? 'Delivered'
-      : 'In process';
+      ? t('tracking.bannerDelivered')
+      : t('tracking.bannerInProcess');
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
@@ -385,6 +437,11 @@ function LiveOrderTracking({ id }: { id: string }) {
             <TimelineNode key={row.label} row={row} isLast={i === timeline.length - 1} />
           ))}
         </View>
+
+        {/* MOB-7: Delivery OTP — show when out_for_delivery */}
+        {order.status === 'out_for_delivery' && order.deliveryOtp ? (
+          <DeliveryOtpCard otp={order.deliveryOtp} />
+        ) : null}
 
         {/* Garments */}
         {order.items && order.items.length > 0 ? (

@@ -15,7 +15,18 @@ public sealed record CreateOrderRequest(
     CreateOrderAddonRequest[] Addons,
     string? NotesCustomer,
     /// <summary>Optional coupon code. Validated and applied server-side; 422 on invalid.</summary>
-    string? CouponCode = null
+    string? CouponCode = null,
+    /// <summary>
+    /// Number of loyalty points the customer wishes to redeem as a discount.
+    /// Server-side rules apply: MinBurnPoints, MaxBurnPerOrderPct, and actual balance cap.
+    /// Pass 0 (default) to skip loyalty burn.
+    /// </summary>
+    int LoyaltyPointsToRedeem = 0,
+    /// <summary>
+    /// Optional explicit CustomerPackage to apply. When null the handler auto-resolves
+    /// the earliest-expiring active package with remaining balance for this customer/brand.
+    /// </summary>
+    Guid? CustomerPackageId = null
 );
 
 public sealed record CreateOrderItemRequest(
@@ -67,8 +78,10 @@ public sealed record OrderDto(
     decimal TaxTotal,
     decimal Cgst,
     decimal Sgst,
-    /// <summary>Total discount applied (coupon + loyalty + package). Populated from DiscountTotal on the order entity.</summary>
+    /// <summary>Total discount applied (coupon + loyalty + package + promotion). Populated from DiscountTotal on the order entity.</summary>
     decimal DiscountTotal,
+    /// <summary>Promotion discount component within DiscountTotal. Zero when no promotion was applied.</summary>
+    decimal PromotionDiscount,
     decimal GrandTotal,
     decimal AmountPaid,
     decimal? AmountDue,
@@ -86,7 +99,13 @@ public sealed record OrderDto(
     /// <summary>Customer rating 1–5. Null until the customer rates the order.</summary>
     short? Rating = null,
     string? RatingComment = null,
-    DateTimeOffset? RatedAt = null
+    DateTimeOffset? RatedAt = null,
+    /// <summary>
+    /// OTP the rider will read back to the customer to confirm the correct parcel.
+    /// Exposed ONLY to the owning customer AND ONLY while status == out_for_delivery.
+    /// Null in all other states and for all admin/staff callers.
+    /// </summary>
+    string? DeliveryOtp = null
 );
 
 public sealed record OrderItemDto(

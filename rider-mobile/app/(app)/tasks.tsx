@@ -18,7 +18,7 @@ import { useRiderTasks } from '@/hooks/useRiderTasks';
 import { useMyRiderProfile } from '@/hooks/useRider';
 import { useAuthStore } from '@/store/authStore';
 import { useDutyStore } from '@/store/dutyStore';
-import { ScreenLoader } from '@/components/ui/ScreenLoader';
+import { TasksListSkeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
 import { useTranslation } from 'react-i18next';
 import type { RiderTask } from '@/types/api';
@@ -201,7 +201,7 @@ export default function TasksScreen() {
   const name = profile?.riderName?.trim() || profile?.riderCode || 'Rider';
   const rating = profile?.ratingAverage != null ? profile.ratingAverage.toFixed(1) : '—';
 
-  if (isLoading) return <ScreenLoader />;
+  if (isLoading) return <TasksListSkeleton />;
 
   const data = tab === 'tasks' ? pending : done;
 

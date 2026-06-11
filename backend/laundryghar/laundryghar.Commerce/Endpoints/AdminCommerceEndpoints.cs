@@ -201,9 +201,15 @@ public static class AdminCommerceEndpoints
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PaymentDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:payment.read");
 
-        payments.MapPost("/", async (RecordOfflinePaymentRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        payments.MapPost("/", async (HttpContext http, RecordOfflinePaymentRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {
-            var r = await sender.Send(new RecordOfflinePaymentCommand(req, u.UserId), ct);
+            // H3b: honour Idempotency-Key header; fallback to body field then server-derived key.
+            var idempotencyKey = http.Request.Headers.TryGetValue("Idempotency-Key", out var hdrKey)
+                ? hdrKey.FirstOrDefault()
+                : req.IdempotencyKey;
+
+            var reqWithKey = req with { IdempotencyKey = idempotencyKey };
+            var r = await sender.Send(new RecordOfflinePaymentCommand(reqWithKey, u.UserId), ct);
             return Results.Created($"/api/v1/admin/payments/{r.PaymentId}", new SingleResponse<OfflinePaymentDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:payment.record");
 
@@ -267,6 +273,12 @@ public static class AdminCommerceEndpoints
         {
             var ok = await sender.Send(new DeleteSubscriptionPlanCommand(id, u.UserId), ct);
             return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+        }).RequireAuthorization("permission:subscription.manage");
+
+        subPlans.MapPatch("/{id:guid}/status", async (Guid id, PatchSubscriptionPlanStatusRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new PatchSubscriptionPlanStatusCommand(id, req.Status, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<SubscriptionPlanDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:subscription.manage");
 
         // ── Admin: Customer Subscriptions (read) ───────────────────────────────

@@ -1,22 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  cancelAccountDeletion,
   checkServiceability,
   createAddress,
   deleteAddress,
+  getAccountDeletionRequest,
   getAddresses,
   getCategories,
   getPriceList,
+  getProfile,
   getServices,
+  requestAccountDeletion,
   updateAddress,
 } from '@/api/catalog';
-import type { CreateAddressRequest, UpdateAddressRequest } from '@/types/api';
+import type { CreateAddressRequest, CreateDeletionRequestRequest, UpdateAddressRequest } from '@/types/api';
 
 export const catalogKeys = {
   categories:   ['catalog', 'categories'] as const,
   services:     (categoryId?: string) => ['catalog', 'services', categoryId ?? 'all'] as const,
   priceList:    ['catalog', 'price-list'] as const,
   addresses:    ['catalog', 'addresses'] as const,
+  profile:      ['customer', 'profile'] as const,
 };
+
+export function useCustomerProfile() {
+  return useQuery({
+    queryKey: catalogKeys.profile,
+    queryFn:  getProfile,
+    staleTime: 5 * 60_000,
+  });
+}
 
 export function useCategories() {
   return useQuery({
@@ -87,5 +100,35 @@ export function useServiceability(pincode: string) {
     queryFn:  () => checkServiceability(pincode),
     enabled:  pincode.length === 6 && /^\d{6}$/.test(pincode),
     staleTime: 5 * 60_000,
+  });
+}
+
+// ── Account deletion ──────────────────────────────────────────────────────────
+
+export function useAccountDeletionRequest() {
+  return useQuery({
+    queryKey: ['account', 'deletion-request'],
+    queryFn:  getAccountDeletionRequest,
+    staleTime: 60_000,
+  });
+}
+
+export function useRequestAccountDeletion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateDeletionRequestRequest) => requestAccountDeletion(body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['account', 'deletion-request'] });
+    },
+  });
+}
+
+export function useCancelAccountDeletion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: cancelAccountDeletion,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['account', 'deletion-request'] });
+    },
   });
 }

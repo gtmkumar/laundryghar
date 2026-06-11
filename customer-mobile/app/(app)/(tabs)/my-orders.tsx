@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMyOrders, useMyPickupRequests } from '@/hooks/useOrders';
-import { ScreenLoader } from '@/components/ui/ScreenLoader';
+import { SkeletonOrderList } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
@@ -194,7 +194,7 @@ export default function MyOrdersScreen() {
     void pickupsQuery.refetch();
   };
 
-  if (isLoading) return <ScreenLoader />;
+  if (isLoading) return <SkeletonOrderList />;
   if (isError) return <ErrorState onRetry={refetch} />;
 
   // Derive section data with useMemo — never return fresh arrays from selector (zustand v5 rule,

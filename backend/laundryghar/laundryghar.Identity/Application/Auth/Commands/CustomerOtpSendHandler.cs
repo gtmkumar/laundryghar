@@ -149,7 +149,7 @@ public sealed class CustomerOtpSendHandler : IRequestHandler<CustomerOtpSendComm
             "[CUSTOMER-OTP] Phone={Phone} Brand={BrandId} ExpiresAt={ExpiresAt}",
             logPhone, cmd.ResolvedBrandId, expiresAt);
 
-        await _sender.SendAsync(cmd.Phone, "phone", plainCode, OtpPurpose.Login, ct);
+        await _sender.SendAsync(cmd.Phone, "phone", plainCode, OtpPurpose.Login, ct, brandId: cmd.ResolvedBrandId);
 
         return new OtpSentResponse("OTP sent successfully.", expiresAt);
     }

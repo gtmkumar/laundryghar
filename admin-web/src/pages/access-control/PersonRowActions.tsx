@@ -4,6 +4,7 @@ import {
   Loader2, Copy, Check, X, RefreshCw,
 } from 'lucide-react'
 import { useSetPersonStatus } from '@/hooks/useAccessControl'
+import { usePermissions } from '@/hooks/usePermissions'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
 import type { AccessPerson } from '@/types/api'
 
@@ -24,11 +25,13 @@ function generatePassword(): string {
 export function PersonRowActions({ person }: { person: AccessPerson }) {
   const [activateOpen, setActivateOpen] = useState(false)
   const mutation = useSetPersonStatus()
+  const { hasPermission } = usePermissions()
+  const canManage = hasPermission('users.update')
 
   const status = person.status
-  const canActivate = status === 'invited' || status === 'locked'
-  const canSuspend = status === 'active'
-  const canReactivate = status === 'suspended'
+  const canActivate = canManage && (status === 'invited' || status === 'locked')
+  const canSuspend = canManage && status === 'active'
+  const canReactivate = canManage && status === 'suspended'
 
   const run = (action: 'suspend' | 'reactivate') => mutation.mutate({ userId: person.id, action })
 
@@ -53,7 +56,9 @@ export function PersonRowActions({ person }: { person: AccessPerson }) {
               </ActionMenuItem>
             )}
             {!canActivate && !canReactivate && !canSuspend && (
-              <p className="px-3 py-2 text-xs text-gray-400">No actions available</p>
+              <p className="px-3 py-2 text-xs text-gray-400">
+                {canManage ? 'No actions available' : 'You don’t have permission to manage users'}
+              </p>
             )}
           </>
         )}

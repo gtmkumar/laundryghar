@@ -7,6 +7,7 @@ import {
   DrawerSection,
   FormDrawer,
 } from '@/components/shared/FormDrawer'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
 import {
   useCreateStockReconciliation,
   useStockReconciliations,
@@ -93,6 +94,7 @@ export function ReconReportDrawer({ open, onClose, warehouseId }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [creating, setCreating]     = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const gate = useConfirm()
 
   const reconciliations = useStockReconciliations()
   const createRecon     = useCreateStockReconciliation()
@@ -115,6 +117,15 @@ export function ReconReportDrawer({ open, onClose, warehouseId }: Props) {
     }
   }
 
+  const confirmStartRecon = () =>
+    gate.confirm({
+      title: 'Start reconciliation?',
+      description: 'This opens a new ad-hoc reconciliation session for today. Stock counts will be tracked against the current expected inventory.',
+      confirmLabel: 'Start reconciliation',
+      tone: 'warning',
+      onConfirm: () => handleStartRecon(),
+    })
+
   const items = reconciliations.data?.list ?? []
 
   return (
@@ -133,7 +144,7 @@ export function ReconReportDrawer({ open, onClose, warehouseId }: Props) {
         <button
           type="button"
           disabled={creating || createRecon.isPending}
-          onClick={handleStartRecon}
+          onClick={confirmStartRecon}
           className="w-full rounded-lg border-2 border-dashed border-lg-green/40 px-4 py-3 text-sm font-semibold text-lg-green hover:border-lg-green hover:bg-lg-green/5 disabled:opacity-60 transition"
         >
           {creating || createRecon.isPending ? (
@@ -178,6 +189,7 @@ export function ReconReportDrawer({ open, onClose, warehouseId }: Props) {
           </div>
         )}
       </DrawerSection>
+      <ConfirmDialog {...gate.dialogProps} />
     </FormDrawer>
   )
 }

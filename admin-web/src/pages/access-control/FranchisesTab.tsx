@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import type { PaginatedList, AccessFranchise } from '@/types/api'
 import { useOnboardingUi } from '@/stores/onboardingStore'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
+import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
 import { FranchiseStatTile } from './FranchiseStatTile'
 import { FranchiseTeamDrawer } from './FranchiseTeamDrawer'
 import type { TeamScope } from '@/api/franchiseTeam'
@@ -15,6 +16,7 @@ interface Props {
     data?: { pages: PaginatedList<AccessFranchise>[] }
     isLoading: boolean
     isError: boolean
+    error?: unknown
     hasNextPage: boolean
     isFetchingNextPage: boolean
     fetchNextPage: () => void
@@ -108,7 +110,7 @@ function FranchiseCard({
 }
 
 export function FranchisesTab({ query }: Props) {
-  const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage } = query
+  const { data, isLoading, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } = query
   const openOnboarding = useOnboardingUi((s) => s.openOnboarding)
   const workspaceOpen = useOnboardingUi((s) => s.open)
 
@@ -124,6 +126,7 @@ export function FranchisesTab({ query }: Props) {
     )
   }
   if (isError || !data) {
+    if (isForbiddenError(error)) return <ForbiddenState message="You don’t have access to franchises." />
     return <div className="py-24 text-center text-sm text-red-600">Couldn’t load franchises.</div>
   }
 

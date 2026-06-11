@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react'
 import { Store as StoreIcon, Save } from 'lucide-react'
 import { useUpdateStore } from '@/hooks/useTenancy'
 import { FormDrawer, Field, drawerInputCls } from '@/components/shared/FormDrawer'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
 import type { StoreDto, StoreStatus } from '@/types/api'
+
+// Statuses that take the store offline — gated by a confirmation.
+const DEACTIVATING_STORE_STATUSES: StoreStatus[] = ['paused', 'closed']
 
 interface Props {
   store: StoreDto | null
@@ -18,6 +22,7 @@ export const STORE_STATUSES: { value: StoreStatus; label: string }[] = [
 
 export function StoreEditDrawer({ store, onClose }: Props) {
   const update = useUpdateStore()
+  const gate = useConfirm()
   const [name, setName] = useState('')
   const [status, setStatus] = useState<StoreStatus>('active')
   const [contactPhone, setContactPhone] = useState('')
@@ -34,9 +39,8 @@ export function StoreEditDrawer({ store, onClose }: Props) {
 
   if (!store) return null
 
-  const submit = async () => {
+  const save = async () => {
     setError(null)
-    if (!name.trim()) return setError('Store name is required.')
     try {
       await update.mutateAsync({
         id: store.id,
@@ -50,6 +54,27 @@ export function StoreEditDrawer({ store, onClose }: Props) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not update the store.')
     }
+  }
+
+  const submit = async () => {
+    setError(null)
+    if (!name.trim()) return setError('Store name is required.')
+    // Confirm before taking a previously-active store offline.
+    const goingOffline =
+      DEACTIVATING_STORE_STATUSES.includes(status) &&
+      !DEACTIVATING_STORE_STATUSES.includes((store.status as StoreStatus) ?? 'active')
+    if (goingOffline) {
+      const label = STORE_STATUSES.find((s) => s.value === status)?.label ?? status
+      gate.confirm({
+        title: 'Deactivate store?',
+        description: `“${store.name}” will be set to ${label} and will stop accepting orders.`,
+        confirmLabel: `Set ${label}`,
+        tone: 'danger',
+        onConfirm: () => save(),
+      })
+      return
+    }
+    await save()
   }
 
   return (
@@ -96,6 +121,7 @@ export function StoreEditDrawer({ store, onClose }: Props) {
       <p className="text-xs text-gray-400">
         Code, type, franchise and address are fixed after creation.
       </p>
+      <ConfirmDialog {...gate.dialogProps} />
     </FormDrawer>
   )
 }

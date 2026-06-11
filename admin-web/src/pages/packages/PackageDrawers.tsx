@@ -158,13 +158,21 @@ export function PackageEditDrawer({ open, pkg, onClose }: EditDrawerProps) {
     const price = Number(form.price)
     const creditValue = Number(form.creditValue)
     const multiplier = Number(form.creditMultiplier)
+    const discountPercent = form.discountPercent.trim() === '' ? 0 : Number(form.discountPercent)
+    const displayOrder = form.displayOrder.trim() === '' ? 0 : Number(form.displayOrder)
     if (!isEdit && !form.code.trim()) return setError('Package code is required.')
     if (!form.name.trim()) return setError('Package name is required.')
     if (!form.nameLocalized.trim()) return setError('Localized name is required.')
     if (!isEdit && !form.tier) return setError('Tier is required.')
     if (!(price > 0)) return setError('Price must be greater than 0.')
     if (!(creditValue > 0)) return setError('Credit value must be greater than 0.')
+    if (creditValue < price)
+      return setError('Credit value must be at least the package price.')
     if (!(multiplier > 0)) return setError('Credit multiplier must be greater than 0.')
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100)
+      return setError('Discount % must be between 0 and 100.')
+    if (!Number.isFinite(displayOrder) || displayOrder < 0)
+      return setError('Display order must be 0 or greater.')
     if (form.availableTo && form.availableFrom && form.availableTo < form.availableFrom)
       return setError('Available-to must be on or after available-from.')
 
@@ -174,7 +182,7 @@ export function PackageEditDrawer({ open, pkg, onClose }: EditDrawerProps) {
       description: form.description.trim() || null,
       price,
       creditValue,
-      discountPercent: Number(form.discountPercent) || 0,
+      discountPercent,
       creditMultiplier: multiplier,
       validityDays: form.isUnlimitedValidity ? null : form.validityDays ? Number(form.validityDays) : null,
       isUnlimitedValidity: form.isUnlimitedValidity,
@@ -185,7 +193,7 @@ export function PackageEditDrawer({ open, pkg, onClose }: EditDrawerProps) {
       maxPurchasesPerCust: form.maxPurchasesPerCust ? Number(form.maxPurchasesPerCust) : null,
       iconUrl: null,
       colorHex: null,
-      displayOrder: Number(form.displayOrder) || 0,
+      displayOrder,
       isFeatured: form.isFeatured,
       termsAndConditions: form.termsAndConditions.trim() || null,
       availableFrom: form.availableFrom ? toInstant(form.availableFrom) : null,

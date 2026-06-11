@@ -38,6 +38,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
+import { QueryClient } from '@tanstack/react-query';
 import { registerPushToken, deactivatePushToken } from '@/api/pushNotifications';
 import { FEATURES } from '@/constants/config';
 
@@ -86,7 +87,14 @@ async function ensureAndroidChannel(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 let _cleanupResponseListener: (() => void) | null = null;
+let _cleanupForegroundListener: (() => void) | null = null;
 let _registeredToken: string | null = null;
+let _queryClient: QueryClient | null = null;
+
+/** Inject the QueryClient so push handlers can invalidate caches. */
+export function setPushQueryClient(qc: QueryClient): void {
+  _queryClient = qc;
+}
 
 /**
  * Initialise push notifications and register the current token with the backend.
@@ -145,6 +153,15 @@ export async function initialisePushNotifications(): Promise<string | null> {
       _cleanupResponseListener = () => subscription.remove();
     }
 
+    // 5. Foreground handler — invalidate relevant query caches (MOB-6)
+    if (!_cleanupForegroundListener) {
+      const fgSub = Notifications.addNotificationReceivedListener((notification) => {
+        const data = notification.request.content.data as PushNotificationData;
+        handleForegroundNotification(data);
+      });
+      _cleanupForegroundListener = () => fgSub.remove();
+    }
+
     return expoPushToken;
   } catch {
     // Expo Go iOS throws here — degrade silently.
@@ -168,6 +185,25 @@ export async function deregisterPushNotifications(): Promise<void> {
   _registeredToken = null;
   _cleanupResponseListener?.();
   _cleanupResponseListener = null;
+  _cleanupForegroundListener?.();
+  _cleanupForegroundListener = null;
+}
+
+// ---------------------------------------------------------------------------
+// Foreground notification handler — invalidate query caches (MOB-6)
+// ---------------------------------------------------------------------------
+
+function handleForegroundNotification(data: PushNotificationData): void {
+  if (!_queryClient || !data?.id) return;
+
+  if (data.type === 'order') {
+    void _queryClient.invalidateQueries({ queryKey: ['orders', 'detail', data.id] });
+    void _queryClient.invalidateQueries({ queryKey: ['orders', 'tracking', data.id] });
+    void _queryClient.invalidateQueries({ queryKey: ['orders', 'list'] });
+  } else if (data.type === 'pickup') {
+    void _queryClient.invalidateQueries({ queryKey: ['pickups', 'detail', data.id] });
+    void _queryClient.invalidateQueries({ queryKey: ['pickups', 'list'] });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -175,17 +211,24 @@ export async function deregisterPushNotifications(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 function handleNotificationTap(data: PushNotificationData): void {
-  if (!data?.type || !data?.id) return;
+  // Invalidate on tap too, so the screen is fresh when it mounts
+  handleForegroundNotification(data);
+
+  if (!data?.type || !data?.id) {
+    // No specific entity — go to my-orders as the closest useful destination
+    router.push('/(app)/(tabs)/my-orders');
+    return;
+  }
 
   switch (data.type) {
     case 'order':
-      router.push(`/(app)/orders/${data.id}`);
+      router.push(`/(app)/orders/tracking/${data.id}` as never);
       break;
     case 'pickup':
-      router.push(`/(app)/orders/tracking/${data.id}`);
+      router.push(`/(app)/orders/tracking/${data.id}?kind=pickup` as never);
       break;
     default:
-      // Unknown type — no navigation; app is already foregrounded
+      router.push('/(app)/(tabs)/my-orders');
       break;
   }
 }

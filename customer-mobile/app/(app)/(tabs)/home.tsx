@@ -20,7 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useServices, useAddresses } from '@/hooks/useCatalog';
 import { useHomeBanners } from '@/hooks/useEngagement';
 import { useAuthStore } from '@/store/authStore';
-import { ScreenLoader } from '@/components/ui/ScreenLoader';
+import { SkeletonHomeScreen } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { serviceMeta } from '@/lib/serviceMeta';
 import { greeting } from '@/lib/format';
@@ -69,12 +69,17 @@ function resolveBannerPress(
   }
 }
 
-function ServiceTile({ name }: { name: string }) {
+function ServiceTile({ id, name }: { id: string; name: string }) {
   const router = useRouter();
   const meta = serviceMeta(name);
   return (
     <Pressable
-      onPress={() => router.push('/(app)/booking/items')}
+      onPress={() =>
+        router.push({
+          pathname: '/(app)/booking/items' as never,
+          params: { serviceId: id },
+        })
+      }
       accessibilityRole="button"
       accessibilityLabel={`${name} service`}
       className="mb-4 items-center"
@@ -178,7 +183,7 @@ export default function HomeScreen() {
     ? `${defaultAddr.label ?? defaultAddr.addressLine1}`
     : t('home.addPickupAddress');
 
-  if (isLoading) return <ScreenLoader />;
+  if (isLoading) return <SkeletonHomeScreen />;
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
 
   const grid = services && services.length > 0 ? services : FALLBACK_SERVICES;
@@ -198,7 +203,7 @@ export default function HomeScreen() {
             </View>
           </View>
           <Pressable
-            onPress={() => router.push('/(app)/offers')}
+            onPress={() => router.push('/(app)/(tabs)/my-orders')}
             className="h-10 w-10 items-center justify-center rounded-xl bg-white"
             accessibilityRole="button"
             accessibilityLabel={t('a11y.notifications')}
@@ -207,8 +212,13 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Address selector */}
-        <Pressable className="mx-6 mt-4 flex-row items-center gap-2" accessibilityRole="button" accessibilityLabel={t('a11y.pickupAddress')}>
+        {/* Address selector — navigates to addresses screen (MOB-12) */}
+        <Pressable
+          onPress={() => router.push('/(app)/addresses' as never)}
+          className="mx-6 mt-4 flex-row items-center gap-2"
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.pickupAddress')}
+        >
           <Ionicons name="location-sharp" size={16} color="#5C6A33" />
           <Text className="text-sm font-bold text-ink-soft" numberOfLines={1}>
             {addrLabel}
@@ -232,7 +242,7 @@ export default function HomeScreen() {
           </View>
           <View className="flex-row flex-wrap">
             {grid.slice(0, 7).map((s) => (
-              <ServiceTile key={s.id} name={s.name} />
+              <ServiceTile key={s.id} id={s.id} name={s.name} />
             ))}
             <MoreTile />
           </View>

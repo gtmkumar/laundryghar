@@ -126,6 +126,11 @@
       "cod": "कैश ऑन डिलीवरी",
       "codSubtitle": "राइडर को वापसी पर दें"
     },
+    "walletInsufficient": "अपर्याप्त बैलेंस — पहले पैसे जोड़ें",
+    "walletInsufficientAction": "अपर्याप्त बैलेंस। वॉलेट में पैसे जोड़ें या दूसरा तरीका चुनें।",
+    "onlinePaymentComingSoonTitle": "UPI और कार्ड — जल्द आ रहा है",
+    "onlinePaymentComingSoonBody": "UPI या कार्ड से ऑनलाइन भुगतान अभी उपलब्ध नहीं है। कृपया वॉलेट या कैश ऑन डिलीवरी चुनें।",
+    "noSlotsForDay": "इस दिन के लिए कोई स्लॉट उपलब्ध नहीं है। दूसरी तारीख आज़माएं।",
     "pay": "{{amount}} का भुगतान करें",
     "confirming": "पुष्टि हो रही है…",
     "emptyCart": "खाली कार्ट",
@@ -146,6 +151,7 @@
     "garmentCount_other": "{{count}} कपड़े",
     "express": "एक्सप्रेस",
     "paid": "भुगतान",
+    "whatsappTitle": "WhatsApp पर लाइव अपडेट",
     "whatsappNote": "राइडर के 10 मिनट पहले हम WhatsApp करेंगे। पिकअप के बाद कपड़े-वार ट्रैकिंग शुरू होगी।",
     "backToHome": "होम पर जाएं",
     "viewOrder": "ऑर्डर देखें",
@@ -260,7 +266,20 @@
       "arrived": "राइडर पहुंचा",
       "completed": "कपड़े लिए गए"
     },
-    "active": "जारी है"
+    "active": "जारी है",
+    "deliveryOtpLabel": "आपका डिलीवरी OTP",
+    "deliveryOtpHint": "डिलीवरी की पुष्टि के लिए राइडर को यह कोड दें",
+    "deliveryOtpA11y": "डिलीवरी OTP {{otp}} है",
+    "copyOtp": "OTP कॉपी करें",
+    "otpCopied": "कॉपी हो गया!",
+    "bannerDelivered": "डिलीवर हो गया",
+    "bannerInProcess": "प्रक्रिया में",
+    "bannerReadyBy": "{{date}} तक तैयार",
+    "bannerPickupDate": "पिकअप {{date}} को",
+    "bannerItemsCollected": "कपड़े लिए गए!",
+    "bannerOrderAtStore": "स्टोर पर ऑर्डर बना",
+    "bannerPickupCancelled": "पिकअप रद्द हो गया",
+    "bannerNoResponse": "जवाब नहीं मिला"
   },
   "wallet": {
     "tabLabel": "वॉलेट",
@@ -304,7 +323,19 @@
     "helpAndSupport": "सहायता और समर्थन",
     "logOut": "लॉग आउट",
     "logOutConfirm": "लॉग आउट",
-    "logOutMessage": "क्या आप वाकई लॉग आउट करना चाहते हैं?"
+    "logOutMessage": "क्या आप वाकई लॉग आउट करना चाहते हैं?",
+    "deleteAccount": "खाता हटाएं",
+    "deleteAccountConfirmMessage": "30-दिन की अवधि के बाद आपका खाता स्थायी रूप से हटा दिया जाएगा। DPDP एक्ट के अनुसार सभी डेटा मिटा दिया जाएगा।",
+    "deleteAccountConfirm": "हटाने का अनुरोध करें",
+    "deleteRequested": "हटाने का अनुरोध हुआ",
+    "deleteRequestedMessage": "आपके खाते को हटाने का समय निर्धारित हो गया है। आप इस अवधि में रद्द कर सकते हैं।",
+    "deletionPendingTitle": "खाता हटाने का समय निर्धारित है",
+    "deletionPendingMessage": "आपका खाता {{date}} को हटाया जाएगा। तब तक रद्द कर सकते हैं।",
+    "cancelDeleteTitle": "हटाना रद्द करें",
+    "cancelDeleteMessage": "खाता हटाने का अनुरोध रद्द करें और खाता बहाल करें?",
+    "cancelDeleteConfirm": "खाता रखें",
+    "deleteRequestCancelled": "हटाना रद्द हुआ",
+    "deleteRequestCancelledMessage": "आपका खाता हटाना रद्द हो गया। वापसी पर स्वागत है!"
   },
   "addresses": {
     "title": "सहेजे गए पते",

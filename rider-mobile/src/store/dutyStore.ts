@@ -15,9 +15,10 @@
  */
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { patchRiderDuty } from '@/api/rider';
+import { patchRiderDuty, getMyRiderProfile } from '@/api/rider';
 
 const STORAGE_KEY = 'lg_rider_duty_v1';
+const SYNC_BANNER_KEY = 'lg_rider_duty_sync_banner';
 
 export interface ChecklistState {
   bagTags:      boolean;
@@ -40,10 +41,19 @@ interface DutyState {
   onDutySince:  string | null;
   checklist:    ChecklistState;
   isHydrated:   boolean;
+  /**
+   * Set to true briefly when the server duty state disagrees with the locally
+   * persisted state after hydration. The home screen reads this to show a
+   * one-time banner and then clears it.
+   */
+  syncMismatch: boolean;
+  /** The server-reported duty state when a mismatch was detected. */
+  serverOnDuty: boolean | null;
 
-  hydrate:        () => Promise<void>;
-  setOnDuty:      (on: boolean) => void;
-  toggleChecklist:(item: ChecklistItem) => void;
+  hydrate:           () => Promise<void>;
+  setOnDuty:         (on: boolean) => void;
+  toggleChecklist:   (item: ChecklistItem) => void;
+  clearSyncMismatch: () => void;
 }
 
 function persist(state: Pick<DutyState, 'isOnDuty' | 'onDutySince' | 'checklist'>) {
@@ -51,29 +61,49 @@ function persist(state: Pick<DutyState, 'isOnDuty' | 'onDutySince' | 'checklist'
 }
 
 export const useDutyStore = create<DutyState>()((set, get) => ({
-  isOnDuty:    false,
-  onDutySince: null,
-  checklist:   DEFAULT_CHECKLIST,
-  isHydrated:  false,
+  isOnDuty:     false,
+  onDutySince:  null,
+  checklist:    DEFAULT_CHECKLIST,
+  isHydrated:   false,
+  syncMismatch: false,
+  serverOnDuty: null,
 
   hydrate: async () => {
+    // Step 1: restore persisted local state immediately so the UI can render.
+    let localOnDuty = false;
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<DutyState>;
+        localOnDuty = parsed.isOnDuty ?? false;
         set({
-          isOnDuty:    parsed.isOnDuty ?? false,
+          isOnDuty:    localOnDuty,
           onDutySince: parsed.onDutySince ?? null,
           checklist:   { ...DEFAULT_CHECKLIST, ...(parsed.checklist ?? {}) },
           isHydrated:  true,
         });
-        return;
+      } else {
+        set({ isHydrated: true });
       }
     } catch {
-      // fall through to defaults
+      set({ isHydrated: true });
     }
-    set({ isHydrated: true });
+
+    // Step 2: reconcile against the server duty state (best-effort, never blocks).
+    // If they disagree, surface a banner but trust local state as the source of
+    // truth (the rider knows better than a potentially stale server record).
+    try {
+      const profile = await getMyRiderProfile();
+      const serverOnDuty = profile.isOnDuty ?? false;
+      if (serverOnDuty !== get().isOnDuty) {
+        set({ syncMismatch: true, serverOnDuty });
+      }
+    } catch {
+      // Network unavailable or auth not yet ready — skip reconciliation silently.
+    }
   },
+
+  clearSyncMismatch: () => set({ syncMismatch: false, serverOnDuty: null }),
 
   setOnDuty: (on) => {
     // Update local state immediately (optimistic).

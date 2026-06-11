@@ -8,3 +8,4 @@
 - [Task #26 Test Baseline](project_task26_test_baseline.md) — 528 backend + 115 customer + 63 rider + smoke 22/22 PASS; jest-expo@52, jest@29; screen tests deferred
 - [Closing Verification June 2026](project_closing_verification_june2026.md) — #17/#33 PASS with 1 blocker: Wave-0 RLS 22P02 blocks admin subscription-plans GET/PUT + Worker dunning cycle
 - [Round 6 Verification 2026-06-11](project_round6_verification.md) — #39 PASS-WITH-DEFECT (DEF-39-A: dev cipher key mismatch Worker crash); #38-remainder PASS (displayLabel + minQty validators live)
+- [Live E2E Test 2026-06-11](project_live_e2e_june2026.md) — A1 DB PASS / A1 API FAIL (DEF-A1 PaymentPurpose+Status wrong); A3 FAIL (DEF-A3 jsonb~~ operator); A5 PASS; rider Android full PASS; iOS smoke PASS

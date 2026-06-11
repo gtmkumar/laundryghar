@@ -5,6 +5,7 @@ import { useRidersLive, useRiderTrack, useRiderStats } from '@/hooks/useRiders'
 import type { RiderLiveDto } from '@/types/api'
 import { RiderMap } from '@/components/map/RiderMap'
 import { OPS_COLOR, OPS_LABEL } from '@/components/map/mapConfig'
+import { ErrorState } from '@/components/shared/ErrorState'
 
 const OPS_ORDER = ['on_the_way', 'to_store', 'arrived', 'idle', 'offline'] as const
 
@@ -22,7 +23,7 @@ function ago(iso: string | null): string {
 }
 
 export function RiderOpsView() {
-  const { data: riders = [], isLoading, isError, isFetching, refetch } = useRidersLive()
+  const { data: riders = [], isLoading, isError, error, isFetching, refetch } = useRidersLive()
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const { data: trail = [] } = useRiderTrack(selectedId)
@@ -45,7 +46,7 @@ export function RiderOpsView() {
     )
   }
   if (isError) {
-    return <div className="py-24 text-center text-sm text-red-600">Couldn’t load the live board.</div>
+    return <ErrorState error={error as Error} onRetry={() => void refetch()} />
   }
 
   return (

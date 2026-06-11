@@ -16,7 +16,7 @@ import type { PaginationParams } from '@/types/api'
  * Catalog queries MUST not fire without a brand context; gating on this prevents
  * guaranteed 401s when platform_admin logs in before selecting a brand.
  */
-function useEffectiveBrandId(): string | null {
+export function useEffectiveBrandId(): string | null {
   const { accessToken } = useAuthStore()
   const { activeBrandId } = useBrandStore()
 
@@ -34,18 +34,34 @@ function useEffectiveBrandId(): string | null {
   return activeBrandId
 }
 
+/**
+ * POS-5: brandId is part of every catalog query key, not just the `enabled`
+ * gate. Catalog data (categories/services/items/price) is brand-scoped via the
+ * X-Brand-Id header, so without brandId in the key a platform_admin switching
+ * brands would be served the previous brand's cached catalog — wrong names and,
+ * critically, wrong prices on real orders. Keying on brandId gives each brand
+ * its own cache entry and forces a refetch on switch.
+ */
 export const catalogKeys = {
-  categories: (params?: object) => ['catalog', 'categories', params] as const,
-  services: (params?: object) => ['catalog', 'services', params] as const,
-  items: (params?: object) => ['catalog', 'items', params] as const,
-  priceResolve: (itemId: string, serviceId: string, storeId?: string, variantId?: string) =>
-    ['catalog', 'price-resolve', itemId, serviceId, storeId, variantId] as const,
+  categories: (brandId: string | null, params?: object) =>
+    ['catalog', 'categories', brandId, params] as const,
+  services: (brandId: string | null, params?: object) =>
+    ['catalog', 'services', brandId, params] as const,
+  items: (brandId: string | null, params?: object) =>
+    ['catalog', 'items', brandId, params] as const,
+  priceResolve: (
+    brandId: string | null,
+    itemId: string,
+    serviceId: string,
+    storeId?: string,
+    variantId?: string,
+  ) => ['catalog', 'price-resolve', brandId, itemId, serviceId, storeId, variantId] as const,
 }
 
 export function useServiceCategories(params: PaginationParams = {}) {
   const brandId = useEffectiveBrandId()
   return useQuery({
-    queryKey: catalogKeys.categories(params),
+    queryKey: catalogKeys.categories(brandId, params),
     queryFn: () => getServiceCategories(params),
     enabled: !!brandId,
     staleTime: 5 * 60_000,
@@ -55,7 +71,7 @@ export function useServiceCategories(params: PaginationParams = {}) {
 export function useServices(params: PaginationParams & { categoryId?: string } = {}) {
   const brandId = useEffectiveBrandId()
   return useQuery({
-    queryKey: catalogKeys.services(params),
+    queryKey: catalogKeys.services(brandId, params),
     queryFn: () => getServices(params),
     enabled: !!brandId,
     staleTime: 5 * 60_000,
@@ -65,7 +81,7 @@ export function useServices(params: PaginationParams & { categoryId?: string } =
 export function useItems(params: PaginationParams & { itemGroupId?: string } = {}) {
   const brandId = useEffectiveBrandId()
   return useQuery({
-    queryKey: catalogKeys.items(params),
+    queryKey: catalogKeys.items(brandId, params),
     queryFn: () => getItems(params),
     enabled: !!brandId,
     staleTime: 5 * 60_000,
@@ -78,10 +94,11 @@ export function usePriceResolve(
   storeId?: string,
   variantId?: string,
 ) {
+  const brandId = useEffectiveBrandId()
   return useQuery({
-    queryKey: catalogKeys.priceResolve(itemId, serviceId, storeId, variantId),
+    queryKey: catalogKeys.priceResolve(brandId, itemId, serviceId, storeId, variantId),
     queryFn: () => resolvePrice(itemId, serviceId, storeId, variantId),
-    enabled: Boolean(itemId) && Boolean(serviceId),
+    enabled: Boolean(itemId) && Boolean(serviceId) && !!brandId,
     staleTime: 5 * 60_000,
   })
 }

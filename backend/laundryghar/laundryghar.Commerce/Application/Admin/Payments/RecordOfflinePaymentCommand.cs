@@ -13,7 +13,13 @@ public sealed record RecordOfflinePaymentRequest(
     string Method,
     decimal Amount,
     /// <summary>Optional reference number (transaction ID, UPI ref, etc.).</summary>
-    string? Reference
+    string? Reference,
+    /// <summary>
+    /// Client-supplied idempotency key (from the <c>Idempotency-Key</c> HTTP header or
+    /// body field). When present it takes precedence over the server-derived key.
+    /// Allows POS retries to safely re-post the same payment without creating duplicates.
+    /// </summary>
+    string? IdempotencyKey = null
 );
 
 public sealed record OfflinePaymentDto(
@@ -81,8 +87,14 @@ public sealed class RecordOfflinePaymentHandler : IRequestHandler<RecordOfflineP
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BrandId == brandId && o.DeletedAt == null, ct)
             ?? throw new KeyNotFoundException($"Order {req.OrderId} not found.");
 
-        // ── Idempotency: same (orderId + amount + reference) returns existing row ──
-        var idemKey = BuildIdempotencyKey(req.OrderId, req.Amount, req.Reference);
+        // ── Idempotency: client-supplied key takes precedence; fall back to
+        //    server-derived (orderId + amount + reference) when absent.
+        //    H3b fix: honour req.IdempotencyKey so that POS retries with an
+        //    explicit header are deduplicated correctly even if the amount or
+        //    reference differs on the retry (e.g. due to a rounding display bug).
+        var idemKey = !string.IsNullOrWhiteSpace(req.IdempotencyKey)
+            ? req.IdempotencyKey.Trim()
+            : BuildIdempotencyKey(req.OrderId, req.Amount, req.Reference);
         var existing = await _db.Payments
             .FirstOrDefaultAsync(p => p.IdempotencyKey == idemKey && p.BrandId == brandId, ct);
         if (existing is not null)

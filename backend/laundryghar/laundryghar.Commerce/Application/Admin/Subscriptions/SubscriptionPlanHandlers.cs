@@ -14,7 +14,7 @@ public sealed record GetSubscriptionPlansQuery(int Page, int PageSize) : IReques
 public sealed class GetSubscriptionPlansHandler : IRequestHandler<GetSubscriptionPlansQuery, PaginatedList<SubscriptionPlanDto>>
 {
     private readonly LaundryGharDbContext _db;
-    private readonly ICurrentUser         _user;
+    private readonly ICurrentUser _user;
 
     public GetSubscriptionPlansHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
@@ -47,7 +47,7 @@ public sealed record GetSubscriptionPlanByIdQuery(Guid Id) : IRequest<Subscripti
 public sealed class GetSubscriptionPlanByIdHandler : IRequestHandler<GetSubscriptionPlanByIdQuery, SubscriptionPlanDto?>
 {
     private readonly LaundryGharDbContext _db;
-    private readonly ICurrentUser         _user;
+    private readonly ICurrentUser _user;
 
     public GetSubscriptionPlanByIdHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
@@ -69,14 +69,14 @@ public sealed class GetCustomerSubscriptionsAdminHandler
     : IRequestHandler<GetCustomerSubscriptionsAdminQuery, PaginatedList<CustomerSubscriptionDto>>
 {
     private readonly LaundryGharDbContext _db;
-    private readonly ICurrentUser         _user;
+    private readonly ICurrentUser _user;
 
     public GetCustomerSubscriptionsAdminHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
     public Task<PaginatedList<CustomerSubscriptionDto>> Handle(GetCustomerSubscriptionsAdminQuery q, CancellationToken ct)
     {
         var brandId = _user.RequireBrandId();
-        var query   = _db.CustomerSubscriptions.Where(x => x.BrandId == brandId);
+        var query = _db.CustomerSubscriptions.Where(x => x.BrandId == brandId);
 
         if (q.CustomerId.HasValue) query = query.Where(x => x.CustomerId == q.CustomerId.Value);
         if (!string.IsNullOrEmpty(q.Status)) query = query.Where(x => x.Status == q.Status);
@@ -104,59 +104,59 @@ public sealed record CreateSubscriptionPlanCommand(CreateSubscriptionPlanRequest
 public sealed class CreateSubscriptionPlanHandler : IRequestHandler<CreateSubscriptionPlanCommand, SubscriptionPlanDto>
 {
     private readonly LaundryGharDbContext _db;
-    private readonly ICurrentUser         _user;
+    private readonly ICurrentUser _user;
 
     public CreateSubscriptionPlanHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
     public async Task<SubscriptionPlanDto> Handle(CreateSubscriptionPlanCommand cmd, CancellationToken ct)
     {
         var brandId = _user.RequireBrandId();
-        var req     = cmd.Request;
-        var now     = DateTimeOffset.UtcNow;
+        var req = cmd.Request;
+        var now = DateTimeOffset.UtcNow;
 
         var entity = new SubscriptionPlan
         {
-            Id                       = Guid.NewGuid(),
-            BrandId                  = brandId,
-            Code                     = req.Code,
-            Name                     = req.Name,
-            NameLocalized            = req.NameLocalized,
-            Description              = req.Description,
-            Tier                     = req.Tier,
-            BillingInterval          = req.BillingInterval,
-            IntervalCount            = req.IntervalCount,
-            Price                    = req.Price,
-            SetupFee                 = req.SetupFee,
-            CurrencyCode             = req.CurrencyCode,
-            TrialDays                = req.TrialDays,
-            QuotaType                = req.QuotaType,
-            QuotaValue               = req.QuotaValue,
-            RolloverUnused           = req.RolloverUnused,
-            MaxRollover              = req.MaxRollover,
-            OverageDiscountPercent   = req.OverageDiscountPercent,
-            ApplicableServices       = req.ApplicableServices ?? [],
-            ExcludedServices         = req.ExcludedServices ?? [],
-            PickupIncluded           = req.PickupIncluded,
-            DeliveryIncluded         = req.DeliveryIncluded,
-            ExpressIncluded          = req.ExpressIncluded,
-            MaxActiveSubscribers     = req.MaxActiveSubscribers,
-            CurrentSubscriberCount   = 0,
-            Gateway                  = req.Gateway,
-            GatewayPlanId            = req.GatewayPlanId,
-            TermsAndConditions       = req.TermsAndConditions,
-            IconUrl                  = req.IconUrl,
-            ColorHex                 = req.ColorHex,
-            DisplayOrder             = req.DisplayOrder,
-            IsPublic                 = req.IsPublic,
-            IsFeatured               = req.IsFeatured,
-            Status                   = "draft",
-            AvailableFrom            = req.AvailableFrom,
-            AvailableTo              = req.AvailableTo,
-            CreatedAt                = now,
-            UpdatedAt                = now,
-            CreatedBy                = cmd.ActorId,
-            UpdatedBy                = cmd.ActorId,
-            Version                  = 1
+            Id = Guid.NewGuid(),
+            BrandId = brandId,
+            Code = req.Code,
+            Name = req.Name,
+            NameLocalized = req.NameLocalized,
+            Description = req.Description,
+            Tier = req.Tier,
+            BillingInterval = req.BillingInterval,
+            IntervalCount = req.IntervalCount,
+            Price = req.Price,
+            SetupFee = req.SetupFee,
+            CurrencyCode = req.CurrencyCode,
+            TrialDays = req.TrialDays,
+            QuotaType = req.QuotaType,
+            QuotaValue = req.QuotaValue,
+            RolloverUnused = req.RolloverUnused,
+            MaxRollover = req.MaxRollover,
+            OverageDiscountPercent = req.OverageDiscountPercent,
+            ApplicableServices = req.ApplicableServices ?? [],
+            ExcludedServices = req.ExcludedServices ?? [],
+            PickupIncluded = req.PickupIncluded,
+            DeliveryIncluded = req.DeliveryIncluded,
+            ExpressIncluded = req.ExpressIncluded,
+            MaxActiveSubscribers = req.MaxActiveSubscribers,
+            CurrentSubscriberCount = 0,
+            Gateway = req.Gateway,
+            GatewayPlanId = req.GatewayPlanId,
+            TermsAndConditions = req.TermsAndConditions,
+            IconUrl = req.IconUrl,
+            ColorHex = req.ColorHex,
+            DisplayOrder = req.DisplayOrder,
+            IsPublic = req.IsPublic,
+            IsFeatured = req.IsFeatured,
+            Status = "draft",
+            AvailableFrom = req.AvailableFrom,
+            AvailableTo = req.AvailableTo,
+            CreatedAt = now,
+            UpdatedAt = now,
+            CreatedBy = cmd.ActorId,
+            UpdatedBy = cmd.ActorId,
+            Version = 1
         };
 
         _db.SubscriptionPlans.Add(entity);
@@ -234,52 +234,94 @@ public sealed record UpdateSubscriptionPlanCommand(Guid Id, UpdateSubscriptionPl
 public sealed class UpdateSubscriptionPlanHandler : IRequestHandler<UpdateSubscriptionPlanCommand, SubscriptionPlanDto?>
 {
     private readonly LaundryGharDbContext _db;
-    private readonly ICurrentUser         _user;
+    private readonly ICurrentUser _user;
 
     public UpdateSubscriptionPlanHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
     public async Task<SubscriptionPlanDto?> Handle(UpdateSubscriptionPlanCommand cmd, CancellationToken ct)
     {
         var brandId = _user.RequireBrandId();
-        var entity  = await _db.SubscriptionPlans
+        var entity = await _db.SubscriptionPlans
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId && x.DeletedAt == null, ct);
         if (entity is null) return null;
 
         var req = cmd.Request;
-        entity.Name                  = req.Name;
-        entity.NameLocalized         = req.NameLocalized;
-        entity.Description           = req.Description;
-        entity.Tier                  = req.Tier;
-        entity.Price                 = req.Price;
-        entity.SetupFee              = req.SetupFee;
-        entity.QuotaType             = req.QuotaType;
-        entity.QuotaValue            = req.QuotaValue;
-        entity.RolloverUnused        = req.RolloverUnused;
-        entity.MaxRollover           = req.MaxRollover;
+        entity.Name = req.Name;
+        entity.NameLocalized = req.NameLocalized;
+        entity.Description = req.Description;
+        entity.Tier = req.Tier;
+        entity.Price = req.Price;
+        entity.SetupFee = req.SetupFee;
+        entity.QuotaType = req.QuotaType;
+        entity.QuotaValue = req.QuotaValue;
+        entity.RolloverUnused = req.RolloverUnused;
+        entity.MaxRollover = req.MaxRollover;
         entity.OverageDiscountPercent = req.OverageDiscountPercent;
-        entity.ApplicableServices    = req.ApplicableServices ?? [];
-        entity.ExcludedServices      = req.ExcludedServices ?? [];
-        entity.PickupIncluded        = req.PickupIncluded;
-        entity.DeliveryIncluded      = req.DeliveryIncluded;
-        entity.ExpressIncluded       = req.ExpressIncluded;
-        entity.MaxActiveSubscribers  = req.MaxActiveSubscribers;
-        entity.Gateway               = req.Gateway;
-        entity.GatewayPlanId         = req.GatewayPlanId;
-        entity.TermsAndConditions    = req.TermsAndConditions;
-        entity.IconUrl               = req.IconUrl;
-        entity.ColorHex              = req.ColorHex;
-        entity.DisplayOrder          = req.DisplayOrder;
-        entity.IsPublic              = req.IsPublic;
-        entity.IsFeatured            = req.IsFeatured;
-        entity.Status                = req.Status;
-        entity.AvailableFrom         = req.AvailableFrom;
-        entity.AvailableTo           = req.AvailableTo;
-        entity.UpdatedAt             = DateTimeOffset.UtcNow;
-        entity.UpdatedBy             = cmd.ActorId;
+        entity.ApplicableServices = req.ApplicableServices ?? [];
+        entity.ExcludedServices = req.ExcludedServices ?? [];
+        entity.PickupIncluded = req.PickupIncluded;
+        entity.DeliveryIncluded = req.DeliveryIncluded;
+        entity.ExpressIncluded = req.ExpressIncluded;
+        entity.MaxActiveSubscribers = req.MaxActiveSubscribers;
+        entity.Gateway = req.Gateway;
+        entity.GatewayPlanId = req.GatewayPlanId;
+        entity.TermsAndConditions = req.TermsAndConditions;
+        entity.IconUrl = req.IconUrl;
+        entity.ColorHex = req.ColorHex;
+        entity.DisplayOrder = req.DisplayOrder;
+        entity.IsPublic = req.IsPublic;
+        entity.IsFeatured = req.IsFeatured;
+        entity.Status = req.Status;
+        entity.AvailableFrom = req.AvailableFrom;
+        entity.AvailableTo = req.AvailableTo;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        entity.UpdatedBy = cmd.ActorId;
         entity.Version++;
 
         await _db.SaveChangesAsync(ct);
         return GetSubscriptionPlansHandler.ToDto(entity);
+    }
+}
+
+// ── PATCH: status-only update ──────────────────────────────────────────────────
+
+public sealed record PatchSubscriptionPlanStatusCommand(Guid Id, string Status, Guid? ActorId)
+    : IRequest<SubscriptionPlanDto?>;
+
+public sealed class PatchSubscriptionPlanStatusHandler
+    : IRequestHandler<PatchSubscriptionPlanStatusCommand, SubscriptionPlanDto?>
+{
+    private readonly LaundryGharDbContext _db;
+    private readonly ICurrentUser _user;
+
+    public PatchSubscriptionPlanStatusHandler(LaundryGharDbContext db, ICurrentUser user)
+    { _db = db; _user = user; }
+
+    public async Task<SubscriptionPlanDto?> Handle(PatchSubscriptionPlanStatusCommand cmd, CancellationToken ct)
+    {
+        var brandId = _user.RequireBrandId();
+        var entity = await _db.SubscriptionPlans
+            .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId && x.DeletedAt == null, ct);
+        if (entity is null) return null;
+
+        entity.Status = cmd.Status;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        entity.UpdatedBy = cmd.ActorId;
+        entity.Version++;
+
+        await _db.SaveChangesAsync(ct);
+        return GetSubscriptionPlansHandler.ToDto(entity);
+    }
+}
+
+public sealed class PatchSubscriptionPlanStatusValidator : AbstractValidator<PatchSubscriptionPlanStatusCommand>
+{
+    public PatchSubscriptionPlanStatusValidator()
+    {
+        RuleFor(x => x.Status)
+            .NotEmpty()
+            .Must(s => s is "draft" or "active" or "paused" or "retired")
+            .WithMessage("status must be one of: draft, active, paused, retired");
     }
 }
 
@@ -288,14 +330,14 @@ public sealed record DeleteSubscriptionPlanCommand(Guid Id, Guid? ActorId) : IRe
 public sealed class DeleteSubscriptionPlanHandler : IRequestHandler<DeleteSubscriptionPlanCommand, bool>
 {
     private readonly LaundryGharDbContext _db;
-    private readonly ICurrentUser         _user;
+    private readonly ICurrentUser _user;
 
     public DeleteSubscriptionPlanHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
     public async Task<bool> Handle(DeleteSubscriptionPlanCommand cmd, CancellationToken ct)
     {
         var brandId = _user.RequireBrandId();
-        var entity  = await _db.SubscriptionPlans
+        var entity = await _db.SubscriptionPlans
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId && x.DeletedAt == null, ct);
         if (entity is null) return false;
 

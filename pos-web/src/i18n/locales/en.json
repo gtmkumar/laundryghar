@@ -59,7 +59,20 @@
     "noStore": "No store selected. Please select a store in the topbar.",
     "enterWeight": "Enter a weight for {{item}}.",
     "unpaid": "Unpaid",
-    "viewOrder": "View Order"
+    "onCredit": "On credit",
+    "viewOrder": "View Order",
+    "collectBalance": "Collect balance",
+    "noStoreTitle": "No store selected",
+    "loadingCategories": "Loading categories…",
+    "categoriesError": "Could not load categories.",
+    "noCategories": "No service categories for this brand.",
+    "noCategoriesHint": "Add categories in the admin catalog first.",
+    "loadingServices": "Loading services…",
+    "servicesError": "Could not load services.",
+    "noServices": "No services in this category.",
+    "loadingItems": "Loading items…",
+    "itemsError": "Could not load items.",
+    "noItems": "No active items for this brand."
   },
   "payment": {
     "title": "Collect Payment",
@@ -77,9 +90,14 @@
     "balanceDue": "Balance due",
     "amountPaid": "Amount paid",
     "recordPayment": "Record payment",
+    "recordPartial": "Record partial payment",
     "recording": "Recording…",
     "invalidAmount": "Enter a valid amount.",
     "refRequired": "Enter the transaction reference number.",
-    "failed": "Failed to record payment."
+    "failed": "Failed to record payment.",
+    "skip": "Skip",
+    "payLater": "Pay later (credit)",
+    "partialNote": "Recorded as a partial payment — the balance stays due.",
+    "noPermission": "You do not have permission to record payments. You can still mark this order to pay later."
   }
 }

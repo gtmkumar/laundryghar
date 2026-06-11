@@ -21,6 +21,7 @@ import type {
   UpdateNotificationTemplateRequest,
 } from '@/types/api'
 import { formatDate } from '@/lib/utils'
+import { parseJsonObject } from '@/lib/validation'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -116,6 +117,13 @@ function FormModal({ initial, onClose }: FormModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    // `variables` is a jsonb column — it must parse to a plain object, not an
+    // array or scalar, or Postgres rejects the write.
+    if (parseJsonObject(fields.variables) === null) {
+      setError('Variables must be a valid JSON object, e.g. {"order_number":"string"}.')
+      return
+    }
 
     try {
       if (isEdit && initial) {

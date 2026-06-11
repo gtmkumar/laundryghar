@@ -7,8 +7,8 @@
  *   - FEATURES.bookingApi=false → local fallback (generates a fake LG-##### id
  *     for demo purposes).
  *
- * UPI/card selections fall back to "upi-deferred" server-side, and the
- * confirmation shows "Pay on delivery". Razorpay native SDK is a separate task.
+ * UPI / card are NOT selectable until the Razorpay native-SDK integration ships.
+ * Only Wallet (with balance guard) and Cash on Delivery are live options.
  */
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
@@ -21,23 +21,25 @@ import { useBookingStore, type PaymentMethod } from '@/store/bookingStore';
 import { useWallet } from '@/hooks/useCommerce';
 import { useSchedulePickup } from '@/hooks/useOrders';
 import { rupees } from '@/lib/format';
+import { hapticError, hapticImpact, hapticWarning } from '@/lib/haptics';
 import { FEATURES } from '@/constants/config';
 
 const EXPRESS_SURCHARGE = 50;
 
+/** Only the two methods that are live today. */
+type LivePaymentMethod = Extract<PaymentMethod, 'wallet' | 'cod'>;
+
 interface MethodMeta {
-  key: PaymentMethod;
+  key: LivePaymentMethod;
   title: string;
   subtitle: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
 }
 
 /** Map app payment method keys to the backend's payment_preference values. */
-function toPaymentPreference(method: PaymentMethod): string {
+function toPaymentPreference(method: LivePaymentMethod): string {
   if (method === 'wallet') return 'wallet';
-  if (method === 'cod') return 'cod';
-  // upi / card → upi-deferred (no native SDK yet; collected at delivery)
-  return 'upi-deferred';
+  return 'cod';
 }
 
 export default function PayScreen() {
@@ -54,30 +56,51 @@ export default function PayScreen() {
   const [loading, setLoading] = useState(false);
   const schedulePickup = useSchedulePickup();
 
+  // Coerce any legacy upi/card store state to cod so no silent downgrade persists.
+  const liveMethod: LivePaymentMethod =
+    paymentMethod === 'wallet' ? 'wallet' : 'cod';
+
   // Derive values with useMemo — no fresh objects from selectors (zustand v5 rule).
   const lineList = useMemo(() => Object.values(lines), [lines]);
   const count = useMemo(() => lineList.reduce((n, l) => n + l.qty, 0), [lineList]);
   const subtotal = useMemo(() => lineList.reduce((sum, l) => sum + l.qty * l.unitPrice, 0), [lineList]);
 
   const expressFee = express ? EXPRESS_SURCHARGE : 0;
-  const discount = paymentMethod === 'wallet' ? Math.round(subtotal * 0.1) : 0;
+  const discount = liveMethod === 'wallet' ? Math.round(subtotal * 0.1) : 0;
   const total = Math.max(0, subtotal + expressFee - discount);
+
+  // MOB-4: wallet is disabled when balance < total
+  const walletBalance = wallet?.balance ?? 0;
+  const walletInsufficient = liveMethod === 'wallet' && walletBalance < total;
 
   const methods: MethodMeta[] = useMemo(
     () => [
-      { key: 'wallet', title: t('booking.paymentMethods.wallet'), subtitle: wallet ? t('booking.paymentMethods.walletBalance', { balance: rupees(wallet.balance) }) : t('booking.paymentMethods.walletDefault'), icon: 'wallet' },
-      { key: 'upi',    title: t('booking.paymentMethods.upi'),    subtitle: t('booking.paymentMethods.upiSubtitle'),    icon: 'phone-portrait-outline' },
-      { key: 'card',   title: t('booking.paymentMethods.card'),   subtitle: t('booking.paymentMethods.cardSubtitle'),   icon: 'card-outline' },
-      { key: 'cod',    title: t('booking.paymentMethods.cod'),    subtitle: t('booking.paymentMethods.codSubtitle'),    icon: 'cash-outline' },
-    ],
+      {
+        key: 'wallet',
+        title: t('booking.paymentMethods.wallet'),
+        subtitle: wallet
+          ? t('booking.paymentMethods.walletBalance', { balance: rupees(wallet.balance) })
+          : t('booking.paymentMethods.walletDefault'),
+        icon: 'wallet',
+      },
+      {
+        key: 'cod',
+        title: t('booking.paymentMethods.cod'),
+        subtitle: t('booking.paymentMethods.codSubtitle'),
+        icon: 'cash-outline',
+      },
+    ] satisfies MethodMeta[],
     [wallet, t],
   );
 
   const handlePay = async () => {
     if (count === 0) {
+      hapticWarning();
       Alert.alert(t('booking.emptyCart'), t('booking.emptyCartMessage'));
       return;
     }
+
+    hapticImpact();
 
     if (FEATURES.bookingApi) {
       // ── Live API path ───────────────────────────────────────────────────────
@@ -91,18 +114,11 @@ export default function PayScreen() {
       // via the slot.date field on BookingSlot).
       const pickupDateIso = slot?.date ?? new Date().toISOString().slice(0, 10);
 
-      // Parse window start/end from the slot label (e.g. "12 – 2 PM").
-      // The static slot list in pickup.tsx uses fixed ids (s-10, s-12, …) that
-      // encode the start hour. Fall back to 09:00/21:00 for unknown ids.
-      const slotHourMap: Record<string, [string, string]> = {
-        's-10': ['10:00:00', '12:00:00'],
-        's-12': ['12:00:00', '14:00:00'],
-        's-14': ['14:00:00', '16:00:00'],
-        's-16': ['16:00:00', '18:00:00'],
-        's-18': ['18:00:00', '20:00:00'],
-        's-20': ['20:00:00', '22:00:00'],
-      };
-      const [winStart, winEnd] = slot ? (slotHourMap[slot.id] ?? ['09:00:00', '21:00:00']) : ['09:00:00', '21:00:00'];
+      // Use the slot's stored window times (set by the live slot picker in pickup.tsx).
+      // Fall back to a full-day window if somehow missing.
+      const [winStart, winEnd] = slot
+        ? [slot.windowStart ?? '09:00:00', slot.windowEnd ?? '21:00:00']
+        : ['09:00:00', '21:00:00'];
 
       // Build estimated cart items from the cart store lines.
       const cartItems = lineList.map((l) => ({
@@ -117,7 +133,7 @@ export default function PayScreen() {
       try {
         const result = await schedulePickup.mutateAsync({
           addressId: address.id,
-          slotId: slot?.id?.startsWith('s-') ? null : (slot?.id ?? null),  // local static ids are not DB ids
+          slotId: slot?.id ?? null,  // real UUID from live slot picker
           pickupDate: pickupDateIso,
           pickupWindowStart: winStart,
           pickupWindowEnd: winEnd,
@@ -127,7 +143,7 @@ export default function PayScreen() {
           servicesRequested: [],
           customerNotes: null,
           cartItems,
-          paymentPreference: toPaymentPreference(paymentMethod),
+          paymentPreference: toPaymentPreference(liveMethod),
         });
 
         setConfirmed({
@@ -139,11 +155,12 @@ export default function PayScreen() {
           itemCount: count,
           express,
           amount: total,
-          paymentMethod,
+          paymentMethod: liveMethod,
         });
         clearCart();
         router.replace('/(app)/booking/confirm');
       } catch (err: unknown) {
+        hapticError();
         const msg = err instanceof Error ? err.message : t('booking.bookingFailedMessage');
         Alert.alert(t('booking.bookingFailed'), msg);
       } finally {
@@ -160,7 +177,7 @@ export default function PayScreen() {
         itemCount: count,
         express,
         amount: total,
-        paymentMethod,
+        paymentMethod: liveMethod,
       });
       clearCart();
       router.replace('/(app)/booking/confirm');
@@ -197,28 +214,35 @@ export default function PayScreen() {
 
         {/* Methods */}
         <Text className="mx-5 mb-3 mt-7 text-[11px] font-bold uppercase tracking-wider text-ink-faint">{t('booking.payWith')}</Text>
-        {(paymentMethod === 'upi' || paymentMethod === 'card') ? (
-          <View className="mx-5 mb-2 rounded-xl bg-gold-100 px-4 py-2">
-            <Text className="text-xs text-gold-700">
-              {t('booking.upiCardNote')}
-            </Text>
-          </View>
-        ) : null}
         <View className="mx-5 gap-3">
           {methods.map((m) => {
-            const selected = paymentMethod === m.key;
+            const selected = liveMethod === m.key;
+            // Disable wallet when balance is insufficient
+            const isWalletDisabled = m.key === 'wallet' && (wallet?.balance ?? 0) < total;
             return (
               <Pressable
                 key={m.key}
-                onPress={() => setPaymentMethod(m.key)}
-                className={`flex-row items-center rounded-2xl border bg-white p-4 ${selected ? 'border-olive-600' : 'border-cream-300'}`}
+                onPress={() => {
+                  if (!isWalletDisabled) setPaymentMethod(m.key);
+                }}
+                disabled={isWalletDisabled}
+                accessibilityRole="radio"
+                accessibilityState={{ selected, disabled: isWalletDisabled }}
+                accessibilityLabel={`${m.title}${isWalletDisabled ? ' - ' + t('booking.walletInsufficient') : ''}`}
+                className={[
+                  'flex-row items-center rounded-2xl border bg-white p-4',
+                  selected ? 'border-olive-600' : 'border-cream-300',
+                  isWalletDisabled ? 'opacity-50' : '',
+                ].join(' ')}
               >
                 <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-cream-100">
                   <Ionicons name={m.icon} size={20} color="#5C6A33" />
                 </View>
                 <View className="flex-1">
                   <Text className="text-base font-bold text-ink">{m.title}</Text>
-                  <Text className="text-xs text-ink-muted">{m.subtitle}</Text>
+                  <Text className="text-xs text-ink-muted">
+                    {isWalletDisabled ? t('booking.walletInsufficient') : m.subtitle}
+                  </Text>
                 </View>
                 <View className={`h-5 w-5 items-center justify-center rounded-full border-2 ${selected ? 'border-olive-600' : 'border-cream-400'}`}>
                   {selected ? <View className="h-2.5 w-2.5 rounded-full bg-olive-600" /> : null}
@@ -227,6 +251,17 @@ export default function PayScreen() {
             );
           })}
         </View>
+
+        {/* Coming-soon info row — UPI / Card */}
+        <View className="mx-5 mt-3 flex-row items-start gap-3 rounded-2xl border border-cream-200 bg-white px-4 py-3">
+          <Ionicons name="time-outline" size={18} color="#A8A493" style={{ marginTop: 1 }} />
+          <View className="flex-1">
+            <Text className="text-sm font-bold text-ink-muted">{t('booking.onlinePaymentComingSoonTitle')}</Text>
+            <Text className="mt-0.5 text-xs leading-4 text-ink-faint">
+              {t('booking.onlinePaymentComingSoonBody')}
+            </Text>
+          </View>
+        </View>
       </ScrollView>
 
       {/* Pay */}
@@ -234,16 +269,28 @@ export default function PayScreen() {
         className="absolute inset-x-0 bottom-0 border-t border-cream-200 bg-white px-6 pb-8 pt-4"
         style={{ borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
       >
+        {walletInsufficient ? (
+          <View className="mb-3 flex-row items-center gap-2 rounded-xl bg-red-50 px-4 py-2.5">
+            <Ionicons name="alert-circle-outline" size={16} color="#C0492F" />
+            <Text className="flex-1 text-xs font-semibold text-danger">
+              {t('booking.walletInsufficientAction')}
+            </Text>
+          </View>
+        ) : null}
         <Pressable
           onPress={() => void handlePay()}
-          disabled={loading}
-          className={`flex-row items-center justify-center gap-2 rounded-2xl py-4 ${loading ? 'bg-olive-400' : 'bg-olive-700'}`}
-          accessibilityLabel={`Pay ${rupees(total)}`}
+          disabled={loading || walletInsufficient}
+          className={[
+            'flex-row items-center justify-center gap-2 rounded-2xl py-4',
+            loading ? 'bg-olive-400' : walletInsufficient ? 'bg-cream-300' : 'bg-olive-700',
+          ].join(' ')}
+          accessibilityLabel={walletInsufficient ? t('booking.walletInsufficient') : `Pay ${rupees(total)}`}
+          accessibilityState={{ disabled: loading || walletInsufficient }}
         >
-          <Text className="text-base font-extrabold text-white">
+          <Text className={`text-base font-extrabold ${walletInsufficient ? 'text-ink-faint' : 'text-white'}`}>
             {loading ? t('booking.confirming') : t('booking.pay', { amount: rupees(total) })}
           </Text>
-          {!loading ? <Ionicons name="arrow-forward" size={18} color="#FFFFFF" /> : null}
+          {!loading && !walletInsufficient ? <Ionicons name="arrow-forward" size={18} color="#FFFFFF" /> : null}
         </Pressable>
       </View>
     </SafeAreaView>

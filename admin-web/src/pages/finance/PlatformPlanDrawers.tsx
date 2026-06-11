@@ -6,6 +6,7 @@ import { Layers, Plus, Save, Archive, CheckCircle2, Building2, Ban } from 'lucid
 import {
   useCreatePlatformPlan,
   useUpdatePlatformPlan,
+  usePatchPlatformPlanStatus,
   useDeletePlatformPlan,
   useFranchiseSubscriptionActions,
 } from '@/hooks/useFinance'
@@ -20,6 +21,7 @@ import {
   DetailRow,
 } from '@/components/shared/FormDrawer'
 import { FieldError } from '@/components/ui/FieldError'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
 import { nonNegativeMoney } from '@/lib/validation'
 import { apiErrorMessage } from '@/lib/apiError'
 import type {
@@ -502,9 +504,10 @@ export function PlatformPlanDetailDrawer({
   onEdit: (p: PlatformPlanDto) => void
   canManage: boolean
 }) {
-  const update = useUpdatePlatformPlan()
+  const patchStatus = usePatchPlatformPlanStatus()
   const del = useDeletePlatformPlan()
   const [error, setError] = useState<string | null>(null)
+  const gate = useConfirm()
 
   useEffect(() => {
     if (plan) setError(null)
@@ -512,34 +515,12 @@ export function PlatformPlanDetailDrawer({
 
   if (!plan) return null
 
+  // Status-only PATCH: sends just { status } so a concurrent edit to
+  // price/quota/features isn't clobbered by re-POSTing this stale DTO (WEB-6).
   const setStatus = async (status: string) => {
     setError(null)
     try {
-      await update.mutateAsync({
-        id: plan.id,
-        payload: {
-          name: plan.name,
-          description: plan.description,
-          tier: plan.tier,
-          price: plan.price,
-          setupFee: plan.setupFee,
-          annualDiscountPercent: plan.annualDiscountPercent,
-          maxStores: plan.maxStores,
-          maxWarehouses: plan.maxWarehouses,
-          maxUsers: plan.maxUsers,
-          maxOrdersPerMonth: plan.maxOrdersPerMonth,
-          maxRiders: plan.maxRiders,
-          overagePerOrder: plan.overagePerOrder,
-          overagePerStore: plan.overagePerStore,
-          overagePerUser: plan.overagePerUser,
-          features: plan.features,
-          supportLevel: plan.supportLevel,
-          isPublic: plan.isPublic,
-          isFeatured: plan.isFeatured,
-          displayOrder: plan.displayOrder,
-          status,
-        },
-      })
+      await patchStatus.mutateAsync({ id: plan.id, status })
       onClose()
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not update plan status.'))
@@ -556,7 +537,7 @@ export function PlatformPlanDetailDrawer({
     }
   }
 
-  const busy = update.isPending || del.isPending
+  const busy = patchStatus.isPending || del.isPending
   const limit = (v: number | null) => (v === null ? 'Unlimited' : v.toLocaleString('en-IN'))
 
   return (
@@ -623,7 +604,15 @@ export function PlatformPlanDetailDrawer({
           {plan.status !== 'active' && (
             <button
               type="button"
-              onClick={() => void setStatus('active')}
+              onClick={() =>
+                gate.confirm({
+                  title: 'Publish plan?',
+                  description: `“${plan.name}” will become active and available to assign to franchises.`,
+                  confirmLabel: 'Publish',
+                  tone: 'warning',
+                  onConfirm: () => setStatus('active'),
+                })
+              }
               disabled={busy}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
             >
@@ -633,7 +622,15 @@ export function PlatformPlanDetailDrawer({
           {plan.status !== 'retired' && (
             <button
               type="button"
-              onClick={() => void setStatus('retired')}
+              onClick={() =>
+                gate.confirm({
+                  title: 'Archive plan?',
+                  description: `“${plan.name}” will be retired and can no longer be assigned to new franchises.`,
+                  confirmLabel: 'Archive',
+                  tone: 'warning',
+                  onConfirm: () => setStatus('retired'),
+                })
+              }
               disabled={busy}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
             >
@@ -642,7 +639,15 @@ export function PlatformPlanDetailDrawer({
           )}
           <button
             type="button"
-            onClick={() => void handleDelete()}
+            onClick={() =>
+              gate.confirm({
+                title: 'Delete plan?',
+                description: `“${plan.name}” (${plan.code}) will be permanently deleted. This cannot be undone.`,
+                confirmLabel: 'Delete plan',
+                tone: 'danger',
+                onConfirm: () => handleDelete(),
+              })
+            }
             disabled={busy}
             className="w-full rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
           >
@@ -650,6 +655,7 @@ export function PlatformPlanDetailDrawer({
           </button>
         </div>
       )}
+      <ConfirmDialog {...gate.dialogProps} />
     </FormDrawer>
   )
 }

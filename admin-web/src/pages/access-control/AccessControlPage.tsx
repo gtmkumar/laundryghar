@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Search, ScrollText, UserPlus } from 'lucide-react'
+import { Search, UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAccessPeople, useAccessRoles, useAccessFranchises } from '@/hooks/useAccessControl'
+import { usePermissions } from '@/hooks/usePermissions'
 import { PeopleTab } from './PeopleTab'
 import { RolesTab } from './RolesTab'
 import { FranchisesTab } from './FranchisesTab'
@@ -20,6 +21,9 @@ export function AccessControlPage() {
   const [params, setParams] = useSearchParams()
   const tab = (params.get('tab') as TabKey) || 'people'
   const setTab = (t: TabKey) => setParams(t === 'people' ? {} : { tab: t }, { replace: true })
+
+  const { hasPermission } = usePermissions()
+  const canInvite = hasPermission('users.create')
 
   const [search, setSearch] = useState('')
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -72,19 +76,15 @@ export function AccessControlPage() {
               className="w-72 rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15"
             />
           </div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-          >
-            <ScrollText className="h-4 w-4" /> Audit log
-          </button>
-          <button
-            type="button"
-            onClick={() => setInviteOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-lg-amber px-3.5 py-2 text-sm font-semibold text-[#11160F] hover:bg-lg-amber-hover"
-          >
-            <UserPlus className="h-4 w-4" /> Invite user
-          </button>
+          {canInvite && (
+            <button
+              type="button"
+              onClick={() => setInviteOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-lg-amber px-3.5 py-2 text-sm font-semibold text-[#11160F] hover:bg-lg-amber-hover"
+            >
+              <UserPlus className="h-4 w-4" /> Invite user
+            </button>
+          )}
         </div>
       </div>
 

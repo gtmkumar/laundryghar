@@ -29,9 +29,14 @@ public static class AdminOrderEndpoints
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<OrderDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:orders.read");
 
-        orders.MapPost("/", async (CreateOrderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        orders.MapPost("/", async (HttpContext http, CreateOrderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {
-            var r = await sender.Send(new CreateOrderCommand(req, u.UserId), ct);
+            // B2: thread Idempotency-Key header so POS retries are deduplicated.
+            var idempotencyKey = http.Request.Headers.TryGetValue("Idempotency-Key", out var hdrKey)
+                ? hdrKey.FirstOrDefault()
+                : null;
+
+            var r = await sender.Send(new CreateOrderCommand(req, u.UserId, idempotencyKey), ct);
             return Results.Created($"/api/v1/admin/orders/{r.Id}",
                 new SingleResponse<OrderDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:orders.create");

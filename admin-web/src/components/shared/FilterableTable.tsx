@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Download } from 'lucide-react'
 import { DataTable, type Column, type SortState } from './DataTable'
+import { exportCsv, type CsvColumn } from '@/lib/csv'
 
 /** A dropdown filter: keeps rows whose `value(row)` equals the chosen option. */
 export interface FilterDef<T> {
@@ -42,6 +43,15 @@ interface FilterableTableProps<T> {
   toolbarExtra?: ReactNode
   /** Rendered under the table — e.g. an infinite-scroll sentinel + spinner. */
   footer?: ReactNode
+
+  /**
+   * When set, renders an "Export CSV" button in the toolbar that downloads the
+   * CURRENTLY VISIBLE (filtered/searched/sorted) rows.
+   */
+  csvExport?: {
+    filename: string
+    columns: CsvColumn<T>[]
+  }
 }
 
 /**
@@ -68,6 +78,7 @@ export function FilterableTable<T>({
   noMatchMessage = 'No records match your filters.',
   toolbarExtra,
   footer,
+  csvExport,
 }: FilterableTableProps<T>) {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Record<string, string>>({})
@@ -117,7 +128,7 @@ export function FilterableTable<T>({
   return (
     <div>
       {/* Toolbar */}
-      {(searchAccessor || filters.length > 0 || toolbarExtra) && (
+      {(searchAccessor || filters.length > 0 || toolbarExtra || csvExport) && (
         <div className="flex flex-wrap items-center gap-2 px-4 pt-4">
           {searchAccessor && (
             <div className="relative min-w-[200px] flex-1">
@@ -146,6 +157,16 @@ export function FilterableTable<T>({
             </select>
           ))}
           {toolbarExtra}
+          {csvExport && (
+            <button
+              type="button"
+              onClick={() => exportCsv(visible, csvExport.columns, csvExport.filename)}
+              disabled={visible.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 outline-none hover:bg-gray-50 focus:border-lg-green focus:ring-2 focus:ring-lg-green/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" /> Export CSV
+            </button>
+          )}
         </div>
       )}
 

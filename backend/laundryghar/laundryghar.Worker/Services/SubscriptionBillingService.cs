@@ -2,6 +2,7 @@ using System.Text.Json;
 using laundryghar.SharedDataModel.Entities.Commerce.Subscriptions;
 using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Persistence;
+using laundryghar.Worker.Abstractions;
 using laundryghar.Worker.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -33,15 +34,18 @@ public sealed class SubscriptionBillingService : BackgroundService
     private readonly IServiceScopeFactory                _scopeFactory;
     private readonly ILogger<SubscriptionBillingService> _logger;
     private readonly WorkerOptions                        _options;
+    private readonly ISubscriptionCharger?                _charger;
 
     public SubscriptionBillingService(
         IServiceScopeFactory                scopeFactory,
         ILogger<SubscriptionBillingService> logger,
-        IOptions<WorkerOptions>             options)
+        IOptions<WorkerOptions>             options,
+        ISubscriptionCharger?               charger = null)
     {
         _scopeFactory = scopeFactory;
         _logger       = logger;
         _options      = options.Value;
+        _charger      = charger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -433,13 +437,16 @@ public sealed class SubscriptionBillingService : BackgroundService
         await db.SaveChangesAsync(ct);
     }
 
-    // ── Dev stub gateway charge ────────────────────────────────────────────────
-    // In Development, simulate success always (override with config key
-    // Subscriptions:DevMandateAlwaysFail=true to test failure path).
-    // In Production, a real ISubscriptionCharger (injectable) would call the gateway.
-    // Using in-process stub avoids circular project dependencies on Commerce.
+    // ── Gateway charge seam ────────────────────────────────────────────────────
+    // Delegates to ISubscriptionCharger when one is registered:
+    //   - Development: DevSubscriptionCharger (registered in Program.cs) simulates success.
+    //   - Production:  register a real gateway implementation; no charger = fail-closed.
+    //
+    // Fail-closed contract: if no ISubscriptionCharger is registered in the DI container,
+    // the method returns a "failed" result with code "no_charger_configured". This ensures
+    // no phantom "paid" invoices can appear in Production due to a misconfigured deployment.
 
-    private Task<ChargeAttemptResult> SimulateOrChargeAsync(
+    private async Task<ChargeAttemptResult> SimulateOrChargeAsync(
         LaundryGharDbContext  db,
         CustomerSubscription sub,
         PaymentMandate?       mandate,
@@ -448,22 +455,22 @@ public sealed class SubscriptionBillingService : BackgroundService
         DateTimeOffset        now,
         CancellationToken     ct)
     {
-        // For now the Worker always simulates (no live gateway call in the worker).
-        // Production integration point: inject ISubscriptionCharger and call it here.
-        // The gateway logic lives in Commerce.Infrastructure.Gateway; the Worker
-        // is intentionally decoupled. A future task should extract the charge call
-        // into a shared abstraction or forward to Commerce via HTTP/gRPC.
-        _logger.LogDebug(
-            "[Worker-Stub] SimulateCharge: invoiceId={InvId} mandateId={MandateId} key={Key}",
-            invoice.Id, mandate?.Id, idemKey);
+        if (_charger is null)
+        {
+            _logger.LogError(
+                "SubscriptionBillingService: no ISubscriptionCharger registered. " +
+                "Marking invoiceId={InvId} as failed. " +
+                "Register a real charger for Production or DevSubscriptionCharger for Development.",
+                invoice.Id);
+            return new ChargeAttemptResult(
+                GatewayPaymentId: "no_charger",
+                Status:           "failed",
+                FailureCode:      "no_charger_configured",
+                FailureMessage:   "No ISubscriptionCharger is registered in this environment.");
+        }
 
-        // Stub: always success; to test failure path set Worker:SubscriptionBillingEnabled=true
-        // and add a test-only flag in options/config.
-        return Task.FromResult(new ChargeAttemptResult(
-            GatewayPaymentId: $"worker_sim_{idemKey[..16]}",
-            Status:           "success",
-            FailureCode:      null,
-            FailureMessage:   null));
+        var r = await _charger.ChargeAsync(sub, mandate, invoice, idemKey, ct);
+        return new ChargeAttemptResult(r.GatewayPaymentId, r.Status, r.FailureCode, r.FailureMessage);
     }
 
     // ── Outbox events ─────────────────────────────────────────────────────────

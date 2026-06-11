@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { UserPlus, MailCheck, ShieldCheck } from 'lucide-react'
 import { useInviteUser } from '@/hooks/useAccessControl'
 import { useSettings } from '@/hooks/useSettings'
+import { usePermissions } from '@/hooks/usePermissions'
 import { FormDrawer, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import type { AccessRoles, AccessFranchise, InviteUserPayload } from '@/types/api'
 
@@ -24,6 +25,8 @@ function userTypeForRole(code: string, scopeType: string): string {
 
 export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
   const invite = useInviteUser()
+  const { hasPermission } = usePermissions()
+  const canInvite = hasPermission('users.create')
   const settings = useSettings()
   const selfService = settings.data?.provisioning.mode === 'self_service'
   const emailEnabled = settings.data?.email.enabled ?? false
@@ -87,6 +90,7 @@ export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
       submittingLabel="Send invite"
       submitIcon={UserPlus}
       submitting={invite.isPending}
+      submitDisabled={!canInvite}
     >
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">

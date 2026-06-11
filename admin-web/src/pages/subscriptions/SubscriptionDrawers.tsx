@@ -6,6 +6,7 @@ import { Tag, Plus, Save, Archive, CheckCircle2, Ban, User as UserIcon } from 'l
 import {
   useCreateSubscriptionPlan,
   useUpdateSubscriptionPlan,
+  usePatchSubscriptionPlanStatus,
   useDeleteSubscriptionPlan,
 } from '@/hooks/useSubscriptions'
 import {
@@ -17,6 +18,7 @@ import {
   DetailRow,
 } from '@/components/shared/FormDrawer'
 import { FieldError } from '@/components/ui/FieldError'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
 import { nonNegativeMoney } from '@/lib/validation'
 import { apiErrorMessage } from '@/lib/apiError'
 import type {
@@ -497,9 +499,10 @@ export function SubscriptionPlanDetailDrawer({
   onEdit: (p: SubscriptionPlanDto) => void
   canManage: boolean
 }) {
-  const update = useUpdateSubscriptionPlan()
+  const patchStatus = usePatchSubscriptionPlanStatus()
   const del = useDeleteSubscriptionPlan()
   const [error, setError] = useState<string | null>(null)
+  const gate = useConfirm()
 
   useEffect(() => {
     if (plan) setError(null)
@@ -509,44 +512,12 @@ export function SubscriptionPlanDetailDrawer({
 
   const { en, hi } = parseNameLocalized(plan.nameLocalized)
 
-  // Publish/archive reuses the update endpoint, sending the plan's current fields
-  // with the new status (UpdateSubscriptionPlanRequest has no partial semantics).
+  // Status-only PATCH: sends just { status } so a concurrent edit to
+  // price/quota/features isn't clobbered by re-PUTting this stale DTO (WEB-6).
   const setStatus = async (status: string) => {
     setError(null)
     try {
-      await update.mutateAsync({
-        id: plan.id,
-        payload: {
-          name: plan.name,
-          nameLocalized: plan.nameLocalized,
-          description: plan.description,
-          tier: plan.tier,
-          price: plan.price,
-          setupFee: plan.setupFee,
-          quotaType: plan.quotaType,
-          quotaValue: plan.quotaValue,
-          rolloverUnused: plan.rolloverUnused,
-          maxRollover: plan.maxRollover,
-          overageDiscountPercent: plan.overageDiscountPercent,
-          applicableServices: plan.applicableServices,
-          excludedServices: plan.excludedServices,
-          pickupIncluded: plan.pickupIncluded,
-          deliveryIncluded: plan.deliveryIncluded,
-          expressIncluded: plan.expressIncluded,
-          maxActiveSubscribers: plan.maxActiveSubscribers,
-          gateway: plan.gateway,
-          gatewayPlanId: plan.gatewayPlanId,
-          termsAndConditions: plan.termsAndConditions,
-          iconUrl: plan.iconUrl,
-          colorHex: plan.colorHex,
-          displayOrder: plan.displayOrder,
-          isPublic: plan.isPublic,
-          isFeatured: plan.isFeatured,
-          status,
-          availableFrom: plan.availableFrom,
-          availableTo: plan.availableTo,
-        },
-      })
+      await patchStatus.mutateAsync({ id: plan.id, status })
       onClose()
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not update plan status.'))
@@ -563,7 +534,7 @@ export function SubscriptionPlanDetailDrawer({
     }
   }
 
-  const busy = update.isPending || del.isPending
+  const busy = patchStatus.isPending || del.isPending
 
   return (
     <FormDrawer
@@ -638,7 +609,15 @@ export function SubscriptionPlanDetailDrawer({
           {(plan.status === 'draft' || plan.status === 'paused' || plan.status === 'retired') && (
             <button
               type="button"
-              onClick={() => void setStatus('active')}
+              onClick={() =>
+                gate.confirm({
+                  title: 'Publish plan?',
+                  description: `“${plan.name}” will become active and visible to customers if it is public.`,
+                  confirmLabel: 'Publish',
+                  tone: 'warning',
+                  onConfirm: () => setStatus('active'),
+                })
+              }
               disabled={busy}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
             >
@@ -648,7 +627,15 @@ export function SubscriptionPlanDetailDrawer({
           {plan.status === 'active' && (
             <button
               type="button"
-              onClick={() => void setStatus('paused')}
+              onClick={() =>
+                gate.confirm({
+                  title: 'Pause plan?',
+                  description: `“${plan.name}” will stop accepting new subscribers until republished.`,
+                  confirmLabel: 'Pause',
+                  tone: 'warning',
+                  onConfirm: () => setStatus('paused'),
+                })
+              }
               disabled={busy}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
             >
@@ -658,7 +645,15 @@ export function SubscriptionPlanDetailDrawer({
           {plan.status !== 'retired' && (
             <button
               type="button"
-              onClick={() => void setStatus('retired')}
+              onClick={() =>
+                gate.confirm({
+                  title: 'Archive plan?',
+                  description: `“${plan.name}” will be retired and removed from the customer-facing catalog.`,
+                  confirmLabel: 'Archive',
+                  tone: 'warning',
+                  onConfirm: () => setStatus('retired'),
+                })
+              }
               disabled={busy}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
             >
@@ -668,7 +663,15 @@ export function SubscriptionPlanDetailDrawer({
           {plan.currentSubscriberCount === 0 && (
             <button
               type="button"
-              onClick={() => void handleDelete()}
+              onClick={() =>
+                gate.confirm({
+                  title: 'Delete plan?',
+                  description: `“${plan.name}” (${plan.code}) will be permanently deleted. This cannot be undone.`,
+                  confirmLabel: 'Delete plan',
+                  tone: 'danger',
+                  onConfirm: () => handleDelete(),
+                })
+              }
               disabled={busy}
               className="w-full rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
             >
@@ -677,6 +680,7 @@ export function SubscriptionPlanDetailDrawer({
           )}
         </div>
       )}
+      <ConfirmDialog {...gate.dialogProps} />
     </FormDrawer>
   )
 }

@@ -1,8 +1,9 @@
 - [Customer Mobile scaffold](project-customer-mobile.md) — Expo SDK 52 app at customer-mobile/; service ports, OTP auth flow, envelope shape, route structure, all first-slice screens
 - [Customer app essentials (Task #15)](project-customer-essentials.md) — addresses CRUD, ratings, profile edit, wallet top-up plumbing, help screen; CustomerAddressDto uses addressLine1 not line1
-- [Rider Mobile scaffold](project-rider-mobile.md) — Expo SDK 52 rider app at rider-mobile/; password auth, green brand, 4 API endpoints wired, tsc clean
+- [Rider Mobile scaffold](project-rider-mobile.md) — Expo SDK 52 rider Partner v2 at rider-mobile/; OTP auth, olive/cream brand, GAP R2 MOB-5/9/10/15/16/19/21 + DOC-9 done
 - [Push Notifications (Task #7)](project-push-notifications.md) — token endpoints in Catalog+Logistics; expo-notifications 0.29.x; payload contract; Expo Go caveat
 - [Rider Ops Screens (Task #16)](project-rider-ops-screens.md) — earnings + cash screens; directions handoff; failure modal; offline queue; backend self-endpoints wired
 - [Reliability Stack (Task #24)](project-reliability-stack.md) — Sentry + expo-updates OTA + version gate in both apps; boot order; DB state; DSN sources; gates passed
 - [i18n Task #23](project-i18n-task23.md) — COMPLETE: en/hi in all 4 clients; full extraction customer+rider mobile; pos-web 3 screens; admin-web infra+exemplar; locale key conventions + gotchas
 - [A11y Task #28 mobile](project-a11y-task28.md) — a11y namespace in all 4 locale files; tab roles, switch for duty toggle, decorative hidden, OtpInput group label, star roles; tsc+jest+export green
+- [GAP R2 customer-mobile](project-gap-r2-customer-mobile.md) — DOC-3 delete-account, MOB-1 live slots, MOB-3 email, MOB-4 wallet guard, MOB-6/7/8/9/10/12/17 + polish; tsc clean 115 tests green

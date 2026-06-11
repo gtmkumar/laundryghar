@@ -3,3 +3,5 @@
 - [Logistics Service Security Posture (BC-5)](project_logistics_service.md) — riders; connects as app_user so RLS enforced; users/user_profiles are global (no RLS); CreateRider userId IDOR across brands
 - [Commerce Payments Posture](project_commerce_payments.md) — CRITICAL DevPaymentGateway registered unconditionally (always-true sig verify in prod); refund aggregate cap gap
 - [PII & Cross-Service Posture](project_pii_and_cross_service.md) — PAN/bank plaintext at rest + returned in UserDto; CreateOrder customer cross-brand FK gap; X-Brand-Id gating is consistent/correct
+- [OAuth/MCP/Settings/OTP Posture](project_oauth_mcp_settings.md) — 2026-06-11: many prior CRITICALs FIXED (RS256, DevGateway gate, secret encryption, master-OTP prod block). Open: OAuth scope not enforced, multi-brand OTP routing bleed
+- [Remediation 2026-06](project_remediation_2026_06.md) — 42/42 initiative closed most prior findings (DevGateway, refund cap, FK checks, RS256, rate-limit, PII mask, CORS); records what is NOW fixed + few still-open (outbox-retry read-perm, analytics refresh, proof-photo)

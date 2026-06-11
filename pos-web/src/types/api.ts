@@ -256,6 +256,12 @@ export interface CreateOrderRequest {
   addons: CreateOrderAddonRequest[]
   notesCustomer?: string | null
   couponCode?: string | null
+  /**
+   * POS-2: client-generated idempotency key. Sent both in the body and as the
+   * `Idempotency-Key` header so a double-tap / axios retry can't create a
+   * duplicate order. The backend dedupes on it and returns the original order.
+   */
+  idempotencyKey?: string | null
 }
 
 export interface UpdateOrderStatusRequest {
@@ -437,6 +443,12 @@ export interface RecordOfflinePaymentRequest {
   method: 'cash' | 'upi' | 'card'
   amount: number
   reference?: string | null
+  /**
+   * POS-2: client-generated idempotency key for the payment-record attempt
+   * (sent in the body and the `Idempotency-Key` header). Prevents a double
+   * charge on retry. Distinct key per attempt.
+   */
+  idempotencyKey?: string | null
 }
 
 export interface OfflinePaymentDto {

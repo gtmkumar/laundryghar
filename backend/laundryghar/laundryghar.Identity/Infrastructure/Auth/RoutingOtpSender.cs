@@ -47,12 +47,13 @@ public sealed class RoutingOtpSender : IOtpSender
     public async Task SendAsync(
         string identifier, string identifierType,
         string plainCode, string purpose,
-        CancellationToken ct = default)
+        CancellationToken ct = default, Guid? brandId = null)
     {
-        // brandId: null — OTP send is pre-auth, so there is no caller brand;
-        // FindAsync prefers a brand-scoped row over the platform row when both exist.
-        var whatsApp = await SettingsStore.LoadWhatsAppAsync(_db, brandId: null, _cipher, ct);
-        var sms      = await SettingsStore.LoadSmsAsync(_db, brandId: null, _cipher, ct);
+        // brandId: non-null for customer OTP (brand-scoped settings preferred);
+        // null for staff/pre-auth paths where no brand context is available.
+        // FindAsync prefers a brand-scoped row over the platform row when brandId is non-null.
+        var whatsApp = await SettingsStore.LoadWhatsAppAsync(_db, brandId: brandId, _cipher, ct);
+        var sms      = await SettingsStore.LoadSmsAsync(_db, brandId: brandId, _cipher, ct);
 
         var plan = OtpChannelPlanner.Plan(whatsApp, sms, identifierType, _env.IsDevelopment());
         if (plan.Count == 0)

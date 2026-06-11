@@ -1,7 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getCashBooks,
+  getCashBook,
   openCashBook,
+  closeCashBook,
+  getShiftHandovers,
+  createShiftHandover,
   getExpenses,
   getExpenseCategories,
   createExpense,
@@ -16,6 +20,7 @@ import {
   listPlatformPlans,
   createPlatformPlan,
   updatePlatformPlan,
+  patchPlatformPlanStatus,
   deletePlatformPlan,
   listFranchiseSubscriptions,
   assignFranchisePlan,
@@ -23,6 +28,9 @@ import {
 } from '@/api/finance'
 import type {
   CashBookListParams,
+  CloseCashBookPayload,
+  ShiftHandoverListParams,
+  CreateShiftHandoverPayload,
   ExpenseListParams,
   CreateExpensePayload,
   OpenCashBookPayload,
@@ -39,6 +47,8 @@ import type {
 
 export const financeKeys = {
   cashBooks: (params?: object) => ['finance', 'cashBooks', params] as const,
+  cashBook: (id: string) => ['finance', 'cashBook', id] as const,
+  shiftHandovers: (params?: object) => ['finance', 'shiftHandovers', params] as const,
   expenses: (params?: object) => ['finance', 'expenses', params] as const,
   expenseCategories: () => ['finance', 'expenseCategories'] as const,
   royaltyInvoices: (params?: object) => ['finance', 'royaltyInvoices', params] as const,
@@ -59,6 +69,41 @@ export function useOpenCashBook() {
   return useMutation({
     mutationFn: (payload: OpenCashBookPayload) => openCashBook(payload),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['finance', 'cashBooks'] }),
+  })
+}
+
+export function useCashBook(id: string | null) {
+  return useQuery({
+    queryKey: financeKeys.cashBook(id ?? ''),
+    queryFn: () => getCashBook(id!),
+    enabled: !!id,
+  })
+}
+
+export function useCloseCashBook() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: CloseCashBookPayload }) =>
+      closeCashBook(id, payload),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['finance', 'cashBooks'] })
+      void qc.invalidateQueries({ queryKey: financeKeys.cashBook(vars.id) })
+    },
+  })
+}
+
+export function useShiftHandovers(params: ShiftHandoverListParams = {}) {
+  return useQuery({
+    queryKey: financeKeys.shiftHandovers(params),
+    queryFn: () => getShiftHandovers(params),
+  })
+}
+
+export function useCreateShiftHandover() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateShiftHandoverPayload) => createShiftHandover(payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['finance', 'shiftHandovers'] }),
   })
 }
 
@@ -170,6 +215,19 @@ export function useUpdatePlatformPlan() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdatePlatformPlanPayload }) =>
       updatePlatformPlan(id, payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['finance', 'platformPlans'] }),
+  })
+}
+
+/**
+ * Status-only transition hook — PATCHes `{ status }` instead of re-PUTting the
+ * full DTO, so a concurrent field edit isn't reverted (WEB-6).
+ */
+export function usePatchPlatformPlanStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      patchPlatformPlanStatus(id, status),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['finance', 'platformPlans'] }),
   })
 }

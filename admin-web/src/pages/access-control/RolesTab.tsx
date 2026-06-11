@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Check, Copy, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSetRoleCell } from '@/hooks/useAccessControl'
+import { usePermissions } from '@/hooks/usePermissions'
+import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
 import type { AccessRoles, AccessRoleSummary } from '@/types/api'
 
 interface Props {
-  query: { data?: AccessRoles; isLoading: boolean; isError: boolean }
+  query: { data?: AccessRoles; isLoading: boolean; isError: boolean; error?: unknown }
   search?: string
 }
 
@@ -18,8 +20,10 @@ const SCOPE_LABEL: Record<string, string> = {
 }
 
 export function RolesTab({ query, search }: Props) {
-  const { data, isLoading, isError } = query
+  const { data, isLoading, isError, error } = query
   const setCell = useSetRoleCell()
+  const { hasPermission } = usePermissions()
+  const canEdit = hasPermission('permissions.assign')
 
   // Roles arrive fully loaded (no pagination), so filtering client-side is complete.
   const term = (search ?? '').trim().toLowerCase()
@@ -56,6 +60,7 @@ export function RolesTab({ query, search }: Props) {
     )
   }
   if (isError || !data) {
+    if (isForbiddenError(error)) return <ForbiddenState message="You don’t have access to roles and permissions." />
     return <div className="py-24 text-center text-sm text-red-600">Couldn’t load roles.</div>
   }
   if (!selected) {
@@ -67,6 +72,7 @@ export function RolesTab({ query, search }: Props) {
     draft.size !== original.size || [...draft].some((c) => !original.has(c))
 
   const toggle = (cellKey: string) => {
+    if (!canEdit) return
     setDraft((prev) => {
       const next = new Set(prev)
       if (next.has(cellKey)) next.delete(cellKey)
@@ -135,12 +141,16 @@ export function RolesTab({ query, search }: Props) {
             </div>
           </div>
         ))}
-        <button
-          type="button"
-          className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 py-2 text-xs font-medium text-gray-400 hover:border-gray-400 hover:text-gray-600"
-        >
-          <Plus className="h-3.5 w-3.5" /> New custom role
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            disabled
+            title="Custom roles aren't available yet — manage permissions on the built-in roles for now."
+            className="mt-1 flex w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-200 py-2 text-xs font-medium text-gray-300"
+          >
+            <Plus className="h-3.5 w-3.5" /> New custom role
+          </button>
+        )}
       </div>
 
       {/* Right: permission matrix */}
@@ -156,21 +166,33 @@ export function RolesTab({ query, search }: Props) {
             {selected.description && <p className="mt-0.5 text-sm text-gray-400">{selected.description}</p>}
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
-              <Copy className="h-3.5 w-3.5" /> Clone
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={!dirty || saving}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-colors',
-                dirty && !saving ? 'bg-lg-green text-white hover:bg-[var(--lg-green-hover)]' : 'bg-gray-100 text-gray-400',
-              )}
-            >
-              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Save changes
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                disabled
+                title="Cloning roles isn't available yet."
+                className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-gray-100 px-3 py-1.5 text-sm font-medium text-gray-300"
+              >
+                <Copy className="h-3.5 w-3.5" /> Clone
+              </button>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={save}
+                disabled={!dirty || saving}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-colors',
+                  dirty && !saving ? 'bg-lg-green text-white hover:bg-[var(--lg-green-hover)]' : 'bg-gray-100 text-gray-400',
+                )}
+              >
+                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Save changes
+              </button>
+            )}
+            {!canEdit && (
+              <span className="text-xs text-gray-400">Read-only — you don’t have permission to edit roles.</span>
+            )}
           </div>
         </div>
 
@@ -198,11 +220,13 @@ export function RolesTab({ query, search }: Props) {
                           type="button"
                           onClick={() => toggle(key)}
                           aria-pressed={on}
+                          disabled={!canEdit}
                           className={cn(
                             'inline-flex h-6 w-6 items-center justify-center rounded-md border transition-colors',
                             on
                               ? 'border-lg-green bg-lg-green text-white'
                               : 'border-gray-200 bg-gray-50 text-transparent hover:border-gray-300',
+                            !canEdit && 'cursor-not-allowed opacity-70 hover:border-gray-200',
                           )}
                         >
                           <Check className="h-3.5 w-3.5" strokeWidth={3} />

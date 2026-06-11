@@ -20,9 +20,9 @@ namespace laundryghar.Identity.Infrastructure.Seeders;
 public sealed class IdentitySeeder
 {
     private readonly LaundryGharDbContext _db;
-    private readonly IPasswordHasher      _hasher;
-    private readonly IHostEnvironment     _env;
-    private readonly IConfiguration       _config;
+    private readonly IPasswordHasher _hasher;
+    private readonly IHostEnvironment _env;
+    private readonly IConfiguration _config;
     private readonly ILogger<IdentitySeeder> _logger;
 
     public IdentitySeeder(
@@ -32,9 +32,9 @@ public sealed class IdentitySeeder
         IConfiguration config,
         ILogger<IdentitySeeder> logger)
     {
-        _db     = db;
+        _db = db;
         _hasher = hasher;
-        _env    = env;
+        _env = env;
         _config = config;
         _logger = logger;
     }
@@ -52,7 +52,7 @@ public sealed class IdentitySeeder
         _logger.LogInformation("Running identity seeders...");
 
         var permissions = await SeedPermissionsAsync(ct);
-        var roles       = await SeedRolesAsync(ct);
+        var roles = await SeedRolesAsync(ct);
         await SeedRolePermissionsAsync(permissions, roles, ct);
         var (platform, brand) = await SeedOrgHierarchyAsync(ct);
         await SeedAdminUserAsync(platform, brand, roles, ct);
@@ -207,6 +207,7 @@ public sealed class IdentitySeeder
         ("cms.onboarding.manage",        "cms","onboarding.manage",   "Manage onboarding slides",      "normal"),
         ("cms.appconfig.manage",         "cms","appconfig.manage",    "Manage mobile app config",      "normal"),
         ("cms.notification.read",        "cms","notification.read",   "Read notifications & logs",     "low"),
+        ("cms.notification.manage",      "cms","notification.manage", "Manage notifications & retry",  "normal"),
         // ── BC-9: Analytics permissions ───────────────────────────────────────
         ("analytics.read",               "analytics","read",          "Read analytics reports",        "low"),
         ("analytics.refresh",            "analytics","refresh",       "Refresh analytics materialized views","high"),
@@ -215,8 +216,8 @@ public sealed class IdentitySeeder
     private async Task<Dictionary<string, Permission>> SeedPermissionsAsync(CancellationToken ct)
     {
         var existing = await _db.Permissions.ToDictionaryAsync(p => p.Code, ct);
-        var now      = DateTimeOffset.UtcNow;
-        int added    = 0;
+        var now = DateTimeOffset.UtcNow;
+        int added = 0;
 
         foreach (var (code, module, action, name, risk) in PermissionDefs)
         {
@@ -224,17 +225,17 @@ public sealed class IdentitySeeder
 
             var perm = new Permission
             {
-                Id           = Guid.NewGuid(),
-                Code         = code,
-                Module       = module,
-                Action       = action,
-                Name         = name,
-                RiskLevel    = risk,
-                IsSystem     = true,
+                Id = Guid.NewGuid(),
+                Code = code,
+                Module = module,
+                Action = action,
+                Name = name,
+                RiskLevel = risk,
+                IsSystem = true,
                 RequiresScope = true,
-                Status       = "active",
-                CreatedAt    = now,
-                UpdatedAt    = now
+                Status = "active",
+                CreatedAt = now,
+                UpdatedAt = now
             };
             _db.Permissions.Add(perm);
             existing[code] = perm;
@@ -279,17 +280,17 @@ public sealed class IdentitySeeder
             if (existing.ContainsKey(code)) continue;
             var role = new Role
             {
-                Id           = Guid.NewGuid(),
-                BrandId      = null,
-                Code         = code,
-                Name         = name,
-                ScopeType    = scopeType,
-                IsSystem     = true,
+                Id = Guid.NewGuid(),
+                BrandId = null,
+                Code = code,
+                Name = name,
+                ScopeType = scopeType,
+                IsSystem = true,
                 IsAssignable = true,
-                Priority     = priority,
-                Status       = "active",
-                CreatedAt    = now,
-                UpdatedAt    = now
+                Priority = priority,
+                Status = "active",
+                CreatedAt = now,
+                UpdatedAt = now
             };
             _db.Roles.Add(role);
             existing[code] = role;
@@ -309,7 +310,7 @@ public sealed class IdentitySeeder
 
     private async Task SeedRolePermissionsAsync(
         Dictionary<string, Permission> permissions,
-        Dictionary<string, Role>       roles,
+        Dictionary<string, Role> roles,
         CancellationToken ct)
     {
         // Load existing mappings
@@ -318,7 +319,7 @@ public sealed class IdentitySeeder
             .ToListAsync(ct);
         var existingSet = existing.Select(x => (x.RoleId, x.PermissionId)).ToHashSet();
 
-        var now   = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.UtcNow;
         var toAdd = new List<RolePermission>();
 
         void Grant(string roleCode, IEnumerable<string> permCodes)
@@ -330,8 +331,11 @@ public sealed class IdentitySeeder
                 if (existingSet.Contains((role.Id, perm.Id))) continue;
                 toAdd.Add(new RolePermission
                 {
-                    Id = Guid.NewGuid(), RoleId = role.Id, PermissionId = perm.Id,
-                    GrantedAt = now, CreatedAt = now
+                    Id = Guid.NewGuid(),
+                    RoleId = role.Id,
+                    PermissionId = perm.Id,
+                    GrantedAt = now,
+                    CreatedAt = now
                 });
                 existingSet.Add((role.Id, perm.Id));
             }
@@ -377,7 +381,7 @@ public sealed class IdentitySeeder
             "royalty.read","royalty.manage",
             // BC-8: engagement CMS — brand_admin gets all CMS permissions
             "cms.template.manage","cms.banner.manage","cms.onboarding.manage",
-            "cms.appconfig.manage","cms.notification.read",
+            "cms.appconfig.manage","cms.notification.read","cms.notification.manage",
             // BC-9: analytics — brand_admin gets read + refresh
             "analytics.read","analytics.refresh",
         ]);
@@ -505,10 +509,16 @@ public sealed class IdentitySeeder
         {
             platform = new Platform
             {
-                Id = Guid.NewGuid(), Code = "LG", Name = "Laundry Ghar",
-                LegalName = "Laundry Ghar Pvt Ltd", Domain = "laundryghar.com",
-                Config = "{}", Status = "active",
-                CreatedAt = now, UpdatedAt = now, Version = 1
+                Id = Guid.NewGuid(),
+                Code = "LG",
+                Name = "Laundry Ghar",
+                LegalName = "Laundry Ghar Pvt Ltd",
+                Domain = "laundryghar.com",
+                Config = "{}",
+                Status = "active",
+                CreatedAt = now,
+                UpdatedAt = now,
+                Version = 1
             };
             _db.Platforms.Add(platform);
             await _db.SaveChangesAsync(ct);
@@ -524,21 +534,21 @@ public sealed class IdentitySeeder
         {
             brand = new Brand
             {
-                Id            = Guid.NewGuid(),
-                PlatformId    = platform.Id,
-                Code          = "LG-MAIN",
-                Name          = "Laundry Ghar",
-                LegalName     = "Laundry Ghar Pvt Ltd",
-                CurrencyCode  = "INR",
-                CountryCode   = "IN",
-                Timezone      = "Asia/Kolkata",
+                Id = Guid.NewGuid(),
+                PlatformId = platform.Id,
+                Code = "LG-MAIN",
+                Name = "Laundry Ghar",
+                LegalName = "Laundry Ghar Pvt Ltd",
+                CurrencyCode = "INR",
+                CountryCode = "IN",
+                Timezone = "Asia/Kolkata",
                 LocaleDefault = "en-IN",
                 LocalesEnabled = ["en-IN", "hi-IN"],
-                Config        = "{}",
-                Status        = "active",
-                CreatedAt     = now,
-                UpdatedAt     = now,
-                Version       = 1
+                Config = "{}",
+                Status = "active",
+                CreatedAt = now,
+                UpdatedAt = now,
+                Version = 1
             };
             _db.Brands.Add(brand);
             await _db.SaveChangesAsync(ct);
@@ -552,7 +562,7 @@ public sealed class IdentitySeeder
 
     private async Task SeedAdminUserAsync(
         Platform platform,
-        Brand    brand,
+        Brand brand,
         Dictionary<string, Role> roles,
         CancellationToken ct)
     {
@@ -571,32 +581,35 @@ public sealed class IdentitySeeder
         {
             user = new User
             {
-                Id                 = Guid.NewGuid(),
-                Email              = AdminEmail,
-                PhoneE164          = AdminPhone,
-                PasswordHash       = _hasher.Hash(adminPassword),
-                UserType           = UserType.PlatformAdmin,
-                Status             = UserStatus.Active,
-                EmailVerifiedAt    = now,
-                PhoneVerifiedAt    = now,
-                Locale             = "en-IN",
-                Timezone           = "Asia/Kolkata",
-                FailedAttempts     = 0,
-                CreatedAt          = now,
-                UpdatedAt          = now,
-                Version            = 1
+                Id = Guid.NewGuid(),
+                Email = AdminEmail,
+                PhoneE164 = AdminPhone,
+                PasswordHash = _hasher.Hash(adminPassword),
+                UserType = UserType.PlatformAdmin,
+                Status = UserStatus.Active,
+                EmailVerifiedAt = now,
+                PhoneVerifiedAt = now,
+                Locale = "en-IN",
+                Timezone = "Asia/Kolkata",
+                FailedAttempts = 0,
+                CreatedAt = now,
+                UpdatedAt = now,
+                Version = 1
             };
             _db.Users.Add(user);
             await _db.SaveChangesAsync(ct);
 
             _db.UserProfiles.Add(new UserProfile
             {
-                UserId      = user.Id,
-                FirstName   = "Platform",
-                LastName    = "Admin",
+                UserId = user.Id,
+                FirstName = "Platform",
+                LastName = "Admin",
                 DisplayName = "Platform Admin",
-                Preferences = "{}", Metadata = "{}", Status = "active",
-                CreatedAt   = now, UpdatedAt = now
+                Preferences = "{}",
+                Metadata = "{}",
+                Status = "active",
+                CreatedAt = now,
+                UpdatedAt = now
             });
             await _db.SaveChangesAsync(ct);
             _logger.LogInformation("Seeded admin user {UserId} ({Email}).", user.Id, AdminEmail);
@@ -606,23 +619,23 @@ public sealed class IdentitySeeder
         if (roles.TryGetValue("platform_admin", out var platformAdminRole))
         {
             var hasMembership = await _db.UserScopeMemberships
-                .AnyAsync(m => m.UserId    == user.Id
+                .AnyAsync(m => m.UserId == user.Id
                             && m.ScopeType == ScopeType.Platform
-                            && m.RoleId    == platformAdminRole.Id
+                            && m.RoleId == platformAdminRole.Id
                             && m.RevokedAt == null, ct);
 
             if (!hasMembership)
             {
                 _db.UserScopeMemberships.Add(new UserScopeMembership
                 {
-                    Id        = Guid.NewGuid(),
-                    UserId    = user.Id,
+                    Id = Guid.NewGuid(),
+                    UserId = user.Id,
                     ScopeType = ScopeType.Platform,
-                    ScopeId   = null,
-                    RoleId    = platformAdminRole.Id,
+                    ScopeId = null,
+                    RoleId = platformAdminRole.Id,
                     IsPrimary = true,
                     GrantedAt = now,
-                    Metadata  = "{}",
+                    Metadata = "{}",
                     CreatedAt = now
                 });
                 await _db.SaveChangesAsync(ct);

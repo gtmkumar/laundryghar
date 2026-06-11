@@ -4,7 +4,7 @@
  * (GET {Catalog}/customer/catalog/price-list) with a demo fallback so the
  * flow always works in dev. Selection lives in the cart store.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -62,9 +62,21 @@ export default function ItemsScreen() {
   const { data: priceList, isLoading } = usePriceList();
   const count = useCartStore((s) => s.count());
   const subtotal = useCartStore((s) => s.subtotal());
+  const clearCart = useCartStore((s) => s.clear);
   const express = useBookingStore((s) => s.express);
   const setExpress = useBookingStore((s) => s.setExpress);
-  const [serviceFilter, setServiceFilter] = useState<'all' | 'express'>('all');
+  const resetBooking = useBookingStore((s) => s.reset);
+  const confirmed = useBookingStore((s) => s.confirmed);
+
+  // MOB-8: if arriving with a prior confirmed booking (user tapped "Back to Home"
+  // then started a new booking), clear the confirmed state and cart.
+  React.useEffect(() => {
+    if (confirmed) {
+      resetBooking();
+      clearCart();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const items: PickerItem[] = useMemo(() => {
     const live = (priceList ?? [])
@@ -99,9 +111,8 @@ export default function ItemsScreen() {
         <Text className="text-xl font-extrabold text-ink">{t('booking.whatNeedsWashing')}</Text>
       </View>
 
-      {/* Filter chips */}
+      {/* Filter chips — only the express toggle; Dry Clean chip removed (MOB-12: was dead/misleading) */}
       <View className="flex-row px-5 pb-2">
-        <Chip label="Dry Clean" selected={serviceFilter === 'all'} onPress={() => setServiceFilter('all')} />
         <Chip
           label={t('booking.express')}
           icon="flash"

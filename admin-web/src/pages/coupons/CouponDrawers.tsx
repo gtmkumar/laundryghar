@@ -141,11 +141,24 @@ export function CouponEditDrawer({ open, coupon, onClose }: EditDrawerProps) {
     setError(null)
     const discount = Number(form.discountValue)
     const maxPerCust = Number(form.maxUsesPerCustomer)
+    const minOrderValue = form.minOrderValue.trim() === '' ? 0 : Number(form.minOrderValue)
+    const maxDiscount = form.maxDiscountAmount.trim() === '' ? null : Number(form.maxDiscountAmount)
+    const maxTotalUses = form.maxTotalUses.trim() === '' ? null : Number(form.maxTotalUses)
     if (!isEdit && !form.code.trim()) return setError('Coupon code is required.')
     if (!form.name.trim()) return setError('Coupon name is required.')
     if (!(discount > 0)) return setError('Discount value must be greater than 0.')
     if (form.couponType === 'percent' && discount > 100)
       return setError('A percentage discount cannot exceed 100%.')
+    if (!Number.isFinite(minOrderValue) || minOrderValue < 0)
+      return setError('Minimum order value must be 0 or greater.')
+    if (maxDiscount !== null && (!Number.isFinite(maxDiscount) || maxDiscount < 0))
+      return setError('Max discount cap must be 0 or greater.')
+    if (maxTotalUses !== null && (!Number.isInteger(maxTotalUses) || maxTotalUses < 1))
+      return setError('Total uses must be a whole number of 1 or more.')
+    if (maxTotalUses !== null && isEdit && coupon && maxTotalUses < coupon.currentUsageCount)
+      return setError(
+        `Total uses can't be below the ${coupon.currentUsageCount} already redeemed.`,
+      )
     if (!(maxPerCust > 0)) return setError('Max uses per customer must be at least 1.')
     if (!form.validFrom) return setError('A start date is required.')
     if (form.validUntil && form.validUntil < form.validFrom)
@@ -155,8 +168,8 @@ export function CouponEditDrawer({ open, coupon, onClose }: EditDrawerProps) {
       name: form.name.trim(),
       description: form.description.trim() || null,
       discountValue: discount,
-      maxDiscountAmount: form.maxDiscountAmount ? Number(form.maxDiscountAmount) : null,
-      minOrderValue: Number(form.minOrderValue) || 0,
+      maxDiscountAmount: maxDiscount,
+      minOrderValue,
       applicableServices: null,
       applicableStores: null,
       applicableFranchises: null,
@@ -165,7 +178,7 @@ export function CouponEditDrawer({ open, coupon, onClose }: EditDrawerProps) {
       eligibleSegments: null,
       isFirstOrderOnly: form.isFirstOrderOnly,
       isSingleUsePerCust: form.isSingleUsePerCust,
-      maxTotalUses: form.maxTotalUses ? Number(form.maxTotalUses) : null,
+      maxTotalUses,
       maxUsesPerCustomer: maxPerCust,
       isStackable: form.isStackable,
       isPublic: form.isPublic,

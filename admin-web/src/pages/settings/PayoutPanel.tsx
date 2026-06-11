@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Loader2, Save, Coins } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdatePayoutSettings } from '@/hooks/useSettings'
+import { useCanManageSettings } from '@/hooks/usePermissions'
 import type { AdminSettings, UpdatePayoutPayload } from '@/types/api'
 
 /** Mirror of the backend RiderPayoutSettings.Compute — for the live preview. */
@@ -14,6 +15,7 @@ function compute(p: UpdatePayoutPayload, km: number, express: boolean, cod: bool
 export function PayoutPanel({ settings }: { settings: AdminSettings }) {
   const p = settings.payout
   const update = useUpdatePayoutSettings()
+  const canManage = useCanManageSettings()
 
   const [form, setForm] = useState({
     baseFare: String(p.baseFare),
@@ -96,11 +98,15 @@ export function PayoutPanel({ settings }: { settings: AdminSettings }) {
           <button
             type="button"
             onClick={save}
-            disabled={update.isPending}
+            disabled={update.isPending || !canManage}
+            title={canManage ? undefined : 'You don’t have permission to change these settings.'}
             className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
           >
             {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save rates
           </button>
+          {!canManage && (
+            <span className="text-xs text-gray-400">You don’t have permission to change these settings.</span>
+          )}
           {savedAt && <span className="text-xs text-lg-green">Saved at {savedAt}</span>}
           {error && <span className="text-xs text-red-600">{error}</span>}
         </div>

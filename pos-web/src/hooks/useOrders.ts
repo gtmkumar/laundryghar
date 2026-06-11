@@ -35,7 +35,11 @@ export function useCreateOrder() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (req: CreateOrderRequest) => createOrder(req),
-    onSuccess: () => {
+    onSuccess: (order) => {
+      // POS-6: seed the detail cache so a "View order" navigation renders
+      // instantly (and a follow-up payment invalidation has a key to bust)
+      // without a round-trip flash of the loading state.
+      qc.setQueryData(orderKeys.detail(order.id), order)
       // Invalidate the orders list so it refreshes
       void qc.invalidateQueries({ queryKey: ['orders', 'list'] })
     },

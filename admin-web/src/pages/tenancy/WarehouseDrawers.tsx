@@ -5,9 +5,13 @@ import { useOnboardingState } from '@/hooks/useOnboarding'
 import { useEffectiveBrandId } from '@/hooks/useBrandContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { FormDrawer, DrawerSection, Field, drawerInputCls, DetailSection, DetailRow } from '@/components/shared/FormDrawer'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
 import { Badge } from '@/components/ui/badge'
 import type { WarehouseDto, WarehouseType, WarehouseStatus } from '@/types/api'
 import { formatDate } from '@/lib/utils'
+
+// Statuses that take the warehouse offline — gated by a confirmation.
+const DEACTIVATING_WAREHOUSE_STATUSES: WarehouseStatus[] = ['paused', 'maintenance', 'closed']
 
 const WAREHOUSE_TYPES: { value: WarehouseType; label: string }[] = [
   { value: 'central', label: 'Central' },
@@ -325,6 +329,7 @@ export function WarehouseEditDrawer({
   onClose: () => void
 }) {
   const update = useUpdateWarehouse()
+  const gate = useConfirm()
   const [name, setName] = useState('')
   const [status, setStatus] = useState<WarehouseStatus>('active')
   const [contactPhone, setContactPhone] = useState('')
@@ -341,9 +346,8 @@ export function WarehouseEditDrawer({
 
   if (!warehouse) return null
 
-  const submit = async () => {
+  const save = async () => {
     setError(null)
-    if (!name.trim()) return setError('Warehouse name is required.')
     try {
       await update.mutateAsync({
         id: warehouse.id,
@@ -353,6 +357,27 @@ export function WarehouseEditDrawer({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not update the warehouse.')
     }
+  }
+
+  const submit = async () => {
+    setError(null)
+    if (!name.trim()) return setError('Warehouse name is required.')
+    // Confirm before taking a previously-active warehouse offline.
+    const goingOffline =
+      DEACTIVATING_WAREHOUSE_STATUSES.includes(status) &&
+      !DEACTIVATING_WAREHOUSE_STATUSES.includes((warehouse.status as WarehouseStatus) ?? 'active')
+    if (goingOffline) {
+      const label = WAREHOUSE_STATUSES.find((s) => s.value === status)?.label ?? status
+      gate.confirm({
+        title: 'Deactivate warehouse?',
+        description: `“${warehouse.name}” will be set to ${label} and will stop processing operations.`,
+        confirmLabel: `Set ${label}`,
+        tone: 'danger',
+        onConfirm: () => save(),
+      })
+      return
+    }
+    await save()
   }
 
   return (
@@ -392,6 +417,7 @@ export function WarehouseEditDrawer({
         />
       </Field>
       <p className="text-xs text-gray-400">Code, type, franchise and address are fixed after creation.</p>
+      <ConfirmDialog {...gate.dialogProps} />
     </FormDrawer>
   )
 }

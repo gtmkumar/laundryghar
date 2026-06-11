@@ -14,9 +14,14 @@ const ADMIN = '/api/v1/admin'
 export async function recordOfflinePayment(
   req: RecordOfflinePaymentRequest,
 ): Promise<OfflinePaymentDto> {
+  // POS-2: idempotency key in body + header to dedupe a retried/double-tapped charge.
+  const headers = req.idempotencyKey
+    ? { 'Idempotency-Key': req.idempotencyKey }
+    : undefined
   const { data } = await commerceClient.post<ApiResponse<OfflinePaymentDto>>(
     `${ADMIN}/payments`,
     req,
+    headers ? { headers } : undefined,
   )
   return unwrap(data)
 }

@@ -20,6 +20,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import { useRiderTask, taskKeys } from '@/hooks/useRiderTasks';
 import { useTaskOverrideStore } from '@/store/taskOverrideStore';
 import { useOfflineQueueStore } from '@/store/offlineQueueStore';
@@ -129,10 +130,53 @@ export default function TaskDetailScreen() {
     : isDelivery   ? `Delivering #${task.orderNumber}`
     :                `Picking up #${task.orderNumber}`;
 
-  /** Pick a photo from the camera or library. Degrades gracefully on permission denial. */
+  /**
+   * Show an action sheet to let the rider pick proof photo source.
+   * Camera is the primary action (doorstep evidence); library is the fallback.
+   * Degrades gracefully on permission denial.
+   */
   async function pickProofPhoto() {
     setPhotoError('');
-    // Request media library permission — graceful degradation on denial.
+    Alert.alert(
+      'Add proof photo',
+      'Choose how to add a photo',
+      [
+        {
+          text: 'Take photo',
+          onPress: () => void launchCamera(),
+        },
+        {
+          text: 'Choose from library',
+          onPress: () => void launchLibrary(),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  }
+
+  async function launchCamera() {
+    setPhotoError('');
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      setPhotoError('Camera access denied. Grant permission in Settings to take a photo.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.75,
+      allowsEditing: false,
+      exif: false,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setProofUri(asset.uri);
+      setProofMime(asset.mimeType ?? 'image/jpeg');
+      setPhotoUploadState('idle');
+    }
+  }
+
+  async function launchLibrary() {
+    setPhotoError('');
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       setPhotoError('Photo library access denied. Grant permission in Settings to attach a photo.');
@@ -140,7 +184,7 @@ export default function TaskDetailScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.75,       // reduce size; still well within the 10 MB limit
+      quality: 0.75,
       allowsEditing: false,
       exif: false,
     });
@@ -187,6 +231,7 @@ export default function TaskDetailScreen() {
         if (needsOtp) await verifyTaskOtp(task.id, code);
         await updateTaskStatus(task.id, 'completed');
       } else if (needsOtp && code !== task.deliveryOtp) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setOtpError("That code didn't match. Ask the customer again.");
         setCode('');
         setBusy(false);
@@ -195,6 +240,7 @@ export default function TaskDetailScreen() {
       // Optimistic overlay so the list/summary update instantly; refetch reconciles.
       complete(task.id);
       void queryClient.invalidateQueries({ queryKey: taskKeys.today() });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace(`/(app)/delivered?id=${task.id}`);
     } catch (e) {
       // Network failure — queue for retry on reconnect.
@@ -208,6 +254,7 @@ export default function TaskDetailScreen() {
         setBusy(false);
         return;
       }
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setOtpError(e instanceof Error ? e.message : 'Could not confirm. Try again.');
       setCode('');
       setBusy(false);
@@ -359,6 +406,31 @@ export default function TaskDetailScreen() {
             )}
           </View>
 
+          {/* ── Garment inspection CTA (pickup collect step only) ─────────── */}
+          {/* Shown before the rider taps "Mark as collected" so they can       */}
+          {/* record garment condition evidence (DOC-9). Optional — tapping     */}
+          {/* opens the inspection camera screen; the confirm flow is unblocked.*/}
+          {isPickup && !collected && !isCompleted ? (
+            <Pressable
+              onPress={() => router.push(`/(app)/inspection/${task.id}` as never)}
+              className="mt-4 flex-row items-center gap-3 rounded-3xl border border-olive-200 bg-white px-4 py-4 active:opacity-70"
+              style={{ elevation: 1 }}
+              accessibilityRole="button"
+              accessibilityLabel="Inspect garments before pickup"
+            >
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-olive-100">
+                <Ionicons name="shirt-outline" size={20} color="#4A552A" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-bold text-ink">Inspect garments</Text>
+                <Text className="mt-0.5 text-xs text-ink-muted">
+                  Capture front/back photos + condition before pickup
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#A8A493" />
+            </Pressable>
+          ) : null}
+
           {/* ── Optional proof photo (delivery / drop step) ───────────────── */}
           {/* Shown only on non-completed delivery/drop steps. The confirm flow  */}
           {/* works whether or not a photo is attached.                          */}
@@ -433,7 +505,7 @@ export default function TaskDetailScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={t('a11y.addProofPhoto')}
                   >
-                    <Ionicons name="image-outline" size={18} color="#4A552A" />
+                    <Ionicons name="camera-outline" size={18} color="#4A552A" />
                     <Text className="text-sm font-semibold text-olive-700">Add proof photo</Text>
                   </Pressable>
                 </View>

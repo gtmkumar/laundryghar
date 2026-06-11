@@ -3,6 +3,7 @@ import {
   listSubscriptionPlans,
   createSubscriptionPlan,
   updateSubscriptionPlan,
+  patchSubscriptionPlanStatus,
   deleteSubscriptionPlan,
   listCustomerSubscriptions,
 } from '@/api/subscriptions'
@@ -39,6 +40,19 @@ export function useUpdateSubscriptionPlan() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateSubscriptionPlanPayload }) =>
       updateSubscriptionPlan(id, payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['subscriptions', 'plans'] }),
+  })
+}
+
+/**
+ * Status-only transition hook — PATCHes `{ status }` instead of re-PUTting the
+ * full DTO, so a concurrent field edit isn't reverted (WEB-6).
+ */
+export function usePatchSubscriptionPlanStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      patchSubscriptionPlanStatus(id, status),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['subscriptions', 'plans'] }),
   })
 }

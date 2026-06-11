@@ -260,6 +260,12 @@ export interface OrderDto {
   rating?: number | null;
   ratingComment?: string | null;
   ratedAt?: string | null;
+  /**
+   * Delivery OTP — present when status is out_for_delivery.
+   * Backend exposes this field to the customer for doorstep handoff confirmation.
+   * The rider must verify this OTP to complete delivery (MOB-7).
+   */
+  deliveryOtp?: string | null;
 }
 
 export interface RateOrderRequest {
@@ -496,6 +502,26 @@ export interface PatchProfileRequest {
   firstName?: string;
   lastName?: string;
   email?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Account deletion DTOs — mirrors Catalog/Customer/Self/Dtos/SelfDtos.cs
+// ---------------------------------------------------------------------------
+
+export interface AccountDeletionRequestDto {
+  id: string;
+  status: string;
+  requestSource: string;
+  reason?: string | null;
+  requestedAt: string;
+  gracePeriodEndsAt: string;
+  cancelledAt?: string | null;
+}
+
+export interface CreateDeletionRequestRequest {
+  requestSource: string;
+  reason?: string | null;
+  reasonText?: string | null;
 }
 
 // ---------------------------------------------------------------------------

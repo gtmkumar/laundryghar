@@ -8,6 +8,7 @@ import {
 } from '@/hooks/useCms'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { usePermissions } from '@/hooks/usePermissions'
+import { percentageInt } from '@/lib/validation'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { DataTable, type Column } from '@/components/shared/DataTable'
@@ -118,7 +119,15 @@ function FormModal({ initial, onClose }: FormModalProps) {
     e.preventDefault()
     setError(null)
 
-    const rollout = fields.rolloutPercent !== '' ? parseInt(fields.rolloutPercent, 10) : null
+    let rollout: number | null = null
+    if (fields.rolloutPercent.trim() !== '') {
+      const parsed = percentageInt.safeParse(Number(fields.rolloutPercent))
+      if (!parsed.success) {
+        setError('Rollout % must be a whole number between 0 and 100.')
+        return
+      }
+      rollout = parsed.data
+    }
 
     const base = {
       appType: fields.appType,

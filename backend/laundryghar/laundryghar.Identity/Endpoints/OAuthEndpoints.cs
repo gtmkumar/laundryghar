@@ -302,7 +302,6 @@ public static class OAuthEndpoints
                    LaundryGharDbContext db,
                    IJwtTokenService jwt,
                    IOptions<JwtSettings> jwtOptions,
-                   ISender sender,
                    ILogger<Program> logger,
                    CancellationToken ct) =>
             {
@@ -321,7 +320,7 @@ public static class OAuthEndpoints
                     return await HandleAuthorizationCodeGrantAsync(form, db, jwt, jwtOptions, logger, ctx, ct);
 
                 if (grantType == "refresh_token")
-                    return await HandleRefreshTokenGrantAsync(form, sender, ctx, ct);
+                    return await HandleRefreshTokenGrantAsync(form, db, jwt, jwtOptions, logger, ctx, ct);
 
                 return Results.BadRequest(OAuthError("unsupported_grant_type",
                     $"grant_type '{grantType}' is not supported."));
@@ -434,13 +433,15 @@ public static class OAuthEndpoints
             return Results.Json(OAuthError("invalid_grant", "Authorization grant is invalid."), statusCode: 400);
         }
 
-        // Issue tokens — same JWT structure as /otp/verify + scope claim
+        // Issue tokens — OAuth path: token_use=customer_mcp + scope claim.
         var jwtSettings = jwtOptions.Value;
 
-        // Access token: reuse CreateCustomerAccessToken but add scope claim.
-        // We build the JWT manually here to inject the scope claim without changing the
-        // shared IJwtTokenService interface or CustomerTokenClaims record.
-        var accessToken = CreateCustomerAccessTokenWithScope(jwt, customer, authCode.Scope);
+        var accessToken = jwt.CreateOAuthCustomerAccessToken(
+            new CustomerTokenClaims(
+                CustomerId: customer.Id,
+                BrandId: customer.BrandId,
+                Phone: customer.PhoneE164),
+            authCode.Scope);
         var rawRefresh = jwt.GenerateRefreshTokenRaw();
         var tokenHash = jwt.HashRefreshToken(rawRefresh);
         var rtId = Guid.NewGuid();
@@ -482,74 +483,102 @@ public static class OAuthEndpoints
     }
 
     // ── refresh_token grant ──────────────────────────────────────────────────
+    // Handled inline (not via CustomerRefreshCommand) so that the rotated access token
+    // carries token_use=customer_mcp + scope=mcp:booking rather than token_use=customer.
+    // The rotation logic mirrors CustomerRefreshHandler exactly.
 
     private static async Task<IResult> HandleRefreshTokenGrantAsync(
         IFormCollection form,
-        ISender sender,
+        LaundryGharDbContext db,
+        IJwtTokenService jwt,
+        IOptions<JwtSettings> jwtOptions,
+        ILogger logger,
         HttpContext ctx,
         CancellationToken ct)
     {
-        var refreshToken = form["refresh_token"].ToString();
-        if (string.IsNullOrWhiteSpace(refreshToken))
+        var rawRefreshToken = form["refresh_token"].ToString();
+        var clientId = form["client_id"].ToString();
+
+        if (string.IsNullOrWhiteSpace(rawRefreshToken))
             return Results.BadRequest(OAuthError("invalid_request", "refresh_token is required."));
 
-        var ip = ctx.Connection.RemoteIpAddress?.ToString();
-        var ua = ctx.Request.Headers.UserAgent.ToString();
+        var tokenHash = jwt.HashRefreshToken(rawRefreshToken);
 
-        Application.Auth.Dtos.CustomerTokenResponse tokenResult;
-        try
+        var existing = await db.RefreshTokens
+            .Where(t => t.TokenHash == tokenHash)
+            .FirstOrDefaultAsync(ct);
+
+        if (existing is null)
+            return Results.Json(OAuthError("invalid_grant", "Invalid refresh token."), statusCode: 400);
+
+        // Must be a customer token (customer_id set, user_id null)
+        if (!existing.CustomerId.HasValue || existing.UserId.HasValue)
+            return Results.Json(OAuthError("invalid_grant", "Invalid refresh token."), statusCode: 400);
+
+        if (existing.RevokedAt.HasValue)
         {
-            tokenResult = await sender.Send(
-                new Application.Auth.Commands.CustomerRefreshCommand(refreshToken, ip, ua), ct);
+            // Reuse detected — revoke entire family
+            var family = await db.RefreshTokens
+                .Where(t => t.FamilyId == existing.FamilyId && t.RevokedAt == null)
+                .ToListAsync(ct);
+            family.ForEach(t => { t.RevokedAt = DateTimeOffset.UtcNow; t.RevokedReason = "reuse_detected"; });
+            await db.SaveChangesAsync(ct);
+            logger.LogWarning("OAuth refresh: reuse detected for family {FamilyId}.", existing.FamilyId);
+            return Results.Json(OAuthError("invalid_grant", "Refresh token reuse detected. Please log in again."), statusCode: 400);
         }
-        catch (UnauthorizedAccessException ex)
+
+        if (existing.ExpiresAt <= DateTimeOffset.UtcNow)
+            return Results.Json(OAuthError("invalid_grant", "Refresh token expired."), statusCode: 400);
+
+        var customer = await db.Customers.FindAsync([existing.CustomerId.Value], ct);
+        if (customer is null || customer.Status != "active")
+            return Results.Json(OAuthError("invalid_grant", "Customer account is not active."), statusCode: 400);
+
+        var ipAddress = ctx.Connection.RemoteIpAddress;
+        var ua = ctx.Request.Headers.UserAgent.ToString();
+        var jwtSettings = jwtOptions.Value;
+        var now = DateTimeOffset.UtcNow;
+
+        // Rotate: mark existing token revoked, issue new token pair
+        existing.RevokedAt = now;
+        existing.RevokedReason = "rotated";
+
+        // Issue access token with token_use=customer_mcp + scope=mcp:booking
+        var accessToken = jwt.CreateOAuthCustomerAccessToken(
+            new CustomerTokenClaims(
+                CustomerId: customer.Id,
+                BrandId: customer.BrandId,
+                Phone: customer.PhoneE164),
+            "mcp:booking");
+
+        var rawNewRefresh = jwt.GenerateRefreshTokenRaw();
+        var newTokenHash = jwt.HashRefreshToken(rawNewRefresh);
+
+        db.RefreshTokens.Add(new RefreshToken
         {
-            return Results.Json(OAuthError("invalid_grant", ex.Message), statusCode: 400);
-        }
+            Id = Guid.NewGuid(),
+            CustomerId = customer.Id,
+            TokenHash = newTokenHash,
+            FamilyId = existing.FamilyId,
+            ParentTokenId = existing.Id,
+            IpAddress = ipAddress,
+            UserAgent = ua,
+            IssuedAt = now,
+            ExpiresAt = now.AddDays(jwtSettings.RefreshDays),
+            CreatedAt = now
+        });
+
+        await db.SaveChangesAsync(ct);
 
         return Results.Ok(new OAuthTokenResponse(
-            AccessToken: tokenResult.AccessToken,
+            AccessToken: accessToken,
             TokenType: "Bearer",
-            ExpiresIn: tokenResult.ExpiresInSeconds,
-            RefreshToken: tokenResult.RefreshToken,
+            ExpiresIn: jwtSettings.AccessMinutes * 60,
+            RefreshToken: rawNewRefresh,
             Scope: "mcp:booking"));
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Creates a customer access token with the additional <c>scope</c> claim.
-    /// Delegates to the existing <see cref="IJwtTokenService"/> and then adds the scope
-    /// by re-issuing. Because the JWT is already signed by the service's RS256 key,
-    /// we instead call the underlying service directly via the standard method and
-    /// accept that scope is not in the base customer token — or we build it inline here
-    /// by obtaining the token claims via the shared method and relying on the fact that
-    /// the scope claim is an additive extra. To avoid forking JwtTokenService,
-    /// we call CreateCustomerAccessToken (which issues a valid token) and then issue a
-    /// wrapper approach: for the OAuth path we assemble claims directly.
-    /// <para>
-    /// NOTE: This is intentional — we do NOT modify IJwtTokenService or CustomerTokenClaims
-    /// because those are shared-contract types used by all services. The scope claim is
-    /// purely additive for the OAuth path.
-    /// </para>
-    /// </summary>
-    private static string CreateCustomerAccessTokenWithScope(
-        IJwtTokenService jwt,
-        laundryghar.SharedDataModel.Entities.CustomerCatalog.Customer customer,
-        string scope)
-    {
-        // Reuse the standard customer token. The scope claim is currently not part of the
-        // base JWT contract (customer tokens have sub, token_use, brand_id, phone).
-        // For the MCP resource server the CustomerOnly policy validates token_use=customer,
-        // which is what matters for /mcp access. The scope claim is advisory metadata
-        // for the MCP client only — it does not gate the resource server's authorization.
-        // We include it here by delegating to the base method. If in future a separate
-        // scope-aware factory is needed, it can be added to IJwtTokenService.
-        return jwt.CreateCustomerAccessToken(new CustomerTokenClaims(
-            CustomerId: customer.Id,
-            BrandId: customer.BrandId,
-            Phone: customer.PhoneE164));
-    }
 
     /// <summary>
     /// Resolves the default brand ID using DefaultBrandCode config key.

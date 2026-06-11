@@ -3,6 +3,7 @@ import { Loader2, Wallet, BadgeIndianRupee, Receipt, AlertTriangle, Check } from
 import { usePermissions } from '@/hooks/usePermissions'
 import { useCodOutstanding, useRiderCod, useRiderSettlements, useSettleRider } from '@/hooks/useRiders'
 import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
 import type { RiderCodSummary } from '@/types/api'
 import { formatDate } from './riderShared'
 
@@ -95,6 +96,7 @@ function CashDrawer({ rider, onClose }: { rider: RiderCodSummary; onClose: () =>
   const detail = useRiderCod(rider.riderId)
   const history = useRiderSettlements(rider.riderId)
   const settle = useSettleRider()
+  const gate = useConfirm()
 
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
@@ -104,17 +106,25 @@ function CashDrawer({ rider, onClose }: { rider: RiderCodSummary; onClose: () =>
   const outstanding = detail.data?.outstandingAmount ?? rider.outstandingAmount
   const count = detail.data?.outstandingCount ?? rider.outstandingCount
 
-  const submit = async () => {
+  const submit = () => {
     setError(null)
-    try {
-      await settle.mutateAsync({
-        id: rider.riderId,
-        payload: { reference: reference.trim() || undefined, notes: notes.trim() || undefined },
-      })
-      setDone(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not record the settlement.')
-    }
+    gate.confirm({
+      title: `Settle ${inr(outstanding)}?`,
+      description: `Records that ${rider.riderName ?? rider.riderCode} handed over ${inr(outstanding)} and clears all ${count} collection${count === 1 ? '' : 's'}. This posts to the cash book and cannot be undone.`,
+      confirmLabel: `Mark settled`,
+      tone: 'warning',
+      onConfirm: async () => {
+        try {
+          await settle.mutateAsync({
+            id: rider.riderId,
+            payload: { reference: reference.trim() || undefined, notes: notes.trim() || undefined },
+          })
+          setDone(true)
+        } catch (e) {
+          setError(e instanceof Error ? e.message : 'Could not record the settlement.')
+        }
+      },
+    })
   }
 
   return (
@@ -210,6 +220,7 @@ function CashDrawer({ rider, onClose }: { rider: RiderCodSummary; onClose: () =>
           </div>
         )}
       </DrawerSection>
+      <ConfirmDialog {...gate.dialogProps} />
     </FormDrawer>
   )
 }

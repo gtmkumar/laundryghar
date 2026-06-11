@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Loader2, ShieldCheck, MailCheck, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdateProvisioning } from '@/hooks/useSettings'
+import { useCanManageSettings } from '@/hooks/usePermissions'
 import type { AdminSettings } from '@/types/api'
 
 const OPTIONS = [
@@ -21,6 +22,7 @@ const OPTIONS = [
 
 export function ProvisioningPanel({ settings }: { settings: AdminSettings }) {
   const update = useUpdateProvisioning()
+  const canManage = useCanManageSettings()
   const [mode, setMode] = useState(settings.provisioning.mode)
   const [savedAt, setSavedAt] = useState<string | null>(null)
 
@@ -72,11 +74,15 @@ export function ProvisioningPanel({ settings }: { settings: AdminSettings }) {
         <button
           type="button"
           onClick={save}
-          disabled={update.isPending || !dirty}
+          disabled={update.isPending || !dirty || !canManage}
+          title={canManage ? undefined : 'You don’t have permission to change these settings.'}
           className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-50"
         >
           {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save
         </button>
+        {!canManage && (
+          <span className="text-xs text-gray-400">You don’t have permission to change these settings.</span>
+        )}
         {savedAt && <span className="text-xs text-lg-green">Saved at {savedAt}</span>}
       </div>
     </div>

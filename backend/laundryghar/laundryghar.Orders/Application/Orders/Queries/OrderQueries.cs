@@ -83,7 +83,8 @@ public sealed class GetOrderByIdHandler : IRequestHandler<GetOrderByIdQuery, Ord
         var history = await _db.OrderStatusHistories.Where(h => h.OrderId == q.Id && h.BrandId == brandId)
                           .OrderBy(h => h.ChangedAt).ToListAsync(ct);
 
-        return CreateOrderHandler.ToDto(order, items, addons, history);
+        // H4: expose DeliveryOtp to owning customer only, only while out_for_delivery.
+        return CreateOrderHandler.ToDto(order, items, addons, history, includeDeliveryOtp: true);
     }
 }
 

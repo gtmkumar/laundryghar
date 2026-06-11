@@ -36,9 +36,15 @@ export async function getOrderById(id: string): Promise<OrderDto> {
 // Server resolves pricing; channel should be 'walkin'
 
 export async function createOrder(req: CreateOrderRequest): Promise<OrderDto> {
+  // POS-2: send the idempotency key both in the body and as a header so the
+  // backend can dedupe regardless of which it reads.
+  const headers = req.idempotencyKey
+    ? { 'Idempotency-Key': req.idempotencyKey }
+    : undefined
   const { data } = await ordersClient.post<ApiResponse<OrderDto>>(
     `${ADMIN}/orders`,
     req,
+    headers ? { headers } : undefined,
   )
   return unwrap(data)
 }

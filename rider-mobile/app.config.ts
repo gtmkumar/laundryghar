@@ -1,5 +1,8 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
+// TODO: replace with the real EAS project UUID from `eas project:init`
+// (interactive — requires your Expo account). The current value is the slug,
+// which 404s the OTA update manifest until a real UUID is wired in.
 const EAS_PROJECT_ID = 'laundryghar-rider';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -25,6 +28,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         'Laundry Ghar Rider uses your location to track pickups and deliveries.',
       NSLocationAlwaysAndWhenInUseUsageDescription:
         'Laundry Ghar Rider uses your location in the background during active shifts.',
+      NSCameraUsageDescription:
+        'Laundry Ghar Rider uses your camera to capture proof-of-delivery and garment-inspection photos.',
+      NSPhotoLibraryUsageDescription:
+        'Laundry Ghar Rider accesses your photo library to attach proof-of-delivery images.',
       // Allow continued GPS while the app is backgrounded during a shift.
       UIBackgroundModes: ['location'],
     },
@@ -47,6 +54,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       // on Android 13+ (API 33). The plugin adds POST_NOTIFICATIONS automatically
       // via its config plugin; listing it here is belt-and-suspenders documentation.
       'POST_NOTIFICATIONS',
+      // Camera + media for proof-of-delivery and garment-inspection photos.
+      'CAMERA',
+      'READ_MEDIA_IMAGES',
     ],
   },
   // ---------------------------------------------------------------------------
@@ -124,6 +134,21 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         imageWidth: 200,
         resizeMode: 'contain',
         backgroundColor: '#4A552A',
+      },
+    ],
+    // expo-image-picker config plugin — declares camera + photo-library entitlements
+    // so the native build passes App Store and Google Play policy requirements.
+    // The permission strings mirror what is already declared in ios.infoPlist above;
+    // the plugin wires the runtime permission request on Android and the Info.plist
+    // entries on iOS automatically when run through `eas build`.
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Laundry Ghar Rider accesses your photo library to attach proof-of-delivery images.',
+        cameraPermission:
+          'Laundry Ghar Rider uses your camera to capture proof-of-delivery and garment-inspection photos.',
+        microphonePermission: false,
       },
     ],
   ],

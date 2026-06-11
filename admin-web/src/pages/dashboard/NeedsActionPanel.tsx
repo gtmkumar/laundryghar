@@ -19,6 +19,7 @@ import { usePickupRequests } from '@/hooks/usePickups'
 import { useStores } from '@/hooks/useTenancy'
 import { useCustomerNameMap } from '@/hooks/useCatalog'
 import { useBrandStore } from '@/stores/brandStore'
+import { ErrorState } from '@/components/shared/ErrorState'
 import {
   formatDurationMinutes,
   minutesSince,
@@ -92,6 +93,14 @@ export function NeedsActionPanel() {
   }, [opsQ.data, pickupsQ.data, storeMap, customerNameMap, navigate])
 
   const isLoading = opsQ.isLoading || pickupsQ.isLoading
+  // Either source failing must surface — a half-loaded list would falsely read
+  // as "all clear" during an outage, the exact WEB-1 failure mode.
+  const isError = opsQ.isError || pickupsQ.isError
+  const error = (opsQ.error ?? pickupsQ.error) as Error | null
+  const retry = () => {
+    if (opsQ.isError) void opsQ.refetch()
+    if (pickupsQ.isError) void pickupsQ.refetch()
+  }
 
   return (
     <div className="flex h-full flex-col rounded-3xl border border-[#ede9e0] bg-white p-6 shadow-sm">
@@ -113,6 +122,8 @@ export function NeedsActionPanel() {
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
+      ) : isError ? (
+        <ErrorState error={error} onRetry={retry} />
       ) : rows.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
           <AlertCircle className="h-8 w-8 text-gray-200" />

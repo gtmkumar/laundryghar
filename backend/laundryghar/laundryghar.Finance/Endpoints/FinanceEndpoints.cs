@@ -247,6 +247,12 @@ public static class FinanceEndpoints
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PlatformPlanDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:saas.manage");
 
+        platPlans.MapPatch("/{id:guid}/status", async (Guid id, PatchPlatformPlanStatusRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new PatchPlatformPlanStatusCommand(id, req.Status, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PlatformPlanDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:saas.manage");
+
         platPlans.MapDelete("/{id:guid}", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {
             var ok = await sender.Send(new DeletePlatformPlanCommand(id, u.UserId), ct);

@@ -28,6 +28,7 @@ import {
   drawerInputCls,
 } from '@/components/shared/FormDrawer'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
 import { apiErrorMessage } from '@/lib/apiError'
 import type {
   PriceListDto,
@@ -284,6 +285,7 @@ export function PriceListDetailDrawer({
   const [draft, setDraft] = useState<RowDraft>(blankRow())
   const [editingRowId, setEditingRowId] = useState<string | null>(null)
   const [rowError, setRowError] = useState<string | null>(null)
+  const gate = useConfirm()
 
   useEffect(() => {
     if (!priceList) return
@@ -503,7 +505,20 @@ export function PriceListDetailDrawer({
               </button>
               <button
                 type="button"
-                onClick={() => void doPublish()}
+                onClick={() => {
+                  setHeaderError(null)
+                  if (rows.length === 0) {
+                    setHeaderError('Add at least one priced item before publishing.')
+                    return
+                  }
+                  gate.confirm({
+                    title: 'Publish price list?',
+                    description: `“${priceList.name}” (${priceList.code}) will go live with ${rows.length} priced item${rows.length === 1 ? '' : 's'}. A published list is read-only.`,
+                    confirmLabel: 'Publish',
+                    tone: 'warning',
+                    onConfirm: () => doPublish(),
+                  })
+                }}
                 disabled={publish.isPending}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
               >
@@ -576,7 +591,20 @@ export function PriceListDetailDrawer({
                           <button type="button" onClick={() => startEdit(r)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700" title="Edit">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          <button type="button" onClick={() => void removeRow(r)} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600" title="Remove">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              gate.confirm({
+                                title: 'Remove priced item?',
+                                description: `“${r.displayLabel ?? `${itemName(r.itemId)} · ${serviceName(r.serviceId)}`}” will be removed from this price list.`,
+                                confirmLabel: 'Remove item',
+                                tone: 'danger',
+                                onConfirm: () => removeRow(r),
+                              })
+                            }
+                            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                            title="Remove"
+                          >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -653,6 +681,7 @@ export function PriceListDetailDrawer({
           </div>
         )}
       </DrawerSection>
+      <ConfirmDialog {...gate.dialogProps} />
     </FormDrawer>
   )
 }

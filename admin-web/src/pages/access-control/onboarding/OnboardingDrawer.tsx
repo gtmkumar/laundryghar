@@ -7,6 +7,7 @@ import {
   useOnboardingState, useStartOnboarding, useSaveDetails, useSaveCommercials,
   useInviteOwner, useAddStore, useActivateFranchise,
 } from '@/hooks/useOnboarding'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
 import type { OnboardingState } from '@/types/api'
 
 interface Props {
@@ -116,12 +117,22 @@ function OnboardingBody({ state, onActivated }: { state: OnboardingState; onActi
   const [open, setOpen] = useState<string>(firstPending)
   const activate = useActivateFranchise(state.id)
   const [activateError, setActivateError] = useState<string | null>(null)
+  const gate = useConfirm()
 
   const goLive = async () => {
     setActivateError(null)
     try { await activate.mutateAsync(); onActivated() }
     catch (e) { setActivateError(e instanceof Error ? e.message : 'Could not activate.') }
   }
+
+  const confirmGoLive = () =>
+    gate.confirm({
+      title: 'Go live with this franchise?',
+      description: `“${state.displayName || state.legalName}” will be activated and become operational. Make sure onboarding is complete.`,
+      confirmLabel: 'Go live',
+      tone: 'warning',
+      onConfirm: () => goLive(),
+    })
 
   return (
     <div className="space-y-5">
@@ -181,7 +192,7 @@ function OnboardingBody({ state, onActivated }: { state: OnboardingState; onActi
         {activateError && <p className="mb-2 text-sm text-red-600">{activateError}</p>}
         <button
           type="button"
-          onClick={goLive}
+          onClick={confirmGoLive}
           disabled={!state.canActivate || activate.isPending}
           className={cn(
             'inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors',
@@ -192,6 +203,7 @@ function OnboardingBody({ state, onActivated }: { state: OnboardingState; onActi
           {state.isActive ? 'Franchise is live' : state.canActivate ? 'Go live' : 'Complete all steps to go live'}
         </button>
       </div>
+      <ConfirmDialog {...gate.dialogProps} />
     </div>
   )
 }
@@ -262,8 +274,20 @@ function CommercialsForm({ state }: { state: OnboardingState }) {
 
   const submit = async () => {
     setErr(null)
+    const royaltyPercent = Number(royalty)
+    const marketingFeePercent = Number(marketing)
+    const initialFranchiseFee = Number(fee)
+    const termYears = Number(term)
+    if (!Number.isFinite(royaltyPercent) || royaltyPercent < 0 || royaltyPercent > 100)
+      return setErr('Royalty % must be between 0 and 100.')
+    if (!Number.isFinite(marketingFeePercent) || marketingFeePercent < 0 || marketingFeePercent > 100)
+      return setErr('Marketing fee % must be between 0 and 100.')
+    if (!Number.isFinite(initialFranchiseFee) || initialFranchiseFee < 0)
+      return setErr('Franchise fee must be 0 or greater.')
+    if (!Number.isInteger(termYears) || termYears < 1)
+      return setErr('Term must be a whole number of 1 year or more.')
     try {
-      await save.mutateAsync({ royaltyPercent: Number(royalty) || 0, marketingFeePercent: Number(marketing) || 0, initialFranchiseFee: Number(fee) || 0, termYears: Number(term) || 5 })
+      await save.mutateAsync({ royaltyPercent, marketingFeePercent, initialFranchiseFee, termYears })
     } catch (e) { setErr(e instanceof Error ? e.message : 'Save failed.') }
   }
 

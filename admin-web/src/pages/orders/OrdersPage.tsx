@@ -200,8 +200,6 @@ function OrdersTab({ onOpenOrder, selectedId }: { onOpenOrder: (id: string | nul
     onNew: (id) => {
       const o = orderById.get(id)
       if (!o) return
-      // eslint-disable-next-line no-console
-      console.log('[order-chime] new order', o.orderNumber)
       playChime()
       showToast(
         'success',
@@ -217,8 +215,6 @@ function OrdersTab({ onOpenOrder, selectedId }: { onOpenOrder: (id: string | nul
     onNew: (id) => {
       const p = pickupById.get(id)
       if (!p) return
-      // eslint-disable-next-line no-console
-      console.log('[order-chime] new pickup', p.requestNumber)
       playChime()
       showToast('info', t('orders.newPickupToast', { number: p.requestNumber }))
     },

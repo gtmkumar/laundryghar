@@ -8,6 +8,7 @@ import {
 } from '@/hooks/useCms'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { usePermissions } from '@/hooks/usePermissions'
+import { isValidHttpUrl, isValidHexColor } from '@/lib/validation'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { DataTable, type Column } from '@/components/shared/DataTable'
@@ -123,6 +124,23 @@ function FormModal({ initial, onClose }: FormModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (!isValidHttpUrl(fields.imageUrl)) {
+      setError('Image URL must be a valid http(s) URL.')
+      return
+    }
+    if (fields.imageDarkUrl && !isValidHttpUrl(fields.imageDarkUrl)) {
+      setError('Image URL (Dark mode) must be a valid http(s) URL.')
+      return
+    }
+    if (fields.backgroundColor && !isValidHexColor(fields.backgroundColor)) {
+      setError('Background colour must be a 6-digit hex value, e.g. #FFFFFF.')
+      return
+    }
+    if (fields.textColor && !isValidHexColor(fields.textColor)) {
+      setError('Text colour must be a 6-digit hex value, e.g. #000000.')
+      return
+    }
 
     try {
       if (isEdit && initial) {

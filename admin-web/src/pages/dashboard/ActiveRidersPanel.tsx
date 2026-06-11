@@ -11,6 +11,7 @@ import { Bike, MapPin, ArrowUpRight } from 'lucide-react'
 import { useRidersLive } from '@/hooks/useRiders'
 import type { RiderLiveDto, RiderOpsStatus } from '@/types/api'
 import { formatDurationMinutes, minutesSince } from '@/pages/orders/orderFormat'
+import { ErrorState } from '@/components/shared/ErrorState'
 
 // Status dot colour + i18n key per ops status.
 const OPS_META: Record<RiderOpsStatus, { dot: string; labelKey: string }> = {
@@ -71,7 +72,7 @@ function RiderRow({ rider }: { rider: RiderLiveDto }) {
 
 export function ActiveRidersPanel() {
   const { t } = useTranslation()
-  const { data, isLoading } = useRidersLive()
+  const { data, isLoading, isError, error, refetch } = useRidersLive()
 
   const riders = data ?? []
   const onDuty = riders.filter((r) => r.isOnDuty)
@@ -118,6 +119,8 @@ export function ActiveRidersPanel() {
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
+      ) : isError ? (
+        <ErrorState error={error as Error} onRetry={() => void refetch()} />
       ) : sorted.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
           <Bike className="h-8 w-8 text-gray-200" />

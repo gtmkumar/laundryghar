@@ -10,7 +10,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useOnboardRider } from '@/hooks/useRiders'
 import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import { FieldError } from '@/components/ui/FieldError'
-import { requiredEmail, optionalPhone, optionalPan, optionalIfsc, optionalUpi, nonNegativeInt } from '@/lib/validation'
+import { requiredEmail, optionalPhone, optionalPan, optionalIfsc, optionalUpi, nonNegativeInt, futureDate } from '@/lib/validation'
 import type { RiderEmploymentType, RiderVehicleType } from '@/types/api'
 
 interface Props {
@@ -47,10 +47,10 @@ const schema = z.object({
   vehicleNumber: z.string().optional(),
   vehicleModel: z.string().optional(),
   drivingLicenseNumber: z.string().optional(),
-  dlExpiryDate: z.string().optional(),
+  dlExpiryDate: futureDate,
   aadhaarNumberMasked: z.string().optional(),
   panNumber: optionalPan,
-  insuranceExpiryDate: z.string().optional(),
+  insuranceExpiryDate: futureDate,
   bankAccountNumber: z.string().optional(),
   bankIfsc: optionalIfsc,
   bankAccountName: z.string().optional(),
@@ -301,7 +301,14 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
             <input {...register('drivingLicenseNumber')} className={drawerInputCls} />
           </Field>
           <Field label="DL expiry">
-            <input {...register('dlExpiryDate')} type="date" className={drawerInputCls} />
+            <input
+              {...register('dlExpiryDate')}
+              type="date"
+              aria-invalid={!!errors.dlExpiryDate}
+              aria-describedby={errors.dlExpiryDate ? 'rider-dlexpiry-error' : undefined}
+              className={drawerInputCls}
+            />
+            <FieldError id="rider-dlexpiry-error" message={errors.dlExpiryDate?.message} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -320,7 +327,14 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
           </Field>
         </div>
         <Field label="Insurance expiry">
-          <input {...register('insuranceExpiryDate')} type="date" className={drawerInputCls} />
+          <input
+            {...register('insuranceExpiryDate')}
+            type="date"
+            aria-invalid={!!errors.insuranceExpiryDate}
+            aria-describedby={errors.insuranceExpiryDate ? 'rider-insexpiry-error' : undefined}
+            className={drawerInputCls}
+          />
+          <FieldError id="rider-insexpiry-error" message={errors.insuranceExpiryDate?.message} />
         </Field>
 
         <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Payout details</p>

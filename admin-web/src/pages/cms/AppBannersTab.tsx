@@ -8,6 +8,7 @@ import {
 } from '@/hooks/useCms'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { usePermissions } from '@/hooks/usePermissions'
+import { isValidHttpUrl, isValidHexColor } from '@/lib/validation'
 import { usePromotions, useCoupons } from '@/hooks/useCommerce'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -148,6 +149,23 @@ function FormModal({ initial, onClose }: FormModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (!isValidHttpUrl(fields.imageUrl)) {
+      setError('Image URL must be a valid http(s) URL.')
+      return
+    }
+    if (fields.imageDarkUrl && !isValidHttpUrl(fields.imageDarkUrl)) {
+      setError('Image URL (Dark) must be a valid http(s) URL.')
+      return
+    }
+    if (fields.externalUrl && !isValidHttpUrl(fields.externalUrl)) {
+      setError('External URL must be a valid http(s) URL.')
+      return
+    }
+    if (fields.backgroundColor && !isValidHexColor(fields.backgroundColor)) {
+      setError('Background colour must be a 6-digit hex value, e.g. #FFFFFF.')
+      return
+    }
 
     const base = {
       appType: fields.appType,

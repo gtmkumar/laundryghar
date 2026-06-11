@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
 import { type Column } from '@/components/shared/DataTable'
 import { FilterableTable, type FilterDef } from '@/components/shared/FilterableTable'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { showToast } from '@/stores/toastStore'
 import type { ExpenseDto } from '@/types/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
@@ -91,11 +93,14 @@ export function ExpensesPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [rejecting, setRejecting] = useState<ExpenseDto | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const gate = useConfirm()
 
   const runAction = async (id: string, fn: () => Promise<unknown>) => {
     setBusyId(id)
     try {
       await fn()
+    } catch (e) {
+      showToast('error', e instanceof Error ? e.message : 'Could not complete the action.')
     } finally {
       setBusyId(null)
     }
@@ -122,7 +127,16 @@ export function ExpensesPage() {
                           <>
                             <ActionMenuItem
                               icon={Check}
-                              onClick={() => { close(); void runAction(r.id, () => approve.mutateAsync({ id: r.id })) }}
+                              onClick={() => {
+                                close()
+                                gate.confirm({
+                                  title: 'Approve expense?',
+                                  description: `Approve ${r.expenseNumber} for ${formatCurrency(r.totalAmount ?? r.amount)} (${r.categoryName})?`,
+                                  confirmLabel: 'Approve',
+                                  tone: 'default',
+                                  onConfirm: () => runAction(r.id, () => approve.mutateAsync({ id: r.id })),
+                                })
+                              }}
                             >
                               Approve
                             </ActionMenuItem>
@@ -134,7 +148,16 @@ export function ExpensesPage() {
                         {canManage && r.status === 'approved' && (
                           <ActionMenuItem
                             icon={Banknote}
-                            onClick={() => { close(); void runAction(r.id, () => markPaid.mutateAsync({ id: r.id })) }}
+                            onClick={() => {
+                              close()
+                              gate.confirm({
+                                title: 'Mark expense as paid?',
+                                description: `This records ${formatCurrency(r.totalAmount ?? r.amount)} as paid for ${r.expenseNumber} (${r.categoryName}). This affects the books.`,
+                                confirmLabel: 'Mark paid',
+                                tone: 'warning',
+                                onConfirm: () => runAction(r.id, () => markPaid.mutateAsync({ id: r.id })),
+                              })
+                            }}
                           >
                             Mark paid
                           </ActionMenuItem>
@@ -206,6 +229,19 @@ export function ExpensesPage() {
             }
             filters={filters}
             initialSort={{ key: 'date', dir: 'desc' }}
+            csvExport={{
+              filename: 'expenses',
+              columns: [
+                { header: 'Number', value: (r) => r.expenseNumber },
+                { header: 'Date', value: (r) => r.expenseDate },
+                { header: 'Category', value: (r) => r.categoryName },
+                { header: 'Vendor', value: (r) => r.vendorName ?? '' },
+                { header: 'Amount', value: (r) => r.totalAmount ?? r.amount },
+                { header: 'Mode', value: (r) => r.paymentMode },
+                { header: 'Status', value: (r) => r.status },
+                { header: 'Description', value: (r) => r.description },
+              ],
+            }}
             emptyMessage="No expenses found."
             noMatchMessage="No expenses match your filters."
           />
@@ -214,6 +250,7 @@ export function ExpensesPage() {
 
       <AddExpenseDrawer open={addOpen} onClose={() => setAddOpen(false)} />
       <RejectExpenseDrawer expense={rejecting} onClose={() => setRejecting(null)} />
+      <ConfirmDialog {...gate.dialogProps} />
     </div>
   )
 }

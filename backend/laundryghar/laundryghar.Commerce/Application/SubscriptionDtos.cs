@@ -78,6 +78,8 @@ public sealed record CreateSubscriptionPlanRequest(
     DateTimeOffset? AvailableTo
 );
 
+public sealed record PatchSubscriptionPlanStatusRequest(string Status);
+
 public sealed record UpdateSubscriptionPlanRequest(
     string Name,
     string NameLocalized,

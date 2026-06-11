@@ -15,6 +15,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { showToast } from '@/stores/toastStore'
 import { useRidersInfinite, useVerifyRider, useRejectRider } from '@/hooks/useRiders'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useAccessFranchises } from '@/hooks/useAccessControl'
@@ -366,46 +368,69 @@ function RowActions({
   const { hasPermission } = usePermissions()
   const verify = useVerifyRider()
   const reject = useRejectRider()
+  const gate = useConfirm()
 
   const canVerify = hasPermission('rider.verify')
   const showKyc = canVerify && isKycActionable(rider.kycStatus)
   const busy = verify.isPending || reject.isPending
+  const riderLabel = rider.riderName ?? rider.riderCode ?? 'this rider'
 
-  const approve = async () => {
-    try {
-      await verify.mutateAsync(rider.id)
-    } catch {
-      // Surfaced in the detail drawer on retry; row stays as-is on failure.
-    }
-  }
+  const approve = () =>
+    gate.confirm({
+      title: 'Approve KYC?',
+      description: `Mark ${riderLabel}'s KYC as verified. They can be assigned to deliveries.`,
+      confirmLabel: 'Approve',
+      tone: 'default',
+      onConfirm: async () => {
+        try {
+          await verify.mutateAsync(rider.id)
+          showToast('success', 'KYC approved.')
+        } catch (e) {
+          showToast('error', e instanceof Error ? e.message : 'Could not approve KYC.')
+        }
+      },
+    })
 
-  const doReject = async () => {
-    const reason = window.prompt('Reason for rejecting this rider’s KYC (optional):') ?? undefined
-    try {
-      await reject.mutateAsync({ id: rider.id, reason: reason?.trim() || undefined })
-    } catch {
-      // No-op; the list simply won't change on failure.
-    }
-  }
+  const doReject = () =>
+    gate.confirm({
+      title: 'Reject KYC?',
+      description: `Reject ${riderLabel}'s KYC. Provide a reason so the rider can correct and resubmit.`,
+      confirmLabel: 'Reject',
+      tone: 'danger',
+      reasonOptional: true,
+      reasonLabel: 'Reason for rejection',
+      reasonPlaceholder: 'e.g. DL photo unreadable',
+      onConfirm: async (reason) => {
+        try {
+          await reject.mutateAsync({ id: rider.id, reason: reason?.trim() || undefined })
+          showToast('success', 'KYC rejected.')
+        } catch (e) {
+          showToast('error', e instanceof Error ? e.message : 'Could not reject KYC.')
+        }
+      },
+    })
 
   return (
-    <ActionMenu busy={busy} label="Rider actions" width={176}>
-      {(close) => (
-        <>
-          <ActionMenuItem icon={Eye} onClick={() => { close(); onView() }}>View</ActionMenuItem>
-          {canManage && (
-            <ActionMenuItem icon={Pencil} onClick={() => { close(); onEdit() }}>Edit</ActionMenuItem>
-          )}
-          {showKyc && (
-            <>
-              <div className="my-1 border-t border-gray-100" />
-              <ActionMenuItem icon={Check} onClick={() => { close(); approve() }} className="text-emerald-700">Approve</ActionMenuItem>
-              <ActionMenuItem icon={Ban} onClick={() => { close(); doReject() }} className="text-rose-700">Reject</ActionMenuItem>
-            </>
-          )}
-        </>
-      )}
-    </ActionMenu>
+    <>
+      <ActionMenu busy={busy} label="Rider actions" width={176}>
+        {(close) => (
+          <>
+            <ActionMenuItem icon={Eye} onClick={() => { close(); onView() }}>View</ActionMenuItem>
+            {canManage && (
+              <ActionMenuItem icon={Pencil} onClick={() => { close(); onEdit() }}>Edit</ActionMenuItem>
+            )}
+            {showKyc && (
+              <>
+                <div className="my-1 border-t border-gray-100" />
+                <ActionMenuItem icon={Check} onClick={() => { close(); approve() }} className="text-emerald-700">Approve</ActionMenuItem>
+                <ActionMenuItem icon={Ban} onClick={() => { close(); doReject() }} className="text-rose-700">Reject</ActionMenuItem>
+              </>
+            )}
+          </>
+        )}
+      </ActionMenu>
+      <ConfirmDialog {...gate.dialogProps} />
+    </>
   )
 }
 

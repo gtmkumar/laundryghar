@@ -36,4 +36,11 @@ public sealed record CustomerTokenClaims(
 {
     /// <summary>Fixed token_use value for customers. Pinned for Catalog service contract.</summary>
     public const string TokenUseValue = "customer";
+
+    /// <summary>
+    /// token_use value for customers authenticated via OAuth 2.1 (MCP path).
+    /// These tokens also carry a <c>scope</c> claim (e.g., "mcp:booking") and are
+    /// rejected by Catalog/Orders endpoints (which only accept token_use=customer).
+    /// </summary>
+    public const string OAuthTokenUseValue = "customer_mcp";
 }

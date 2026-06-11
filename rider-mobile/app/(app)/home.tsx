@@ -20,6 +20,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { useMyRiderProfile, useTodaysAssignments, useUpdateAssignmentStatus } from '@/hooks/useRider';
 import { useRiderTasks } from '@/hooks/useRiderTasks';
 import { useAuthStore } from '@/store/authStore';
@@ -27,6 +28,7 @@ import { useDutyStore, type ChecklistItem } from '@/store/dutyStore';
 import { sendCurrentLocationPing } from '@/lib/sendCurrentLocation';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
+import { HomeScreenSkeleton } from '@/components/ui/Skeleton';
 import { useTranslation } from 'react-i18next';
 
 function greeting(): string {
@@ -40,7 +42,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { rider, setRider } = useAuthStore();
-  const { isOnDuty, setOnDuty, checklist, toggleChecklist } = useDutyStore();
+  const { isOnDuty, setOnDuty, checklist, toggleChecklist, syncMismatch, serverOnDuty, clearSyncMismatch } = useDutyStore();
   const [busy, setBusy] = useState(false);
 
   const CHECKLIST: { key: ChecklistItem; label: string }[] = [
@@ -53,7 +55,7 @@ export default function HomeScreen() {
   const { data: me } = useMyRiderProfile();
   const { data: assignments } = useTodaysAssignments();
   const { mutateAsync: updateAssignment } = useUpdateAssignmentStatus();
-  const { stats, isDemo } = useRiderTasks();
+  const { stats, isDemo, isLoading: tasksLoading } = useRiderTasks();
 
   useEffect(() => { if (me) setRider(me); }, [me, setRider]);
 
@@ -96,6 +98,7 @@ export default function HomeScreen() {
   }
 
   function toggleDuty() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (isOnDuty) {
       Alert.alert(t('home.goOffDuty'), t('home.goOffDutyMessage'), [
         { text: t('home.stayOnline'), style: 'cancel' },
@@ -105,6 +108,11 @@ export default function HomeScreen() {
       void goOnDuty();
     }
   }
+
+  // Show content-shaped skeleton on first load so the tab never blanks out.
+  // Gate on tasksLoading alone — rider hydrates from SecureStore instantly so
+  // the `!rider` guard previously made the skeleton nearly unreachable.
+  if (tasksLoading) return <HomeScreenSkeleton />;
 
   return (
     <View className="flex-1 bg-cream">
@@ -118,6 +126,20 @@ export default function HomeScreen() {
       ) : null}
 
       <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
+        {/* Duty sync-mismatch banner — shown once when local vs server disagree */}
+        {syncMismatch ? (
+          <View className="mx-5 mt-2 flex-row items-center gap-2 rounded-2xl bg-gold-100 px-4 py-3">
+            <Ionicons name="sync-outline" size={16} color="#8A641D" />
+            <Text className="flex-1 text-xs font-semibold text-gold-800">
+              {serverOnDuty
+                ? 'Server shows you on duty. Your local state is used — tap your status to sync.'
+                : 'Server shows you off duty. Your local state is used — tap your status to sync.'}
+            </Text>
+            <Pressable onPress={clearSyncMismatch} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
+              <Ionicons name="close" size={16} color="#8A641D" />
+            </Pressable>
+          </View>
+        ) : null}
         <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View className="flex-row items-center px-5 pt-2">
@@ -130,7 +152,7 @@ export default function HomeScreen() {
             </Pressable>
             <View className="flex-1" />
             <Pressable
-              onPress={() => Alert.alert(t('home.notifications'), t('home.allCaughtUp'))}
+              onPress={() => router.push('/(app)/notifications' as never)}
               className="h-11 w-11 items-center justify-center rounded-2xl border border-cream-300 bg-white active:opacity-70"
               accessibilityRole="button"
               accessibilityLabel={t('a11y.notifications')}

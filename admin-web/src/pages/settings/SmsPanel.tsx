@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Eye, EyeOff, Loader2, Save, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdateSmsSettings } from '@/hooks/useSettings'
+import { useCanManageSettings } from '@/hooks/usePermissions'
 import type { AdminSettings, UpdateSmsPayload } from '@/types/api'
 
 export function SmsPanel({ settings }: { settings: AdminSettings }) {
   const s = settings.sms
   const update = useUpdateSmsSettings()
+  const canManage = useCanManageSettings()
 
   const [enabled, setEnabled] = useState(s.enabled)
   const [authKey, setAuthKey] = useState('')
@@ -115,12 +117,16 @@ export function SmsPanel({ settings }: { settings: AdminSettings }) {
           <button
             type="button"
             onClick={save}
-            disabled={update.isPending}
+            disabled={update.isPending || !canManage}
+            title={canManage ? undefined : 'You don’t have permission to change these settings.'}
             className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
           >
             {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Save changes
           </button>
+          {!canManage && (
+            <span className="text-xs text-gray-400">You don’t have permission to change these settings.</span>
+          )}
           {savedAt && <span className="text-xs text-lg-green">Saved at {savedAt}</span>}
           {error && <span className="text-xs text-red-600">{error}</span>}
         </div>

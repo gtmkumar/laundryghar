@@ -44,6 +44,22 @@ export async function updateSubscriptionPlan(
   return unwrap(data)
 }
 
+/**
+ * Status-only transition (publish/pause/archive). PATCHes just `{ status }` so a
+ * concurrent edit to price/quota/features is NOT clobbered by re-POSTing a stale
+ * full DTO — the backend bumps the row Version itself (WEB-6 lost-update fix).
+ */
+export async function patchSubscriptionPlanStatus(
+  id: string,
+  status: string,
+): Promise<SubscriptionPlanDto> {
+  const { data } = await commerceClient.patch<ApiResponse<SubscriptionPlanDto>>(
+    `${ADMIN}/subscription-plans/${id}/status`,
+    { status },
+  )
+  return unwrap(data)
+}
+
 /** Soft-delete a subscription plan (only when it has no active subscribers). */
 export async function deleteSubscriptionPlan(id: string): Promise<void> {
   await commerceClient.delete(`${ADMIN}/subscription-plans/${id}`)

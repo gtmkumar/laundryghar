@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import * as Haptics from 'expo-haptics';
 import { sendLoginOtp, verifyLoginOtp } from '@/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { OtpInput } from '@/components/ui/OtpInput';
@@ -49,9 +50,11 @@ export default function OtpScreen() {
     setError(false);
     try {
       const tokens = await verifyLoginOtp(phone, full);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await setTokens(tokens);
       router.replace('/(app)/home');
     } catch (err: unknown) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(true);
       setCode('');
       Alert.alert(

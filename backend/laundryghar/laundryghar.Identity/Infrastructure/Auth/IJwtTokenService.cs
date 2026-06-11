@@ -9,6 +9,13 @@ public interface IJwtTokenService
     /// <summary>Creates a signed access JWT for a customer. Emits token_use=customer.</summary>
     string CreateCustomerAccessToken(CustomerTokenClaims claims);
 
+    /// <summary>
+    /// Creates a signed access JWT for a customer authenticated via OAuth 2.1 (MCP path).
+    /// Emits <c>token_use=customer_mcp</c> and the granted <c>scope</c> claim so that the MCP
+    /// resource server can enforce scope independently of regular customer tokens.
+    /// </summary>
+    string CreateOAuthCustomerAccessToken(CustomerTokenClaims claims, string scope);
+
     /// <summary>Creates a raw (pre-hash) refresh token string. Caller is responsible for hashing and persisting.</summary>
     string GenerateRefreshTokenRaw();
 

@@ -4,7 +4,9 @@
  */
 import { catalogClient, unwrapList, unwrapSingle } from '@/api/client';
 import type {
+  AccountDeletionRequestDto,
   CreateAddressRequest,
+  CreateDeletionRequestRequest,
   CustomerAddressDto,
   CustomerProfileDto,
   ListResponse,
@@ -110,6 +112,42 @@ export async function checkServiceability(
   const res = await catalogClient.get<SingleResponse<ServiceabilityDto>>(
     '/customer/serviceability/',
     { params: { pincode } },
+  );
+  return unwrapSingle(res.data);
+}
+
+// ── Account deletion ─────────────────────────────────────────────────────────
+
+/** POST /api/v1/customer/account/deletion-request */
+export async function requestAccountDeletion(
+  body: CreateDeletionRequestRequest,
+): Promise<AccountDeletionRequestDto> {
+  const res = await catalogClient.post<SingleResponse<AccountDeletionRequestDto>>(
+    '/customer/account/deletion-request',
+    body,
+  );
+  return unwrapSingle(res.data);
+}
+
+/** GET /api/v1/customer/account/deletion-request */
+export async function getAccountDeletionRequest(): Promise<AccountDeletionRequestDto | null> {
+  try {
+    const res = await catalogClient.get<SingleResponse<AccountDeletionRequestDto>>(
+      '/customer/account/deletion-request',
+    );
+    return res.data?.data ?? null;
+  } catch (err: unknown) {
+    // 404 = no pending request
+    const axiosErr = err as { response?: { status?: number } };
+    if (axiosErr?.response?.status === 404) return null;
+    throw err;
+  }
+}
+
+/** DELETE /api/v1/customer/account/deletion-request */
+export async function cancelAccountDeletion(): Promise<AccountDeletionRequestDto> {
+  const res = await catalogClient.delete<SingleResponse<AccountDeletionRequestDto>>(
+    '/customer/account/deletion-request',
   );
   return unwrapSingle(res.data);
 }

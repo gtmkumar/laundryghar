@@ -1,14 +1,16 @@
 /**
  * Booking step 2 — "Schedule pickup".
- * Address picker (from saved addresses), a day picker (next 5 days) and a slot grid.
- * Selection is held in the booking store. Express toggle adds a surcharge at pay.
+ * Address picker (from saved addresses), a day picker (next 7 days) and a live slot grid.
  *
- * Slots are presented as a fixed daily grid; live capacity wiring
- * (GET {Orders}/customer/delivery-slots) needs a resolved store, which this
- * pre-order flow doesn't have yet — so availability here is illustrative.
+ * MOB-1: slots now come from GET /api/v1/customer/delivery-slots?date=<iso>
+ * storeId is not known pre-order (store is assigned server-side), so we omit it
+ * and the endpoint returns all slots for the brand's active stores on that day.
+ * Full slots (available=false) are rendered disabled and grayed.
+ * The real UUID is stored so pay.tsx sends it instead of a stub id.
  */
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -21,9 +23,10 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAddresses } from '@/hooks/useCatalog';
+import { useDeliverySlots } from '@/hooks/useOrders';
 import { useBookingStore } from '@/store/bookingStore';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
-import type { CustomerAddressDto } from '@/types/api';
+import type { CustomerAddressDto, DeliverySlotDto } from '@/types/api';
 
 interface DayOption {
   iso: string;
@@ -31,22 +34,6 @@ interface DayOption {
   day: string;
   month: string;
 }
-
-interface SlotOption {
-  id: string;
-  label: string;
-  note: string;
-  status: 'available' | 'few' | 'full' | 'express';
-}
-
-const SLOTS: SlotOption[] = [
-  { id: 's-10', label: '10 – 12 AM', note: 'fewLeft',     status: 'few' },
-  { id: 's-12', label: '12 – 2 PM',  note: 'available',   status: 'available' },
-  { id: 's-14', label: '2 – 4 PM',   note: 'slotFull',    status: 'full' },
-  { id: 's-16', label: '4 – 6 PM',   note: 'available',   status: 'available' },
-  { id: 's-18', label: '6 – 8 PM',   note: 'expressOnly', status: 'express' },
-  { id: 's-20', label: '8 – 10 PM',  note: 'slotFull',    status: 'full' },
-];
 
 function nextDays(n: number): DayOption[] {
   const out: DayOption[] = [];
@@ -62,6 +49,19 @@ function nextDays(n: number): DayOption[] {
     });
   }
   return out;
+}
+
+function formatSlotLabel(slot: DeliverySlotDto): string {
+  // slotStart / slotEnd are time strings like "10:00:00"
+  const fmt = (t: string) => {
+    const [h, m] = t.split(':');
+    const hour = parseInt(h, 10);
+    const min = m === '00' ? '' : `:${m}`;
+    const period = hour < 12 ? 'AM' : 'PM';
+    const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${h12}${min} ${period}`;
+  };
+  return `${fmt(slot.slotStart)} – ${fmt(slot.slotEnd)}`;
 }
 
 // ── Address picker modal ──────────────────────────────────────────────────────
@@ -185,6 +185,107 @@ function AddressPickerModal({
   );
 }
 
+// ── Slot grid ─────────────────────────────────────────────────────────────────
+
+function SlotGrid({
+  dayIso,
+  selectedSlotId,
+  onSelect,
+}: {
+  dayIso: string;
+  selectedSlotId?: string;
+  onSelect: (slot: DeliverySlotDto) => void;
+}) {
+  const { t } = useTranslation();
+  // storeId is unknown pre-order; omit it — endpoint returns brand-level slots.
+  const { data: slots, isLoading, isError } = useDeliverySlots(undefined, dayIso);
+
+  if (isLoading) {
+    return (
+      <View className="mx-5 items-center py-8">
+        <ActivityIndicator size="small" color="#5C6A33" />
+      </View>
+    );
+  }
+
+  if (isError || !slots) {
+    return (
+      <View className="mx-5 rounded-2xl bg-red-50 p-4">
+        <Text className="text-xs text-red-600">{t('error.generic')}</Text>
+      </View>
+    );
+  }
+
+  // Filter to pickup slots only, sort by start time.
+  const pickupSlots = slots
+    .filter((s) => s.slotType === 'pickup' && s.isActive)
+    .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
+
+  if (pickupSlots.length === 0) {
+    return (
+      <View className="mx-5 rounded-2xl bg-cream-100 p-4">
+        <Text className="text-sm text-ink-muted">{t('booking.noSlotsForDay')}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="mx-5 flex-row flex-wrap justify-between">
+      {pickupSlots.map((s) => {
+        const full = !s.available;
+        const selected = selectedSlotId === s.id;
+        const remaining = s.capacity - s.bookedCount;
+        const fewLeft = remaining > 0 && remaining <= 3;
+
+        const noteText = full
+          ? t('booking.slotFull')
+          : fewLeft
+            ? t('booking.fewLeft')
+            : s.isExpress
+              ? t('booking.expressOnly')
+              : t('booking.available');
+
+        const noteColor = selected
+          ? 'text-olive-100'
+          : full
+            ? 'text-danger'
+            : fewLeft
+              ? 'text-gold-600'
+              : 'text-ink-muted';
+
+        const label = formatSlotLabel(s);
+
+        return (
+          <Pressable
+            key={s.id}
+            disabled={full}
+            onPress={() => onSelect(s)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected, disabled: full }}
+            accessibilityLabel={`${label} - ${noteText}`}
+            className={[
+              'mb-3 w-[48%] rounded-2xl border p-3.5',
+              selected
+                ? 'border-olive-700 bg-olive-700'
+                : 'border-cream-300 bg-white',
+              full ? 'opacity-50' : '',
+            ].join(' ')}
+          >
+            <Text
+              className={`text-base font-extrabold ${selected ? 'text-white' : 'text-ink'}`}
+            >
+              {label}
+            </Text>
+            <Text className={`mt-0.5 text-xs font-semibold ${noteColor}`}>
+              {noteText}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function PickupScreen() {
@@ -194,7 +295,8 @@ export default function PickupScreen() {
   const { address, setAddress, slot, setSlot, express, setExpress } =
     useBookingStore();
 
-  const days = useMemo(() => nextDays(5), []);
+  // 7 days as required by MOB-1
+  const days = useMemo(() => nextDays(7), []);
   const [dayIso, setDayIso] = useState(days[1]?.iso ?? days[0].iso);
   const [pickerVisible, setPickerVisible] = useState(false);
 
@@ -234,14 +336,19 @@ export default function PickupScreen() {
     setPickerVisible(false);
   };
 
+  const handleSelectSlot = (s: DeliverySlotDto) => {
+    setSlot({
+      id: s.id,        // real UUID from the backend
+      date: dayIso,
+      label: formatSlotLabel(s),
+      windowStart: s.slotStart,
+      windowEnd: s.slotEnd,
+    });
+  };
+
   const onContinue = () => {
     if (!slot) return;
     const chosenDay = days.find((d) => d.iso === dayIso);
-    setSlot({
-      id: slot.id,
-      date: dayIso,
-      label: slot.label,
-    });
     router.push({
       pathname: '/(app)/booking/pay',
       params: { dateLabel: `${chosenDay?.weekday} ${chosenDay?.day} ${chosenDay?.month}` },
@@ -309,7 +416,7 @@ export default function PickupScreen() {
           </Pressable>
         ) : null}
 
-        {/* Pick a day */}
+        {/* Pick a day — 7 days */}
         <Text className="mx-5 mb-3 mt-7 text-lg font-extrabold text-ink">
           {t('booking.pickADay')}
         </Text>
@@ -323,7 +430,14 @@ export default function PickupScreen() {
             return (
               <Pressable
                 key={d.iso}
-                onPress={() => setDayIso(d.iso)}
+                onPress={() => {
+                  setDayIso(d.iso);
+                  // Clear slot when day changes to avoid stale slot UUID
+                  setSlot(null);
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${d.weekday} ${d.day} ${d.month}`}
                 className={`mr-3 w-[64px] items-center rounded-2xl py-3 ${selected ? 'bg-olive-700' : 'bg-white'}`}
               >
                 <Text
@@ -346,46 +460,15 @@ export default function PickupScreen() {
           })}
         </ScrollView>
 
-        {/* Pick a slot */}
+        {/* Live slot grid */}
         <Text className="mx-5 mb-3 mt-7 text-lg font-extrabold text-ink">
           {t('booking.pickASlot')}
         </Text>
-        <View className="mx-5 flex-row flex-wrap justify-between">
-          {SLOTS.map((s) => {
-            const disabled = s.status === 'full';
-            const selected = slot?.id === s.id;
-            const noteColor = selected
-              ? 'text-olive-100'
-              : s.status === 'full'
-                ? 'text-danger'
-                : s.status === 'express'
-                  ? 'text-gold-600'
-                  : 'text-ink-muted';
-            return (
-              <Pressable
-                key={s.id}
-                disabled={disabled}
-                onPress={() => setSlot({ id: s.id, date: dayIso, label: s.label })}
-                className={[
-                  'mb-3 w-[48%] rounded-2xl border p-3.5',
-                  selected
-                    ? 'border-olive-700 bg-olive-700'
-                    : 'border-cream-300 bg-white',
-                  disabled ? 'opacity-50' : '',
-                ].join(' ')}
-              >
-                <Text
-                  className={`text-base font-extrabold ${selected ? 'text-white' : 'text-ink'}`}
-                >
-                  {s.label}
-                </Text>
-                <Text className={`mt-0.5 text-xs font-semibold ${noteColor}`}>
-                  {t(`booking.${s.note}`, { defaultValue: s.note })}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <SlotGrid
+          dayIso={dayIso}
+          selectedSlotId={slot?.id}
+          onSelect={handleSelectSlot}
+        />
 
         {/* Express */}
         <View className="mx-5 mt-2 flex-row items-center justify-between rounded-2xl bg-gold-100 p-4">
@@ -403,6 +486,9 @@ export default function PickupScreen() {
             onValueChange={setExpress}
             trackColor={{ true: '#73803F', false: '#D2C8B2' }}
             thumbColor="#FFFFFF"
+            accessibilityRole="switch"
+            accessibilityLabel={t('booking.expressService')}
+            accessibilityState={{ checked: express }}
           />
         </View>
       </ScrollView>
@@ -418,7 +504,9 @@ export default function PickupScreen() {
           className={`flex-row items-center justify-center gap-2 rounded-2xl py-4 ${
             canContinue ? 'bg-gold-400' : 'bg-cream-300'
           }`}
-          accessibilityLabel="Continue to payment"
+          accessibilityRole="button"
+          accessibilityLabel={t('booking.continueToPayment')}
+          accessibilityState={{ disabled: !canContinue }}
         >
           <Text
             className={`text-base font-extrabold ${

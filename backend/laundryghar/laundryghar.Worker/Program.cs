@@ -131,6 +131,17 @@ builder.Services.AddScoped<IChannelSender, RoutingChannelSender>();
 // ─── Event publisher (dev stub — outbox relay publishes to log only) ──────────────────
 builder.Services.AddScoped<IEventPublisher, LoggingEventPublisher>();
 
+// ─── Subscription charger (fail-closed seam) ─────────────────────────────────────────
+// In Development, the DevSubscriptionCharger simulates mandate success so the billing
+// cycle can be exercised without a live gateway.
+// In Production, register a real ISubscriptionCharger implementation here.
+// If no charger is registered, SubscriptionBillingService fails-closed: it records a
+// "no_charger_configured" failure rather than faking success.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSingleton<ISubscriptionCharger, DevSubscriptionCharger>();
+}
+
 // ─── Background services ──────────────────────────────────────────────────────────────
 builder.Services.AddHostedService<NotificationDispatcherService>();
 builder.Services.AddHostedService<OutboxEventRelayService>();
@@ -141,6 +152,7 @@ builder.Services.AddHostedService<AutoDispatchService>();         // opt-in: Aut
 builder.Services.AddHostedService<RoyaltyGenerationService>();    // opt-in: Worker:RoyaltyGenerationEnabled=true
 builder.Services.AddHostedService<DailyReconService>();           // opt-in: Worker:DailyReconEnabled=true
 builder.Services.AddHostedService<SubscriptionBillingService>(); // opt-in: Worker:SubscriptionBillingEnabled=true
+builder.Services.AddHostedService<LoyaltyEarnService>();          // polls delivery.completed → credits loyalty points
 
 // ─── Health checks ────────────────────────────────────────────────────────────────────
 builder.Services.AddHealthChecks()

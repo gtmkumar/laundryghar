@@ -8,10 +8,16 @@
  *    piece-priced services take an integer quantity.
  * 3. Review the cart. Apply an optional coupon code (server validates on submit).
  * 4. Submit → POST /api/v1/admin/orders (server resolves prices + coupon).
- * 5. Confirmation → collect payment via POST /api/v1/admin/payments, print counter receipt,
- *    print garment tags.
+ * 5. Confirmation → collect payment (cash/UPI/card, partial or pay-later),
+ *    print counter receipt, print garment tags.
+ *
+ * POS-1: the in-progress order (lines, customer, express, coupon) lives in a
+ *   persisted zustand store scoped to the active store, so a reload doesn't
+ *   destroy a half-built basket. A beforeunload guard warns on a non-empty cart.
+ * POS-2: order-create carries a client idempotency key (regenerated only when a
+ *   submit actually starts) so a double-tap/retry can't duplicate the order.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -27,6 +33,7 @@ import {
   Printer,
   Tag,
   Banknote,
+  Store,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,25 +47,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ErrorState } from '@/components/shared/ErrorState'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { useServiceCategories, useServices, useItems } from '@/hooks/useCatalog'
 import { useCreateOrder } from '@/hooks/useOrders'
 import { usePosStore } from '@/stores/posStore'
-import { formatCurrency, customerLabel } from '@/lib/utils'
+import { useCartStore, isCartForeign, type CartLine } from '@/stores/cartStore'
+import { formatCurrency, customerLabel, newIdempotencyKey } from '@/lib/utils'
 import { CustomerLookupModal } from './CustomerLookupModal'
 import { PaymentModal, type RecordedPayment } from './PaymentModal'
 import { ReceiptSlip } from '@/components/print/Receipt'
 import { GarmentTags } from '@/components/print/GarmentTags'
-import type { OrderDto, AdminCustomerDto, ServiceDto } from '@/types/api'
-
-interface CartLine {
-  itemId: string
-  itemName: string
-  serviceId: string
-  serviceName: string
-  /** Pieces (integer) for per-item services, kg (decimal) for per_kg services. */
-  quantity: number
-  isWeight: boolean
-}
+import type { OrderDto, ServiceDto } from '@/types/api'
 
 function isWeightService(svc: ServiceDto | undefined): boolean {
   return svc?.pricingModel === 'per_kg'
@@ -69,14 +69,25 @@ export function NewOrderPage() {
   const navigate = useNavigate()
   const { activeStore } = usePosStore()
 
-  // ── Form state ────────────────────────────────────────────────────────────
-  const [customer, setCustomer] = useState<AdminCustomerDto | null>(null)
+  // ── Persisted cart (POS-1) ──────────────────────────────────────────────────
+  const {
+    storeId: cartStoreId,
+    customer,
+    isExpress,
+    coupon,
+    lines: cart,
+    setStoreId,
+    setCustomer,
+    setIsExpress,
+    setCoupon,
+    setLines,
+    clearCart,
+  } = useCartStore()
+
+  // ── Transient UI state (not worth persisting) ───────────────────────────────
   const [lookupOpen, setLookupOpen] = useState(false)
-  const [isExpress, setIsExpress] = useState(false)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
   const [selectedServiceId, setSelectedServiceId] = useState<string>('')
-  const [cart, setCart] = useState<CartLine[]>([])
-  const [coupon, setCoupon] = useState('')
   const [serverError, setServerError] = useState<string | null>(null)
 
   // ── Confirmation / post-order state ─────────────────────────────────────────
@@ -85,19 +96,60 @@ export function NewOrderPage() {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [printMode, setPrintMode] = useState<'receipt' | 'tags' | null>(null)
 
+  // POS-2: one idempotency key per submit *attempt*; held in a ref so a retry of
+  // the same logical submit (e.g. user re-taps after a network blip) reuses it.
+  const idempotencyKeyRef = useRef<string | null>(null)
+
+  // POS-1: bind the persisted cart to the active store. If the persisted cart
+  // belongs to a different store (device switched context), discard it so we
+  // never resurrect another store's basket against the wrong prices.
+  useEffect(() => {
+    if (!activeStore) return
+    if (isCartForeign(cartStoreId, activeStore.id)) {
+      clearCart()
+    }
+    setStoreId(activeStore.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStore?.id])
+
+  // POS-1: warn before unload when a non-empty cart would be lost. (The store
+  // already persists it, but the native prompt protects against an accidental
+  // close mid-edit and is the expected POS behaviour.)
+  useEffect(() => {
+    if (cart.length === 0 || confirmedOrder) return
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [cart.length, confirmedOrder])
+
   // ── Data ──────────────────────────────────────────────────────────────────
-  const { data: categoriesData, isLoading: loadingCats } = useServiceCategories()
-  const { data: servicesData, isLoading: loadingSvcs } = useServices(
-    selectedCategoryId ? { categoryId: selectedCategoryId } : {},
-  )
-  const { data: itemsData, isLoading: loadingItems } = useItems()
+  const {
+    data: categoriesData,
+    isLoading: loadingCats,
+    isError: catsError,
+    refetch: refetchCats,
+  } = useServiceCategories()
+  const {
+    data: servicesData,
+    isLoading: loadingSvcs,
+    isError: svcsError,
+    refetch: refetchSvcs,
+  } = useServices(selectedCategoryId ? { categoryId: selectedCategoryId } : {})
+  const {
+    data: itemsData,
+    isLoading: loadingItems,
+    isError: itemsError,
+    refetch: refetchItems,
+  } = useItems()
 
   const categories = categoriesData?.list ?? []
   const services = servicesData?.list ?? []
   const items = itemsData?.list ?? []
+  const activeItems = items.filter((i) => i.status === 'active')
 
-  // Cheap derivation; `services` is a fresh array each render so memoizing on it
-  // would churn anyway — a plain find is clearer and equally fast.
   const selectedService = services.find((s) => s.id === selectedServiceId)
   const weightMode = isWeightService(selectedService)
 
@@ -107,33 +159,30 @@ export function NewOrderPage() {
 
   function addToCart(item: { id: string; name: string }, service: ServiceDto) {
     const weight = isWeightService(service)
-    setCart((prev) => {
+    setLines((prev) => {
       const existing = prev.findIndex(
         (l) => l.itemId === item.id && l.serviceId === service.id,
       )
       if (existing >= 0) {
-        // Weight lines don't auto-increment on re-tap; edit the kg field instead.
         if (weight) return prev
         return prev.map((l, i) =>
           i === existing ? { ...l, quantity: l.quantity + 1 } : l,
         )
       }
-      return [
-        ...prev,
-        {
-          itemId: item.id,
-          itemName: item.name,
-          serviceId: service.id,
-          serviceName: service.name,
-          quantity: weight ? 0.5 : 1,
-          isWeight: weight,
-        },
-      ]
+      const line: CartLine = {
+        itemId: item.id,
+        itemName: item.name,
+        serviceId: service.id,
+        serviceName: service.name,
+        quantity: weight ? 0.5 : 1,
+        isWeight: weight,
+      }
+      return [...prev, line]
     })
   }
 
   function updateQty(index: number, delta: number) {
-    setCart((prev) =>
+    setLines((prev) =>
       prev
         .map((l, i) => (i === index ? { ...l, quantity: l.quantity + delta } : l))
         .filter((l) => l.quantity > 0),
@@ -141,13 +190,11 @@ export function NewOrderPage() {
   }
 
   function setWeight(index: number, value: number) {
-    setCart((prev) =>
-      prev.map((l, i) => (i === index ? { ...l, quantity: value } : l)),
-    )
+    setLines((prev) => prev.map((l, i) => (i === index ? { ...l, quantity: value } : l)))
   }
 
   function removeLine(index: number) {
-    setCart((prev) => prev.filter((_, i) => i !== index))
+    setLines((prev) => prev.filter((_, i) => i !== index))
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
@@ -158,21 +205,28 @@ export function NewOrderPage() {
       return
     }
     if (!activeStore) {
-      setServerError(t('pos.noStore', { defaultValue: 'No store selected. Please select a store in the topbar.' }))
+      setServerError(t('pos.noStore'))
       return
     }
     if (cart.length === 0) {
       setServerError(t('pos.addItems'))
       return
     }
-    // Guard against zero/blank weight lines.
     const badWeight = cart.find((l) => l.isWeight && (!l.quantity || l.quantity <= 0))
     if (badWeight) {
-      setServerError(t('pos.enterWeight', { defaultValue: `Enter a weight for ${badWeight.itemName}.`, item: badWeight.itemName }))
+      setServerError(
+        t('pos.enterWeight', {
+          defaultValue: `Enter a weight for ${badWeight.itemName}.`,
+          item: badWeight.itemName,
+        }),
+      )
       return
     }
 
     setServerError(null)
+    // POS-2: mint the key only when a real submit begins; reuse on retry.
+    if (!idempotencyKeyRef.current) idempotencyKeyRef.current = newIdempotencyKey()
+
     createOrder(
       {
         customerId: customer.id,
@@ -193,17 +247,20 @@ export function NewOrderPage() {
         addons: [],
         notesCustomer: null,
         couponCode: coupon.trim() || null,
+        idempotencyKey: idempotencyKeyRef.current,
       },
       {
         onSuccess: (order) => {
           setConfirmedOrder(order)
           setPayment(null)
-          setCart([])
-          setCoupon('')
+          idempotencyKeyRef.current = null
+          // POS-1: clear the persisted basket on a successful submit.
+          clearCart()
           // Open payment capture immediately.
           setPaymentOpen(true)
         },
         onError: (err) => {
+          // Keep the key so a retry of this same order dedupes server-side.
           setServerError(err instanceof Error ? err.message : t('common.error'))
         },
       },
@@ -213,6 +270,7 @@ export function NewOrderPage() {
   function startNewOrder() {
     setConfirmedOrder(null)
     setPayment(null)
+    clearCart()
     setCustomer(null)
     setSelectedCategoryId('')
     setSelectedServiceId('')
@@ -220,7 +278,6 @@ export function NewOrderPage() {
 
   function handlePrint(mode: 'receipt' | 'tags') {
     setPrintMode(mode)
-    // Let the print-area render before invoking the browser print dialog.
     setTimeout(() => {
       window.print()
       setPrintMode(null)
@@ -232,6 +289,12 @@ export function NewOrderPage() {
   // ── Confirmation screen ───────────────────────────────────────────────────
 
   if (confirmedOrder) {
+    // POS-4: derive a single payment status for the confirmation summary.
+    const balanceDue = payment?.balanceDue ?? (confirmedOrder.amountDue ?? confirmedOrder.grandTotal)
+    const isCredit = payment?.credit === true
+    const isPaid = payment != null && !isCredit && balanceDue <= 0
+    const isPartial = payment != null && !isCredit && (payment.amount > 0) && balanceDue > 0
+
     return (
       <>
         <div className="flex flex-col items-center justify-center min-h-full py-12 px-4 gap-6 no-print">
@@ -274,26 +337,45 @@ export function NewOrderPage() {
             </div>
             <div className="border-t border-gray-100 pt-3 flex justify-between text-sm">
               <span className="text-gray-500">{t('payment.title', { defaultValue: 'Payment' })}</span>
-              {payment ? (
+              {isPaid ? (
                 <span className="font-medium text-green-700 capitalize">
-                  {formatCurrency(payment.amount)} · {payment.method}
+                  {formatCurrency(payment!.amount)} · {payment!.method}
+                </span>
+              ) : isPartial ? (
+                <span className="font-medium text-amber-700 capitalize">
+                  {formatCurrency(payment!.amount)} · {payment!.method}
+                </span>
+              ) : isCredit ? (
+                <span className="font-medium text-amber-600">
+                  {t('pos.onCredit', { defaultValue: 'On credit' })}
                 </span>
               ) : (
                 <span className="font-medium text-amber-600">{t('pos.unpaid', { defaultValue: 'Unpaid' })}</span>
               )}
             </div>
+            {/* POS-4: surface the balance still owed for partial / credit orders. */}
+            {(isPartial || isCredit) && balanceDue > 0 && (
+              <div className="flex justify-between text-sm font-semibold text-amber-700">
+                <span>{t('payment.balanceDue', { defaultValue: 'Balance due' })}</span>
+                <span>{formatCurrency(balanceDue)}</span>
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}
           <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
-            {!payment && (
+            {/* POS-4: a partial/credit order can still "collect balance" here. */}
+            {(payment == null || isPartial || isCredit) && balanceDue > 0 && (
               <Button
                 size="touch"
                 variant="success"
                 className="col-span-2"
                 onClick={() => setPaymentOpen(true)}
               >
-                <Banknote className="h-5 w-5" /> {t('pos.collectPayment')}
+                <Banknote className="h-5 w-5" />{' '}
+                {payment == null
+                  ? t('pos.collectPayment')
+                  : t('pos.collectBalance', { defaultValue: 'Collect balance' })}
               </Button>
             )}
             <Button size="touch" variant="outline" onClick={() => handlePrint('receipt')}>
@@ -326,22 +408,38 @@ export function NewOrderPage() {
           }}
         />
 
-        {/* Print payloads (only one mounted at a time; the print-area becomes
-            visible during window.print via @media print). */}
+        {/* Print payloads (only one mounted at a time). */}
         {printMode === 'receipt' && (
           <ReceiptSlip
             order={confirmedOrder}
             storeName={activeStore?.name ?? 'Laundry Ghar'}
             storeCode={activeStore?.code}
             customerLabel={customer ? customerLabel(customer) : null}
-            amountPaid={payment?.amount ?? null}
-            paymentMode={payment?.method ?? null}
+            amountPaid={payment && !payment.credit ? payment.amount : null}
+            tendered={payment && !payment.credit ? payment.tendered : null}
+            paymentMode={payment && !payment.credit ? payment.method : null}
           />
         )}
         {printMode === 'tags' && (
           <GarmentTags order={confirmedOrder} storeCode={activeStore?.code} />
         )}
       </>
+    )
+  }
+
+  // ── No store selected (POS-7) ───────────────────────────────────────────────
+  if (!activeStore) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="p-4 lg:p-6">
+          <h1 className="text-xl font-bold text-gray-900">{t('pos.newOrder')}</h1>
+        </div>
+        <EmptyState
+          icon={<Store className="h-10 w-10" />}
+          title={t('pos.noStoreTitle', { defaultValue: 'No store selected' })}
+          hint={t('pos.noStore')}
+        />
+      </div>
     )
   }
 
@@ -412,12 +510,23 @@ export function NewOrderPage() {
             </div>
           </div>
 
-          {/* Service Category Tabs */}
+          {/* Service Category Tabs (POS-7: loading / error / empty) */}
           {loadingCats ? (
             <div className="flex items-center gap-2 text-gray-400 py-4">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Loading categories…</span>
+              <span className="text-sm">{t('pos.loadingCategories', { defaultValue: 'Loading categories…' })}</span>
             </div>
+          ) : catsError ? (
+            <ErrorState
+              message={t('pos.categoriesError', { defaultValue: 'Could not load categories.' })}
+              onRetry={() => refetchCats()}
+            />
+          ) : categories.length === 0 ? (
+            <EmptyState
+              compact
+              title={t('pos.noCategories', { defaultValue: 'No service categories for this brand.' })}
+              hint={t('pos.noCategoriesHint', { defaultValue: 'Add categories in the admin catalog first.' })}
+            />
           ) : (
             <div className="flex flex-wrap gap-2">
               {categories.map((cat) => (
@@ -447,8 +556,18 @@ export function NewOrderPage() {
               {loadingSvcs ? (
                 <div className="flex items-center gap-2 text-gray-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Loading services…</span>
+                  <span className="text-sm">{t('pos.loadingServices', { defaultValue: 'Loading services…' })}</span>
                 </div>
+              ) : svcsError ? (
+                <ErrorState
+                  message={t('pos.servicesError', { defaultValue: 'Could not load services.' })}
+                  onRetry={() => refetchSvcs()}
+                />
+              ) : services.length === 0 ? (
+                <EmptyState
+                  compact
+                  title={t('pos.noServices', { defaultValue: 'No services in this category.' })}
+                />
               ) : (
                 <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
                   <SelectTrigger>
@@ -476,52 +595,60 @@ export function NewOrderPage() {
               {loadingItems ? (
                 <div className="flex items-center gap-2 text-gray-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Loading items…</span>
+                  <span className="text-sm">{t('pos.loadingItems', { defaultValue: 'Loading items…' })}</span>
                 </div>
+              ) : itemsError ? (
+                <ErrorState
+                  message={t('pos.itemsError', { defaultValue: 'Could not load items.' })}
+                  onRetry={() => refetchItems()}
+                />
+              ) : activeItems.length === 0 ? (
+                <EmptyState
+                  compact
+                  title={t('pos.noItems', { defaultValue: 'No active items for this brand.' })}
+                />
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {items
-                    .filter((i) => i.status === 'active')
-                    .map((item) => {
-                      const inCart = cart.some(
-                        (l) => l.itemId === item.id && l.serviceId === selectedServiceId,
-                      )
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() =>
-                            addToCart({ id: item.id, name: item.name }, selectedService)
-                          }
-                          className={`relative flex flex-col items-center justify-center gap-1 p-4 rounded-2xl border-2 min-h-[96px] text-sm font-medium transition-all active:scale-95 ${
-                            inCart
-                              ? 'border-blue-500 bg-blue-50 text-blue-800'
-                              : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
-                          }`}
-                        >
-                          {inCart && !weightMode && (
-                            <span className="absolute top-2 right-2 w-5 h-5 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center">
-                              {
-                                cart.find(
-                                  (l) =>
-                                    l.itemId === item.id &&
-                                    l.serviceId === selectedServiceId,
-                                )?.quantity
-                              }
-                            </span>
-                          )}
-                          <span className="text-2xl">
-                            {item.iconUrl ? (
-                              <img src={item.iconUrl} alt="" className="w-8 h-8 object-cover" />
-                            ) : (
-                              '🧺'
-                            )}
+                  {activeItems.map((item) => {
+                    const inCart = cart.some(
+                      (l) => l.itemId === item.id && l.serviceId === selectedServiceId,
+                    )
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() =>
+                          addToCart({ id: item.id, name: item.name }, selectedService)
+                        }
+                        className={`relative flex flex-col items-center justify-center gap-1 p-4 rounded-2xl border-2 min-h-[96px] text-sm font-medium transition-all active:scale-95 ${
+                          inCart
+                            ? 'border-blue-500 bg-blue-50 text-blue-800'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
+                      >
+                        {inCart && !weightMode && (
+                          <span className="absolute top-2 right-2 w-5 h-5 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center">
+                            {
+                              cart.find(
+                                (l) =>
+                                  l.itemId === item.id &&
+                                  l.serviceId === selectedServiceId,
+                              )?.quantity
+                            }
                           </span>
-                          <span className="text-center leading-tight">{item.name}</span>
-                          {inCart && <Plus className="h-4 w-4 text-blue-500" />}
-                        </button>
-                      )
-                    })}
+                        )}
+                        <span className="text-2xl">
+                          {item.iconUrl ? (
+                            <img src={item.iconUrl} alt="" className="w-8 h-8 object-cover" />
+                          ) : (
+                            '🧺'
+                          )}
+                        </span>
+                        <span className="text-center leading-tight">{item.name}</span>
+                        {inCart && <Plus className="h-4 w-4 text-blue-500" />}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -572,6 +699,7 @@ export function NewOrderPage() {
                         step="0.1"
                         inputMode="decimal"
                         value={line.quantity}
+                        aria-invalid={!line.quantity || line.quantity <= 0}
                         onChange={(e) => setWeight(idx, parseFloat(e.target.value) || 0)}
                         className="h-9 w-24"
                         aria-label={`Weight in kg for ${line.itemName}`}
@@ -637,11 +765,6 @@ export function NewOrderPage() {
             </div>
 
             {serverError && <p className="text-xs text-red-600 text-center">{serverError}</p>}
-            {!activeStore && (
-              <p className="text-xs text-amber-600 text-center bg-amber-50 rounded-lg p-2">
-                No store selected. Use the store switcher in the topbar.
-              </p>
-            )}
             <Button
               size="touch"
               className="w-full"

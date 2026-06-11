@@ -59,6 +59,45 @@ export function customerLabel(c: {
   return c.customerCode?.trim() || 'Customer'
 }
 
+/**
+ * Generates an RFC-4122 v4 UUID for client-side idempotency keys.
+ * POS-2: order-create and payment-record each carry a fresh key so a double-tap
+ * or an axios retry on flaky store wifi can't create a duplicate order/charge —
+ * the backend dedupes on the key. Uses the platform crypto.randomUUID when
+ * available (all evergreen browsers), with a Math.random fallback for safety.
+ */
+export function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+/**
+ * Normalizes a counter-typed phone to E.164.
+ * POS-7: staff routinely type a bare 10-digit Indian mobile; reject only when it
+ * can't be made into a valid number. Accepts: already-E.164 (+9198…), a bare
+ * 10-digit number (auto-prefixed +91), or 91-prefixed 12-digit. Returns null
+ * when the input can't be normalized so the caller can show inline validation.
+ */
+export function normalizePhoneE164(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  // Already E.164.
+  if (/^\+[1-9]\d{6,14}$/.test(trimmed)) return trimmed
+  // Strip spaces, dashes, parens for digit analysis.
+  const digits = trimmed.replace(/[\s\-()]/g, '')
+  // Bare 10-digit Indian mobile (starts 6-9).
+  if (/^[6-9]\d{9}$/.test(digits)) return `+91${digits}`
+  // 91-prefixed 12-digit without the plus.
+  if (/^91[6-9]\d{9}$/.test(digits)) return `+${digits}`
+  return null
+}
+
 export function orderStatusColor(status: string): string {
   const map: Record<string, string> = {
     placed: 'bg-blue-100 text-blue-800',

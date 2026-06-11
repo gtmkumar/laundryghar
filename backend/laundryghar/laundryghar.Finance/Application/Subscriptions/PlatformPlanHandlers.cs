@@ -234,6 +234,50 @@ public sealed class UpdatePlatformPlanHandler : IRequestHandler<UpdatePlatformPl
     }
 }
 
+// ── PATCH: status-only update ──────────────────────────────────────────────────
+
+public sealed record PatchPlatformPlanStatusCommand(Guid Id, string Status, Guid? ActorId)
+    : IRequest<PlatformPlanDto?>;
+
+public sealed class PatchPlatformPlanStatusHandler
+    : IRequestHandler<PatchPlatformPlanStatusCommand, PlatformPlanDto?>
+{
+    private readonly LaundryGharDbContext _db;
+    private readonly ICurrentUser         _user;
+
+    public PatchPlatformPlanStatusHandler(LaundryGharDbContext db, ICurrentUser user)
+    { _db = db; _user = user; }
+
+    public async Task<PlatformPlanDto?> Handle(PatchPlatformPlanStatusCommand cmd, CancellationToken ct)
+    {
+        if (!_user.IsPlatformAdmin)
+            throw new UnauthorizedAccessException("Only platform administrators may manage SaaS plans.");
+
+        var entity = await _db.PlatformPlans
+            .FirstOrDefaultAsync(p => p.Id == cmd.Id && p.DeletedAt == null, ct);
+        if (entity is null) return null;
+
+        entity.Status    = cmd.Status;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        entity.UpdatedBy = cmd.ActorId;
+        entity.Version++;
+
+        await _db.SaveChangesAsync(ct);
+        return GetPlatformPlansHandler.ToDto(entity);
+    }
+}
+
+public sealed class PatchPlatformPlanStatusValidator : AbstractValidator<PatchPlatformPlanStatusCommand>
+{
+    public PatchPlatformPlanStatusValidator()
+    {
+        RuleFor(x => x.Status)
+            .NotEmpty()
+            .Must(s => s is "draft" or "active" or "retired")
+            .WithMessage("status must be one of: draft, active, retired");
+    }
+}
+
 public sealed record DeletePlatformPlanCommand(Guid Id, Guid? ActorId) : IRequest<bool>;
 
 public sealed class DeletePlatformPlanHandler : IRequestHandler<DeletePlatformPlanCommand, bool>

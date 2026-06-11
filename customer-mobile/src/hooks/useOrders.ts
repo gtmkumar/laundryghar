@@ -36,6 +36,8 @@ export function useOrderDetail(id: string) {
     queryKey: orderKeys.detail(id),
     queryFn:  () => getOrderById(id),
     enabled:  !!id,
+    // MOB-6: poll every 30s so the tracking screen updates live
+    refetchInterval: 30_000,
   });
 }
 
@@ -105,5 +107,7 @@ export function usePickupRequestDetail(id: string) {
     queryFn:  () => getMyPickupRequestById(id),
     enabled:  !!id,
     staleTime: 30_000,
+    // MOB-6: poll every 30s so the tracking screen updates live
+    refetchInterval: 30_000,
   });
 }

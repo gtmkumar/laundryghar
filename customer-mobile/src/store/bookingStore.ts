@@ -18,6 +18,10 @@ export interface BookingSlot {
   date: string;
   /** Human label, e.g. "12 – 2 PM". */
   label: string;
+  /** Time string e.g. "10:00:00" from the live slot. Present for real slots; absent for demo. */
+  windowStart?: string;
+  /** Time string e.g. "12:00:00" from the live slot. Present for real slots; absent for demo. */
+  windowEnd?: string;
 }
 
 export interface ConfirmedBooking {

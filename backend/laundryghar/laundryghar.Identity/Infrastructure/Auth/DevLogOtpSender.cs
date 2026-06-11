@@ -13,7 +13,7 @@ public sealed class DevLogOtpSender : IOtpSender
         _logger = logger;
     }
 
-    public Task SendAsync(string identifier, string identifierType, string plainCode, string purpose, CancellationToken ct = default)
+    public Task SendAsync(string identifier, string identifierType, string plainCode, string purpose, CancellationToken ct = default, Guid? brandId = null)
     {
         _logger.LogWarning(
             "[DEV-OTP] identifier={Identifier} type={IdentifierType} purpose={Purpose} code={Code}",

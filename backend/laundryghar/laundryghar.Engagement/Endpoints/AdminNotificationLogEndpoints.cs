@@ -26,7 +26,7 @@ public static class AdminNotificationLogEndpoints
         {
             var ok = await sender.Send(new RetryNotificationOutboxCommand(id, u.UserId), ct);
             return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
-        }).RequireAuthorization("permission:cms.notification.read");
+        }).RequireAuthorization("permission:cms.notification.manage");
 
         // ── Notification Log ────────────────────────────────────────────────────
         var logs = group.MapGroup("/notification-logs")

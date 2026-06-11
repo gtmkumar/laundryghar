@@ -13,7 +13,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { useCustomerSearch, useCreateCustomer } from '@/hooks/useCustomers'
-import { customerLabel } from '@/lib/utils'
+import { useDebounce } from '@/hooks/useDebounce'
+import { usePermissions, PERMISSIONS } from '@/hooks/usePermissions'
+import { customerLabel, normalizePhoneE164 } from '@/lib/utils'
 import type { AdminCustomerDto } from '@/types/api'
 
 interface CustomerLookupModalProps {
@@ -22,14 +24,13 @@ interface CustomerLookupModalProps {
   onSelect: (customer: AdminCustomerDto) => void
 }
 
-// Basic E.164 check (starts with +, 7-15 digits)
-function isE164(phone: string): boolean {
-  return /^\+[1-9]\d{6,14}$/.test(phone)
-}
-
 export function CustomerLookupModal({ open, onClose, onSelect }: CustomerLookupModalProps) {
+  const { can } = usePermissions()
+  const canCreate = can(PERMISSIONS.customerCreate)
   const [term, setTerm] = useState('')
-  const { data, isFetching, isError } = useCustomerSearch(term, open)
+  // POS-7: debounce so the lookup fires once typing settles, not per keystroke.
+  const debouncedTerm = useDebounce(term, 300)
+  const { data, isFetching, isError } = useCustomerSearch(debouncedTerm, open)
 
   // New-customer form state
   const [newPhone, setNewPhone] = useState('')
@@ -50,9 +51,13 @@ export function CustomerLookupModal({ open, onClose, onSelect }: CustomerLookupM
   }
 
   function handleCreate() {
-    const phone = newPhone.trim()
-    if (!phone) return setCreateError('Phone is required.')
-    if (!isE164(phone)) return setCreateError('Phone must be in E.164 format (e.g. +919810001001).')
+    if (!canCreate) return
+    // POS-7: accept a bare 10-digit Indian mobile (auto-prefix +91), not E.164 only.
+    const phone = normalizePhoneE164(newPhone)
+    if (!newPhone.trim()) return setCreateError('Phone is required.')
+    if (!phone) {
+      return setCreateError('Enter a valid mobile number (10 digits or +91…).')
+    }
     setCreateError(null)
 
     createCustomer(
@@ -112,11 +117,15 @@ export function CustomerLookupModal({ open, onClose, onSelect }: CustomerLookupM
               Search failed. Check the connection and try again.
             </p>
           )}
-          {!isFetching && !isError && term.trim().length >= 2 && matches.length === 0 && (
-            <p className="text-sm text-gray-400 py-6 text-center">
-              No customers match "{term.trim()}".
-            </p>
-          )}
+          {!isFetching &&
+            !isError &&
+            debouncedTerm.trim().length >= 2 &&
+            term.trim() === debouncedTerm.trim() &&
+            matches.length === 0 && (
+              <p className="text-sm text-gray-400 py-6 text-center">
+                No customers match "{debouncedTerm.trim()}".
+              </p>
+            )}
           {!isFetching && matches.length > 0 && (
             <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
               {matches.map((c) => (
@@ -145,20 +154,30 @@ export function CustomerLookupModal({ open, onClose, onSelect }: CustomerLookupM
           )}
         </div>
 
-        {/* New customer */}
-        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 space-y-3">
+        {/* New customer (WEB-3: gated on customer.create permission) */}
+        <fieldset
+          disabled={!canCreate}
+          className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 space-y-3 disabled:opacity-60"
+          title={!canCreate ? 'You do not have permission to create customers.' : undefined}
+        >
           <div className="flex items-center gap-2 text-gray-700">
             <UserPlus className="h-4 w-4" />
             <span className="text-sm font-medium">New customer</span>
+            {!canCreate && (
+              <span className="ml-auto text-[11px] text-amber-600">
+                Requires permission
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="sm:col-span-2 space-y-1">
               <Label htmlFor="newPhone" className="text-xs">
-                Phone (E.164, e.g. +919810001001) *
+                Mobile number (10 digits or +91…) *
               </Label>
               <Input
                 id="newPhone"
-                placeholder="+91…"
+                placeholder="9810001001 or +919810001001"
+                inputMode="tel"
                 value={newPhone}
                 onChange={(e) => setNewPhone(e.target.value)}
               />
@@ -187,7 +206,7 @@ export function CustomerLookupModal({ open, onClose, onSelect }: CustomerLookupM
           <Button
             size="sm"
             className="w-full"
-            disabled={isCreating || !newPhone.trim()}
+            disabled={isCreating || !newPhone.trim() || !canCreate}
             onClick={handleCreate}
           >
             {isCreating ? (
@@ -198,7 +217,7 @@ export function CustomerLookupModal({ open, onClose, onSelect }: CustomerLookupM
               'Create customer'
             )}
           </Button>
-        </div>
+        </fieldset>
       </div>
     </Modal>
   )

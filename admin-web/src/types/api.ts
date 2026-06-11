@@ -1148,6 +1148,87 @@ export interface CashBookSummaryDto {
   closedAt: string | null
 }
 
+export interface CashBookEntryDto {
+  id: string
+  cashBookId: string
+  entryType: string
+  category: string
+  direction: number
+  amount: number
+  paymentMode: string
+  description: string | null
+  payeeName: string | null
+  receiptNumber: string | null
+  expenseId: string | null
+  occurredAt: string
+  createdAt: string
+}
+
+/** Full cash-book detail (GET /cash-books/{id}) — includes line entries. */
+export interface CashBookDto {
+  id: string
+  brandId: string
+  franchiseId: string
+  storeId: string
+  bookDate: string
+  shiftLabel: string
+  openingBalance: number
+  closingBalance: number | null
+  expectedClosing: number | null
+  variance: number | null
+  cashInflow: number
+  cashOutflow: number
+  upiInflow: number
+  cardInflow: number
+  otherInflow: number
+  depositAmount: number
+  totalOrders: number
+  status: string
+  notes: string | null
+  openedAt: string
+  closedAt: string | null
+  createdAt: string
+  entries: CashBookEntryDto[]
+}
+
+export interface CloseCashBookPayload {
+  closingBalance: number
+  varianceReason?: string | null
+  notes?: string | null
+}
+
+export interface ShiftHandoverDto {
+  id: string
+  storeId: string
+  fromUserId: string
+  toUserId: string | null
+  cashBookId: string | null
+  handoverAt: string
+  cashHandedOver: number
+  cashVariance: number | null
+  status: string
+  notesFrom: string | null
+  createdAt: string
+}
+
+export interface ShiftHandoverListParams extends PaginationParams {
+  storeId?: string
+  status?: string
+}
+
+export interface CreateShiftHandoverPayload {
+  storeId: string
+  fromUserId: string
+  toUserId?: string | null
+  cashHandedOver: number
+  pendingOrdersCount: number
+  openComplaintsCount: number
+  pickupsRemaining: number
+  deliveriesRemaining: number
+  notesFrom?: string | null
+  cashBookId?: string | null
+}
+
 export interface ExpenseDto {
   id: string
   brandId: string

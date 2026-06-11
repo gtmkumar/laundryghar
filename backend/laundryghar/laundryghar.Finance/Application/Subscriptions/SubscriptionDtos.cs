@@ -62,6 +62,8 @@ public sealed record CreatePlatformPlanRequest(
     short DisplayOrder
 );
 
+public sealed record PatchPlatformPlanStatusRequest(string Status);
+
 public sealed record UpdatePlatformPlanRequest(
     string Name,
     string? Description,

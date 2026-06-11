@@ -5,6 +5,7 @@ import { useStores } from '@/hooks/useTenancy'
 import { useBrandStore } from '@/stores/brandStore'
 import { usePermissions } from '@/hooks/usePermissions'
 import { OpenCashBookDrawer } from './FinanceDrawers'
+import { CashBookDetailDrawer } from './CashBookDetailDrawer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -52,6 +53,7 @@ export function CashBookPage() {
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('cashbook.manage')
   const [openDrawer, setOpenDrawer] = useState(false)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const { data, isLoading, isError, error, refetch } = useCashBooks({ pageSize: 100 })
 
   const storesQ = useStores({ brandId: activeBrandId ?? undefined, pageSize: 100 })
@@ -155,12 +157,27 @@ export function CashBookPage() {
             columns={columns}
             data={books}
             keyFn={(r) => r.id}
+            onRowClick={(r) => setDetailId(r.id)}
             unit="cash book"
             totalCount={total}
             searchPlaceholder="Search store or shift…"
             searchAccessor={(b) => `${storeName.get(b.storeId) ?? ''} ${b.shiftLabel} ${b.status}`}
             filters={filters}
             initialSort={{ key: 'date', dir: 'desc' }}
+            csvExport={{
+              filename: 'cash-books',
+              columns: [
+                { header: 'Date', value: (r) => r.bookDate },
+                { header: 'Store', value: (r) => storeName.get(r.storeId) ?? '' },
+                { header: 'Shift', value: (r) => r.shiftLabel },
+                { header: 'Opening', value: (r) => r.openingBalance },
+                { header: 'Inflow', value: (r) => r.cashInflow },
+                { header: 'Outflow', value: (r) => r.cashOutflow },
+                { header: 'Closing', value: (r) => r.closingBalance ?? '' },
+                { header: 'Variance', value: (r) => r.variance ?? '' },
+                { header: 'Status', value: (r) => r.status },
+              ],
+            }}
             emptyMessage="No cash books found."
             noMatchMessage="No cash books match your filters."
           />
@@ -168,6 +185,7 @@ export function CashBookPage() {
       </Card>
 
       <OpenCashBookDrawer open={openDrawer} onClose={() => setOpenDrawer(false)} />
+      {detailId && <CashBookDetailDrawer id={detailId} onClose={() => setDetailId(null)} />}
     </div>
   )
 }

@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { Eye, EyeOff, Loader2, Send, CheckCircle2, XCircle, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdateEmailSettings, useSendTestEmail } from '@/hooks/useSettings'
+import { useCanManageSettings } from '@/hooks/usePermissions'
 import type { AdminSettings, UpdateEmailPayload } from '@/types/api'
 
 export function EmailPanel({ settings }: { settings: AdminSettings }) {
   const e = settings.email
   const update = useUpdateEmailSettings()
   const test = useSendTestEmail()
+  const canManage = useCanManageSettings()
 
   const [enabled, setEnabled] = useState(e.enabled)
   const [host, setHost] = useState(e.host)
@@ -112,11 +114,15 @@ export function EmailPanel({ settings }: { settings: AdminSettings }) {
           <button
             type="button"
             onClick={save}
-            disabled={update.isPending}
+            disabled={update.isPending || !canManage}
+            title={canManage ? undefined : 'You don’t have permission to change these settings.'}
             className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
           >
             {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save changes
           </button>
+          {!canManage && (
+            <span className="text-xs text-gray-400">You don’t have permission to change these settings.</span>
+          )}
           {savedAt && <span className="text-xs text-lg-green">Saved at {savedAt}</span>}
         </div>
       </div>
@@ -134,7 +140,8 @@ export function EmailPanel({ settings }: { settings: AdminSettings }) {
           <button
             type="button"
             onClick={runTest}
-            disabled={test.isPending || !testTo.trim()}
+            disabled={test.isPending || !testTo.trim() || !canManage}
+            title={canManage ? undefined : 'You don’t have permission to change these settings.'}
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send test
