@@ -59,20 +59,18 @@ export function ProtectedRoute() {
       return
     }
 
-    let cancelled = false
+    // No `cancelled` guard here: under React StrictMode (dev) the effect's
+    // cleanup runs between the double-invoked mount, while `ranBootstrap`
+    // blocks the second invocation from starting a fresh refresh. A cancelled
+    // flag would make the in-flight refresh's handlers no-op, leaving phase
+    // stuck on 'checking' forever (hung spinner on any stale/dead session).
+    // Setting state after a genuine unmount is a harmless no-op in React 18.
     refreshAccessToken()
-      .then(() => {
-        if (!cancelled) setPhase('ready')
-      })
+      .then(() => setPhase('ready'))
       .catch(() => {
-        if (cancelled) return
         clearAuth()
         setPhase('failed')
       })
-
-    return () => {
-      cancelled = true
-    }
   }, [accessToken, clearAuth])
 
   // No session at all → straight to login (preserve intended destination).

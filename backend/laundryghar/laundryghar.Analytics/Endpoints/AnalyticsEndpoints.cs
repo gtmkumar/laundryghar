@@ -211,65 +211,23 @@ public static class AnalyticsEndpoints
             // Ensure caller has brand context (validates auth context is complete)
             _ = user.RequireBrandId();
 
-            var views = new[]
+            // Refresh via the SECURITY DEFINER function: the matviews are owned by
+            // postgres and this service connects as app_user, so a direct REFRESH
+            // is permission-denied. The function (owned by postgres, RLS-exempt)
+            // refreshes all 7 matviews CONCURRENTLY across every brand. The same
+            // function backs the periodic MatviewRefreshService.
+            // See db/patches/analytics_refresh_function.sql.
+            try
             {
-                "analytics.mv_daily_store_revenue",
-                "analytics.mv_monthly_franchise_revenue",
-                "analytics.mv_warehouse_throughput",
-                "analytics.mv_customer_ltv",
-                "analytics.mv_rider_performance",
-            };
-
-            var results = new List<object>(views.Length);
-
-            foreach (var view in views)
-            {
-                bool success;
-                string? error = null;
-
-                try
-                {
-                    // CONCURRENTLY requires a unique index on the MV.
-                    // All 5 MVs have idx_mv*_unique so CONCURRENTLY should work.
-                    // If it fails (e.g. index temporarily unavailable), fall back to plain REFRESH.
-                    // view names come from the hardcoded internal array above — not user input.
-#pragma warning disable EF1002
-                    await db.Database.ExecuteSqlRawAsync(
-                        $"REFRESH MATERIALIZED VIEW CONCURRENTLY {view}", ct);
-#pragma warning restore EF1002
-                    success = true;
-                    logger.LogInformation("Refreshed {View} (CONCURRENTLY).", view);
-                }
-                catch (Exception ex) when (ex.Message.Contains("does not have a unique index", StringComparison.OrdinalIgnoreCase)
-                                        || ex.Message.Contains("CONCURRENTLY", StringComparison.OrdinalIgnoreCase))
-                {
-                    logger.LogWarning("CONCURRENTLY failed for {View}: {Error}. Falling back to plain REFRESH.", view, ex.Message);
-                    try
-                    {
-#pragma warning disable EF1002
-                        await db.Database.ExecuteSqlRawAsync(
-                            $"REFRESH MATERIALIZED VIEW {view}", ct);
-#pragma warning restore EF1002
-                        success = true;
-                    }
-                    catch (Exception fallbackEx)
-                    {
-                        success = false;
-                        error   = fallbackEx.Message;
-                        logger.LogError(fallbackEx, "Plain REFRESH also failed for {View}.", view);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    success = false;
-                    error   = ex.Message;
-                    logger.LogError(ex, "Refresh failed for {View}.", view);
-                }
-
-                results.Add(new { view, success, error });
+                await db.Database.ExecuteSqlRawAsync("SELECT analytics.refresh_all_matviews();", ct);
+                logger.LogInformation("Analytics matviews refreshed via refresh_all_matviews().");
+                return Results.Ok(new { Status = true, Data = new { refreshed = true } });
             }
-
-            return Results.Ok(new { Status = true, Data = results });
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Analytics matview refresh failed.");
+                return Results.Ok(new { Status = false, Data = new { refreshed = false, error = ex.Message } });
+            }
         }).RequireAuthorization("permission:analytics.refresh");
 
         return app;

@@ -38,6 +38,11 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentTenant, HttpContextCurrentTenant>();
 builder.Services.AddScoped<ICurrentUser,   HttpContextCurrentUser>();
 
+// ─── Background: periodic materialized-view refresh ──────────────────────────
+// Keeps the dashboard revenue/LTV/rider/warehouse widgets reflecting real order
+// activity without a manual refresh (every Analytics:MatviewRefreshMinutes, default 5).
+builder.Services.AddHostedService<MatviewRefreshService>();
+
 // ─── Auth config ─────────────────────────────────────────────────────────────
 
 builder.Services.Configure<JwtSettings>(jwtSection);
