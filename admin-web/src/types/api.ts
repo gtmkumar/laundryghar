@@ -1667,12 +1667,16 @@ export interface WhatsAppSettingsView {
   phoneNumberId: string | null
   accessTokenTail: string | null
   accessTokenSet: boolean
+  otpEnabled: boolean
+  otpTemplateName: string | null
 }
 
 export interface UpdateWhatsAppPayload {
   enabled: boolean
   phoneNumberId?: string
   accessToken?: string           // omit/blank to keep stored token
+  otpEnabled: boolean
+  otpTemplateName?: string       // approved authentication-category template
 }
 
 // ── Settings — SMS ───────────────────────────────────────────────────────────

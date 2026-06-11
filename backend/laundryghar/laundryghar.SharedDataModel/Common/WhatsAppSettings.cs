@@ -21,6 +21,19 @@ public sealed class WhatsAppSettings
     public string? AccessToken   { get; set; }
 
     /// <summary>
+    /// When true, Identity delivers login OTPs via a WhatsApp authentication
+    /// template (falling back to SMS when delivery fails). Independent of
+    /// <see cref="Enabled"/>, which gates the Worker's notification fan-out —
+    /// but OTP sending still requires Enabled + credentials.
+    /// </summary>
+    public bool    OtpEnabled       { get; set; }
+    /// <summary>
+    /// Name of the approved authentication-category template in Meta Business
+    /// Manager (e.g. "otp_login"). Required for OTP delivery.
+    /// </summary>
+    public string? OtpTemplateName  { get; set; }
+
+    /// <summary>
     /// Deserializes the stored JSON and decrypts secret fields.
     /// Returns a safe default (Enabled=false, null secrets) when the JSON is
     /// null/malformed OR when the cipher cannot decrypt a stored secret (e.g.

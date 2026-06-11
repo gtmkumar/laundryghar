@@ -61,13 +61,15 @@ builder.Services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<laundryghar.Identity.Infrastructure.Email.ISettingsMailer, laundryghar.Identity.Infrastructure.Email.SettingsMailer>();
 
-// C4: Register OTP sender conditionally — DevLogOtpSender only in Development.
-// In all other environments the Msg91 stub throws NotImplemented at call-time, preventing
-// silent OTP logging in staging/prod aggregated log pipelines.
-if (builder.Environment.IsDevelopment())
-    builder.Services.AddSingleton<IOtpSender, DevLogOtpSender>();
-else
-    builder.Services.AddSingleton<IOtpSender, Msg91OtpSender>();
+// OTP delivery: channel-routing sender — WhatsApp authentication template
+// (when enabled in admin Settings) with MSG91 SMS fallback. The planner
+// appends DevLogOtpSender as a last resort ONLY in Development (C4: prod/
+// staging never log codes — an unconfigured environment throws at send time).
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<DevLogOtpSender>();
+builder.Services.AddSingleton<WhatsAppOtpDispatcher>();
+builder.Services.AddSingleton<Msg91OtpDispatcher>();
+builder.Services.AddScoped<IOtpSender, RoutingOtpSender>();
 
 // ─── MediatR ───────────────────────────────────────────────────────────────
 

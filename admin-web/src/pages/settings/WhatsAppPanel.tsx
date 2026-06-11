@@ -12,6 +12,8 @@ export function WhatsAppPanel({ settings }: { settings: AdminSettings }) {
   const [phoneNumberId, setPhoneNumberId] = useState(w.phoneNumberId ?? '')
   const [accessToken, setAccessToken] = useState('')
   const [showToken, setShowToken] = useState(false)
+  const [otpEnabled, setOtpEnabled] = useState(w.otpEnabled)
+  const [otpTemplateName, setOtpTemplateName] = useState(w.otpTemplateName ?? '')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -19,7 +21,9 @@ export function WhatsAppPanel({ settings }: { settings: AdminSettings }) {
     setEnabled(w.enabled)
     setPhoneNumberId(w.phoneNumberId ?? '')
     setAccessToken('')
-  }, [w.enabled, w.phoneNumberId])
+    setOtpEnabled(w.otpEnabled)
+    setOtpTemplateName(w.otpTemplateName ?? '')
+  }, [w.enabled, w.phoneNumberId, w.otpEnabled, w.otpTemplateName])
 
   const save = async () => {
     setError(null)
@@ -28,6 +32,8 @@ export function WhatsAppPanel({ settings }: { settings: AdminSettings }) {
       enabled,
       phoneNumberId: phoneNumberId.trim() || undefined,
       accessToken: accessToken || undefined,
+      otpEnabled,
+      otpTemplateName: otpTemplateName.trim() || undefined,
     }
     try {
       await update.mutateAsync(payload)
@@ -91,6 +97,36 @@ export function WhatsAppPanel({ settings }: { settings: AdminSettings }) {
             Use a permanent System User token (not a temporary user token) for production.
           </p>
         </Field>
+
+        <div className="space-y-4 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Login OTP via WhatsApp</p>
+              <p className="text-xs text-gray-500">
+                Deliver customer and rider login codes through WhatsApp. When delivery fails
+                (or WhatsApp is off), the code automatically falls back to SMS (MSG91).
+              </p>
+            </div>
+            <Toggle checked={otpEnabled} onChange={setOtpEnabled} label={otpEnabled ? 'On' : 'Off'} />
+          </div>
+
+          {otpEnabled && (
+            <Field label="OTP template name (authentication category)">
+              <input
+                value={otpTemplateName}
+                onChange={(e) => setOtpTemplateName(e.target.value)}
+                placeholder="e.g. otp_login"
+                className={inputCls}
+                autoComplete="off"
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                Must be an approved <span className="font-medium">authentication</span>-category template
+                (with the copy-code button) in Meta Business Manager. OTP sending also requires the
+                integration above to be enabled with valid credentials.
+              </p>
+            </Field>
+          )}
+        </div>
 
         <div className="flex items-center gap-3 pt-1">
           <button

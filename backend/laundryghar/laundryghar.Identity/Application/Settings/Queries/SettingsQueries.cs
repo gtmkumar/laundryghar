@@ -54,7 +54,9 @@ public sealed class GetAdminSettingsHandler : IRequestHandler<GetAdminSettingsQu
                 Enabled:         wa.Enabled,
                 PhoneNumberId:   wa.PhoneNumberId,
                 AccessTokenTail: SettingsStore.MaskSecret(wa.AccessToken),
-                AccessTokenSet:  !string.IsNullOrEmpty(wa.AccessToken)),
+                AccessTokenSet:  !string.IsNullOrEmpty(wa.AccessToken),
+                OtpEnabled:      wa.OtpEnabled,
+                OtpTemplateName: wa.OtpTemplateName),
             new SmsSettingsView(
                 Provider:      sms.Provider,
                 Enabled:       sms.Enabled,

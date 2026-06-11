@@ -247,9 +247,11 @@ public sealed class UpdateWhatsAppHandler : IRequestHandler<UpdateWhatsAppComman
 
         var value = new WhatsAppSettings
         {
-            Enabled       = r.Enabled,
-            PhoneNumberId = r.PhoneNumberId?.Trim(),
-            AccessToken   = _cipher.Encrypt(accessToken),
+            Enabled         = r.Enabled,
+            PhoneNumberId   = r.PhoneNumberId?.Trim(),
+            AccessToken     = _cipher.Encrypt(accessToken),
+            OtpEnabled      = r.OtpEnabled,
+            OtpTemplateName = string.IsNullOrWhiteSpace(r.OtpTemplateName) ? null : r.OtpTemplateName.Trim(),
         };
 
         await SettingsStore.UpsertAsync(_db, brandId, "whatsapp", "cloud", value, isEncrypted: true, cmd.User.UserId, ct);
@@ -258,7 +260,9 @@ public sealed class UpdateWhatsAppHandler : IRequestHandler<UpdateWhatsAppComman
             Enabled:         value.Enabled,
             PhoneNumberId:   value.PhoneNumberId,
             AccessTokenTail: SettingsStore.MaskSecret(accessToken),
-            AccessTokenSet:  !string.IsNullOrEmpty(accessToken));
+            AccessTokenSet:  !string.IsNullOrEmpty(accessToken),
+            OtpEnabled:      value.OtpEnabled,
+            OtpTemplateName: value.OtpTemplateName);
     }
 }
 

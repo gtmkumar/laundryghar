@@ -52,7 +52,9 @@ public sealed record WhatsAppSettingsView(
     bool    Enabled,
     string? PhoneNumberId,
     string? AccessTokenTail,
-    bool    AccessTokenSet);
+    bool    AccessTokenSet,
+    bool    OtpEnabled,
+    string? OtpTemplateName);
 
 /// <summary>SMS (MSG91) config. AuthKey is masked/hasValue only.</summary>
 public sealed record SmsSettingsView(
@@ -93,11 +95,15 @@ public sealed record UpdatePaymentGatewayRequest(
 /// <summary>
 /// Update WhatsApp Cloud API config.
 /// AccessToken: null/blank = keep existing.
+/// OtpEnabled/OtpTemplateName: login-OTP delivery via an approved
+/// authentication-category template (SMS fallback applies automatically).
 /// </summary>
 public sealed record UpdateWhatsAppRequest(
     bool    Enabled,
     string? PhoneNumberId,
-    string? AccessToken);
+    string? AccessToken,
+    bool    OtpEnabled,
+    string? OtpTemplateName);
 
 /// <summary>
 /// Update SMS (MSG91) config.
