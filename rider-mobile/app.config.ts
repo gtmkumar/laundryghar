@@ -85,8 +85,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-secure-store',
     'expo-localization',
-    // Sentry config plugin — injects native crash-reporter init
-    '@sentry/react-native',
+    // Sentry config plugin — injects native crash-reporter init.
+    // organization/project enable build-time source-map upload (also needs
+    // SENTRY_AUTH_TOKEN — EAS secret only); when unset the upload is skipped
+    // with a warning and runtime crash reporting is unaffected.
+    [
+      '@sentry/react-native',
+      {
+        organization: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+      },
+    ],
     [
       // expo-notifications: configures native notification permissions and
       // Android notification channels. Required for production/dev builds.
