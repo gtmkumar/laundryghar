@@ -31,6 +31,11 @@ public sealed class PickupRequestConfiguration : IEntityTypeConfiguration<Pickup
             .HasDefaultValueSql("'[]'::jsonb");
         b.Property(e => e.PaymentPreference).HasColumnName("payment_preference").HasMaxLength(20).IsRequired()
             .HasDefaultValue("cod");
+
+        b.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(150);
+        b.Property(e => e.Source).HasColumnName("source").HasMaxLength(20).IsRequired()
+            .HasDefaultValue("app");
+
         // Scalar-only composite FK columns to orders — no navigation configured (nullable composite FK)
         b.Property(e => e.ConvertedOrderId).HasColumnName("converted_order_id");
         b.Property(e => e.ConvertedOrderCreatedAt).HasColumnName("converted_order_created_at");

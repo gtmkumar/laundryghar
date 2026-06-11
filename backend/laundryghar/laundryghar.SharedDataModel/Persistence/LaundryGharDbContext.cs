@@ -61,6 +61,9 @@ public class LaundryGharDbContext : DbContext
     public DbSet<LoginHistory> LoginHistories => Set<LoginHistory>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PasswordReset> PasswordResets => Set<PasswordReset>();
+    // OAuth 2.1 authorization-server facade (RFC 7591 + RFC 7636)
+    public DbSet<OAuthClient> OAuthClients => Set<OAuthClient>();
+    public DbSet<OAuthAuthorizationCode> OAuthAuthorizationCodes => Set<OAuthAuthorizationCode>();
 
     // customer_catalog
     public DbSet<Customer> Customers => Set<Customer>();
@@ -154,11 +157,11 @@ public class LaundryGharDbContext : DbContext
     public DbSet<FileAttachment> FileAttachments => Set<FileAttachment>();
 
     // analytics (keyless read-only materialized views — no RLS, must filter by brand_id in every query)
-    public DbSet<DailyStoreRevenue>        DailyStoreRevenues        => Set<DailyStoreRevenue>();
-    public DbSet<MonthlyFranchiseRevenue>  MonthlyFranchiseRevenues  => Set<MonthlyFranchiseRevenue>();
-    public DbSet<WarehouseThroughput>      WarehouseThroughputs      => Set<WarehouseThroughput>();
-    public DbSet<CustomerLtv>              CustomerLtvs               => Set<CustomerLtv>();
-    public DbSet<RiderPerformance>         RiderPerformances          => Set<RiderPerformance>();
+    public DbSet<DailyStoreRevenue> DailyStoreRevenues => Set<DailyStoreRevenue>();
+    public DbSet<MonthlyFranchiseRevenue> MonthlyFranchiseRevenues => Set<MonthlyFranchiseRevenue>();
+    public DbSet<WarehouseThroughput> WarehouseThroughputs => Set<WarehouseThroughput>();
+    public DbSet<CustomerLtv> CustomerLtvs => Set<CustomerLtv>();
+    public DbSet<RiderPerformance> RiderPerformances => Set<RiderPerformance>();
 
     // engagement_cms
     public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();

@@ -38,6 +38,21 @@ public class PickupRequest
     /// </summary>
     public string PaymentPreference { get; set; } = "cod";
 
+    /// <summary>
+    /// Optional caller-supplied idempotency key.
+    /// When provided, duplicate requests from the same customer return the
+    /// existing pickup request instead of creating a new one.
+    /// Uniqueness is enforced per (customer_id, idempotency_key) at DB level
+    /// via a partial unique index (NULL keys excluded).
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
+
+    /// <summary>
+    /// Channel that originated this booking: app | web | mcp | whatsapp | pos | call.
+    /// Defaults to "app" to keep backward compatibility with existing mobile callers.
+    /// </summary>
+    public string Source { get; set; } = "app";
+
     /// <summary>Part of composite FK to orders(id, created_at) — scalar only (no composite nav supported here).</summary>
     public Guid? ConvertedOrderId { get; set; }
 

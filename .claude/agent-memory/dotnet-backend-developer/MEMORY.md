@@ -14,3 +14,5 @@
 - [POS gaps (Task #31)](project-pos-gaps.md) — admin create-customer, offline payment record (Commerce 5005), coupon on order create; permission risk_level='normal', cash-book mirrored server-side
 - [Subscriptions ADR-010 (Task #17)](project-subscriptions-adr010.md) — schema placement, gateway seam design, Worker dunning service, DB patch canonicalization, known deferred gateway wiring
 - [Integration settings (Task #39)](project-integration-settings.md) — payment/whatsapp/sms schema, masking rule, IFieldCipher now a DI singleton, SettingsFirstPaymentGateway Scoped+TTL cache, Worker routing changes
+- [MCP service (Phase-1 spike)](project-mcp-service.md) — port 5009, SDK 1.4.0 attribute names, keyed HttpClient DI, CustomerOnly auth at MapMcp, no DB dependency
+- [OAuth 2.1 authorization-server facade](project-oauth-authz-server.md) — hand-rolled on Identity; atomic single-use code, port-agnostic loopback URIs, scope not in JWT, RFC 9728 WWW-Authenticate on MCP 401s

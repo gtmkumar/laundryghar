@@ -1,0 +1,12 @@
+global using System.Net;
+global using System.Net.Http.Headers;
+global using System.Net.Http.Json;
+global using System.Security.Claims;
+global using System.Text.Json;
+global using Microsoft.AspNetCore.Authorization;
+global using Microsoft.AspNetCore.Builder;
+global using Microsoft.AspNetCore.Http;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Logging;
+global using laundryghar.Mcp.Infrastructure.Auth;
+global using laundryghar.Mcp.Infrastructure.Http;

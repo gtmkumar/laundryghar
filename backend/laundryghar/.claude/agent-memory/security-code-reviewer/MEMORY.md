@@ -1,2 +1,3 @@
 - [LaundryGhar security patterns](project-security-patterns.md) — secrets abstraction, JWT/JWKS, token storage, banner deep-link trust boundary, open gaps
 - [Rider multi-tenancy](project-rider-multitenancy.md) — franchise-scope clamp pattern, cross-service activation, InviteRider authz, UpdateRider kyc-gate bypass gap
+- [OAuth 2.1 facade + MCP](project-oauth-mcp.md) — PKCE/redirect-URI/DCR review, MCP CustomerOnly + token-forwarding SSRF analysis, pickup idempotency isolation

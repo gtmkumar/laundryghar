@@ -70,9 +70,9 @@ public static class CustomerOrderEndpoints
             var result = await sender.Send(new RateOrderCommand(id, customerId, req), ct);
             return result.Kind switch
             {
-                RateOrderResultKind.NotFound       => Results.NotFound(new Response { Status = false }),
-                RateOrderResultKind.InvalidStatus  => Results.UnprocessableEntity(new Response { Status = false }),
-                _                                  => Results.Ok(new SingleResponse<OrderDto> { Status = true, Data = result.Order })
+                RateOrderResultKind.NotFound => Results.NotFound(new Response { Status = false }),
+                RateOrderResultKind.InvalidStatus => Results.UnprocessableEntity(new Response { Status = false }),
+                _ => Results.Ok(new SingleResponse<OrderDto> { Status = true, Data = result.Order })
             };
         }).RequireAuthorization("CustomerOnly");
 
@@ -82,11 +82,33 @@ public static class CustomerOrderEndpoints
         pickups.MapPost("/", async (HttpContext http, CreatePickupRequestRequest req, ISender sender, CancellationToken ct) =>
         {
             var customerId = GetCustomerId(http);
-            var brandId    = GetBrandId(http);
+            var brandId = GetBrandId(http);
             if (customerId == Guid.Empty) return Results.Unauthorized();
-            var r = await sender.Send(new CustomerSchedulePickupCommand(customerId, brandId, req, customerId), ct);
-            return Results.Created($"/api/v1/customer/pickup-requests/{r.Id}",
-                new SingleResponse<PickupRequestDto> { Status = true, Data = r });
+
+            // ── Idempotency-Key header ─────────────────────────────────────────
+            // Industry-standard header (RFC draft). Prefer header over body field;
+            // fall back to req.IdempotencyKey when header is absent.
+            var idempotencyKey = http.Request.Headers.TryGetValue("Idempotency-Key", out var hdrKey)
+                ? hdrKey.FirstOrDefault()
+                : req.IdempotencyKey;
+
+            // ── X-Channel header ──────────────────────────────────────────────
+            // Source channel. Header takes precedence over body field.
+            var source = http.Request.Headers.TryGetValue("X-Channel", out var hdrChan)
+                ? (hdrChan.FirstOrDefault() ?? req.Channel ?? "app")
+                : (req.Channel ?? "app");
+
+            var result = await sender.Send(
+                new CustomerSchedulePickupCommand(customerId, brandId, req, customerId,
+                    ResolvedIdempotencyKey: idempotencyKey,
+                    ResolvedSource: source), ct);
+
+            // Idempotent hit → 200 OK (request already existed, not creating a new resource).
+            // New creation → 201 Created.
+            return result.AlreadyExisted
+                ? Results.Ok(new SingleResponse<PickupRequestDto> { Status = true, Data = result.Dto })
+                : Results.Created($"/api/v1/customer/pickup-requests/{result.Dto.Id}",
+                    new SingleResponse<PickupRequestDto> { Status = true, Data = result.Dto });
         }).RequireAuthorization("CustomerOnly");
 
         /// <summary>GET customer's own pickup requests — self-filtered by JWT sub.</summary>

@@ -4,6 +4,7 @@ using FluentValidation;
 using laundryghar.Identity.Application.Common;
 using laundryghar.Identity.Endpoints;
 using laundryghar.Identity.Infrastructure.Auth;
+using laundryghar.Identity.Infrastructure.BackgroundServices;
 using laundryghar.Identity.Infrastructure.Seeders;
 using laundryghar.Identity.Infrastructure.Services;
 using laundryghar.Identity.Middleware;
@@ -48,7 +49,7 @@ builder.Services.AddHttpContextAccessor();
 // ─── ICurrentTenant (RLS) + ICurrentUser ──────────────────────────────────
 
 builder.Services.AddScoped<ICurrentTenant, HttpContextCurrentTenant>();
-builder.Services.AddScoped<ICurrentUser,   HttpContextCurrentUser>();
+builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 
 // ─── Auth infrastructure ───────────────────────────────────────────────────
 
@@ -87,17 +88,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     {
         opts.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer           = true,
-            ValidateAudience         = true,
-            ValidateLifetime         = true,
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer              = jwtSettings.Issuer,
-            ValidAudience            = jwtSettings.Audience,
+            ValidIssuer = jwtSettings.Issuer,
+            ValidAudience = jwtSettings.Audience,
             // RS256: Identity validates its own tokens with the in-process public key.
-            IssuerSigningKey         = keyProvider.SigningKey,
-            ClockSkew                = TimeSpan.FromSeconds(30),
+            IssuerSigningKey = keyProvider.SigningKey,
+            ClockSkew = TimeSpan.FromSeconds(30),
             // Pin to RS256 — reject "none" and HMAC algorithm-confusion attacks.
-            ValidAlgorithms          = [SecurityAlgorithms.RsaSha256]
+            ValidAlgorithms = [SecurityAlgorithms.RsaSha256]
         };
     });
 
@@ -116,15 +117,31 @@ builder.Services.AddRateLimiter(opts =>
 {
     opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
+    // "auth" policy: 10 requests per 60 s per client IP.
+    // Applied to all /api/v1/auth/* endpoints and OAuth backing endpoints.
     opts.AddPolicy("auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit          = 10,
-                Window               = TimeSpan.FromSeconds(60),
+                PermitLimit = 10,
+                Window = TimeSpan.FromSeconds(60),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit           = 0   // reject immediately when limit hit
+                QueueLimit = 0   // reject immediately when limit hit
+            }));
+
+    // "oauth_register" policy: 3 registrations per hour per IP.
+    // Much tighter than "auth" — registration is a one-time client setup action,
+    // not a per-user flow. Prevents client_id enumeration / DB spam.
+    opts.AddPolicy("oauth_register", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 3,
+                Window = TimeSpan.FromHours(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
             }));
 });
 
@@ -175,6 +192,11 @@ builder.Services.AddCors(opts =>
 // ─── Seeders ───────────────────────────────────────────────────────────────
 
 builder.Services.AddScoped<IdentitySeeder>();
+
+// ─── Background Services ────────────────────────────────────────────────────
+// Hourly sweep: delete expired oauth_authorization_codes (grace 1 day) and
+// stale oauth_clients that never completed a token exchange (> 7 days old).
+builder.Services.AddHostedService<OAuthCleanupService>();
 
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -239,7 +261,7 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
         {
             status,
             duration = report.TotalDuration.TotalMilliseconds,
-            checks   = report.Entries.Select(e => new { name = e.Key, status = e.Value.Status.ToString(), description = e.Value.Description })
+            checks = report.Entries.Select(e => new { name = e.Key, status = e.Value.Status.ToString(), description = e.Value.Description })
         });
         await ctx.Response.WriteAsync(payload);
     }
@@ -262,7 +284,9 @@ static bool IsScopeResolvingAuthPath(PathString path) =>
     path.StartsWithSegments("/api/v1/customer/auth")
     || path.StartsWithSegments("/api/v1/auth/password/login")
     || path.StartsWithSegments("/api/v1/auth/otp")
-    || path.StartsWithSegments("/api/v1/auth/refresh");
+    || path.StartsWithSegments("/api/v1/auth/refresh")
+    // OAuth 2.1 endpoints resolve brand from config (no token) — need RLS bypass
+    || path.StartsWithSegments("/oauth");
 
 app.Use(async (ctx, next) =>
 {
@@ -276,6 +300,11 @@ app.Use(async (ctx, next) =>
 
 // OIDC discovery + JWKS (anonymous, app root) — services fetch the RS256 public key here.
 app.MapWellKnownEndpoints();
+
+// OAuth 2.1 authorization-server facade (RFC 8414, RFC 7591, RFC 7636).
+// Includes /.well-known/oauth-authorization-server, /oauth/register, /oauth/authorize,
+// /oauth/authorize/otp/send, /oauth/authorize/approve, /oauth/token.
+app.MapOAuthEndpoints();
 
 var v1 = app.MapGroup("/api/v1");
 

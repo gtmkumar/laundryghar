@@ -43,7 +43,19 @@ public sealed record CreatePickupRequestRequest(
     /// Customer payment intent: "wallet" | "cod" | "upi-deferred".
     /// UPI/card selections are normalised to "upi-deferred" at the handler layer.
     /// </summary>
-    string? PaymentPreference
+    string? PaymentPreference,
+    /// <summary>
+    /// Optional body-field idempotency key. When provided (and not already sent
+    /// via the Idempotency-Key header), duplicate submissions from the same
+    /// customer return the existing request. Max 150 chars.
+    /// </summary>
+    string? IdempotencyKey = null,
+    /// <summary>
+    /// Source channel for this booking: app | web | mcp | whatsapp | pos | call.
+    /// Defaults to "app". Can also be supplied via the X-Channel request header;
+    /// the header takes precedence over the body field.
+    /// </summary>
+    string? Channel = null
 );
 
 /// <summary>Full pickup request response — returned to both customer and admin endpoints.</summary>
@@ -66,7 +78,15 @@ public sealed record PickupRequestDto(
     /// <summary>Estimated cart lines; empty array when no items were supplied.</summary>
     IReadOnlyList<RequestedCartItemDto> CartItems,
     /// <summary>Customer payment intent recorded at booking time.</summary>
-    string PaymentPreference
+    string PaymentPreference,
+    /// <summary>
+    /// Source channel that originated the booking: app | web | mcp | whatsapp | pos | call.
+    /// </summary>
+    string Source = "app",
+    /// <summary>
+    /// Idempotency key supplied at booking time. Null when no key was provided.
+    /// </summary>
+    string? IdempotencyKey = null
 );
 
 public sealed record AssignPickupRequest(Guid RiderId);

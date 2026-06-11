@@ -111,6 +111,12 @@ builder
     .WithEnvironment("ConnectionStrings__Admin", adminConnStr)
     .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64);
 
+builder
+    .AddProject<Projects.laundryghar_Mcp>("mcp")
+    .WithHttpEndpoint(port: 5009, name: "http")
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64);
+
 // ── Worker — no HTTP endpoint; drains notifications_outbox + outbox_events ──────────
 // Generic host: reads DOTNET_ENVIRONMENT (ASPNETCORE_ENVIRONMENT is web-host only).
 // Without it the Worker sees "Production" and the PII cipher fails closed at startup.
@@ -135,7 +141,7 @@ static string LoadOrGenerateDevPiiKey()
 {
     // Store the key next to the AppHost project source (not in bin/), so it survives
     // `dotnet clean` and is the same path regardless of build configuration.
-    var keyDir  = Path.Combine(AppContext.BaseDirectory, "keys");
+    var keyDir = Path.Combine(AppContext.BaseDirectory, "keys");
     var keyPath = Path.Combine(keyDir, "dev-pii-key.b64");
 
     Directory.CreateDirectory(keyDir);
