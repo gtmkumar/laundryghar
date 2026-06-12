@@ -1,6 +1,6 @@
 # LaundryGhar OLMS — Handoff
 
-_Last updated: 2026-06-11 (gap-analysis remediation initiative **COMPLETE — all 42 tasks**, plus the 2026-06-11 feature round: catalog/pricing management, integration settings, live ops dashboard + orders cards; see §4 and `docs/GAP_ANALYSIS.md`)_
+_Last updated: 2026-06-12 (rider role rebuilt to **least privilege** — new self-scope `rider.tasks.*` codes + permission lanes on `/api/v1/rider/*`, over-broad `orders.*` grants removed from the live DB; currency-crash hardening in both web clients; bad QA order deleted. All committed in `bd284b0`; see §4)_
 
 ## 1. What this is
 
@@ -96,10 +96,72 @@ settings (Payments/WhatsApp/SMS, encrypted + runtime-consumed)**, and a **live o
 (active riders, needs-action ages, active-order cards, new-booking chime). Test floor:
 **586 backend + 178 mobile automated tests, `scripts/smoke.sh` 22 probes** (see `TESTING.md`).
 Last validated green 2026-06-11: build 0 errors, all tests, smoke 22/22, 9 services + Worker healthy.
+**2026-06-12:** the rider role now runs **least-privilege** (`rider.tasks.read`/`.update`
+self-scope codes only, no `orders.*`; permission lanes enforced on `/api/v1/rider/*`) and
+`formatCurrency` in both web clients is hardened against malformed currency codes (§4).
 
 ## 4. What changed in recent sessions
 
-### 2026-06-10 → 11 (latest) — gap-analysis remediation initiative (42 tasks) + the 06-11 feature round
+### 2026-06-11 → 12 (latest) — rider least-privilege permissions + currency-crash fix + QA-data cleanup
+
+All committed in **`bd284b0`**; working tree clean. Backend rebuilt, AppHost restarted
+(all 10 healthy), Identity **148/148** + Logistics **7/7** tests green.
+
+**1. Orders page white-screen fixed** — `RangeError: Invalid currency code : I`. Root
+cause: QA-seeded order **ORD-QA-001** had `currency_code='I'`; `Intl.NumberFormat`
+throws on malformed codes and the throw crashed the whole page render. Layered fix:
+
+- `formatCurrency` in **both** `admin-web/src/lib/utils.ts` and `pos-web/src/lib/utils.ts`
+  now try/catches Intl and falls back to INR — one bad DB row can never white-screen a
+  page again.
+- The QA order itself deleted (user-approved): 1 order + 4 related rows
+  (`commerce.loyalty_points_ledger`, `commerce.payments`,
+  `order_lifecycle.delivery_assignments`, `order_lifecycle.order_status_history`) in one
+  transaction. **`QA-A1-RETEST-001` is also leftover QA test data** (harmless, left in
+  place — delete if it bothers anyone).
+
+**2. Rider role rebuilt to least privilege** (the headline). The seeded rider role held
+`orders.list` + `orders.update` — broad **admin-API** grants the rider app never uses
+(its lane is `/api/v1/rider/*`, gated by `RiderOnly`); worse, `orders.update` let a
+rider JWT hit admin endpoints that check it (e.g. invoice generation). Per the user's
+direction ("fix the permission level to what a rider can do only"), the model was
+restructured rather than just un-granted:
+
+- **Two new self-scope permission codes**: `rider.tasks.read` (view own assigned
+  pickup/delivery tasks) and `rider.tasks.update` (progress own tasks — status, OTP,
+  photos, inspection). Seeded in `IdentitySeeder.cs`; rider role now holds **exactly
+  these two and nothing else**.
+- **Three permission lanes inside the Logistics `/api/v1/rider/*` group** (all still
+  behind `RiderOnly` — that remains the hard boundary):
+  - **session lane** (`/me`, `/duty`, `/location/ping`, `/push-token`) — `RiderOnly`
+    alone, so revoking task permissions can never brick login or live tracking;
+  - **read lane** (`permission:rider.tasks.read`) — assignments/tasks today + by date,
+    payouts, cash summary;
+  - **write lane** (`permission:rider.tasks.update`) — assignment/task status, OTP
+    verify, proof photo, inspection.
+- **Live DB aligned via `db/patches/fix_rider_role_permissions.sql`** (transactional,
+  idempotent; applied with user approval): inserts the 2 codes, grants them to rider,
+  **deletes** rider's `orders.list`/`orders.update` grants. The SQL patch is required
+  because **IdentitySeeder is add-only** — it never removes existing grants (see §5).
+- **Verified live end-to-end**: fresh rider OTP login → JWT `permissions` claim carries
+  exactly `rider.tasks.read rider.tasks.update`; rider read + write lanes pass; the
+  admin orders API now returns **403** for a rider token; the admin matrix shows rider =
+  Riders View+Edit only. Known transient: rider sessions holding pre-change tokens get
+  403 on task endpoints for up to 15 min until refresh/re-login.
+
+**3. "How do I block a role from a module?" (access-control mechanics, documented for
+posterity):** access is **additive — there is no deny rule**. To lock a role out of a
+module, uncheck **every cell of that module's row** in Roles & Permissions and save;
+`SetRoleCellHandler` removes all underlying permission grants, the JWT loses the codes
+on next refresh (≤15 min), APIs 403, and the sidebar hides the module
+(`GetNavigatorHandler` gates by `modules.required_permission`). Caveats: **Platform
+Administrator cannot be locked out** (`user_type=platform_admin` bypasses every
+permission check — its matrix checkboxes are effectively display-only, by design);
+**Orders and POS rows share the same `orders.*` permission family** (unchecking one
+affects the other — they can't currently be separated per-role); a cell maps to one or
+more codes, so uncheck whole rows, not just View.
+
+### 2026-06-10 → 11 — gap-analysis remediation initiative (42 tasks) + the 06-11 feature round
 
 The whole arc ran as **orchestrated specialist-agent rounds**: implementation agents with
 strict file lanes, then an independent QA-verifier per round that live-tested against the
@@ -683,6 +745,11 @@ service-to-service plumbing). Commits on `main` (newest first):
   real login. `platform_admin` tokens carry **no `brand_id`**, so admin endpoints need an
   **`X-Brand-Id: <brandId>`** header; `platform_admin` also bypasses permission checks and gets RLS bypass.
 - **Permissions claim is space-separated**; lanes are `permission:<code>`, `CustomerOnly`, `RiderOnly`.
+- **IdentitySeeder is ADD-ONLY** — `Grant()` inserts missing role_permissions but never
+  removes existing ones. Tightening a role's grants in the seeder does nothing to a live
+  DB; ship a removal SQL patch alongside (pattern: `db/patches/fix_rider_role_permissions.sql`).
+  Corollary: the permission model is **additive with no deny rule**, and
+  `platform_admin` bypasses every permission check (its matrix checkboxes are display-only).
 - **JWT contract (pinned):** `token_use` = `user|customer`; `sub` = user/customer id; `iss` =
   `laundryghar-identity`; `aud` = `laundryghar-services`. RS256, `kid` in header.
 - **Keep the AppHost detached** — the harness SIGTERMs tracked background tasks after a few minutes;
@@ -803,7 +870,8 @@ Git is **ask-gated** — commit/push only when explicitly requested. Commit trai
 - Production env contract: `backend/laundryghar/PRODUCTION_ENV.md`
 - DB patches applied: `db/patches/harden_app_user_and_rls_bypass.sql`,
   `order_addons_brand_id_rls.sql`, `order_number_sequence.sql`, `fix_mv_customer_ltv_nulls.sql`,
-  `rider_verify_permission.sql`, **Rider Ops:** `rider_drop_at_store.sql`,
+  `rider_verify_permission.sql`, `fix_rider_role_permissions.sql` (rider least-privilege,
+  2026-06-12), **Rider Ops:** `rider_drop_at_store.sql`,
   `rider_cod_settlement.sql`, `rider_payout.sql`, `seed_rider_ops_demo.sql` (dev demo)
 - **Apply Rider Ops patches to any env:** `db/patches/apply_rider_ops_patches.sh` (idempotent;
   `DB_HOST/PORT/USER/PASS` env vars; `--with-demo` opt-in; needs a privileged role)

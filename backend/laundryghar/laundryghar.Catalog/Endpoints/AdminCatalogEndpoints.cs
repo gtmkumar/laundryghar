@@ -194,6 +194,40 @@ public static class AdminCatalogEndpoints
             return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
         }).RequireAuthorization("permission:catalog.item.delete");
 
+        // ── Item Image ────────────────────────────────────────────────────────
+        // POST /api/v1/admin/items/{id}/image
+        // Multipart upload: IFormFile requires DisableAntiforgery() in .NET 10 minimal APIs.
+        items.MapPost("/{id:guid}/image", async (
+            Guid id, IFormFile file, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new UploadItemImageCommand(id, file, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<ItemDto> { Status = true, Data = r });
+        })
+        .RequireAuthorization("permission:catalog.item.update")
+        .DisableAntiforgery()
+        .WithMetadata(new RequestSizeLimitAttribute(6 * 1024 * 1024)); // 5 MB + envelope overhead
+
+        // GET /api/v1/admin/items/{id}/image — streams the image
+        // Streaming by item ID avoids exposing raw storage keys in the API surface.
+        items.MapGet("/{id:guid}/image", async (Guid id, [FromServices] ISender sender, CancellationToken ct) =>
+        {
+            var result = await sender.Send(new GetItemImageStreamQuery(id), ct);
+            if (result is null) return Results.NotFound();
+
+            return Results.Stream(
+                result.Stream,
+                contentType: result.ContentType,
+                fileDownloadName: result.FileName,
+                enableRangeProcessing: false);
+        }).RequireAuthorization("permission:catalog.read");
+
+        // DELETE /api/v1/admin/items/{id}/image
+        items.MapDelete("/{id:guid}/image", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new DeleteItemImageCommand(id, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<ItemDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:catalog.item.update");
+
         // ── Item Variants ─────────────────────────────────────────────────────
         var variants = group.MapGroup("/item-variants").WithTags("Admin - Catalog - Variants");
 

@@ -79,8 +79,10 @@ public sealed class UpdateItemHandler : IRequestHandler<UpdateItemCommand, ItemD
         e.Name                = req.Name;
         e.NameLocalized       = req.NameLocalized;
         e.Description         = req.Description;
-        e.IconUrl             = req.IconUrl;
-        e.ImageUrl            = req.ImageUrl;
+        // Icon/image are managed via the dedicated image endpoints; a null here
+        // means "leave unchanged" so a generic PUT can't wipe an uploaded image.
+        e.IconUrl             = req.IconUrl ?? e.IconUrl;
+        e.ImageUrl            = req.ImageUrl ?? e.ImageUrl;
         e.TypicalWeightGrams  = req.TypicalWeightGrams;
         e.RequiresPerSidePrice = req.RequiresPerSidePrice;
         e.Aliases             = req.Aliases ?? [];

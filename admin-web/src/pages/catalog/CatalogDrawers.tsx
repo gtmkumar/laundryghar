@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Layers, Plus, Save, Shirt, Trash2, Wrench } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ImagePlus, Layers, Plus, Save, Shirt, Trash2, Wrench } from 'lucide-react'
 import {
   useCreateServiceCategory,
   useUpdateServiceCategory,
@@ -10,6 +10,9 @@ import {
   useCreateItem,
   useUpdateItem,
   useDeleteItem,
+  useUploadItemImage,
+  useDeleteItemImage,
+  useItemImageUrl,
   useServiceCategoriesInfinite,
   useItemGroups,
 } from '@/hooks/useCatalog'
@@ -446,10 +449,14 @@ interface ItemDrawerProps {
   onClose: () => void
 }
 
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // matches the backend upload validator
+
 export function ItemEditDrawer({ open, item, onClose }: ItemDrawerProps) {
   const isEdit = !!item
   const create = useCreateItem()
   const update = useUpdateItem()
+  const uploadImage = useUploadItemImage()
+  const deleteImage = useDeleteItemImage()
   const { data: groupData } = useItemGroups()
   const itemGroups = groupData?.list ?? []
 
@@ -465,6 +472,24 @@ export function ItemEditDrawer({ open, item, onClose }: ItemDrawerProps) {
   const [displayOrder, setDisplayOrder] = useState('0')
   const [status, setStatus] = useState('active')
   const [error, setError] = useState<string | null>(null)
+
+  // Image: a newly picked file wins over the stored one; "remove" only takes
+  // effect on save so cancelling the drawer never touches the stored image.
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [removeImage, setRemoveImage] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const storedImageUrl = useItemImageUrl(item?.id, open && !!item?.imageUrl)
+  const pickedImageUrl = useMemo(
+    () => (imageFile ? URL.createObjectURL(imageFile) : undefined),
+    [imageFile],
+  )
+  useEffect(() => {
+    return () => {
+      if (pickedImageUrl) URL.revokeObjectURL(pickedImageUrl)
+    }
+  }, [pickedImageUrl])
+  const imagePreview = pickedImageUrl ?? (removeImage ? undefined : storedImageUrl)
 
   useEffect(() => {
     if (!open) return
@@ -495,9 +520,30 @@ export function ItemEditDrawer({ open, item, onClose }: ItemDrawerProps) {
       setDisplayOrder('0')
       setStatus('active')
     }
+    setImageFile(null)
+    setRemoveImage(false)
   }, [open, item])
 
   if (!open) return null
+
+  const pickImage = (file: File | null) => {
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      return setError('Image must be a JPEG, PNG, or WebP file.')
+    }
+    if (file.size > IMAGE_MAX_BYTES) {
+      return setError('Image must be 5 MB or smaller.')
+    }
+    setError(null)
+    setImageFile(file)
+    setRemoveImage(false)
+  }
+
+  const clearImage = () => {
+    setImageFile(null)
+    setRemoveImage(true)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   const submit = async () => {
     setError(null)
@@ -512,17 +558,22 @@ export function ItemEditDrawer({ open, item, onClose }: ItemDrawerProps) {
       nameLocalized: buildNameLocalized(nameEn, nameHi),
       description: description.trim() || null,
       iconUrl: null,
-      imageUrl: null,
+      imageUrl: null, // null = leave unchanged; images go through the image endpoints
       typicalWeightGrams: typicalWeightGrams ? Number(typicalWeightGrams) : null,
       requiresPerSidePrice,
       aliases: aliasList.length ? aliasList : null,
       displayOrder: Number(displayOrder) || 0,
     }
     try {
-      if (isEdit && item) {
-        await update.mutateAsync({ id: item.id, payload: { ...common, status } })
-      } else {
-        await create.mutateAsync({ ...common, code: code.trim() })
+      const saved =
+        isEdit && item
+          ? await update.mutateAsync({ id: item.id, payload: { ...common, status } })
+          : await create.mutateAsync({ ...common, code: code.trim() })
+
+      if (imageFile) {
+        await uploadImage.mutateAsync({ id: saved.id, file: imageFile })
+      } else if (removeImage && isEdit && item?.imageUrl) {
+        await deleteImage.mutateAsync(saved.id)
       }
       onClose()
     } catch (e) {
@@ -542,7 +593,9 @@ export function ItemEditDrawer({ open, item, onClose }: ItemDrawerProps) {
       submitLabel={isEdit ? 'Save item' : 'Create item'}
       submittingLabel="Saving…"
       submitIcon={isEdit ? Save : Plus}
-      submitting={create.isPending || update.isPending}
+      submitting={
+        create.isPending || update.isPending || uploadImage.isPending || deleteImage.isPending
+      }
     >
       <DrawerSection title="Identity">
         <div className="grid grid-cols-2 gap-3">
@@ -563,6 +616,52 @@ export function ItemEditDrawer({ open, item, onClose }: ItemDrawerProps) {
         <Field label="Description">
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={drawerInputCls} placeholder="Optional" />
         </Field>
+      </DrawerSection>
+
+      <DrawerSection title="Image">
+        <div className="flex items-start gap-3">
+          {imagePreview ? (
+            <img
+              src={imagePreview}
+              alt={name || 'Item'}
+              className="h-20 w-20 rounded-lg border border-gray-200 object-cover"
+            />
+          ) : (
+            <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-gray-400">
+              <ImagePlus className="h-6 w-6" />
+            </div>
+          )}
+          <div className="flex flex-col items-start gap-1.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                {imagePreview ? 'Replace image' : 'Choose image'}
+              </button>
+              {imagePreview && (
+                <button
+                  type="button"
+                  onClick={clearImage}
+                  className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              JPEG, PNG, or WebP up to 5 MB. Shown to customers in the mobile app.
+            </p>
+          </div>
+        </div>
       </DrawerSection>
 
       <DrawerSection title="Attributes">

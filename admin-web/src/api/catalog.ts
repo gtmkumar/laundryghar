@@ -126,6 +126,35 @@ export async function deleteItem(id: string): Promise<void> {
   await catalogClient.delete(`${ADMIN}/items/${id}`)
 }
 
+// ── Item image ────────────────────────────────────────────────────────────────
+// imageUrl on ItemDto holds an opaque storage key — the image itself is always
+// fetched through the streaming endpoint (auth header required, hence the blob).
+
+export async function uploadItemImage(id: string, file: File): Promise<ItemDto> {
+  const form = new FormData()
+  form.append('file', file)
+  // The client default is application/json, which makes axios JSON-encode
+  // FormData; multipart/form-data here lets the browser set the boundary.
+  const { data } = await catalogClient.post<ApiResponse<ItemDto>>(
+    `${ADMIN}/items/${id}/image`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+  return unwrap(data)
+}
+
+export async function deleteItemImage(id: string): Promise<ItemDto> {
+  const { data } = await catalogClient.delete<ApiResponse<ItemDto>>(`${ADMIN}/items/${id}/image`)
+  return unwrap(data)
+}
+
+export async function getItemImageBlob(id: string): Promise<Blob> {
+  const { data } = await catalogClient.get<Blob>(`${ADMIN}/items/${id}/image`, {
+    responseType: 'blob',
+  })
+  return data
+}
+
 // ── Fabric Types & Item Groups (lookups for the price-list editor) ─────────────
 
 export async function getFabricTypes(

@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import {
   getServiceCategories,
   getServices,
@@ -19,6 +19,9 @@ import {
   createItem,
   updateItem,
   deleteItem,
+  uploadItemImage,
+  deleteItemImage,
+  getItemImageBlob,
   createPriceList,
   updatePriceList,
   publishPriceList,
@@ -49,6 +52,7 @@ export const catalogKeys = {
   servicesInfinite: (params?: object) => ['catalog', 'services', 'infinite', params] as const,
   items: (params?: object) => ['catalog', 'items', params] as const,
   itemsInfinite: (params?: object) => ['catalog', 'items', 'infinite', params] as const,
+  itemImage: (itemId: string) => ['catalog', 'item-image', itemId] as const,
   fabricTypes: (params?: object) => ['catalog', 'fabricTypes', params] as const,
   itemGroups: (params?: object) => ['catalog', 'itemGroups', params] as const,
   priceLists: (params?: object) => ['catalog', 'priceLists', params] as const,
@@ -236,6 +240,46 @@ export function useDeleteItem() {
     mutationFn: (id: string) => deleteItem(id),
     onSuccess: () => invalidate(qc, ['catalog', 'items']),
   })
+}
+
+export function useUploadItemImage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => uploadItemImage(id, file),
+    onSuccess: (_, { id }) =>
+      invalidate(qc, ['catalog', 'items'], catalogKeys.itemImage(id)),
+  })
+}
+
+export function useDeleteItemImage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteItemImage(id),
+    onSuccess: (_, id) => invalidate(qc, ['catalog', 'items'], catalogKeys.itemImage(id)),
+  })
+}
+
+/**
+ * Object URL for an item's stored image, fetched through the authenticated
+ * streaming endpoint (a plain <img src> can't carry the bearer token).
+ * Returns undefined while loading or when the item has no stored image.
+ */
+export function useItemImageUrl(itemId: string | undefined, hasImage: boolean) {
+  const { data: blob } = useQuery({
+    queryKey: catalogKeys.itemImage(itemId ?? ''),
+    queryFn: () => getItemImageBlob(itemId!),
+    enabled: !!itemId && hasImage,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const url = useMemo(() => (blob ? URL.createObjectURL(blob) : undefined), [blob])
+  useEffect(() => {
+    return () => {
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [url])
+
+  return url
 }
 
 // ── Pricing mutations ─────────────────────────────────────────────────────────
