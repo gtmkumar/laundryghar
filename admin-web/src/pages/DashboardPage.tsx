@@ -3,12 +3,13 @@
  *
  * Data wiring:
  *  - KPI 1 (Orders Today) + KPI 2 (Revenue Today): GET :5008/analytics/dashboard → today.*
- *  - KPI 3 (Pending Pickup): getOrders({status:'pickup_scheduled,...', pageSize:200}) list.length
- *    NOTE: this approach uses list.length on a large pageSize fetch because there is no
- *    dedicated count endpoint exposed by the orders service. At production scale this
- *    should become a real /admin/orders/counts endpoint.
- *  - KPI 4 (In Wash): getOrders({status:'received,sorting,in_process', pageSize:200}) list.length
- *  - KPI 5 (Out for Delivery): getOrders({status:'out_for_delivery', pageSize:200}) list.length
+ *  - KPI 3 (Pending Pickup): getOrders({status:'pickup_scheduled', pageSize:1}) → totalCount
+ *    NOTE: there is no dedicated /count endpoint, but the list response carries a
+ *    server-computed TotalCount (COUNT(*) independent of paging). We fetch a single
+ *    row and read totalCount — correct at any scale, ~1/200th the payload of the old
+ *    pageSize:200 + list.length approach (which silently capped each KPI at 200).
+ *  - KPI 4 (In Wash): getOrders({status:'received', pageSize:1}) → totalCount
+ *  - KPI 5 (Out for Delivery): getOrders({status:'out_for_delivery', pageSize:1}) → totalCount
  *  - Revenue chart: getDailyStoreRevenue (last 14 days), grouped by date, summed grossRevenue
  *  - Store leaderboard: daily-store-revenue today, joined with getStores for names
  *  - Live feed: getOrders({pageSize:8}), refetchInterval 30s, joined with getStores for names
@@ -489,17 +490,22 @@ export function DashboardPage() {
   const revenueQ = useDailyStoreRevenue({ from: iso14DaysAgo(), to: isoToday() }, enabled)
   const chartBars = useMemo(() => aggregateByDate(revenueQ.data ?? []), [revenueQ.data])
 
-  // ── Order status counts — no count endpoint, fetch with large pageSize and use list.length
-  // NOTE: at production scale these should become dedicated /admin/orders/count endpoints
-  const pickupStatusQ = useOrders({ status: 'pickup_scheduled', pageSize: 200 }, undefined, enabled)
-  const inWashQ = useOrders({ status: 'received', pageSize: 200 }, undefined, enabled)
-  const deliveryQ = useOrders({ status: 'out_for_delivery', pageSize: 200 }, undefined, enabled)
+  // ── Order status counts — there is no dedicated /count endpoint, but the list
+  // response carries a server-computed TotalCount (a COUNT(*) independent of
+  // paging). So fetch a single row (pageSize: 1) and read totalCount instead of
+  // pulling 200 rows just to take .length — same number, ~1/200th the payload,
+  // and correct past 200 rows (the old approach silently capped the KPI at 200).
+  const pickupStatusQ = useOrders({ status: 'pickup_scheduled', pageSize: 1 }, undefined, enabled)
+  const inWashQ = useOrders({ status: 'received', pageSize: 1 }, undefined, enabled)
+  const deliveryQ = useOrders({ status: 'out_for_delivery', pageSize: 1 }, undefined, enabled)
 
   // ── Live feed (last 8 orders, refreshes every 30s)
   const feedQ = useOrders({ pageSize: 8 }, 30_000, enabled)
 
-  // ── Stores for joining names (not brand-scoped in the same way — platform admin can fetch all)
-  const storesQ = useStores({ pageSize: 100 })
+  // ── Stores for joining names (not brand-scoped in the same way — platform admin can fetch all).
+  // Still gated behind `enabled`: getStores rides the X-Brand-Id interceptor, so firing it before
+  // the brand auto-select resolves produces 401 noise on every dashboard mount (DEF-R3-1).
+  const storesQ = useStores({ pageSize: 100 }, enabled)
   const stores = storesQ.data?.list ?? []
 
   // ── Customer name map for live feed (pageSize 100, brand-scoped via X-Brand-Id header)
@@ -510,9 +516,9 @@ export function DashboardPage() {
   const ordersToday = today?.ordersCount ?? 0
   const revenueToday = today?.grossRevenue ?? 0
 
-  const pendingPickupCount = pickupStatusQ.data?.list.length ?? 0
-  const inWashCount = inWashQ.data?.list.length ?? 0
-  const outForDeliveryCount = deliveryQ.data?.list.length ?? 0
+  const pendingPickupCount = pickupStatusQ.data?.totalCount ?? 0
+  const inWashCount = inWashQ.data?.totalCount ?? 0
+  const outForDeliveryCount = deliveryQ.data?.totalCount ?? 0
 
   const feedOrders = feedQ.data?.list ?? []
   const isLoading = dashboardQ.isLoading

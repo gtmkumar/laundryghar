@@ -151,6 +151,11 @@ export function CouponEditDrawer({ open, coupon, onClose }: EditDrawerProps) {
       return setError('A percentage discount cannot exceed 100%.')
     if (!Number.isFinite(minOrderValue) || minOrderValue < 0)
       return setError('Minimum order value must be 0 or greater.')
+    // A flat discount that meets or exceeds the minimum order would make a
+    // qualifying order free or negative — only enforce when a minimum is modeled
+    // (minOrderValue > 0), since 0 means "no minimum".
+    if (form.couponType === 'flat' && minOrderValue > 0 && discount >= minOrderValue)
+      return setError('A flat discount must be less than the minimum order value.')
     if (maxDiscount !== null && (!Number.isFinite(maxDiscount) || maxDiscount < 0))
       return setError('Max discount cap must be 0 or greater.')
     if (maxTotalUses !== null && (!Number.isInteger(maxTotalUses) || maxTotalUses < 1))

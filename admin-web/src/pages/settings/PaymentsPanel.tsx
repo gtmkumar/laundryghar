@@ -29,9 +29,15 @@ export function PaymentsPanel({ settings }: { settings: AdminSettings }) {
     setCodEnabled(p.codEnabled)
   }, [p.enabled, p.keyId, p.codEnabled])
 
-  // Derive the webhook URL from the current window origin (admin → commerce port is
-  // not known here; render a template the admin can fill in manually).
-  const webhookUrl = `${window.location.origin.replace(':5173', ':5002')}/api/v1/webhooks/razorpay`
+  // R3-WEB-2: prefer the canonical, env-aware webhook URL served by the backend
+  // settings GET when present. The string-replace fallback below is only correct
+  // in local dev (:5173 admin → :5002 commerce) and wrong in every other env.
+  // TODO(R3-WEB-2): once the backend adds `webhookUrl` to PaymentGatewaySettingsView
+  // (teammate's wave), drop the fallback and make this purely `p.webhookUrl`.
+  const serverWebhookUrl = (p as { webhookUrl?: string | null }).webhookUrl ?? null
+  const webhookUrl =
+    serverWebhookUrl ||
+    `${window.location.origin.replace(':5173', ':5002')}/api/v1/webhooks/razorpay`
 
   const copyWebhookUrl = async () => {
     await navigator.clipboard.writeText(webhookUrl)
@@ -40,6 +46,9 @@ export function PaymentsPanel({ settings }: { settings: AdminSettings }) {
   }
 
   const save = async () => {
+    // Guard the submit itself, not just the button: a disabled button is a UX
+    // hint, not an authorization check. (Backend still enforces user_type.)
+    if (!canManage) return
     setError(null)
     setSavedAt(null)
     const payload: UpdatePaymentGatewayPayload = {

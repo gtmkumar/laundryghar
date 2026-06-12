@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2, Plus, Pencil, Trash2 } from 'lucide-react'
+import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
 import {
   useServiceCategoriesInfinite,
   useServicesInfinite,
@@ -80,6 +81,30 @@ function CategoriesTab({ canManage }: { canManage: boolean }) {
     { header: 'Order', accessor: (r) => String(r.displayOrder) },
     { header: 'Status', accessor: (r) => <StatusBadge status={r.status} /> },
     { header: 'Updated', accessor: (r) => formatDate(r.updatedAt) },
+    ...(canManage
+      ? [
+          {
+            header: '',
+            className: 'w-12 text-right',
+            accessor: (r: ServiceCategoryDto) => (
+              <div onClick={(e) => e.stopPropagation()}>
+                <ActionMenu label="Category actions">
+                  {(close) => (
+                    <>
+                      <ActionMenuItem icon={Pencil} onClick={() => { close(); setEditing(r) }}>
+                        Edit
+                      </ActionMenuItem>
+                      <ActionMenuItem icon={Trash2} danger onClick={() => { close(); setDeleting(r) }}>
+                        Delete
+                      </ActionMenuItem>
+                    </>
+                  )}
+                </ActionMenu>
+              </div>
+            ),
+          },
+        ]
+      : []),
   ]
 
   if (isLoading) return <LoadingState message="Loading categories..." />
@@ -112,6 +137,7 @@ function ServicesTab({ canManage }: { canManage: boolean }) {
     useServicesInfinite()
   const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
   const [editing, setEditing] = useState<ServiceDto | null>(null)
+  const [deleting, setDeleting] = useState<ServiceDto | null>(null)
 
   const columns: Column<ServiceDto>[] = [
     { header: 'Code', accessor: 'code', className: 'font-mono text-xs w-28' },
@@ -124,6 +150,30 @@ function ServicesTab({ canManage }: { canManage: boolean }) {
       accessor: (r) => (r.isExpressAvailable ? <Badge variant="success">×{r.expressMultiplier}</Badge> : <Badge variant="secondary">No</Badge>),
     },
     { header: 'Status', accessor: (r) => <StatusBadge status={r.status} /> },
+    ...(canManage
+      ? [
+          {
+            header: '',
+            className: 'w-12 text-right',
+            accessor: (r: ServiceDto) => (
+              <div onClick={(e) => e.stopPropagation()}>
+                <ActionMenu label="Service actions">
+                  {(close) => (
+                    <>
+                      <ActionMenuItem icon={Pencil} onClick={() => { close(); setEditing(r) }}>
+                        Edit
+                      </ActionMenuItem>
+                      <ActionMenuItem icon={Trash2} danger onClick={() => { close(); setDeleting(r) }}>
+                        Delete
+                      </ActionMenuItem>
+                    </>
+                  )}
+                </ActionMenu>
+              </div>
+            ),
+          },
+        ]
+      : []),
   ]
 
   if (isLoading) return <LoadingState message="Loading services..." />
@@ -144,6 +194,7 @@ function ServicesTab({ canManage }: { canManage: boolean }) {
       />
       <InfiniteFooter isFetchingNextPage={isFetchingNextPage} sentinelRef={sentinelRef} />
       <ServiceEditDrawer open={!!editing} service={editing} onClose={() => setEditing(null)} />
+      <DeleteCatalogDrawer entity={deleting} kind="service" onClose={() => setDeleting(null)} />
     </div>
   )
 }
@@ -155,6 +206,7 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
     useItemsInfinite()
   const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
   const [editing, setEditing] = useState<ItemDto | null>(null)
+  const [deleting, setDeleting] = useState<ItemDto | null>(null)
 
   const columns: Column<ItemDto>[] = [
     { header: 'Code', accessor: 'code', className: 'font-mono text-xs w-28' },
@@ -164,6 +216,30 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
     { header: 'Order', accessor: (r) => String(r.displayOrder) },
     { header: 'Status', accessor: (r) => <StatusBadge status={r.status} /> },
     { header: 'Updated', accessor: (r) => formatDate(r.updatedAt) },
+    ...(canManage
+      ? [
+          {
+            header: '',
+            className: 'w-12 text-right',
+            accessor: (r: ItemDto) => (
+              <div onClick={(e) => e.stopPropagation()}>
+                <ActionMenu label="Item actions">
+                  {(close) => (
+                    <>
+                      <ActionMenuItem icon={Pencil} onClick={() => { close(); setEditing(r) }}>
+                        Edit
+                      </ActionMenuItem>
+                      <ActionMenuItem icon={Trash2} danger onClick={() => { close(); setDeleting(r) }}>
+                        Delete
+                      </ActionMenuItem>
+                    </>
+                  )}
+                </ActionMenu>
+              </div>
+            ),
+          },
+        ]
+      : []),
   ]
 
   if (isLoading) return <LoadingState message="Loading items..." />
@@ -184,6 +260,7 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
       />
       <InfiniteFooter isFetchingNextPage={isFetchingNextPage} sentinelRef={sentinelRef} />
       <ItemEditDrawer open={!!editing} item={editing} onClose={() => setEditing(null)} />
+      <DeleteCatalogDrawer entity={deleting} kind="item" onClose={() => setDeleting(null)} />
     </div>
   )
 }

@@ -52,6 +52,10 @@ export async function verifyOtp(
     // For axios HTTP/network errors, extract the server's responseMessage when
     // present on the error body, otherwise use a friendly fallback.
     if (axios.isAxiosError(err)) {
+      // CUST-BUG-04: surface a rate-limit message before the generic fallback.
+      if (err.response?.status === 429) {
+        throw new Error('Too many attempts. Please wait a moment and try again.');
+      }
       const serverMessage =
         (err.response?.data as SingleResponse<unknown> | undefined)
           ?.message?.responseMessage;

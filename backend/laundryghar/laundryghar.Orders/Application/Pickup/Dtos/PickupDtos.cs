@@ -55,7 +55,13 @@ public sealed record CreatePickupRequestRequest(
     /// Defaults to "app". Can also be supplied via the X-Channel request header;
     /// the header takes precedence over the body field.
     /// </summary>
-    string? Channel = null
+    string? Channel = null,
+    /// <summary>
+    /// Optional coupon code the customer wants to apply on the eventual order.
+    /// Validated server-side at submit time (active, in-window, within per-customer usage limits).
+    /// Stored on the pickup request and threaded into the order on admin conversion.
+    /// </summary>
+    string? CouponCode = null
 );
 
 /// <summary>Full pickup request response — returned to both customer and admin endpoints.</summary>
@@ -86,7 +92,12 @@ public sealed record PickupRequestDto(
     /// <summary>
     /// Idempotency key supplied at booking time. Null when no key was provided.
     /// </summary>
-    string? IdempotencyKey = null
+    string? IdempotencyKey = null,
+    /// <summary>
+    /// Coupon code the customer intends to apply, validated at booking time.
+    /// Null when no coupon was submitted.
+    /// </summary>
+    string? CouponCode = null
 );
 
 public sealed record AssignPickupRequest(Guid RiderId);
@@ -118,3 +129,18 @@ public sealed record CreateDeliveryAssignmentRequest(
 );
 
 public sealed record UpdateDeliveryAssignmentRequest(string Status);
+
+/// <summary>Request body for POST /pickup-requests/{id}/reschedule.</summary>
+public sealed record ReschedulePickupRequest(
+    /// <summary>New pickup date. Must be today or in the future.</summary>
+    DateOnly NewDate,
+    /// <summary>New slot id. When provided the old slot capacity is released and the new slot is booked atomically.</summary>
+    Guid? NewSlotId
+);
+
+/// <summary>Request body for POST /customer/coupons/validate (Orders service preview — no redemption written).</summary>
+public sealed record ValidateCouponRequest(
+    string CouponCode,
+    /// <summary>Estimated cart subtotal for minimum-order-value and discount calculation.</summary>
+    decimal? EstimatedSubtotal
+);

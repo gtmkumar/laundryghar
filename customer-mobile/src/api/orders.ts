@@ -5,6 +5,7 @@
 import { ordersClient, unwrapList, unwrapPaginated, unwrapSingle } from '@/api/client';
 import type {
   CreatePickupRequestRequest,
+  CouponPreviewResult,
   DeliverySlotDto,
   ListResponse,
   OrderDto,
@@ -12,7 +13,9 @@ import type {
   PaginatedListResponse,
   PickupRequestDto,
   RateOrderRequest,
+  ReschedulePickupRequestBody,
   SingleResponse,
+  ValidateCouponForPickupRequest,
 } from '@/types/api';
 
 // ── Orders ───────────────────────────────────────────────────────────────────
@@ -103,6 +106,34 @@ export async function getMyPickupRequests(
 export async function getMyPickupRequestById(id: string): Promise<PickupRequestDto> {
   const res = await ordersClient.get<SingleResponse<PickupRequestDto>>(
     `/customer/pickup-requests/${id}`,
+  );
+  return unwrapSingle(res.data);
+}
+
+/** POST /api/v1/customer/pickup-requests/{id}/reschedule */
+export async function reschedulePickup(
+  id: string,
+  req: ReschedulePickupRequestBody,
+): Promise<PickupRequestDto> {
+  const res = await ordersClient.post<SingleResponse<PickupRequestDto>>(
+    `/customer/pickup-requests/${id}/reschedule`,
+    req,
+  );
+  return unwrapSingle(res.data);
+}
+
+// ── Coupon preview ────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/v1/customer/coupons/validate
+ * Preview-only — does not create a redemption record.
+ */
+export async function validateCouponForPickup(
+  req: ValidateCouponForPickupRequest,
+): Promise<CouponPreviewResult> {
+  const res = await ordersClient.post<SingleResponse<CouponPreviewResult>>(
+    '/customer/coupons/validate',
+    req,
   );
   return unwrapSingle(res.data);
 }

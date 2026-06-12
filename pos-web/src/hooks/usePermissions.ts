@@ -24,6 +24,15 @@ import { useAuthStore } from '@/stores/authStore'
 export const PERMISSIONS = {
   customerCreate: 'customer.create',
   paymentRecord: 'payment.record',
+  // R3-NAV-1: gating order-create and cash-book management at the counter.
+  // TODO(R3-SEC-2): backend is adding a dedicated `pos.order.create` / `pos.order.read`
+  // family so POS is lockable independently of the admin Orders module. Until it
+  // lands and is seeded, accept EITHER the legacy `orders.create` OR the new
+  // `pos.order.create` (see canCreateOrder below) so this gate works against
+  // whichever code the live token carries.
+  ordersCreate: 'orders.create',
+  posOrderCreate: 'pos.order.create',
+  cashbookManage: 'cashbook.manage',
 } as const
 
 export function usePermissions() {
@@ -36,5 +45,23 @@ export function usePermissions() {
     return isSuper || perms.has(permission)
   }
 
-  return { can, isSuper }
+  function canAny(...permissions: string[]): boolean {
+    return isSuper || permissions.some((p) => perms.has(p))
+  }
+
+  // R3-NAV-1 derived gates. Order creation accepts either the legacy Orders code
+  // or the incoming POS-specific code so the screen keeps working through the
+  // backend cut-over.
+  const canCreateOrder = canAny(PERMISSIONS.ordersCreate, PERMISSIONS.posOrderCreate)
+  // Viewing the orders list / detail (reprint a past receipt) follows the same
+  // family — read is implied by create at the counter.
+  const canViewOrders = canAny(
+    PERMISSIONS.ordersCreate,
+    PERMISSIONS.posOrderCreate,
+    'orders.read',
+    'pos.order.read',
+  )
+  const canManageCashbook = can(PERMISSIONS.cashbookManage)
+
+  return { can, canAny, isSuper, canCreateOrder, canViewOrders, canManageCashbook }
 }

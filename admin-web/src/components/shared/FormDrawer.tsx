@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { X, Loader2, AlertTriangle } from 'lucide-react'
 
 const WIDTHS = {
@@ -6,6 +6,18 @@ const WIDTHS = {
   md: 'max-w-lg',
   lg: 'max-w-xl',
 } as const
+
+/**
+ * Module-level stack of open drawer ids, ordered by mount. Only the LAST entry
+ * (the topmost layer) handles Escape, so closing a nested/elevated drawer with
+ * Esc never also closes the drawer underneath it. ConfirmDialog renders at a
+ * higher z-index (z-[70]) and owns its own Escape, so a confirm opened over a
+ * drawer still takes precedence — its listener was added later and stops the key
+ * before this one runs, and it lives outside this stack.
+ */
+const drawerStack: string[] = []
+/** The body overflow captured when the FIRST drawer opened; restored when the last closes. */
+let savedBodyOverflow = ''
 
 interface FormDrawerProps {
   open: boolean
@@ -82,6 +94,70 @@ export function FormDrawer({
   submitDisabled = false,
   cancelLabel = 'Cancel',
 }: FormDrawerProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
+  const id = useId()
+
+  // A11y while open: scroll-lock, focus-into-panel + trap, and Escape-to-close —
+  // but only the topmost layer responds to Escape (drawerStack), so an elevated /
+  // nested drawer closes alone. Mirrors ConfirmDialog's pattern.
+  useEffect(() => {
+    if (!open) return
+
+    // Capture the original body overflow only for the first drawer in the stack,
+    // so nested drawers don't each overwrite it with the already-locked 'hidden'.
+    if (drawerStack.length === 0) savedBodyOverflow = document.body.style.overflow
+    drawerStack.push(id)
+    restoreFocusRef.current = document.activeElement as HTMLElement | null
+    document.body.style.overflow = 'hidden'
+
+    // Move focus into the panel (first focusable, else the panel itself).
+    const raf = requestAnimationFrame(() => {
+      const first = panelRef.current?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      )
+      ;(first ?? panelRef.current)?.focus()
+    })
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Only the topmost drawer reacts.
+      if (drawerStack[drawerStack.length - 1] !== id) return
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusables = panelRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+      if (!focusables || focusables.length === 0) return
+      const list = Array.from(focusables).filter((el) => !el.hasAttribute('disabled'))
+      if (list.length === 0) return
+      const firstEl = list[0]
+      const lastEl = list[list.length - 1]
+      if (e.shiftKey && document.activeElement === firstEl) {
+        e.preventDefault()
+        lastEl.focus()
+      } else if (!e.shiftKey && document.activeElement === lastEl) {
+        e.preventDefault()
+        firstEl.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      cancelAnimationFrame(raf)
+      document.removeEventListener('keydown', onKeyDown)
+      const idx = drawerStack.lastIndexOf(id)
+      if (idx !== -1) drawerStack.splice(idx, 1)
+      // Restore body scroll only when no drawer remains open.
+      if (drawerStack.length === 0) document.body.style.overflow = savedBodyOverflow
+      restoreFocusRef.current?.focus?.()
+    }
+  }, [open, id, onClose])
+
   if (!open) return null
 
   return (
@@ -90,7 +166,11 @@ export function FormDrawer({
       onClick={onClose}
     >
       <div
-        className={`flex h-full w-full ${WIDTHS[width]} flex-col bg-white shadow-2xl`}
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className={`flex h-full w-full ${WIDTHS[width]} flex-col bg-white shadow-2xl outline-none`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

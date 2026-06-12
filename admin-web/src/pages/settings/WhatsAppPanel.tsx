@@ -28,6 +28,7 @@ export function WhatsAppPanel({ settings }: { settings: AdminSettings }) {
   }, [w.enabled, w.phoneNumberId, w.otpEnabled, w.otpTemplateName])
 
   const save = async () => {
+    if (!canManage) return
     setError(null)
     setSavedAt(null)
     const payload: UpdateWhatsAppPayload = {

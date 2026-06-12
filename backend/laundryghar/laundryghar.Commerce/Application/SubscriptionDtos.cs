@@ -149,6 +149,16 @@ public sealed record SubscribeRequest(
 
 public sealed record CancelSubscriptionRequest(string? Reason);
 
+/// <summary>Request body for PATCH /admin/subscriptions/{id}/status.</summary>
+public sealed record PatchCustomerSubscriptionStatusRequest(
+    string Status,
+    /// <summary>
+    /// When provided, the server checks that the subscription was last updated at this
+    /// timestamp before applying the change. Returns 409 on mismatch (optimistic concurrency).
+    /// </summary>
+    DateTimeOffset? ExpectedUpdatedAt = null
+);
+
 // ── PaymentMandate ────────────────────────────────────────────────────────────
 
 public sealed record PaymentMandateDto(

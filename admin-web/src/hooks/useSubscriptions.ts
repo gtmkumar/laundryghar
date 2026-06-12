@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   listSubscriptionPlans,
   createSubscriptionPlan,
@@ -6,6 +6,8 @@ import {
   patchSubscriptionPlanStatus,
   deleteSubscriptionPlan,
   listCustomerSubscriptions,
+  patchCustomerSubscriptionStatus,
+  type CustomerSubscriptionStatus,
 } from '@/api/subscriptions'
 import type {
   CreateSubscriptionPlanPayload,
@@ -71,5 +73,41 @@ export function useCustomerSubscriptions(params: CustomerSubscriptionListParams 
   return useQuery({
     queryKey: subscriptionKeys.customers(params),
     queryFn: () => listCustomerSubscriptions(params),
+  })
+}
+
+const CUSTOMER_SUBS_PAGE_SIZE = 50
+
+/**
+ * Infinite-scroll customer subscriptions (house pattern). Customer subscriptions
+ * grow unbounded over a brand's lifetime, so the old hard pageSize-100 fetch
+ * silently dropped rows past the cap. Flatten `data.pages.flatMap(p => p.list)`;
+ * `totalCount` comes off the first page (same on every page).
+ */
+export function useCustomerSubscriptionsInfinite(
+  params: Omit<CustomerSubscriptionListParams, 'page' | 'pageSize'> = {},
+) {
+  return useInfiniteQuery({
+    queryKey: subscriptionKeys.customers({ ...params, _infinite: true }),
+    queryFn: ({ pageParam }) =>
+      listCustomerSubscriptions({ ...params, page: pageParam, pageSize: CUSTOMER_SUBS_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasNextPage ? allPages.length + 1 : undefined,
+  })
+}
+
+/**
+ * Cancel / pause / resume a customer subscription via the narrow status PATCH.
+ * Invalidates every customer-subscription list so the drawer's row and counts
+ * reflect the new status. Requires the `subscription.manage` permission (also
+ * enforced server-side).
+ */
+export function usePatchCustomerSubscriptionStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { id: string; status: CustomerSubscriptionStatus; expectedUpdatedAt?: string }) =>
+      patchCustomerSubscriptionStatus(v.id, v.status, v.expectedUpdatedAt),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['subscriptions', 'customers'] }),
   })
 }

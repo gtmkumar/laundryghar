@@ -5,14 +5,20 @@
 import { NavLink } from 'react-router-dom'
 import { ShoppingCart, ClipboardList, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const navItems = [
-  { to: '/new-order', icon: ShoppingCart, label: 'New Order' },
-  { to: '/orders', icon: ClipboardList, label: "Today's Orders" },
-  { to: '/cash-book', icon: BookOpen, label: 'Cash Book' },
-]
+import { usePermissions } from '@/hooks/usePermissions'
 
 export function BottomNav() {
+  // R3-NAV-1: only surface destinations the staff login can actually use, so
+  // they don't tap into a 403. The route guards (RequirePermission) remain the
+  // backstop for direct-URL access.
+  const { canCreateOrder, canViewOrders, canManageCashbook } = usePermissions()
+
+  const navItems = [
+    { to: '/new-order', icon: ShoppingCart, label: 'New Order', show: canCreateOrder },
+    { to: '/orders', icon: ClipboardList, label: 'Orders', show: canViewOrders },
+    { to: '/cash-book', icon: BookOpen, label: 'Cash Book', show: canManageCashbook },
+  ].filter((item) => item.show)
+
   return (
     <nav className="h-16 flex items-center border-t border-gray-200 bg-white shrink-0">
       {navItems.map(({ to, icon: Icon, label }) => (

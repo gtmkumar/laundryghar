@@ -368,6 +368,62 @@ export interface CreatePickupRequestRequest {
    * UPI/card are normalised to "upi-deferred" server-side.
    */
   paymentPreference?: string | null;
+  /**
+   * Optional coupon code validated server-side at submit time.
+   * Stored on the pickup request and threaded into the order on conversion.
+   */
+  couponCode?: string | null;
+}
+
+/** Request body for POST /customer/pickup-requests/{id}/reschedule */
+export interface ReschedulePickupRequestBody {
+  /** New pickup date in YYYY-MM-DD format. Must be today or future. */
+  newDate: string;
+  /** New slot UUID. When omitted the old slot capacity is released with no new booking. */
+  newSlotId?: string | null;
+}
+
+/** Preview result from POST /customer/coupons/validate */
+export interface CouponPreviewResult {
+  /** True when the coupon is eligible. */
+  valid: boolean;
+  /** Monetary discount the customer would receive. 0 when invalid. */
+  discountPreview: number;
+  /** Human-readable reason when valid is false. Null on success. */
+  reason: string | null;
+}
+
+/** Request body for POST /customer/coupons/validate */
+export interface ValidateCouponForPickupRequest {
+  couponCode: string;
+  estimatedSubtotal: number;
+}
+
+// ---------------------------------------------------------------------------
+// DPDP consent DTOs — mirrors Catalog CustomerEndpoints /consents routes
+// ---------------------------------------------------------------------------
+
+export interface DpdpConsentDto {
+  id: string;
+  purpose: string;
+  purposeDescription: string;
+  dataCategories: string[];
+  consentStatus: 'granted' | 'withdrawn' | string;
+  consentMethod: string;
+  privacyPolicyVersion: string;
+  grantedAt?: string | null;
+  withdrawnAt?: string | null;
+  createdAt: string;
+}
+
+export interface GrantConsentRequest {
+  purpose: string;
+  purposeDescription: string;
+  dataCategories: string[];
+  consentMethod: string;
+  privacyPolicyVersion: string;
+  termsVersion?: string | null;
+  consentTextSnapshot?: string | null;
 }
 
 // ---------------------------------------------------------------------------

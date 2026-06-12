@@ -1,3 +1,5 @@
 - [Retry strategy for transactions](project-retry-strategy.md) — NpgsqlRetryingExecutionStrategy blocks BeginTransactionAsync; use CreateExecutionStrategy().ExecuteAsync wrapper in all handlers that open manual transactions
 - [BC-8 Engagement/CMS decisions](project-bc8-engagement.md) — anonymous brand resolution via IBrandResolver (no RLS), verified enum values, PaginatedList factory-only pattern, outbox retry approach
 - [GAP_ANALYSIS_R2 implementation decisions](project-gap-analysis-r2.md) — DOC-1/2/5/6, SEC-1/2/3, WEB-6, Package debit: key decisions, deferred items (RefreshToken.ClientId), DbSet names, discount ordering
+- [API Gateway R3-GW-1 decisions](project-gateway-r3-gw1.md) — YARP :8080, forward-not-reissue invariant, CORS/rate-limit policy names, health fan-out, cluster config override path
+- [R3-SEC-1/2/3 RBAC remediation](project-gap-analysis-r3-security.md) — seeder parity (8 patch-only codes folded in), POS permission family + pipe-syntax AnyPermissionRequirement, settings.read/manage gates, R3-BE-8 was comment-only

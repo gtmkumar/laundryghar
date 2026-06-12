@@ -62,10 +62,14 @@ export function useFranchisesInfinite(brandId?: string) {
   })
 }
 
-export function useStores(params: PaginationParams & { brandId?: string; franchiseId?: string } = {}) {
+export function useStores(
+  params: PaginationParams & { brandId?: string; franchiseId?: string } = {},
+  enabled = true,
+) {
   return useQuery({
     queryKey: tenancyKeys.stores(params),
     queryFn: () => getStores(params),
+    enabled,
   })
 }
 

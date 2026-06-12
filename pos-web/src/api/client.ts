@@ -167,6 +167,29 @@ function createInstance(baseURL: string): AxiosInstance {
   return instance
 }
 
+/**
+ * POS-2: standalone silent refresh used by ProtectedRoute to proactively rotate
+ * a stale/near-expiry access token on hard reload or after a long-idle tab,
+ * BEFORE the first API call would 401. Uses the in-memory refresh token when
+ * present; the HttpOnly `lg_refresh` cookie is the durable fallback across a
+ * hard reload. Bypasses the intercepted instances (plain axios) to avoid
+ * recursing into the 401 handler. Throws on failure so the caller can logout.
+ */
+export async function refreshAccessToken(): Promise<string> {
+  const { refreshToken, setTokens } = getAuthState()
+  const { data } = await axios.post<ApiResponse<TokenResponse>>(
+    `${IDENTITY_URL}/api/v1/auth/refresh`,
+    // Body carries the in-memory token when we still have it; the cookie covers
+    // the hard-reload case where it was dropped.
+    refreshToken ? { refreshToken } : {},
+    { withCredentials: true },
+  )
+  if (!data.status || !data.data) throw new Error('Token refresh failed')
+  const { accessToken: newAccess, refreshToken: newRefresh } = data.data
+  setTokens(newAccess, newRefresh)
+  return newAccess
+}
+
 // ── Service instances ─────────────────────────────────────────────────────────
 
 export const identityClient = createInstance(IDENTITY_URL)

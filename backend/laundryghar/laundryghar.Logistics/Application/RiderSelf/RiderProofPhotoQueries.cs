@@ -7,7 +7,7 @@ namespace laundryghar.Logistics.Application.RiderSelf;
 // ── Admin: stream a rider proof-of-delivery photo ────────────────────────────────
 //
 // Admin/dispatch can view the proof photo for any delivery assignment in their brand.
-// Requires permission:rider.read. Streams the photo bytes so the raw storage key
+// Requires permission:rider.read — streams the photo bytes so the raw storage key
 // (which includes the brand directory) is never exposed in the API surface.
 // ──────────────────────────────────────────────────────────────────────────────────
 

@@ -9,7 +9,13 @@ import {
   DetailRow,
 } from '@/components/shared/FormDrawer'
 import { useGarmentByTag, useCreateProcessLog } from '@/hooks/useWarehouse'
+import { useAuthStore } from '@/stores/authStore'
 import type { GarmentJourneyDto } from '@/types/api'
+
+/** HTTP status off an axios-style error, or undefined for non-HTTP failures. */
+function httpStatus(err: unknown): number | undefined {
+  return (err as { response?: { status?: number } })?.response?.status
+}
 
 // ── Stage-advance map: current stage → next stage + processCode ───────────────
 const NEXT_STAGE: Record<string, { toStage: string; processCode: string; label: string }> = {
@@ -53,6 +59,8 @@ export function ScanInDrawer({ open, onClose, warehouseId }: Props) {
 
   const garmentQuery   = useGarmentByTag(committed)
   const createLog      = useCreateProcessLog()
+  // Who is performing the scan — recorded on the process log when the DTO allows.
+  const operatorName   = useAuthStore((s) => s.user?.name ?? s.user?.email ?? null)
 
   // Auto-focus input whenever drawer opens or after each action.
   useEffect(() => {
@@ -114,7 +122,7 @@ export function ScanInDrawer({ open, onClose, warehouseId }: Props) {
         action:          'scan_in',
         fromStage:       garment.currentStage,
         toStage:         next.toStage,
-        performedByName: null,
+        performedByName: operatorName,
       })
 
       setLog((prev) => [
@@ -145,8 +153,17 @@ export function ScanInDrawer({ open, onClose, warehouseId }: Props) {
   const journey     = garmentQuery.data
   const garment     = journey?.garment
   const isLooking   = !!committed && garmentQuery.isFetching
-  const notFound    = !!committed && !garmentQuery.isFetching && !garment && !garmentQuery.isError
-                      || (committed && garmentQuery.isError)
+  // Distinguish a genuine "tag not found" (HTTP 404, or a settled query with no
+  // garment) from any OTHER failure (500 / network) — a 500 must NOT be labeled
+  // "not found in this brand", which would send the operator chasing a tag that
+  // is actually fine while the server is failing (R3-AW-5 error precedence).
+  const errStatus   = garmentQuery.isError ? httpStatus(garmentQuery.error) : undefined
+  const notFound    =
+    !!committed &&
+    !garmentQuery.isFetching &&
+    !garment &&
+    (!garmentQuery.isError || errStatus === 404)
+  const lookupError = !!committed && garmentQuery.isError && errStatus !== 404
   const nextStep    = garment ? NEXT_STAGE[garment.currentStage] : null
 
   return (
@@ -183,10 +200,18 @@ export function ScanInDrawer({ open, onClose, warehouseId }: Props) {
         <p className="text-sm text-gray-400">Looking up {committed}…</p>
       )}
 
-      {(garmentQuery.isError || notFound) && committed && (
+      {notFound && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           <XCircle className="h-4 w-4 shrink-0" />
           Tag <span className="font-mono font-semibold">{committed}</span> not found in this brand.
+        </div>
+      )}
+
+      {lookupError && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <XCircle className="h-4 w-4 shrink-0" />
+          Couldn&apos;t look up <span className="font-mono font-semibold">{committed}</span>
+          {errStatus ? ` (error ${errStatus})` : ''}. Try scanning again.
         </div>
       )}
 

@@ -1,1 +1,2 @@
 - [BC-6 Commerce QA findings](project-commerce-bc6.md) — 3 critical defects fixed; DB constraint values; IDOR/separation patterns confirmed
+- [QA-R3 Live Browser findings](project-qa-r3-live-browser.md) — admin-web+pos-web smoke 2026-06-12; defects, verified behaviors, Playwright gotchas

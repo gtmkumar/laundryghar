@@ -540,18 +540,28 @@ export function GenerateRoyaltyDrawer({ open, onClose }: GenerateRoyaltyDrawerPr
     if (!form.franchiseId) return setError('Pick a franchise.')
     if (!form.periodStart || !form.periodEnd) return setError('Period start and end are required.')
     if (form.periodEnd < form.periodStart) return setError('Period end must be on or after period start.')
-    if (!(Number(form.royaltyPercent) >= 0)) return setError('Royalty % must be 0 or greater.')
+
+    // Percent fields are 0..100 — reject out-of-range instead of letting a typo
+    // (e.g. 1000%) silently through to the backend (R3-AW-8). marketing % and the
+    // GST rate were previously unvalidated / silently coerced.
+    const royaltyPercent = Number(form.royaltyPercent)
+    const marketingFeePercent = Number(form.marketingFeePercent)
+    const gstRate = form.gstRate.trim() === '' ? 18 : Number(form.gstRate)
+    const inRange = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100
+    if (!inRange(royaltyPercent)) return setError('Royalty % must be between 0 and 100.')
+    if (!inRange(marketingFeePercent)) return setError('Marketing fee % must be between 0 and 100.')
+    if (!inRange(gstRate)) return setError('GST rate must be between 0 and 100.')
     try {
       await generate.mutateAsync({
         franchiseId: form.franchiseId,
         periodStart: form.periodStart,
         periodEnd: form.periodEnd,
-        royaltyPercent: Number(form.royaltyPercent),
-        marketingFeePercent: Number(form.marketingFeePercent),
+        royaltyPercent,
+        marketingFeePercent,
         technologyFeeAmount: Number(form.technologyFeeAmount) || 0,
         otherCharges: Number(form.otherCharges) || 0,
         adjustments: Number(form.adjustments) || 0,
-        gstRate: Number(form.gstRate) || 18,
+        gstRate,
         grossRevenueOverride: form.grossRevenueOverride ? Number(form.grossRevenueOverride) : null,
         notes: form.notes.trim() || null,
         currencyCode: form.currencyCode || 'INR',
@@ -710,14 +720,24 @@ export function RoyaltyDetailDrawer({ invoice, onClose, canManage }: RoyaltyDeta
     }
   }
 
+  // Outstanding balance the payment cannot exceed (overpayment guard).
+  const outstanding = invoice
+    ? Math.max(0, invoice.amountDue ?? invoice.grandTotal - invoice.amountPaid)
+    : 0
+
   const handleRecordPayment = async () => {
     if (!invoice) return
     setPayError(null)
-    if (!(Number(payAmount) > 0)) return setPayError('Amount must be greater than 0.')
+    const amount = Number(payAmount)
+    if (!(amount > 0)) return setPayError('Amount must be greater than 0.')
+    // Clamp client-side: never record more than what is still owed.
+    if (amount > outstanding + 0.005) {
+      return setPayError(`Amount cannot exceed the outstanding balance of ${formatCurrency(outstanding)}.`)
+    }
     try {
       await recordPayment.mutateAsync({
         id: invoice.id,
-        payload: { amountPaid: Number(payAmount), notes: payNotes.trim() || null },
+        payload: { amountPaid: amount, notes: payNotes.trim() || null },
       })
       setPayAmount('')
       setPayNotes('')
@@ -838,10 +858,25 @@ export function RoyaltyDetailDrawer({ invoice, onClose, canManage }: RoyaltyDeta
       {canPay && (
         <DrawerSection title="Record payment">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Amount (₹) *">
+            <Field
+              label="Amount (₹) *"
+              hint={
+                <span>
+                  Outstanding: <span className="tabular-nums">{formatCurrency(outstanding)}</span>{' '}
+                  <button
+                    type="button"
+                    onClick={() => setPayAmount(String(outstanding))}
+                    className="font-medium text-lg-green hover:underline"
+                  >
+                    Pay full
+                  </button>
+                </span>
+              }
+            >
               <input
                 type="number"
                 min="0.01"
+                max={outstanding}
                 step="0.01"
                 value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value)}

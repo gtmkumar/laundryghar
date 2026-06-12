@@ -178,6 +178,22 @@ export function RoyaltyPage() {
             emptyMessage="No royalty invoices found."
             noMatchMessage="No invoices match your filters."
             onRowClick={(r) => setSelectedInvoice(r)}
+            csvExport={{
+              filename: `royalty-invoices-${new Date().toISOString().slice(0, 10)}`,
+              columns: [
+                { header: 'Invoice no.', value: (r) => r.invoiceNumber },
+                { header: 'Period start', value: (r) => r.periodStart },
+                { header: 'Period end', value: (r) => r.periodEnd },
+                { header: 'Franchise', value: (r) => franchiseMap[r.franchiseId] ?? r.franchiseId },
+                { header: 'Gross revenue', value: (r) => r.grossRevenue },
+                { header: 'Royalty %', value: (r) => r.royaltyPercent },
+                { header: 'Grand total', value: (r) => r.grandTotal },
+                { header: 'Amount paid', value: (r) => r.amountPaid },
+                { header: 'Amount due', value: (r) => r.amountDue ?? r.grandTotal - r.amountPaid },
+                { header: 'Due date', value: (r) => r.dueDate },
+                { header: 'Status', value: (r) => r.status },
+              ],
+            }}
           />
         )}
       </Card>

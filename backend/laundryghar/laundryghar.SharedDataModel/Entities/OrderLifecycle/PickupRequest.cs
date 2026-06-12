@@ -53,6 +53,13 @@ public class PickupRequest
     /// </summary>
     public string Source { get; set; } = "app";
 
+    /// <summary>
+    /// Optional coupon code submitted by the customer at booking time.
+    /// Stored so it can be threaded into the order when admin converts the pickup to an order.
+    /// Validated server-side at submit (coupon must be active + in-window + within per-customer limits).
+    /// </summary>
+    public string? CouponCode { get; set; }
+
     /// <summary>Part of composite FK to orders(id, created_at) — scalar only (no composite nav supported here).</summary>
     public Guid? ConvertedOrderId { get; set; }
 

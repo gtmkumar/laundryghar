@@ -8,3 +8,4 @@
 - [Catalog & Pricing admin](project-catalog-pricing-admin.md) — Task #38: /pricing rebuilt w/ CRUD + price-list editor; backend was complete; pricing_model CHECK=per_item not per_piece; apiErrorMessage in interceptor
 - [Dashboard ops + live Orders](project-dashboard-ops-orders-live.md) — Tasks #41/#42: riders+needs-action panels, Orders active-cards/history split, new-booking chime/toast; backend ops-queues unactioned bucket + statusGroup param; shared orderFormat/chime/detector infra
 - [POS-web Gap R2](project-pos-web-gap-r2.md) — POS-1..7 + perm gating: persisted cartStore, idempotency keys (body+header), brand-keyed catalog cache, partial/credit pay, usePermissions/useDebounce/EmptyState infra
+- [admin-web patterns](project-admin-web-patterns.md) — shared FilterableTable/FormDrawer/ConfirmDialog, route→permission map (routePermissions.ts), infinite-scroll + totalCount, validation.ts schemas, CSV built into FilterableTable

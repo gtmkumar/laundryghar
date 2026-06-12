@@ -14,7 +14,7 @@
  * where it's faded while offline).
  */
 import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -38,12 +38,23 @@ function greeting(): string {
   return 'Good evening';
 }
 
+/** Format elapsed seconds as "Xh Ym" or "Xm". */
+function formatElapsed(ms: number): string {
+  const totalMin = Math.max(0, Math.round(ms / 60_000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { rider, setRider } = useAuthStore();
-  const { isOnDuty, setOnDuty, checklist, toggleChecklist, syncMismatch, serverOnDuty, clearSyncMismatch } = useDutyStore();
+  const { isOnDuty, setOnDuty, onDutySince, checklist, toggleChecklist, syncMismatch, serverOnDuty, clearSyncMismatch } = useDutyStore();
   const [busy, setBusy] = useState(false);
+  // Shift summary modal (shown before confirming go-off-duty).
+  const [shiftModalVisible, setShiftModalVisible] = useState(false);
 
   const CHECKLIST: { key: ChecklistItem; label: string }[] = [
     { key: 'bagTags',      label: t('home.checklist.bagTags') },
@@ -89,7 +100,8 @@ export default function HomeScreen() {
     }
   }
 
-  async function goOffDuty() {
+  async function confirmGoOffDuty() {
+    setShiftModalVisible(false);
     setOnDuty(false);
     const active = assignments?.find((a) => a.status === 'active');
     if (active) {
@@ -100,10 +112,9 @@ export default function HomeScreen() {
   function toggleDuty() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (isOnDuty) {
-      Alert.alert(t('home.goOffDuty'), t('home.goOffDutyMessage'), [
-        { text: t('home.stayOnline'), style: 'cancel' },
-        { text: t('home.goOnDuty'), style: 'destructive', onPress: () => void goOffDuty() },
-      ]);
+      // Show shift summary modal instead of a plain Alert so the rider
+      // sees their stats before confirming they are going off duty.
+      setShiftModalVisible(true);
     } else {
       void goOnDuty();
     }
@@ -290,6 +301,90 @@ export default function HomeScreen() {
           />
         </View>
       </SafeAreaView>
+
+      {/* ── Shift summary modal (shown before going off duty) ──────────── */}
+      <Modal
+        visible={shiftModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShiftModalVisible(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ backgroundColor: '#F3EEE3', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 36 }}>
+            {/* Handle */}
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#D9D5C5', alignSelf: 'center', marginBottom: 20 }} />
+
+            <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E2119', marginBottom: 4 }}>
+              Shift summary
+            </Text>
+            <Text style={{ fontSize: 13, color: '#7B7A6C', marginBottom: 20 }}>
+              Here is how your shift went today.
+            </Text>
+
+            {/* Stats grid */}
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+              <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, alignItems: 'center', elevation: 1 }}>
+                <Ionicons name="time-outline" size={20} color="#4A552A" />
+                <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '800', color: '#1E2119' }}>
+                  {onDutySince ? formatElapsed(Date.now() - new Date(onDutySince).getTime()) : '—'}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#A8A493', marginTop: 2 }}>Time online</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, alignItems: 'center', elevation: 1 }}>
+                <Ionicons name="checkmark-done" size={20} color="#4A552A" />
+                <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '800', color: '#1E2119' }}>
+                  {stats.completed}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#A8A493', marginTop: 2 }}>
+                  Tasks done
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+              <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, alignItems: 'center', elevation: 1 }}>
+                <Ionicons name="trending-up-outline" size={20} color="#4A552A" />
+                <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '800', color: '#4A552A' }}>
+                  ₹{stats.earnedToday}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#A8A493', marginTop: 2 }}>Earned today</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, alignItems: 'center', elevation: 1 }}>
+                <Ionicons name="cash-outline" size={20} color="#8A641D" />
+                <Text style={{ marginTop: 6, fontSize: 18, fontWeight: '800', color: '#8A641D' }}>
+                  {stats.pendingCount > 0 ? `${stats.pendingCount} open` : 'All done'}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#A8A493', marginTop: 2 }}>Pending tasks</Text>
+              </View>
+            </View>
+
+            {stats.pendingCount > 0 ? (
+              <View style={{ backgroundColor: '#FFF8E6', borderRadius: 12, padding: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="alert-circle-outline" size={16} color="#8A641D" />
+                <Text style={{ fontSize: 12, color: '#8A641D', flex: 1, fontWeight: '600' }}>
+                  You still have {stats.pendingCount} open task{stats.pendingCount > 1 ? 's' : ''}. Going off duty will not cancel them.
+                </Text>
+              </View>
+            ) : null}
+
+            <Button
+              title="Go off duty"
+              variant="danger"
+              fullWidth
+              size="lg"
+              onPress={() => void confirmGoOffDuty()}
+            />
+            <View style={{ marginTop: 10 }}>
+              <Button
+                title={t('home.stayOnline')}
+                variant="secondary"
+                fullWidth
+                size="md"
+                onPress={() => setShiftModalVisible(false)}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

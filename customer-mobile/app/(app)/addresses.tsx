@@ -8,7 +8,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -125,7 +127,10 @@ function AddressForm({
   };
 
   return (
-    <View className="flex-1 bg-cream">
+    <KeyboardAvoidingView
+      className="flex-1 bg-cream"
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       {/* Sheet header */}
       <View
         className="flex-row items-center justify-between border-b border-cream-200 px-5 pb-4 pt-5"
@@ -288,7 +293,7 @@ function AddressForm({
           accessibilityLabel={t('addresses.saveAddress')}
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

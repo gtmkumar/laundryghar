@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus } from 'lucide-react'
-import { useSubscriptionPlans, useCustomerSubscriptions } from '@/hooks/useSubscriptions'
+import { Plus, Loader2 } from 'lucide-react'
+import { useSubscriptionPlans, useCustomerSubscriptionsInfinite } from '@/hooks/useSubscriptions'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { usePermissions } from '@/hooks/usePermissions'
 import {
   SubscriptionPlanDrawer,
@@ -130,6 +131,19 @@ function PlansTab({ canManage }: { canManage: boolean }) {
             emptyMessage="No subscription plans yet."
             noMatchMessage="No plans match your filters."
             onRowClick={(r) => setDetailPlan(r)}
+            csvExport={{
+              filename: `subscription-plans-${new Date().toISOString().slice(0, 10)}`,
+              columns: [
+                { header: 'Code', value: (r) => r.code },
+                { header: 'Name', value: (r) => r.name },
+                { header: 'Tier', value: (r) => r.tier },
+                { header: 'Price', value: (r) => r.price },
+                { header: 'Billing interval', value: (r) => r.billingInterval },
+                { header: 'Interval count', value: (r) => r.intervalCount },
+                { header: 'Subscribers', value: (r) => r.currentSubscriberCount },
+                { header: 'Status', value: (r) => r.status },
+              ],
+            }}
           />
         )}
       </Card>
@@ -152,8 +166,19 @@ function PlansTab({ canManage }: { canManage: boolean }) {
 // ── Customer subscriptions tab ──────────────────────────────────────────────────
 
 function CustomerSubscriptionsTab() {
-  const { data, isLoading, isError, error, refetch } = useCustomerSubscriptions({ pageSize: 100 })
-  const subs = useMemo(() => data?.list ?? [], [data])
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useCustomerSubscriptionsInfinite()
+  const subs = useMemo(() => data?.pages.flatMap((p) => p.list) ?? [], [data])
+  const total = data?.pages[0]?.totalCount
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
   const [detail, setDetail] = useState<CustomerSubscriptionDto | null>(null)
 
   const columns: Column<CustomerSubscriptionDto>[] = [
@@ -231,7 +256,7 @@ function CustomerSubscriptionsTab() {
             data={subs}
             keyFn={(r) => r.id}
             unit="subscription"
-            totalCount={data?.totalCount}
+            totalCount={total}
             searchPlaceholder="Search subscription number…"
             searchAccessor={(r) => `${r.subscriptionNumber} ${r.customerId}`}
             filters={filters}
@@ -239,6 +264,29 @@ function CustomerSubscriptionsTab() {
             emptyMessage="No customer subscriptions yet."
             noMatchMessage="No subscriptions match your filters."
             onRowClick={(r) => setDetail(r)}
+            csvExport={{
+              filename: `customer-subscriptions-${new Date().toISOString().slice(0, 10)}`,
+              columns: [
+                { header: 'Number', value: (r) => r.subscriptionNumber },
+                { header: 'Customer', value: (r) => r.customerId },
+                { header: 'Price', value: (r) => r.priceSnapshot },
+                { header: 'Billing interval', value: (r) => r.billingInterval },
+                { header: 'Period start', value: (r) => r.currentPeriodStart ?? '' },
+                { header: 'Period end', value: (r) => r.currentPeriodEnd ?? '' },
+                { header: 'Next billing', value: (r) => r.nextBillingAt ?? '' },
+                { header: 'Status', value: (r) => r.status },
+              ],
+            }}
+            footer={
+              <>
+                <div ref={sentinelRef} className="h-1" />
+                {isFetchingNextPage && (
+                  <div className="flex items-center justify-center py-4 text-sm text-gray-400">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more subscriptions…
+                  </div>
+                )}
+              </>
+            }
           />
         )}
       </Card>

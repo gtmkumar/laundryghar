@@ -251,3 +251,29 @@ export const optionalPincode = z
     (v) => !v || /^\d{6}$/.test(v),
     { message: 'Pincode must be exactly 6 digits' },
   )
+
+/**
+ * Masked or full Aadhaar number. Aadhaar is a 12-digit ID; for privacy the admin
+ * typically records only a MASKED form where the first 8 digits are hidden, e.g.
+ * `XXXX XXXX 1234`. We accept either:
+ *   - the masked form: `XXXX XXXX 1234` (8 mask chars + 4 visible digits, spaces
+ *     optional, mask char X/x/* tolerated), OR
+ *   - a full 12-digit number (spaces optional), for the rare unmasked capture.
+ * Empty string = not provided (optional). Rejects the previous "any string"
+ * behaviour that let typos through to the backend (R3-AW-8).
+ */
+export const optionalAadhaarMasked = z
+  .string()
+  .optional()
+  .refine(
+    (v) => {
+      if (!v || !v.trim()) return true
+      const s = v.replace(/\s+/g, '')
+      // Masked: 8 mask chars (X/x/*) then 4 digits.
+      if (/^[Xx*]{8}\d{4}$/.test(s)) return true
+      // Full: exactly 12 digits.
+      if (/^\d{12}$/.test(s)) return true
+      return false
+    },
+    { message: 'Enter a masked Aadhaar (XXXX XXXX 1234) or a 12-digit number' },
+  )

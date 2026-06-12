@@ -9,6 +9,8 @@ import type {
   CreateDeletionRequestRequest,
   CustomerAddressDto,
   CustomerProfileDto,
+  DpdpConsentDto,
+  GrantConsentRequest,
   ListResponse,
   PatchProfileRequest,
   PriceListItemDto,
@@ -148,6 +150,25 @@ export async function getAccountDeletionRequest(): Promise<AccountDeletionReques
 export async function cancelAccountDeletion(): Promise<AccountDeletionRequestDto> {
   const res = await catalogClient.delete<SingleResponse<AccountDeletionRequestDto>>(
     '/customer/account/deletion-request',
+  );
+  return unwrapSingle(res.data);
+}
+
+// ── DPDP consents ─────────────────────────────────────────────────────────────
+
+/** GET /api/v1/customer/consents */
+export async function getMyConsents(): Promise<DpdpConsentDto[]> {
+  const res = await catalogClient.get<ListResponse<DpdpConsentDto>>(
+    '/customer/consents/',
+  );
+  return unwrapList(res.data);
+}
+
+/** POST /api/v1/customer/consents/grant */
+export async function grantConsent(req: GrantConsentRequest): Promise<DpdpConsentDto> {
+  const res = await catalogClient.post<SingleResponse<DpdpConsentDto>>(
+    '/customer/consents/grant',
+    req,
   );
   return unwrapSingle(res.data);
 }

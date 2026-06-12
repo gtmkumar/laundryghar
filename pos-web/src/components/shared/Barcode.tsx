@@ -1,9 +1,14 @@
 /**
- * Deterministic faux Code-128-style barcode rendered as inline SVG.
- * Bar widths are derived from the tag code so the same garment always renders
- * the same pattern (purely decorative — encodes nothing scannable). Copied from
- * admin-web's warehouse Barcode so garment tags share the counter look.
+ * Real, scannable Code-128 barcode for garment tags (R3-POS-5).
+ *
+ * The previous implementation rendered a deterministic *faux* barcode that
+ * encoded nothing — unscannable on the wash floor. This renders a genuine
+ * Code-128 symbology with jsbarcode into an <svg>, so a handheld scanner reads
+ * back the exact tag code. SVG (not canvas) keeps it crisp on thermal printers.
  */
+import { useEffect, useRef } from 'react'
+import JsBarcode from 'jsbarcode'
+
 interface BarcodeProps {
   value: string
   height?: number
@@ -11,34 +16,35 @@ interface BarcodeProps {
 }
 
 export function Barcode({ value, height = 30, className }: BarcodeProps) {
-  const bars: { x: number; w: number }[] = []
-  let seed = 0
-  for (let i = 0; i < value.length; i++) seed = (seed * 31 + value.charCodeAt(i)) >>> 0
+  const svgRef = useRef<SVGSVGElement>(null)
 
-  let x = 0
-  const total = 160
-  while (x < total) {
-    seed = (seed * 1103515245 + 12345) >>> 0
-    const w = 1 + (seed % 3)
-    seed = (seed * 1103515245 + 12345) >>> 0
-    const gap = 1 + (seed % 3)
-    const dark = (seed & 1) === 0
-    if (dark) bars.push({ x, w })
-    x += w + gap
-  }
+  useEffect(() => {
+    if (!svgRef.current) return
+    try {
+      JsBarcode(svgRef.current, value, {
+        format: 'CODE128',
+        height,
+        // We render our own human-readable code under the bars in the tag, so
+        // suppress jsbarcode's built-in text to avoid duplication.
+        displayValue: false,
+        margin: 0,
+        width: 1.4, // bar module width — thick enough to survive thermal printing
+        background: '#ffffff',
+        lineColor: '#000000',
+      })
+    } catch {
+      // An invalid value (shouldn't happen — tag codes are alphanumeric) leaves
+      // the svg empty rather than crashing the tag sheet render.
+    }
+  }, [value, height])
 
   return (
     <svg
-      viewBox={`0 0 ${total} ${height}`}
-      preserveAspectRatio="none"
+      ref={svgRef}
       className={className}
       style={{ width: '100%', height }}
       role="img"
       aria-label={`barcode ${value}`}
-    >
-      {bars.map((b, i) => (
-        <rect key={i} x={b.x} y={0} width={b.w} height={height} fill="#1a1a1a" />
-      ))}
-    </svg>
+    />
   )
 }

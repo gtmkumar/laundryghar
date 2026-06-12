@@ -10,6 +10,7 @@ import {
   Image,
   Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -173,9 +174,15 @@ export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { customer } = useAuthStore();
-  const { data: services, isLoading, isError, refetch } = useServices();
-  const { data: banners } = useHomeBanners('home_top');
-  const { data: addresses } = useAddresses();
+  const { data: services, isLoading, isError, refetch, isFetching } = useServices();
+  const { data: banners, refetch: refetchBanners } = useHomeBanners('home_top');
+  const { data: addresses, refetch: refetchAddresses } = useAddresses();
+
+  const handleRefresh = () => {
+    void refetch();
+    void refetchBanners();
+    void refetchAddresses();
+  };
 
   const displayName = customer?.displayName ?? customer?.firstName ?? 'there';
   const defaultAddr = addresses?.find((a) => a.isDefault) ?? addresses?.[0];
@@ -190,7 +197,17 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 28 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching && !isLoading}
+            onRefresh={handleRefresh}
+            tintColor="#4A552A"
+          />
+        }
+      >
         {/* Header */}
         <View className="flex-row items-center justify-between px-6 pt-2">
           <View className="flex-row items-center gap-3">

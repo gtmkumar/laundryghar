@@ -26,6 +26,7 @@ export function SmsPanel({ settings }: { settings: AdminSettings }) {
   }, [s.enabled, s.senderId, s.dltTemplateId])
 
   const save = async () => {
+    if (!canManage) return
     setError(null)
     setSavedAt(null)
     const payload: UpdateSmsPayload = {

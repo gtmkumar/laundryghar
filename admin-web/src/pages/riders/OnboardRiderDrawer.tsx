@@ -10,7 +10,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useOnboardRider } from '@/hooks/useRiders'
 import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import { FieldError } from '@/components/ui/FieldError'
-import { requiredEmail, optionalPhone, optionalPan, optionalIfsc, optionalUpi, nonNegativeInt, futureDate } from '@/lib/validation'
+import { requiredEmail, optionalPhone, optionalPan, optionalIfsc, optionalUpi, nonNegativeInt, futureDate, optionalAadhaarMasked } from '@/lib/validation'
 import type { RiderEmploymentType, RiderVehicleType } from '@/types/api'
 
 interface Props {
@@ -48,7 +48,7 @@ const schema = z.object({
   vehicleModel: z.string().optional(),
   drivingLicenseNumber: z.string().optional(),
   dlExpiryDate: futureDate,
-  aadhaarNumberMasked: z.string().optional(),
+  aadhaarNumberMasked: optionalAadhaarMasked,
   panNumber: optionalPan,
   insuranceExpiryDate: futureDate,
   bankAccountNumber: z.string().optional(),
@@ -313,7 +313,13 @@ export function OnboardRiderDrawer({ open, onClose }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Aadhaar (masked)">
-            <input {...register('aadhaarNumberMasked')} className={drawerInputCls} placeholder="XXXX XXXX 1234" />
+            <input
+              {...register('aadhaarNumberMasked')}
+              aria-invalid={!!errors.aadhaarNumberMasked}
+              className={drawerInputCls}
+              placeholder="XXXX XXXX 1234"
+            />
+            <FieldError message={errors.aadhaarNumberMasked?.message} />
           </Field>
           <Field label="PAN">
             <input

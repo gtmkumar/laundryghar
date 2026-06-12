@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Eye, Pencil } from 'lucide-react'
-import { useAdminCustomers } from '@/hooks/useCatalog'
+import { Eye, Pencil, Loader2 } from 'lucide-react'
+import { useAdminCustomersInfinite } from '@/hooks/useCatalog'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { LoadingState } from '@/components/shared/LoadingState'
@@ -89,10 +90,23 @@ const baseColumns: Column<AdminCustomerDto>[] = [
 export function CustomersPage() {
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('customer.update')
-  const { data, isLoading, isError, error, refetch } = useAdminCustomers({ pageSize: 100 })
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useAdminCustomersInfinite()
 
-  const customers = useMemo(() => data?.list ?? [], [data])
-  const total = data?.totalCount
+  const customers = useMemo(() => data?.pages.flatMap((p) => p.list) ?? [], [data])
+  // Grand total comes off any page (the backend returns the same totalCount on
+  // every page) — never the loaded-slice length, which undercounts at scale.
+  const total = data?.pages[0]?.totalCount
+
+  const sentinelRef = useInfiniteScroll({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   const [viewing, setViewing] = useState<AdminCustomerDto | null>(null)
   const [editing, setEditing] = useState<AdminCustomerDto | null>(null)
@@ -162,6 +176,30 @@ export function CustomersPage() {
             initialSort={{ key: 'createdAt', dir: 'desc' }}
             emptyMessage="No customers found."
             noMatchMessage="No customers match your filters."
+            csvExport={{
+              filename: `customers-${new Date().toISOString().slice(0, 10)}`,
+              columns: [
+                { header: 'Code', value: (r) => r.customerCode },
+                { header: 'Name', value: (r) => customerName(r) },
+                { header: 'Phone', value: (r) => r.phoneE164 },
+                { header: 'Email', value: (r) => r.email ?? '' },
+                { header: 'Segment', value: (r) => r.customerSegment ?? '' },
+                { header: 'Orders', value: (r) => r.lifetimeOrders },
+                { header: 'Spend', value: (r) => r.lifetimeSpend },
+                { header: 'Status', value: (r) => r.status },
+                { header: 'Joined', value: (r) => r.createdAt },
+              ],
+            }}
+            footer={
+              <>
+                <div ref={sentinelRef} className="h-1" />
+                {isFetchingNextPage && (
+                  <div className="flex items-center justify-center py-4 text-sm text-gray-400">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more customers…
+                  </div>
+                )}
+              </>
+            }
           />
         )}
       </Card>

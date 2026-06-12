@@ -177,18 +177,24 @@ export function useGenerateRoyaltyInvoice() {
 
 export function useRoyaltyInvoiceActions() {
   const qc = useQueryClient()
-  const refresh = () => void qc.invalidateQueries({ queryKey: ['finance', 'royaltyInvoices'] })
+  // Invalidate BOTH the list and the open invoice's detail query, so the drawer
+  // doesn't keep showing a stale status / outstanding balance after issue or a
+  // recorded payment (R3-AW-4: the prior `refresh` invalidated only the list).
+  const refresh = (id: string) => {
+    void qc.invalidateQueries({ queryKey: ['finance', 'royaltyInvoices'] })
+    void qc.invalidateQueries({ queryKey: financeKeys.royaltyInvoice(id) })
+  }
 
   return {
     issue: useMutation({
       mutationFn: ({ id, payload }: { id: string; payload: IssueRoyaltyInvoicePayload }) =>
         issueRoyaltyInvoice(id, payload),
-      onSuccess: refresh,
+      onSuccess: (_data, { id }) => refresh(id),
     }),
     recordPayment: useMutation({
       mutationFn: ({ id, payload }: { id: string; payload: RecordRoyaltyPaymentPayload }) =>
         recordRoyaltyPayment(id, payload),
-      onSuccess: refresh,
+      onSuccess: (_data, { id }) => refresh(id),
     }),
   }
 }

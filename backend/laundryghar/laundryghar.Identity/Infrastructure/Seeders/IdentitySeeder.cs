@@ -195,9 +195,20 @@ public sealed class IdentitySeeder
         ("coupons.manage",               "coupons","manage",          "Manage coupons",                "normal"),
         ("loyalty.manage",               "loyalty","manage",          "Manage loyalty programs",       "normal"),
         ("payment.read",                 "payment","read",            "Read payments",                 "low"),
+        // R3-SEC-1: payment.record existed only in db/patches/pos_permissions.sql
+        ("payment.record",               "payment","record",          "Record offline payment",        "normal"),
         ("payment.refund",               "payment","refund",          "Issue payment refunds",         "high"),
         ("wallet.read",                  "wallet","read",             "Read customer wallets",         "low"),
         ("wallet.adjust",                "wallet","adjust",           "Admin wallet adjustment",       "high"),
+        // R3-SEC-1: subscription codes existed only in db/patches/subscriptions_module.sql
+        ("subscription.manage",          "subscription","manage",     "Manage subscription plans",     "normal"),
+        ("subscription.read",            "subscription","read",       "Read subscription data",        "normal"),
+        // R3-SEC-1: saas codes existed only in db/patches/subscriptions_module.sql
+        ("saas.manage",                  "saas","manage",             "Manage SaaS plans",             "high"),
+        ("saas.read",                    "saas","read",               "Read SaaS subscription data",   "normal"),
+        // R3-SEC-2: POS order family — allows POS counter to be locked independently
+        ("pos.order.create",             "pos","order.create",        "Create POS order",              "normal"),
+        ("pos.order.read",               "pos","order.read",          "Read POS orders",               "low"),
         // ── BC-7: Finance / Royalty permissions ───────────────────────────────
         ("cashbook.read",                "cashbook","read",           "Read cash books",               "low"),
         ("cashbook.manage",              "cashbook","manage",         "Manage cash books",             "high"),
@@ -216,6 +227,14 @@ public sealed class IdentitySeeder
         // ── BC-9: Analytics permissions ───────────────────────────────────────
         ("analytics.read",               "analytics","read",          "Read analytics reports",        "low"),
         ("analytics.refresh",            "analytics","refresh",       "Refresh analytics materialized views","high"),
+        // ── customer.create — R3-SEC-1: existed only in db/patches/pos_permissions.sql
+        ("customer.create",              "customer","create",         "Create customer (admin)",        "normal"),
+        // ── R3-SEC-1: rider.verify + rider.settle existed only in SQL patches
+        ("rider.verify",                 "rider","verify",            "Verify rider KYC",              "high"),
+        ("rider.settle",                 "rider","settle",            "Settle rider COD cash",         "high"),
+        // ── R3-SEC-3: settings permissions — replaces UserType string check in SettingsEndpoints
+        ("settings.read",                "settings","read",           "Read admin settings",           "low"),
+        ("settings.manage",              "settings","manage",         "Manage admin settings",         "high"),
     ];
 
     private async Task<Dictionary<string, Permission>> SeedPermissionsAsync(CancellationToken ct)
@@ -375,11 +394,14 @@ public sealed class IdentitySeeder
             "delivery.slot.read","delivery.slot.manage","delivery.assign",
             "garment.read","garment.tag","garment.inspect",
             "warehouse.batch.manage","warehouse.process.scan","qc.perform","stockrecon.manage",
-            // BC-5: logistics — brand_admin gets all rider permissions
+            // BC-5: logistics — brand_admin gets all rider permissions (R3-SEC-1: verify + settle folded in)
             "rider.read","rider.manage","rider.assignment.read","rider.assignment.manage","rider.capacity.manage",
-            // BC-6: commerce — brand_admin gets all commerce permissions
+            "rider.verify","rider.settle",
+            // BC-6: commerce — brand_admin gets all commerce permissions (R3-SEC-1: record + customer.create folded in)
             "paymentmethod.manage","packages.manage","promotions.manage","coupons.manage","loyalty.manage",
-            "payment.read","payment.refund","wallet.read","wallet.adjust",
+            "payment.read","payment.record","payment.refund","wallet.read","wallet.adjust",
+            // BC-6: subscriptions (R3-SEC-1: subscription.read/manage folded in)
+            "subscription.manage","subscription.read",
             // BC-7: finance — brand_admin gets all finance permissions
             "cashbook.read","cashbook.manage",
             "expense.read","expense.manage","expense.approve",
@@ -389,6 +411,12 @@ public sealed class IdentitySeeder
             "cms.appconfig.manage","cms.notification.read","cms.notification.manage",
             // BC-9: analytics — brand_admin gets read + refresh
             "analytics.read","analytics.refresh",
+            // customer.create — counter-side customer creation (R3-SEC-1)
+            "customer.create",
+            // POS — brand_admin can do POS operations (R3-SEC-2)
+            "pos.order.create","pos.order.read",
+            // Settings — brand_admin manages settings (R3-SEC-3)
+            "settings.read","settings.manage",
         ]);
 
         // franchise_owner
@@ -403,14 +431,18 @@ public sealed class IdentitySeeder
             "catalog.read","pricing.read","customer.read",
             // BC-4: read-only visibility across order lifecycle
             "orders.read","pickup.read","delivery.slot.read","garment.read",
-            // BC-5: logistics — franchise_owner gets *.read
-            "rider.read","rider.assignment.read",
-            // BC-6: commerce — franchise_owner gets *.read
-            "payment.read","wallet.read",
+            // BC-5: logistics — franchise_owner gets *.read (R3-SEC-1: verify + settle + manage added per sql patches)
+            "rider.read","rider.assignment.read","rider.manage","rider.verify","rider.settle",
+            // BC-6: commerce — franchise_owner gets *.read (R3-SEC-1: payment.record + customer.create added per sql patches)
+            "payment.read","payment.record","wallet.read","customer.create",
+            // BC-6: subscriptions — franchise_owner gets subscription.read/manage (R3-SEC-1)
+            "subscription.manage","subscription.read",
             // BC-7: finance — franchise_owner: cashbook.read, expense.read, expense.approve, royalty.read
             "cashbook.read","expense.read","expense.approve","royalty.read",
             // BC-9: analytics — franchise_owner gets read only
             "analytics.read",
+            // POS — franchise_owner can use POS (R3-SEC-2)
+            "pos.order.create","pos.order.read",
         ]);
 
         // store_admin
@@ -428,12 +460,15 @@ public sealed class IdentitySeeder
             "garment.read","garment.tag","garment.inspect",
             // BC-5: logistics — store_admin gets rider.read + assignment read/manage
             "rider.read","rider.assignment.read","rider.assignment.manage",
-            // BC-6: commerce — store_admin gets payment.read, wallet.read, coupons.manage
-            "payment.read","wallet.read","coupons.manage",
+            // BC-6: commerce — store_admin gets payment.read/record, wallet.read, coupons.manage
+            // (R3-SEC-1: payment.record + customer.create added per pos_permissions.sql)
+            "payment.read","payment.record","wallet.read","coupons.manage","customer.create",
             // BC-7: finance — store_admin: cashbook.manage, expense.manage
             "cashbook.manage","expense.manage",
             // BC-8: engagement CMS — store_admin gets banner management only
             "cms.banner.manage",
+            // POS — store_admin is the primary POS operator (R3-SEC-2)
+            "pos.order.create","pos.order.read",
         ]);
 
         // store_staff
@@ -446,6 +481,10 @@ public sealed class IdentitySeeder
             "pickup.read","pickup.create",
             "delivery.slot.read",
             "garment.read","garment.tag","garment.inspect",
+            // R3-SEC-2: POS — store_staff is the primary counter user; grant POS family
+            "pos.order.create","pos.order.read",
+            // R3-SEC-1: payment.record + customer.create for POS counter workflow
+            "payment.record","customer.create",
         ]);
 
         // warehouse_supervisor

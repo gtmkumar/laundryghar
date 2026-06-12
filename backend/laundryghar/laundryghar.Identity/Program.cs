@@ -117,6 +117,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // ─── Authorization (RBAC policy provider + CustomerOnly) ──────────────────
 
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, AnyPermissionHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, CustomerOnlyHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddAuthorization();
@@ -124,6 +125,10 @@ builder.Services.AddAuthorization();
 // ─── Rate Limiting (C5) ────────────────────────────────────────────────────
 // "auth" policy: 10 requests per 60 s per client IP — applied to all /api/v1/auth/* endpoints.
 // Queued responses with 429 on overflow; FixedWindowLimiter is cheap and sufficient for auth.
+
+// PermitLimit is config-overridable (RateLimit:AuthPermitLimit) so Development can
+// raise it for automated QA sessions without touching the production default of 10.
+var authPermitLimit = builder.Configuration.GetValue<int?>("RateLimit:AuthPermitLimit") ?? 10;
 
 builder.Services.AddRateLimiter(opts =>
 {
@@ -136,7 +141,7 @@ builder.Services.AddRateLimiter(opts =>
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 10,
+                PermitLimit = authPermitLimit,
                 Window = TimeSpan.FromSeconds(60),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0   // reject immediately when limit hit

@@ -73,7 +73,10 @@ export default function ProfileScreen() {
   if (isLoading && !profile) return <ScreenLoader />;
 
   const name = profile?.riderName?.trim() || profile?.riderCode || 'Rider';
+  // ratingAverage and ratingCount come from the /rider/me DTO; show both when available.
   const rating = profile?.ratingAverage != null ? profile.ratingAverage.toFixed(1) : '—';
+  const ratingCount = profile?.ratingCount ?? 0;
+  const ratingLabel = ratingCount > 0 ? `${t('profile.rating')} (${ratingCount})` : t('profile.rating');
   const completion = profile?.completionRate != null ? `${Math.round(profile.completionRate * 100)}%` : '—';
 
   return (
@@ -106,7 +109,7 @@ export default function ProfileScreen() {
 
           {/* Stats */}
           <View className="mt-6 flex-row gap-3">
-            <StatCard icon="star" value={rating} label={t('profile.rating')} />
+            <StatCard icon="star" value={rating} label={ratingLabel} />
             <StatCard icon="cube" value={String(profile?.lifetimeDeliveries ?? 0)} label={t('profile.deliveries')} />
             <StatCard icon="checkmark-done" value={completion} label={t('profile.completion')} />
           </View>

@@ -7,13 +7,20 @@ import {
   getAccountDeletionRequest,
   getAddresses,
   getCategories,
+  getMyConsents,
   getPriceList,
   getProfile,
   getServices,
+  grantConsent,
   requestAccountDeletion,
   updateAddress,
 } from '@/api/catalog';
-import type { CreateAddressRequest, CreateDeletionRequestRequest, UpdateAddressRequest } from '@/types/api';
+import type {
+  CreateAddressRequest,
+  CreateDeletionRequestRequest,
+  GrantConsentRequest,
+  UpdateAddressRequest,
+} from '@/types/api';
 
 export const catalogKeys = {
   categories:   ['catalog', 'categories'] as const,
@@ -56,10 +63,15 @@ export function usePriceList() {
 }
 
 export function useAddresses() {
+  // CUST-BUG-02: invalidateQueries fires in useCreateAddress.onSuccess, but the
+  // booking pickup screen mounts useAddresses before the add-address modal opens.
+  // refetchOnWindowFocus ensures the picker re-fetches when the modal closes and
+  // the booking screen regains focus, so the new address appears immediately.
   return useQuery({
     queryKey: catalogKeys.addresses,
     queryFn:  getAddresses,
     staleTime: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -129,6 +141,26 @@ export function useCancelAccountDeletion() {
     mutationFn: cancelAccountDeletion,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['account', 'deletion-request'] });
+    },
+  });
+}
+
+// ── DPDP consents ─────────────────────────────────────────────────────────────
+
+export function useMyConsents() {
+  return useQuery({
+    queryKey: ['customer', 'consents'],
+    queryFn:  getMyConsents,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useGrantConsent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: GrantConsentRequest) => grantConsent(req),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['customer', 'consents'] });
     },
   });
 }

@@ -6,7 +6,7 @@
  * All three degrade gracefully (a missing wallet shows a zero state, not an error).
  */
 import React, { useState } from 'react';
-import { FlatList, Modal, Pressable, Text, View } from 'react-native';
+import { FlatList, Modal, Pressable, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -114,8 +114,8 @@ function TxnRow({ txn }: { txn: WalletTransactionDto }) {
 
 export default function WalletScreen() {
   const { t } = useTranslation();
-  const { data: wallet, isLoading: wLoading, isError: wError } = useWallet();
-  const { data: txnData, isLoading: tLoading } = useWalletTransactions();
+  const { data: wallet, isLoading: wLoading, isError: wError, refetch: refetchWallet, isFetching: wFetching } = useWallet();
+  const { data: txnData, isLoading: tLoading, refetch: refetchTxns, isFetching: tFetching } = useWalletTransactions();
   const { data: loyalty } = useLoyaltyBalance();
   const [topUpVisible, setTopUpVisible] = useState(false);
 
@@ -188,6 +188,13 @@ export default function WalletScreen() {
           renderItem={({ item }) => <TxnRow txn={item} />}
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={(wFetching || tFetching) && !wLoading && !tLoading}
+              onRefresh={() => { void refetchWallet(); void refetchTxns(); }}
+              tintColor="#4A552A"
+            />
+          }
         />
       )}
     </SafeAreaView>

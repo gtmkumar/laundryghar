@@ -9,7 +9,12 @@
  * otherwise). Tapping a card opens the delivery/pickup detail.
  */
 import React, { useState } from 'react';
-import { FlatList, Linking, Pressable, RefreshControl, Text, View } from 'react-native';
+import { FlatList, LayoutAnimation, Linking, Platform, Pressable, RefreshControl, Text, UIManager, View } from 'react-native';
+
+// Enable LayoutAnimation on Android (it is automatically available on iOS).
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -205,6 +210,11 @@ export default function TasksScreen() {
 
   const data = tab === 'tasks' ? pending : done;
 
+  function switchTab(next: 'tasks' | 'done') {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setTab(next);
+  }
+
   return (
     <View className="flex-1 bg-cream">
       <StatusBar style="light" />
@@ -217,7 +227,10 @@ export default function TasksScreen() {
                 <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
               </Pressable>
               <Text className="text-xs font-bold uppercase tracking-widest text-olive-100">
-                Rider · {stats.zoneLabel} zone
+                {/* RIDER-BUG-02: zoneLabel may already end with "Zone" (case-insensitive).
+                    Strip a trailing " zone" suffix before appending the word to avoid
+                    "Sec 45 Zone zone" duplication. */}
+                Rider · {stats.zoneLabel.replace(/\s+zone$/i, '')} zone
               </Text>
             </View>
             <View className="flex-row items-center gap-1.5 rounded-full bg-white/15 px-3 py-1">
@@ -250,7 +263,7 @@ export default function TasksScreen() {
           return (
             <Pressable
               key={tabKey}
-              onPress={() => setTab(tabKey)}
+              onPress={() => switchTab(tabKey)}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               accessibilityLabel={tabKey === 'tasks' ? t('a11y.tabTasks') : t('a11y.tabDone')}

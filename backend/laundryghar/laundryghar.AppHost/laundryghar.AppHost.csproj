@@ -23,6 +23,7 @@
     <ProjectReference Include="..\laundryghar.Analytics\laundryghar.Analytics.csproj" />
     <ProjectReference Include="..\laundryghar.Worker\laundryghar.Worker.csproj" />
     <ProjectReference Include="..\laundryghar.Mcp\laundryghar.Mcp.csproj" />
+    <ProjectReference Include="..\laundryghar.Gateway\laundryghar.Gateway.csproj" />
   </ItemGroup>
 
 </Project>

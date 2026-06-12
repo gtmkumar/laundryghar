@@ -13,7 +13,7 @@
  *   POST /api/v1/admin/cash-books/{id}/entries        (add entry)
  *   POST /api/v1/admin/cash-books/{id}/close          (close)
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BookOpen, Plus, Loader2, Lock } from 'lucide-react'
 import { useCashBooks, useCashBook, useOpenCashBook, useAddCashBookEntry, useCloseCashBook } from '@/hooks/useCashBook'
 import { usePosStore } from '@/stores/posStore'
@@ -32,6 +32,17 @@ import {
 } from '@/components/ui/select'
 import { formatCurrency, formatDateTime, todayLocalDate } from '@/lib/utils'
 import type { AddCashBookEntryRequest } from '@/types/api'
+
+// POS-3: structured variance buckets for end-of-day reconciliation (ADR-009
+// shrinkage attribution). The label is what the operator picks; the code is what
+// we prefix into the persisted varianceReason string.
+type VarianceReasonCode = 'short' | 'over' | 'counting_error' | 'other'
+const VARIANCE_REASONS: { code: VarianceReasonCode; label: string }[] = [
+  { code: 'short', label: 'Cash short (missing)' },
+  { code: 'over', label: 'Cash over (extra)' },
+  { code: 'counting_error', label: 'Counting error' },
+  { code: 'other', label: 'Other' },
+]
 
 export function CashBookPage() {
   const { activeStore } = usePosStore()
@@ -75,7 +86,36 @@ export function CashBookPage() {
   const [entryError, setEntryError] = useState<string | null>(null)
 
   const [closingBalance, setClosingBalance] = useState('')
+  // POS-3: variance reason is mandatory when the counted cash differs from the
+  // expected closing. A select picks the bucket; free text adds detail.
+  const [varianceReasonCode, setVarianceReasonCode] = useState<VarianceReasonCode>('short')
+  const [varianceNote, setVarianceNote] = useState('')
   const [closeError, setCloseError] = useState<string | null>(null)
+
+  // ── POS-3: expected closing + live variance ───────────────────────────────
+  // Expected = opening + every inflow − cash outflow (mirrors the backend's
+  // derivation in CashBookDetailDrawer). Prefer the server-computed
+  // `expectedClosing` from the detail when present; fall back to the local sum.
+  const expectedClosing = useMemo(() => {
+    if (bookDetail?.expectedClosing != null) return bookDetail.expectedClosing
+    if (!bookDetail) return null
+    return (
+      bookDetail.openingBalance +
+      bookDetail.cashInflow +
+      bookDetail.upiInflow +
+      bookDetail.cardInflow +
+      bookDetail.otherInflow -
+      bookDetail.cashOutflow
+    )
+  }, [bookDetail])
+
+  const countedNum = closingBalance.trim() === '' ? null : parseFloat(closingBalance)
+  const liveVariance =
+    countedNum != null && expectedClosing != null && !Number.isNaN(countedNum)
+      ? countedNum - expectedClosing
+      : null
+  // Treat sub-paisa differences as balanced (float noise from kg pricing).
+  const requiresReason = liveVariance != null && Math.abs(liveVariance) > 0.005
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -138,11 +178,25 @@ export function CashBookPage() {
     if (!todayBook) return
     const bal = parseFloat(closingBalance)
     if (isNaN(bal) || bal < 0) return setCloseError('Enter a valid closing balance.')
+    // POS-3: when counted ≠ expected, a reason is mandatory (shrinkage
+    // attribution). Compose "code: note" so the persisted string carries both
+    // the bucket and any free-text detail the operator added.
+    let varianceReason: string | null = null
+    if (requiresReason) {
+      const reasonLabel =
+        VARIANCE_REASONS.find((r) => r.code === varianceReasonCode)?.label ??
+        varianceReasonCode
+      const note = varianceNote.trim()
+      if (varianceReasonCode === 'other' && note.length === 0) {
+        return setCloseError('Describe the variance reason for "Other".')
+      }
+      varianceReason = note ? `${reasonLabel} — ${note}` : reasonLabel
+    }
     setCloseError(null)
     closeBook(
       {
         id: todayBook.id,
-        req: { closingBalance: bal, varianceReason: null, notes: null },
+        req: { closingBalance: bal, varianceReason, notes: null },
       },
       {
         onError: (err) => {
@@ -399,18 +453,89 @@ export function CashBookPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* POS-3: show what the drawer SHOULD hold before counting. */}
+                <div className="flex items-center justify-between rounded-xl bg-blue-50 px-4 py-3">
+                  <span className="text-sm text-blue-700">Expected closing</span>
+                  <span className="font-bold text-blue-800">
+                    {expectedClosing != null ? formatCurrency(expectedClosing) : '—'}
+                  </span>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="closingBalance">Physical Closing Balance (₹)</Label>
+                  <Label htmlFor="closingBalance">Counted Cash in Drawer (₹)</Label>
                   <Input
                     id="closingBalance"
                     type="number"
                     min="0"
                     step="0.01"
+                    inputMode="decimal"
                     placeholder="Count the cash drawer…"
                     value={closingBalance}
                     onChange={(e) => setClosingBalance(e.target.value)}
                   />
                 </div>
+
+                {/* POS-3: live variance vs the expected closing, as they type. */}
+                {liveVariance != null && (
+                  <div
+                    className={`rounded-xl px-4 py-3 text-sm ${
+                      Math.abs(liveVariance) <= 0.005
+                        ? 'bg-green-50 text-green-700'
+                        : liveVariance < 0
+                          ? 'bg-red-50 text-red-700'
+                          : 'bg-amber-50 text-amber-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-semibold">
+                      <span>Variance</span>
+                      <span>{formatCurrency(liveVariance)}</span>
+                    </div>
+                    <p className="text-xs mt-0.5">
+                      {Math.abs(liveVariance) <= 0.005
+                        ? 'Balanced — counted cash matches expected.'
+                        : liveVariance < 0
+                          ? 'Short — drawer is under the expected closing.'
+                          : 'Over — drawer is above the expected closing.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* POS-3: a reason is required only when there's a variance. */}
+                {requiresReason && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>Variance reason (required)</Label>
+                      <Select
+                        value={varianceReasonCode}
+                        onValueChange={(v) => setVarianceReasonCode(v as VarianceReasonCode)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VARIANCE_REASONS.map((r) => (
+                            <SelectItem key={r.code} value={r.code}>
+                              {r.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="varianceNote">
+                        Details{varianceReasonCode === 'other' ? ' (required)' : ' (optional)'}
+                      </Label>
+                      <Input
+                        id="varianceNote"
+                        type="text"
+                        placeholder="e.g. ₹50 change given without a receipt"
+                        value={varianceNote}
+                        onChange={(e) => setVarianceNote(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {closeError && <p className="text-xs text-red-600">{closeError}</p>}
                 <Button
                   size="touch"

@@ -8,7 +8,11 @@ import {
   useUpdateSubscriptionPlan,
   usePatchSubscriptionPlanStatus,
   useDeleteSubscriptionPlan,
+  usePatchCustomerSubscriptionStatus,
 } from '@/hooks/useSubscriptions'
+import { usePermissions } from '@/hooks/usePermissions'
+import type { CustomerSubscriptionStatus } from '@/api/subscriptions'
+import { Pause, Play, XCircle } from 'lucide-react'
 import {
   FormDrawer,
   DrawerSection,
@@ -694,8 +698,98 @@ export function CustomerSubscriptionDetailDrawer({
   subscription: CustomerSubscriptionDto | null
   onClose: () => void
 }) {
+  const { hasPermission } = usePermissions()
+  const canManage = hasPermission('subscription.manage')
+  const patchStatus = usePatchCustomerSubscriptionStatus()
+  const gate = useConfirm()
+  const [error, setError] = useState<string | null>(null)
+
+  // Reset any prior action error whenever a different subscription opens.
+  useEffect(() => {
+    setError(null)
+  }, [subscription?.id])
+
   if (!subscription) return null
   const s = subscription
+
+  // Status-conditional actions. Backend PATCH accepts active|suspended|cancelled|paused
+  // and rejects stale writes via expectedUpdatedAt (we send the row's last-seen updatedAt).
+  // NOTE: "Retry billing" for dunning is intentionally omitted — there is no
+  // backend retry/recharge endpoint yet (only the status PATCH exists).
+  const runAction = (status: CustomerSubscriptionStatus, label: string, tone: 'danger' | 'warning' | 'default') => {
+    gate.confirm({
+      title: `${label}?`,
+      description: `This will set subscription ${s.subscriptionNumber} to "${status}".`,
+      confirmLabel: label,
+      tone,
+      onConfirm: async () => {
+        setError(null)
+        try {
+          await patchStatus.mutateAsync({ id: s.id, status, expectedUpdatedAt: s.updatedAt })
+          onClose()
+        } catch (e) {
+          // Surface the 409 stale-write / validation message inline; rethrow so the
+          // confirm dialog stays open for the operator to read and retry.
+          setError(apiErrorMessage(e, `Could not ${label.toLowerCase()} this subscription.`))
+          throw e
+        }
+      },
+    })
+  }
+
+  const isActive = s.status === 'active'
+  const isPastDue = s.status === 'past_due'
+  const isPaused = s.status === 'paused' || s.status === 'suspended'
+  const isTerminal = s.status === 'cancelled' || s.status === 'expired'
+
+  const actions: { key: string; label: string; icon: React.ElementType; onClick: () => void; cls: string }[] = []
+  if (canManage && !isTerminal) {
+    if (isActive || isPastDue) {
+      actions.push({
+        key: 'cancel',
+        label: 'Cancel',
+        icon: XCircle,
+        onClick: () => runAction('cancelled', 'Cancel', 'danger'),
+        cls: 'border-red-200 text-red-600 hover:bg-red-50',
+      })
+    }
+    if (isActive) {
+      actions.push({
+        key: 'pause',
+        label: 'Pause',
+        icon: Pause,
+        onClick: () => runAction('paused', 'Pause', 'warning'),
+        cls: 'border-amber-200 text-amber-700 hover:bg-amber-50',
+      })
+    }
+    if (isPaused) {
+      actions.push({
+        key: 'resume',
+        label: 'Resume',
+        icon: Play,
+        onClick: () => runAction('active', 'Resume', 'default'),
+        cls: 'border-lg-green/30 text-lg-green hover:bg-lg-green/5',
+      })
+    }
+  }
+
+  const footer =
+    actions.length === 0 ? null : (
+      <div className="flex flex-wrap justify-end gap-2">
+        {actions.map((a) => (
+          <button
+            key={a.key}
+            type="button"
+            onClick={a.onClick}
+            disabled={patchStatus.isPending}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-60 ${a.cls}`}
+          >
+            <a.icon className="h-4 w-4" /> {a.label}
+          </button>
+        ))}
+      </div>
+    )
+
   return (
     <FormDrawer
       open={!!s}
@@ -704,7 +798,8 @@ export function CustomerSubscriptionDetailDrawer({
       eyebrow={<>Subscription · <span className="font-mono">{s.subscriptionNumber}</span></>}
       title={`${formatCurrency(s.priceSnapshot)} / ${s.billingInterval.replace(/_/g, ' ')}`}
       width="md"
-      footer={null}
+      error={error}
+      footer={footer}
     >
       <DrawerSection>
         <SubscriptionStatusBadge status={s.status} />
@@ -744,6 +839,8 @@ export function CustomerSubscriptionDetailDrawer({
         <DetailRow label="Created" value={formatDate(s.createdAt)} />
         <DetailRow label="Updated" value={formatDate(s.updatedAt)} />
       </DetailSection>
+
+      <ConfirmDialog {...gate.dialogProps} />
     </FormDrawer>
   )
 }

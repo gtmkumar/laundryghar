@@ -94,6 +94,8 @@ public sealed class CreatePickupRequestAdminHandler
             PaymentPreference = paymentPref,
             IdempotencyKey = normKey,
             Source = source,
+            // Store normalised coupon code for admin conversion path.
+            CouponCode = string.IsNullOrWhiteSpace(req.CouponCode) ? null : req.CouponCode.Trim().ToUpperInvariant(),
             Status = "pending",
             Metadata = "{}",
             CreatedAt = now,
@@ -130,7 +132,8 @@ public sealed class CreatePickupRequestAdminHandler
             items,
             p.PaymentPreference,
             Source: p.Source,
-            IdempotencyKey: p.IdempotencyKey);
+            IdempotencyKey: p.IdempotencyKey,
+            CouponCode: p.CouponCode);
     }
 }
 

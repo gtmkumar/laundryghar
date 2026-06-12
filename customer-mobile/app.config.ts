@@ -1,6 +1,8 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
 const OLIVE_700 = '#4A552A';
+// TODO: replace with the real UUID from `eas project:init` (run by the repo owner).
+// Until then OTA updates will return 404; dev/preview/production builds still compile.
 const EAS_PROJECT_ID = 'laundryghar-customer';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({

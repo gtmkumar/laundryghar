@@ -5,6 +5,7 @@
  * Riders are SYSTEM users (user_type='rider') — they log in with a
  * password, not OTP.  The endpoint is POST /api/v1/auth/password/login.
  */
+import axios from 'axios';
 import { identityClient } from '@/api/client';
 import type {
   OtpSendRequest,
@@ -52,15 +53,35 @@ export async function verifyLoginOtp(
     purpose:        LOGIN,
     code,
   };
-  const res = await identityClient.post<SingleResponse<TokenResponse>>(
-    '/auth/otp/verify',
-    payload,
-  );
-  const envelope = res.data;
-  if (!envelope.status || !envelope.data) {
-    throw new Error(envelope.message?.responseMessage ?? 'Invalid or expired code');
+  try {
+    const res = await identityClient.post<SingleResponse<TokenResponse>>(
+      '/auth/otp/verify',
+      payload,
+    );
+    const envelope = res.data;
+    if (!envelope.status || !envelope.data) {
+      throw new Error(envelope.message?.responseMessage ?? 'Invalid or expired code');
+    }
+    return envelope.data;
+  } catch (err: unknown) {
+    // Re-throw envelope errors (already a friendly Error from above).
+    if (err instanceof Error && !axios.isAxiosError(err)) {
+      throw err;
+    }
+    if (axios.isAxiosError(err)) {
+      // RIDER-BUG-01: surface rate-limit message before the generic fallback.
+      if (err.response?.status === 429) {
+        throw new Error('Too many attempts. Please wait a moment and try again.');
+      }
+      const serverMessage =
+        (err.response?.data as SingleResponse<unknown> | undefined)
+          ?.message?.responseMessage;
+      throw new Error(
+        serverMessage ?? 'That code is incorrect or has expired. Please try again.',
+      );
+    }
+    throw new Error('That code is incorrect or has expired. Please try again.');
   }
-  return envelope.data;
 }
 
 // ---------------------------------------------------------------------------

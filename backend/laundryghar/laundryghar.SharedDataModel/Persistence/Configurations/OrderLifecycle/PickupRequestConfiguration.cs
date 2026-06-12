@@ -36,6 +36,9 @@ public sealed class PickupRequestConfiguration : IEntityTypeConfiguration<Pickup
         b.Property(e => e.Source).HasColumnName("source").HasMaxLength(20).IsRequired()
             .HasDefaultValue("app");
 
+        // Coupon code stored at booking; threaded into the order on admin conversion.
+        b.Property(e => e.CouponCode).HasColumnName("coupon_code").HasMaxLength(50);
+
         // Scalar-only composite FK columns to orders — no navigation configured (nullable composite FK)
         b.Property(e => e.ConvertedOrderId).HasColumnName("converted_order_id");
         b.Property(e => e.ConvertedOrderCreatedAt).HasColumnName("converted_order_created_at");

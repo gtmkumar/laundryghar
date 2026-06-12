@@ -9,6 +9,25 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
+import { RequirePermission } from '@/components/layout/RequirePermission'
+import { usePermissions } from '@/hooks/usePermissions'
+
+// R3-NAV-1: thin permission gates for the route tree. Each reads the JWT-derived
+// predicate and renders the friendly 403 panel when the staff login lacks it.
+// Order create/read accept either the legacy `orders.*` or incoming `pos.order.*`
+// family (see usePermissions / R3-SEC-2).
+function RequireOrderCreate() {
+  const { canCreateOrder } = usePermissions()
+  return <RequirePermission allowed={canCreateOrder} area="new orders" />
+}
+function RequireOrderRead() {
+  const { canViewOrders } = usePermissions()
+  return <RequirePermission allowed={canViewOrders} area="the orders list" />
+}
+function RequireCashbook() {
+  const { canManageCashbook } = usePermissions()
+  return <RequirePermission allowed={canManageCashbook} area="the cash book" />
+}
 
 // Route-level code splitting: each page is its own chunk, loaded on first
 // visit instead of shipping every page in the startup bundle. Pages use
@@ -44,10 +63,25 @@ const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { index: true, element: <Navigate to="/new-order" replace /> },
-          { path: 'new-order', lazy: lazyPage(() => import('@/pages/pos/NewOrderPage'), 'NewOrderPage') },
-          { path: 'orders', lazy: lazyPage(() => import('@/pages/orders/OrdersPage'), 'OrdersPage') },
-          { path: 'orders/:id', lazy: lazyPage(() => import('@/pages/orders/OrderDetailPage'), 'OrderDetailPage') },
-          { path: 'cash-book', lazy: lazyPage(() => import('@/pages/cashbook/CashBookPage'), 'CashBookPage') },
+          {
+            element: <RequireOrderCreate />,
+            children: [
+              { path: 'new-order', lazy: lazyPage(() => import('@/pages/pos/NewOrderPage'), 'NewOrderPage') },
+            ],
+          },
+          {
+            element: <RequireOrderRead />,
+            children: [
+              { path: 'orders', lazy: lazyPage(() => import('@/pages/orders/OrdersPage'), 'OrdersPage') },
+              { path: 'orders/:id', lazy: lazyPage(() => import('@/pages/orders/OrderDetailPage'), 'OrderDetailPage') },
+            ],
+          },
+          {
+            element: <RequireCashbook />,
+            children: [
+              { path: 'cash-book', lazy: lazyPage(() => import('@/pages/cashbook/CashBookPage'), 'CashBookPage') },
+            ],
+          },
           { path: '*', element: <Navigate to="/new-order" replace /> },
         ],
       },

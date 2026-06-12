@@ -8,7 +8,7 @@ import { useEffectiveBrandId } from '@/hooks/useBrandContext'
 import { useUpdateRider } from '@/hooks/useRiders'
 import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import { FieldError } from '@/components/ui/FieldError'
-import { optionalPan, optionalIfsc, optionalUpi, nonNegativeInt, futureDate } from '@/lib/validation'
+import { optionalPan, optionalIfsc, optionalUpi, nonNegativeInt, futureDate, optionalAadhaarMasked } from '@/lib/validation'
 import type { RiderDto, RiderEmploymentType, RiderVehicleType, UpdateRiderPayload } from '@/types/api'
 
 interface Props {
@@ -59,7 +59,7 @@ const schema = z.object({
   drivingLicenseNumber: z.string().optional(),
   dlExpiryDate: futureDate,         // when set, must be today or later
   // Sensitive fields — blank = keep existing value on the server
-  aadhaarNumberMasked: z.string().optional(),
+  aadhaarNumberMasked: optionalAadhaarMasked, // validates format only when non-empty
   panNumber: optionalPan,           // validates format only when non-empty
   insuranceExpiryDate: futureDate,  // when set, must be today or later
   bankAccountNumber: z.string().optional(),
@@ -239,7 +239,13 @@ export function RiderEditDrawer({ rider, open, onClose }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Aadhaar (masked)">
-            <input {...register('aadhaarNumberMasked')} className={drawerInputCls} placeholder="Leave blank to keep" />
+            <input
+              {...register('aadhaarNumberMasked')}
+              aria-invalid={!!errors.aadhaarNumberMasked}
+              className={drawerInputCls}
+              placeholder="Leave blank to keep"
+            />
+            <FieldError message={errors.aadhaarNumberMasked?.message} />
           </Field>
           <Field label="PAN">
             <input

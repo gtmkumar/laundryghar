@@ -33,6 +33,7 @@ export function MapsPanel({ settings }: { settings: AdminSettings }) {
   const mapboxSet = !!m.mapboxToken
 
   const save = async () => {
+    if (!canManage) return
     setError(null)
     setSavedAt(null)
     const payload: UpdateMapsPayload = {

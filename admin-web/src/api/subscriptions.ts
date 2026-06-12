@@ -65,7 +65,7 @@ export async function deleteSubscriptionPlan(id: string): Promise<void> {
   await commerceClient.delete(`${ADMIN}/subscription-plans/${id}`)
 }
 
-// ── Customer subscriptions (read-only admin list) ──────────────────────────────
+// ── Customer subscriptions (admin list + status patch) ─────────────────────────
 
 export async function listCustomerSubscriptions(
   params: CustomerSubscriptionListParams = {},
@@ -75,4 +75,29 @@ export async function listCustomerSubscriptions(
     { params: { page: 1, pageSize: 100, ...params } },
   )
   return unwrapPaginated(data)
+}
+
+/** Backend-accepted target statuses for a customer-subscription status PATCH. */
+export type CustomerSubscriptionStatus = 'active' | 'suspended' | 'cancelled' | 'paused'
+
+/**
+ * Narrow status-only update for a customer subscription (PATCH
+ * /admin/subscriptions/{id}/status, gated subscription.manage). Passes the
+ * caller's last-seen `updatedAt` as `expectedUpdatedAt` so the backend rejects a
+ * stale write (optimistic concurrency → 409 BusinessRuleException). Drives the
+ * Cancel / Pause / Resume footer actions on the detail drawer.
+ *
+ * Backed by AdminCommerceEndpoints.cs PATCH .../status +
+ * PatchCustomerSubscriptionStatusCommand (already merged).
+ */
+export async function patchCustomerSubscriptionStatus(
+  id: string,
+  status: CustomerSubscriptionStatus,
+  expectedUpdatedAt?: string,
+): Promise<CustomerSubscriptionDto> {
+  const { data } = await commerceClient.patch<ApiResponse<CustomerSubscriptionDto>>(
+    `${ADMIN}/subscriptions/${id}/status`,
+    { status, expectedUpdatedAt },
+  )
+  return unwrap(data)
 }

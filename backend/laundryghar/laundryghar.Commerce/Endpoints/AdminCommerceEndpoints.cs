@@ -8,6 +8,7 @@ using laundryghar.Commerce.Application.Admin.Promotions;
 using laundryghar.Commerce.Application.Admin.Subscriptions;
 using laundryghar.Commerce.Application.Admin.Wallet;
 using MediatR;
+using Microsoft.Extensions.Configuration;
 
 namespace laundryghar.Commerce.Endpoints;
 
@@ -281,7 +282,7 @@ public static class AdminCommerceEndpoints
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<SubscriptionPlanDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:subscription.manage");
 
-        // ── Admin: Customer Subscriptions (read) ───────────────────────────────
+        // ── Admin: Customer Subscriptions (read + status patch) ───────────────
         var custSubs = group.MapGroup("/subscriptions").WithTags("Admin - Commerce - Customer Subscriptions");
 
         custSubs.MapGet("/", async ([FromServices] ISender sender, CancellationToken ct,
@@ -292,6 +293,41 @@ public static class AdminCommerceEndpoints
             return Results.Ok(new PaginatedListResponse<CustomerSubscriptionDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:subscription.read");
 
+        // PATCH /admin/subscriptions/{id}/status — narrow status update with optimistic concurrency.
+        custSubs.MapPatch("/{id:guid}/status", async (
+            Guid id, PatchCustomerSubscriptionStatusRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(
+                new PatchCustomerSubscriptionStatusCommand(id, req.Status, req.ExpectedUpdatedAt, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<CustomerSubscriptionDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:subscription.manage");
+
+        // ── Payment settings (webhook URL) ─────────────────────────────────────
+        var paySettings = group.MapGroup("/payments/settings").WithTags("Admin - Commerce - Payment Settings");
+
+        paySettings.MapGet("/", ([FromServices] IConfiguration config, ICurrentUser u) =>
+        {
+            // The canonical webhook URL is config-driven so it is correct in all environments
+            // (dev, staging, prod) without the admin-web having to guess the service port.
+            var baseUrl = config["PublicBaseUrls:Commerce"]?.TrimEnd('/') ?? "http://localhost:5002";
+            var webhookUrl = $"{baseUrl}/api/v1/webhooks/razorpay";
+            return Results.Ok(new SingleResponse<PaymentSettingsView>
+            {
+                Status = true,
+                Data   = new PaymentSettingsView(webhookUrl)
+            });
+        }).RequireAuthorization("permission:paymentmethod.manage");
+
         return group;
     }
 }
+
+/// <summary>Commerce payment settings read model returned to the admin panel.</summary>
+public sealed record PaymentSettingsView(
+    /// <summary>
+    /// Canonical Razorpay webhook URL for this environment.
+    /// Configure this URL in your Razorpay dashboard under Webhooks.
+    /// Sourced from PublicBaseUrls:Commerce config key (default http://localhost:5002).
+    /// </summary>
+    string WebhookUrl
+);

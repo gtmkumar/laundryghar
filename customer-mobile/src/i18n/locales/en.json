@@ -138,7 +138,17 @@
     "noAddress": "No address",
     "noAddressMessage": "Please go back and select a pickup address.",
     "bookingFailed": "Booking failed",
-    "bookingFailedMessage": "Booking failed. Please try again."
+    "bookingFailedMessage": "Booking failed. Please try again.",
+    "coupon": {
+      "label": "Have a coupon?",
+      "placeholder": "Enter coupon code",
+      "apply": "Apply",
+      "remove": "Remove coupon",
+      "saves": "Saves {{amount}}",
+      "invalid": "This coupon is not valid.",
+      "validationFailed": "Could not validate coupon. Try again.",
+      "discountLine": "Coupon {{code}}"
+    }
   },
   "confirm": {
     "title": "Pickup scheduled!",
@@ -427,5 +437,23 @@
     "resendCode": "Resend OTP code",
     "brandSplash": "Laundry Ghar loading screen",
     "otpCell": "OTP digit {{n}}"
+  },
+  "reschedule": {
+    "title": "Reschedule pickup",
+    "subtitle": "Choose a new date and time slot.",
+    "confirm": "Confirm reschedule",
+    "confirming": "Rescheduling…",
+    "success": "Rescheduled",
+    "successMessage": "Your pickup has been rescheduled.",
+    "error": "Could not reschedule",
+    "errorNotAllowed": "This pickup cannot be rescheduled — it may have already been collected or cancelled.",
+    "errorGeneric": "Rescheduling failed. Please try again.",
+    "action": "Reschedule pickup"
+  },
+  "consent": {
+    "dataProcessing": "I agree to the processing of my personal data as described in the Privacy Policy (DPDP Act 2023).",
+    "required": "You must agree to continue.",
+    "privacyPolicy": "Privacy Policy",
+    "checkboxLabel": "Accept data processing consent"
   }
 }

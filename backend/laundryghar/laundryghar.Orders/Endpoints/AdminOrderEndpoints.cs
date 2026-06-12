@@ -12,6 +12,10 @@ public static class AdminOrderEndpoints
     {
         var orders = group.MapGroup("/orders").WithTags("Admin - Orders");
 
+        // R3-SEC-2: POS-shared routes accept EITHER the admin Orders family OR the POS family.
+        // Pipe-syntax policy ("permission:a|b") uses AnyPermissionRequirement so that store_admin /
+        // store_staff holding pos.order.read/create can reach these endpoints without being granted
+        // the broader orders.* permissions that unlock the full admin Orders module.
         orders.MapGet("/", async (
             [FromServices] ISender sender, CancellationToken ct,
             int page = 1, int pageSize = 20, string? status = null, Guid? storeId = null,
@@ -21,13 +25,13 @@ public static class AdminOrderEndpoints
             DateOnly? to   = dateTo   is not null && DateOnly.TryParse(dateTo, out var dt)   ? dt : null;
             var r = await sender.Send(new GetOrdersQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status, storeId, from, to, statusGroup), ct);
             return Results.Ok(new PaginatedListResponse<OrderDto> { Status = true, Data = r });
-        }).RequireAuthorization("permission:orders.list");
+        }).RequireAuthorization("permission:orders.list|pos.order.read");
 
         orders.MapGet("/{id:guid}", async (Guid id, ISender sender, CancellationToken ct) =>
         {
             var r = await sender.Send(new GetOrderByIdQuery(id), ct);
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<OrderDto> { Status = true, Data = r });
-        }).RequireAuthorization("permission:orders.read");
+        }).RequireAuthorization("permission:orders.read|pos.order.read");
 
         orders.MapPost("/", async (HttpContext http, CreateOrderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {
@@ -39,7 +43,7 @@ public static class AdminOrderEndpoints
             var r = await sender.Send(new CreateOrderCommand(req, u.UserId, idempotencyKey), ct);
             return Results.Created($"/api/v1/admin/orders/{r.Id}",
                 new SingleResponse<OrderDto> { Status = true, Data = r });
-        }).RequireAuthorization("permission:orders.create");
+        }).RequireAuthorization("permission:orders.create|pos.order.create");
 
         orders.MapPatch("/{id:guid}/status", async (Guid id, UpdateOrderStatusRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {

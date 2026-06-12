@@ -11,8 +11,20 @@
  * The map is a stylised placeholder; a live map (react-native-maps) needs a
  * dev build + key and is tracked as a follow-up.
  */
-import React, { useState } from 'react';
-import { Alert, Image, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
@@ -96,12 +108,48 @@ export default function TaskDetailScreen() {
   const [failNote, setFailNote] = useState('');
   const [failBusy, setFailBusy] = useState(false);
 
+  // ── Inspection badge ─────────────────────────────────────────────────────
+  // Track whether the rider has visited the inspection screen this session.
+  // The inspection API is best-effort; we record the visit locally so the
+  // badge updates immediately without a refetch round-trip.
+  const [inspectionDone, setInspectionDone] = useState(false);
+
+  // ── ETA countdown ────────────────────────────────────────────────────────
+  // Parse windowEnd (HH:mm) relative to today and tick every minute.
+  const [etaDisplay, setEtaDisplay] = useState<{ label: string; urgent: 'amber' | 'red' | null } | null>(null);
+
+  const computeEta = useCallback(() => {
+    if (!task?.windowEnd || task?.status === 'completed') { setEtaDisplay(null); return; }
+    const [hh, mm] = task.windowEnd.split(':').map(Number);
+    if (isNaN(hh) || isNaN(mm)) { setEtaDisplay(null); return; }
+    const now = new Date();
+    const end = new Date(now);
+    end.setHours(hh, mm, 0, 0);
+    const diffMs = end.getTime() - now.getTime();
+    const diffMin = Math.round(diffMs / 60_000);
+    if (diffMin > 60) { setEtaDisplay(null); return; } // only show when < 60 min
+    if (diffMin < 0) {
+      setEtaDisplay({ label: `Window closed ${Math.abs(diffMin)} min ago`, urgent: 'red' });
+    } else if (diffMin <= 15) {
+      setEtaDisplay({ label: `${diffMin} min to window close`, urgent: 'amber' });
+    } else {
+      setEtaDisplay({ label: `${diffMin} min to window close`, urgent: null });
+    }
+  }, [task?.windowEnd, task?.status]);
+
   // Flush offline queue each time the task detail screen gains focus.
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       void flushOfflineQueue();
-    }, [flushOfflineQueue]),
+      computeEta();
+    }, [flushOfflineQueue, computeEta]),
   );
+
+  useEffect(() => {
+    computeEta();
+    const timer = setInterval(computeEta, 60_000);
+    return () => clearInterval(timer);
+  }, [computeEta]);
 
   // ── Proof photo (optional) ────────────────────────────────────────────────
   // The confirm flow works regardless of whether a photo is attached.
@@ -129,6 +177,49 @@ export default function TaskDetailScreen() {
     : isDropStep   ? `Drop #${task.orderNumber}`
     : isDelivery   ? `Delivering #${task.orderNumber}`
     :                `Picking up #${task.orderNumber}`;
+
+  /**
+   * Open directions in the device default maps app.
+   * Falls back to an action sheet (Google Maps / Apple Maps / copy address)
+   * when the primary URL scheme cannot be opened.
+   */
+  async function openDirections(lat: number | null, lng: number | null, address: string) {
+    const dest = lat != null && lng != null ? `${lat},${lng}` : encodeURIComponent(address);
+    const googleUrl = lat != null && lng != null
+      ? `https://www.google.com/maps/dir/?api=1&destination=${dest}`
+      : `https://www.google.com/maps/search/?api=1&query=${dest}`;
+    try {
+      await Linking.openURL(googleUrl);
+    } catch {
+      // Google Maps not handled — offer alternatives.
+      const appleUrl = lat != null && lng != null
+        ? `http://maps.apple.com/?daddr=${dest}`
+        : `http://maps.apple.com/?q=${dest}`;
+      Alert.alert(
+        'Open directions',
+        'Choose a maps app',
+        [
+          {
+            text: 'Google Maps',
+            onPress: () => void Linking.openURL(googleUrl).catch(() => undefined),
+          },
+          {
+            text: 'Apple Maps',
+            onPress: () => void Linking.openURL(appleUrl).catch(() => undefined),
+          },
+          {
+            text: 'Copy address',
+            onPress: () => {
+              // Clipboard is not available in Expo Go without a dev build;
+              // fall back to an alert showing the address text.
+              Alert.alert('Address', address);
+            },
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ],
+      );
+    }
+  }
 
   /**
    * Show an action sheet to let the rider pick proof photo source.
@@ -204,9 +295,17 @@ export default function TaskDetailScreen() {
     try {
       await uploadProofPhoto(task.id, proofUri, proofMime);
       setPhotoUploadState('done');
-    } catch (e) {
+    } catch {
+      // On network failure, enqueue the photo for retry when connectivity returns.
+      // The confirm flow is unblocked — proof photo is optional.
+      await enqueue({ taskId: task.id, status: '__photo__', note: `${proofUri}|${proofMime}` });
       setPhotoUploadState('error');
-      setPhotoError(e instanceof Error ? e.message : 'Photo upload failed. Tap retry.');
+      setPhotoError('No connection — photo queued and will upload when online.');
+      Alert.alert(
+        'Photo queued',
+        'No connection right now. The photo will upload automatically when you are back online.',
+        [{ text: t('common.ok') }],
+      );
     }
   }
 
@@ -332,13 +431,10 @@ export default function TaskDetailScreen() {
                 >
                   <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFFFFF" />
                 </Pressable>
-                {/* Directions — opens Google Maps universal URL when customer lat/lng are available */}
+                {/* Directions — opens maps app; action sheet on failure */}
                 {task.lat != null && task.lng != null ? (
                   <Pressable
-                    onPress={() => {
-                      const url = `https://www.google.com/maps/dir/?api=1&destination=${task.lat},${task.lng}`;
-                      void Linking.openURL(url);
-                    }}
+                    onPress={() => void openDirections(task.lat!, task.lng!, task.addressLine)}
                     className="h-10 w-10 items-center justify-center rounded-full bg-gold-400 active:opacity-80"
                     accessibilityLabel={t('a11y.openDirections')}
                     accessibilityRole="button"
@@ -346,12 +442,8 @@ export default function TaskDetailScreen() {
                     <Ionicons name="navigate" size={18} color="#3B4423" />
                   </Pressable>
                 ) : task.addressLine ? (
-                  // Fallback — no coords, use address text as a query
                   <Pressable
-                    onPress={() => {
-                      const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(task.addressLine)}`;
-                      void Linking.openURL(url);
-                    }}
+                    onPress={() => void openDirections(null, null, task.addressLine)}
                     className="h-10 w-10 items-center justify-center rounded-full bg-gold-400 active:opacity-80"
                     accessibilityLabel={t('a11y.openDirections')}
                     accessibilityRole="button"
@@ -412,23 +504,55 @@ export default function TaskDetailScreen() {
           {/* opens the inspection camera screen; the confirm flow is unblocked.*/}
           {isPickup && !collected && !isCompleted ? (
             <Pressable
-              onPress={() => router.push(`/(app)/inspection/${task.id}` as never)}
-              className="mt-4 flex-row items-center gap-3 rounded-3xl border border-olive-200 bg-white px-4 py-4 active:opacity-70"
+              onPress={() => {
+                // Navigate to inspection; mark as visited so the badge updates.
+                router.push(`/(app)/inspection/${task.id}` as never);
+                setInspectionDone(true);
+              }}
+              className={`mt-4 flex-row items-center gap-3 rounded-3xl border px-4 py-4 active:opacity-70 ${inspectionDone ? 'border-olive-500 bg-olive-50' : 'border-olive-200 bg-white'}`}
               style={{ elevation: 1 }}
               accessibilityRole="button"
-              accessibilityLabel="Inspect garments before pickup"
+              accessibilityLabel={inspectionDone ? 'Inspection recorded — tap to review' : 'Inspect garments before pickup'}
             >
-              <View className="h-10 w-10 items-center justify-center rounded-full bg-olive-100">
-                <Ionicons name="shirt-outline" size={20} color="#4A552A" />
+              <View className={`h-10 w-10 items-center justify-center rounded-full ${inspectionDone ? 'bg-olive-500' : 'bg-olive-100'}`}>
+                {inspectionDone
+                  ? <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                  : <Ionicons name="shirt-outline" size={20} color="#4A552A" />
+                }
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-bold text-ink">Inspect garments</Text>
+                <Text className={`text-sm font-bold ${inspectionDone ? 'text-olive-800' : 'text-ink'}`}>
+                  {inspectionDone ? 'Inspection recorded' : 'Inspect garments'}
+                </Text>
                 <Text className="mt-0.5 text-xs text-ink-muted">
-                  Capture front/back photos + condition before pickup
+                  {inspectionDone
+                    ? 'Tap to review or add more photos'
+                    : 'Capture front/back photos + condition before pickup'}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#A8A493" />
+              {inspectionDone
+                ? <Ionicons name="checkmark-circle" size={18} color="#4A552A" />
+                : <Ionicons name="chevron-forward" size={16} color="#A8A493" />
+              }
             </Pressable>
+          ) : null}
+
+          {/* ── ETA / time-window pressure ────────────────────────────────── */}
+          {etaDisplay ? (
+            <View
+              className={`mt-3 flex-row items-center gap-2 rounded-2xl px-4 py-2.5 ${etaDisplay.urgent === 'red' ? 'bg-danger/10' : etaDisplay.urgent === 'amber' ? 'bg-gold-100' : 'bg-cream-200'}`}
+            >
+              <Ionicons
+                name="time-outline"
+                size={16}
+                color={etaDisplay.urgent === 'red' ? '#C0492F' : etaDisplay.urgent === 'amber' ? '#8A641D' : '#7B7A6C'}
+              />
+              <Text
+                className={`text-xs font-semibold ${etaDisplay.urgent === 'red' ? 'text-danger' : etaDisplay.urgent === 'amber' ? 'text-gold-800' : 'text-ink-muted'}`}
+              >
+                {etaDisplay.label}
+              </Text>
+            </View>
           ) : null}
 
           {/* ── Optional proof photo (delivery / drop step) ───────────────── */}
@@ -574,6 +698,10 @@ export default function TaskDetailScreen() {
           animationType="slide"
           onRequestClose={() => setFailModalVisible(false)}
         >
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
           <View className="flex-1 justify-end bg-black/40">
             <View className="rounded-t-3xl bg-cream px-5 pb-8 pt-5">
               <View className="mb-4 flex-row items-center">
@@ -633,6 +761,7 @@ export default function TaskDetailScreen() {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
       </SafeAreaView>
     </View>

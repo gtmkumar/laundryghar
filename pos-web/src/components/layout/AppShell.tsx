@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { Topbar } from './Topbar'
 import { BottomNav } from './BottomNav'
+import { OfflineBanner } from '@/components/shared/OfflineBanner'
 
 /**
  * POS App Shell.
@@ -17,6 +18,7 @@ export function AppShell() {
         Skip to content
       </a>
       <Topbar />
+      <OfflineBanner />
       <main id="main-content" className="flex-1 overflow-y-auto">
         <Outlet />
       </main>

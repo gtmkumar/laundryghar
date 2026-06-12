@@ -45,6 +45,22 @@ function parseJwt(token: string): JwtClaims | null {
   }
 }
 
+/**
+ * True when the token is missing, unparseable, or its `exp` claim is already in
+ * the past (exp is epoch seconds). A null/garbled token is treated as expired so
+ * callers fail closed. Used by ProtectedRoute (POS-2) to refresh/redirect before
+ * rendering protected content; the 401 interceptor remains the mid-session
+ * backstop. `skewSeconds` lets callers treat near-expiry as expired too, so a
+ * long-idle tablet refreshes ahead of an action instead of bouncing off a 401.
+ * Mirrors admin-web/src/stores/authStore.ts.
+ */
+export function isTokenExpired(token: string | null, skewSeconds = 0): boolean {
+  if (!token) return true
+  const claims = parseJwt(token)
+  if (!claims || typeof claims.exp !== 'number') return true
+  return claims.exp - Date.now() / 1000 <= skewSeconds
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({

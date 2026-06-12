@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { QrCode, ClipboardList, Flag, ArrowLeft, Plus, Loader2 } from 'lucide-react'
+import { QrCode, ClipboardList, Flag, ArrowLeft, Plus, Loader2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWarehouseBoard } from '@/hooks/useWarehouse'
 import { useEnsureBrandContext } from '@/hooks/useBrandContext'
@@ -29,8 +29,24 @@ function shortName(name: string): string {
   return `${parts[0][0].toUpperCase()}. ${parts[parts.length - 1]}`
 }
 
-// Washing runs hot in the mockup — highlight its count badge in amber.
-const HOT_STAGE = 'washing'
+/**
+ * The "hot" stage is the bottleneck — the column with the most garments waiting.
+ * Derived from the live board rather than hardcoding 'washing', so the highlight
+ * actually tracks where work is piling up (R3-AW-5). Returns null when every
+ * column is empty (nothing to highlight). Ties resolve to the first column,
+ * which matches the left-to-right processing order.
+ */
+function hottestStage(columns: WarehouseStageColumn[]): string | null {
+  let hot: string | null = null
+  let max = 0
+  for (const c of columns) {
+    if (c.count > max) {
+      max = c.count
+      hot = c.stage
+    }
+  }
+  return hot
+}
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 
@@ -64,11 +80,13 @@ function GarmentCard({ card }: { card: WarehouseGarmentCard }) {
 function StageColumn({
   column,
   onAddCard,
+  hotStage,
 }: {
   column: WarehouseStageColumn
   onAddCard: () => void
+  hotStage: string | null
 }) {
-  const hot = column.stage === HOT_STAGE
+  const hot = column.stage === hotStage
   return (
     <div className="flex w-[268px] shrink-0 flex-col">
       <div className="mb-3 flex items-center gap-2 px-1">
@@ -121,9 +139,10 @@ function Pill({ tone, children }: { tone: 'green' | 'amber'; children: React.Rea
 export function WarehouseBoardPage() {
   const navigate = useNavigate()
   useEnsureBrandContext() // ensures X-Brand-Id even outside the AppShell
-  const { data, isLoading, isError, error } = useWarehouseBoard()
+  const { data, isLoading, isError, error, refetch, isFetching } = useWarehouseBoard()
   // Treat the pre-data window (incl. brand-context resolving) as loading.
   const pending = isLoading || (!data && !isError)
+  const hotStage = data ? hottestStage(data.columns) : null
 
   // ── Drawer state ───────────────────────────────────────────────────────────
   const [scanInOpen,  setScanInOpen]  = useState(false)
@@ -164,6 +183,16 @@ export function WarehouseBoardPage() {
           )}
           <button
             type="button"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            title="Refresh board"
+            aria-label="Refresh board"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-50 transition disabled:opacity-60"
+          >
+            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} /> Refresh
+          </button>
+          <button
+            type="button"
             onClick={() => setScanInOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] transition"
           >
@@ -198,6 +227,7 @@ export function WarehouseBoardPage() {
             <StageColumn
               key={col.stage}
               column={col}
+              hotStage={hotStage}
               onAddCard={() => setAddCardOpen(true)}
             />
           ))}

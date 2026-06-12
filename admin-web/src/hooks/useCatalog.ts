@@ -346,6 +346,31 @@ export function useAdminCustomers(params: AdminCustomerListParams = {}, enabled 
   })
 }
 
+const CUSTOMERS_PAGE_SIZE = 50
+
+/**
+ * Infinite-scroll customers list (house pattern: useInfiniteQuery + the
+ * useInfiniteScroll sentinel). Replaces the hard-capped pageSize-100 fetch so
+ * brands with thousands of customers don't silently lose rows past the cap.
+ * Flatten `data.pages.flatMap(p => p.list)` for the table; `totalCount` and
+ * `hasNextPage` come off the last page.
+ */
+export function useAdminCustomersInfinite(
+  params: Omit<AdminCustomerListParams, 'page' | 'pageSize'> = {},
+  enabled = true,
+) {
+  return useInfiniteQuery({
+    queryKey: catalogKeys.adminCustomers({ ...params, _infinite: true }),
+    queryFn: ({ pageParam }) =>
+      getAdminCustomers({ ...params, page: pageParam, pageSize: CUSTOMERS_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasNextPage ? allPages.length + 1 : undefined,
+    enabled,
+    staleTime: 5 * 60_000,
+  })
+}
+
 export function useUpdateAdminCustomer() {
   const qc = useQueryClient()
   return useMutation({

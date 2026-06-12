@@ -5,7 +5,7 @@
  * POST/GET/DELETE {Catalog}/api/v1/customer/account/deletion-request
  */
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -357,9 +357,14 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
+        keyboardShouldPersistTaps="handled"
       >
         <View className="px-6 pb-2 pt-3">
           <Text className="text-2xl font-extrabold text-ink">{t('profile.title')}</Text>
@@ -499,6 +504,7 @@ export default function ProfileScreen() {
           {t('common.version')}
         </Text>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

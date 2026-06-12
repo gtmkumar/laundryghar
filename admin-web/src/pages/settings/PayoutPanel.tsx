@@ -48,6 +48,7 @@ export function PayoutPanel({ settings }: { settings: AdminSettings }) {
   }
 
   const save = async () => {
+    if (!canManage) return
     setError(null)
     setSavedAt(null)
     if (payload.roundToNearest <= 0) return setError('Round-to must be greater than zero.')

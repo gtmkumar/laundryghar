@@ -229,6 +229,18 @@ function StoresTab() {
         initialSort={{ key: 'createdAt', dir: 'desc' }}
         emptyMessage="No stores found. Select a brand or add stores."
         noMatchMessage="No stores match your filters."
+        csvExport={{
+          filename: `stores-${new Date().toISOString().slice(0, 10)}`,
+          columns: [
+            { header: 'Code', value: (s) => s.code },
+            { header: 'Name', value: (s) => s.name },
+            { header: 'Franchise', value: (s) => franchiseName.get(s.franchiseId) ?? '' },
+            { header: 'Type', value: (s) => s.storeType },
+            { header: 'City', value: (s) => s.city },
+            { header: 'Status', value: (s) => s.status },
+            { header: 'Created', value: (s) => s.createdAt },
+          ],
+        }}
         footer={<ScrollFooter sentinelRef={sentinelRef} loading={isFetchingNextPage} />}
       />
       <StoreEditDrawer store={editing} onClose={() => setEditing(null)} />

@@ -51,6 +51,7 @@ import { ErrorState } from '@/components/shared/ErrorState'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { useServiceCategories, useServices, useItems } from '@/hooks/useCatalog'
 import { useCreateOrder } from '@/hooks/useOrders'
+import { useNetworkStatus } from '@/hooks/useNetworkStatus'
 import { usePosStore } from '@/stores/posStore'
 import { useCartStore, isCartForeign, type CartLine } from '@/stores/cartStore'
 import { formatCurrency, customerLabel, newIdempotencyKey } from '@/lib/utils'
@@ -68,6 +69,8 @@ export function NewOrderPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { activeStore } = usePosStore()
+  // R3-POS-5: order submit must reach the server — block it while offline.
+  const online = useNetworkStatus()
 
   // ── Persisted cart (POS-1) ──────────────────────────────────────────────────
   const {
@@ -200,6 +203,16 @@ export function NewOrderPage() {
   // ── Submit ────────────────────────────────────────────────────────────────
 
   function handleSubmit() {
+    // R3-POS-5: never fire an order while offline — it would fail silently /
+    // queue nowhere. The cart is persisted, so it's safe to just block + tell.
+    if (!online) {
+      setServerError(
+        t('pos.offlineSubmit', {
+          defaultValue: "You're offline. The cart is saved — submit once the connection is back.",
+        }),
+      )
+      return
+    }
     if (!customer) {
       setServerError(t('pos.selectCustomer'))
       return
@@ -765,10 +778,17 @@ export function NewOrderPage() {
             </div>
 
             {serverError && <p className="text-xs text-red-600 text-center">{serverError}</p>}
+            {!online && (
+              <p className="text-xs text-amber-600 text-center">
+                {t('pos.offlineSubmit', {
+                  defaultValue: "You're offline. The cart is saved — submit once the connection is back.",
+                })}
+              </p>
+            )}
             <Button
               size="touch"
               className="w-full"
-              disabled={isPending || cart.length === 0 || !customer}
+              disabled={isPending || cart.length === 0 || !customer || !online}
               onClick={handleSubmit}
             >
               {isPending ? (

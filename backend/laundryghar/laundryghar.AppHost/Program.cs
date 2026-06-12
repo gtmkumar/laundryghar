@@ -117,6 +117,28 @@ builder
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64);
 
+// ── API Gateway — single entry-point for all 4 clients at :8080 ─────────────────────
+// ADDITIVE: all 9 per-service direct ports remain active.
+// Downstream cluster addresses are injected via env vars so YARP uses the same
+// port-fixed addresses as the other resources.  No service-discovery magic — consistent
+// with the "static ports" convention used throughout this AppHost.
+builder
+    .AddProject<Projects.laundryghar_Gateway>("gateway")
+    .WithHttpEndpoint(port: 8080, name: "http")
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64)
+    // Inject each downstream cluster address.  Overrides appsettings.json defaults;
+    // double-underscore maps to Gateway:Clusters:{name}:Destinations:primary:Address.
+    .WithEnvironment("Gateway__Clusters__identity__Destinations__primary__Address",   "http://localhost:5050")
+    .WithEnvironment("Gateway__Clusters__catalog__Destinations__primary__Address",    "http://localhost:5001")
+    .WithEnvironment("Gateway__Clusters__orders__Destinations__primary__Address",     "http://localhost:5002")
+    .WithEnvironment("Gateway__Clusters__warehouse__Destinations__primary__Address",  "http://localhost:5003")
+    .WithEnvironment("Gateway__Clusters__logistics__Destinations__primary__Address",  "http://localhost:5004")
+    .WithEnvironment("Gateway__Clusters__commerce__Destinations__primary__Address",   "http://localhost:5005")
+    .WithEnvironment("Gateway__Clusters__finance__Destinations__primary__Address",    "http://localhost:5006")
+    .WithEnvironment("Gateway__Clusters__engagement__Destinations__primary__Address", "http://localhost:5007")
+    .WithEnvironment("Gateway__Clusters__analytics__Destinations__primary__Address",  "http://localhost:5008");
+
 // ── Worker — no HTTP endpoint; drains notifications_outbox + outbox_events ──────────
 // Generic host: reads DOTNET_ENVIRONMENT (ASPNETCORE_ENVIRONMENT is web-host only).
 // Without it the Worker sees "Production" and the PII cipher fails closed at startup.

@@ -7,6 +7,7 @@ using laundryghar.Orders.Application.Pickup.Commands;
 using laundryghar.Orders.Application.Pickup.Dtos;
 using laundryghar.Orders.Application.Pickup.Queries;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 
 namespace laundryghar.Orders.Endpoints;
 
@@ -130,6 +131,43 @@ public static class CustomerOrderEndpoints
             if (customerId == Guid.Empty) return Results.Unauthorized();
             var r = await sender.Send(new GetMyPickupRequestByIdQuery(id, customerId), ct);
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PickupRequestDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        /// <summary>
+        /// POST /pickup-requests/{id}/reschedule — move a pending/no_response/rescheduled
+        /// pickup request to a new date (+ optional new slot).
+        /// IDOR-guarded: customerId from JWT must match the pickup request's customer_id.
+        /// </summary>
+        pickups.MapPost("/{id:guid}/reschedule", async (
+            Guid id, HttpContext http, ReschedulePickupRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            var brandId    = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(
+                new ReschedulePickupCommand(id, customerId, brandId, req, customerId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PickupRequestDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        // ── Coupon validation (preview only — does not redeem) ────────────────
+        var coupons = group.MapGroup("/coupons").WithTags("Customer - Coupons");
+
+        /// <summary>
+        /// POST /coupons/validate — validates a coupon code against the customer's
+        /// brand and estimated cart total, returning a discount preview.
+        /// Does NOT create a redemption record; use this for the checkout UI preview.
+        /// </summary>
+        coupons.MapPost("/validate", async (
+            HttpContext http, ValidateCouponRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            var brandId    = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(
+                new ValidateCouponForPickupQuery(customerId, brandId, req.CouponCode, req.EstimatedSubtotal ?? 0m), ct);
+            return Results.Ok(new SingleResponse<CouponPreviewResult> { Status = true, Data = r });
         }).RequireAuthorization("CustomerOnly");
 
         // ── Delivery slots ────────────────────────────────────────────────────

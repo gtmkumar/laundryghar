@@ -56,10 +56,13 @@ export function NeedsActionPanel() {
   const { activeBrandId } = useBrandStore()
   const enabled = Boolean(activeBrandId)
 
-  // 30s poll matches the dashboard cadence.
-  const opsQ = useOpsQueues({ pageSize: 50 }, 30_000)
+  // 30s poll matches the dashboard cadence. All brand-scoped queries are gated
+  // behind `enabled` so they don't fire (and 401) before the brand auto-select
+  // resolves on dashboard mount (DEF-R3-1 — same class as the DashboardPage fix).
+  // usePickupRequests self-gates via useEffectiveBrandId, so it needs no flag here.
+  const opsQ = useOpsQueues({ pageSize: 50 }, 30_000, enabled)
   const pickupsQ = usePickupRequests({ status: 'pending', pageSize: 50 })
-  const storesQ = useStores({ pageSize: 100 })
+  const storesQ = useStores({ pageSize: 100 }, enabled)
   const customerNameMap = useCustomerNameMap(enabled)
 
   const storeMap = useMemo(() => {

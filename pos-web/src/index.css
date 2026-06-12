@@ -59,22 +59,43 @@
     position: absolute;
     left: 0;
     top: 0;
-    width: 100%;
+    /* Constrain to the 80mm roll's printable width so long lines wrap on-slip
+     * instead of being clipped by the thermal head. */
+    width: 72mm;
     margin: 0;
     padding: 0;
     background: #fff;
     color: #000;
+    /* Base body copy for the receipt — large enough to read off a thin slip,
+     * tight enough to fit the 80mm column. */
+    font-size: 12px;
+    line-height: 1.3;
   }
   .no-print {
     display: none !important;
   }
   @page {
+    /* 80mm roll, continuous feed. Small symmetric margin keeps the head from
+     * clipping edge glyphs; height auto so the slip is exactly as long as the
+     * content (no trailing blank feed). */
     size: 80mm auto;
-    margin: 4mm;
+    margin: 3mm;
+  }
+  /* R3-POS-5: kill on-screen chrome that the visibility toggle alone can leave
+   * occupying layout (rounded corners, shadows, borders waste thermal ink and
+   * can render as grey blocks on some printers). */
+  .print-area * {
+    box-shadow: none !important;
+    text-shadow: none !important;
   }
   /* Each garment tag starts on its own slip. */
   .print-tag {
     page-break-after: always;
+    /* A tag must never split across two slips. */
+    break-inside: avoid;
+    page-break-inside: avoid;
+    /* Snug to the roll width; the on-screen w-[300px] is overridden in print. */
+    width: 72mm;
   }
   .print-tag:last-child {
     page-break-after: auto;

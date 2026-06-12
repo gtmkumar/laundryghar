@@ -134,10 +134,11 @@ export function useGenerateInvoice(id: string) {
 
 // ── Ops queues ────────────────────────────────────────────────────────────────
 
-export function useOpsQueues(params: OpsQueuesParams = {}, refetchInterval?: number) {
+export function useOpsQueues(params: OpsQueuesParams = {}, refetchInterval?: number, enabled = true) {
   return useQuery({
     queryKey: orderKeys.opsQueues(params),
     queryFn: () => getOpsQueues(params),
     refetchInterval,
+    enabled,
   })
 }

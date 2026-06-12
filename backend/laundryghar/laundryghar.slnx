@@ -22,4 +22,5 @@
   <Project Path="laundryghar.Analytics/laundryghar.Analytics.csproj" />
   <Project Path="laundryghar.Worker/laundryghar.Worker.csproj" />
   <Project Path="laundryghar.Mcp/laundryghar.Mcp.csproj" />
+  <Project Path="laundryghar.Gateway/laundryghar.Gateway.csproj" />
 </Solution>

@@ -1,17 +1,31 @@
 /**
  * Booking step 3 — "Payment".
- * Order summary + payment-method picker. On pay:
- *   - FEATURES.bookingApi=true  → calls POST /api/v1/customer/pickup-requests
- *     with slot, address, cart items, and payment preference. Uses the server-
- *     issued requestNumber and id on the confirmation screen.
- *   - FEATURES.bookingApi=false → local fallback (generates a fake LG-##### id
- *     for demo purposes).
+ * Order summary + coupon entry + payment-method picker.
  *
- * UPI / card are NOT selectable until the Razorpay native-SDK integration ships.
- * Only Wallet (with balance guard) and Cash on Delivery are live options.
+ * R3-BE-2: Apply coupon flow
+ *   - TextInput to enter/paste a coupon code.
+ *   - "Quick pick" from the customer's offers (GET /customer/coupons via Commerce).
+ *   - Validates via POST /customer/coupons/validate (Orders service preview endpoint).
+ *   - Shows discount line in summary on success; friendly inline error on invalid.
+ *   - Passes couponCode in the pickup-request create payload.
+ *   - Wallet is now a payment METHOD only — the fake 10% wallet discount is removed.
+ *   - Haptic on coupon apply success/error.
+ *
+ * R3-MOB-1: KeyboardAvoidingView wraps the whole screen so the coupon TextInput
+ *   is not obscured by the Android software keyboard.
  */
-import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,9 +33,10 @@ import { useTranslation } from 'react-i18next';
 import { useCartStore } from '@/store/cartStore';
 import { useBookingStore, type PaymentMethod } from '@/store/bookingStore';
 import { useWallet } from '@/hooks/useCommerce';
-import { useSchedulePickup } from '@/hooks/useOrders';
+import { useCoupons } from '@/hooks/useCommerce';
+import { useSchedulePickup, useValidateCoupon } from '@/hooks/useOrders';
 import { rupees } from '@/lib/format';
-import { hapticError, hapticImpact, hapticWarning } from '@/lib/haptics';
+import { hapticError, hapticImpact, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { FEATURES } from '@/constants/config';
 
 const EXPRESS_SURCHARGE = 50;
@@ -42,6 +57,146 @@ function toPaymentPreference(method: LivePaymentMethod): string {
   return 'cod';
 }
 
+// ── Coupon bar ────────────────────────────────────────────────────────────────
+
+interface CouponBarProps {
+  subtotal: number;
+  appliedCode: string | null;
+  discountAmount: number;
+  onApply: (code: string, discount: number) => void;
+  onRemove: () => void;
+}
+
+function CouponBar({ subtotal, appliedCode, discountAmount, onApply, onRemove }: CouponBarProps) {
+  const { t } = useTranslation();
+  const [input, setInput] = useState(appliedCode ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const { data: availableCoupons } = useCoupons();
+  const validateMutation = useValidateCoupon();
+
+  const handleApply = useCallback(async () => {
+    const code = input.trim().toUpperCase();
+    if (!code) return;
+    setError(null);
+    try {
+      const result = await validateMutation.mutateAsync({ couponCode: code, estimatedSubtotal: subtotal });
+      if (result.valid) {
+        hapticSuccess();
+        onApply(code, result.discountPreview);
+      } else {
+        hapticError();
+        setError(result.reason ?? t('booking.coupon.invalid'));
+        onRemove();
+      }
+    } catch {
+      hapticError();
+      setError(t('booking.coupon.validationFailed'));
+      onRemove();
+    }
+  }, [input, subtotal, validateMutation, onApply, onRemove, t]);
+
+  const handleQuickPick = useCallback((code: string) => {
+    hapticImpact();
+    setInput(code);
+    setError(null);
+  }, []);
+
+  return (
+    <View className="mx-5 mt-4">
+      <Text className="mb-2 text-[11px] font-bold uppercase tracking-wider text-ink-faint">
+        {t('booking.coupon.label')}
+      </Text>
+
+      {/* Quick-pick chips */}
+      {availableCoupons && availableCoupons.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3 -mx-1">
+          <View className="flex-row gap-2 px-1 py-0.5">
+            {availableCoupons.slice(0, 6).map((c) => (
+              <Pressable
+                key={c.id}
+                onPress={() => handleQuickPick(c.code)}
+                accessibilityRole="button"
+                accessibilityLabel={`Apply coupon ${c.code}`}
+                className={[
+                  'rounded-full border px-3 py-1.5',
+                  appliedCode === c.code
+                    ? 'border-olive-600 bg-olive-600'
+                    : 'border-cream-300 bg-white',
+                ].join(' ')}
+              >
+                <Text className={`text-xs font-bold ${appliedCode === c.code ? 'text-white' : 'text-olive-700'}`}>
+                  {c.code}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      ) : null}
+
+      {/* Applied banner or input row */}
+      {appliedCode ? (
+        <View className="flex-row items-center rounded-2xl border border-success bg-green-50 px-4 py-3">
+          <Ionicons name="checkmark-circle" size={18} color="#4F8A4F" style={{ marginRight: 8 }} />
+          <View className="flex-1">
+            <Text className="text-sm font-bold text-success">{appliedCode}</Text>
+            <Text className="text-xs text-success">{t('booking.coupon.saves', { amount: rupees(discountAmount) })}</Text>
+          </View>
+          <Pressable
+            onPress={() => { onRemove(); setInput(''); setError(null); }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('booking.coupon.remove')}
+          >
+            <Ionicons name="close-circle" size={20} color="#4F8A4F" />
+          </Pressable>
+        </View>
+      ) : (
+        <View className="flex-row items-center gap-2">
+          <View className="flex-1 flex-row items-center rounded-2xl border border-cream-300 bg-white px-4 py-2.5">
+            <Ionicons name="pricetag-outline" size={16} color="#A8A493" style={{ marginRight: 8 }} />
+            <TextInput
+              value={input}
+              onChangeText={(v) => { setInput(v.toUpperCase()); setError(null); }}
+              placeholder={t('booking.coupon.placeholder')}
+              placeholderTextColor="#A8A493"
+              autoCapitalize="characters"
+              returnKeyType="done"
+              onSubmitEditing={() => void handleApply()}
+              className="flex-1 text-sm font-bold text-ink"
+              accessibilityLabel={t('booking.coupon.placeholder')}
+            />
+          </View>
+          <Pressable
+            onPress={() => void handleApply()}
+            disabled={validateMutation.isPending || !input.trim()}
+            className={[
+              'rounded-2xl px-4 py-3',
+              validateMutation.isPending || !input.trim() ? 'bg-cream-300' : 'bg-olive-700',
+            ].join(' ')}
+            accessibilityRole="button"
+            accessibilityLabel={t('booking.coupon.apply')}
+            accessibilityState={{ disabled: validateMutation.isPending || !input.trim() }}
+          >
+            {validateMutation.isPending
+              ? <ActivityIndicator size="small" color="#FFFFFF" />
+              : <Text className={`text-sm font-bold ${!input.trim() ? 'text-ink-faint' : 'text-white'}`}>{t('booking.coupon.apply')}</Text>
+            }
+          </Pressable>
+        </View>
+      )}
+
+      {error ? (
+        <View className="mt-2 flex-row items-center gap-1.5">
+          <Ionicons name="alert-circle-outline" size={14} color="#C0492F" />
+          <Text className="text-xs text-danger">{error}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
+
 export default function PayScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -54,6 +209,10 @@ export default function PayScreen() {
   const { data: wallet } = useWallet();
 
   const [loading, setLoading] = useState(false);
+  // R3-BE-2: coupon state
+  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+  const [couponDiscount, setCouponDiscount] = useState(0);
+
   const schedulePickup = useSchedulePickup();
 
   // Coerce any legacy upi/card store state to cod so no silent downgrade persists.
@@ -66,10 +225,9 @@ export default function PayScreen() {
   const subtotal = useMemo(() => lineList.reduce((sum, l) => sum + l.qty * l.unitPrice, 0), [lineList]);
 
   const expressFee = express ? EXPRESS_SURCHARGE : 0;
-  const discount = liveMethod === 'wallet' ? Math.round(subtotal * 0.1) : 0;
-  const total = Math.max(0, subtotal + expressFee - discount);
+  // R3-BE-2: coupon discount only (no fake wallet 10% any more — wallet is a payment method)
+  const total = Math.max(0, subtotal + expressFee - couponDiscount);
 
-  // MOB-4: wallet is disabled when balance < total
   const walletBalance = wallet?.balance ?? 0;
   const walletInsufficient = liveMethod === 'wallet' && walletBalance < total;
 
@@ -93,6 +251,16 @@ export default function PayScreen() {
     [wallet, t],
   );
 
+  const handleCouponApply = useCallback((code: string, discount: number) => {
+    setAppliedCoupon(code);
+    setCouponDiscount(discount);
+  }, []);
+
+  const handleCouponRemove = useCallback(() => {
+    setAppliedCoupon(null);
+    setCouponDiscount(0);
+  }, []);
+
   const handlePay = async () => {
     if (count === 0) {
       hapticWarning();
@@ -109,21 +277,14 @@ export default function PayScreen() {
         return;
       }
 
-      // Build a "today" date if the slot doesn't carry date info (slot picker
-      // only stores a label; full date comes from the day picker state in pickup.tsx
-      // via the slot.date field on BookingSlot).
       const pickupDateIso = slot?.date ?? new Date().toISOString().slice(0, 10);
-
-      // Use the slot's stored window times (set by the live slot picker in pickup.tsx).
-      // Fall back to a full-day window if somehow missing.
       const [winStart, winEnd] = slot
         ? [slot.windowStart ?? '09:00:00', slot.windowEnd ?? '21:00:00']
         : ['09:00:00', '21:00:00'];
 
-      // Build estimated cart items from the cart store lines.
       const cartItems = lineList.map((l) => ({
         serviceId: null,
-        itemId: l.id.startsWith('demo-') ? null : l.id,  // demo items have no catalog id
+        itemId: l.id.startsWith('demo-') ? null : l.id,
         displayLabel: `${l.name} · ${l.service}`,
         quantity: l.qty,
         estimatedUnitPrice: l.unitPrice,
@@ -133,7 +294,7 @@ export default function PayScreen() {
       try {
         const result = await schedulePickup.mutateAsync({
           addressId: address.id,
-          slotId: slot?.id ?? null,  // real UUID from live slot picker
+          slotId: slot?.id ?? null,
           pickupDate: pickupDateIso,
           pickupWindowStart: winStart,
           pickupWindowEnd: winEnd,
@@ -144,6 +305,8 @@ export default function PayScreen() {
           customerNotes: null,
           cartItems,
           paymentPreference: toPaymentPreference(liveMethod),
+          // R3-BE-2: pass validated coupon code to the server
+          couponCode: appliedCoupon ?? null,
         });
 
         setConfirmed({
@@ -199,70 +362,98 @@ export default function PayScreen() {
         <Text className="text-xl font-extrabold text-ink">{t('booking.payment')}</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
-        {/* Summary */}
-        <View className="mx-5 rounded-2xl bg-white p-4">
-          <Text className="mb-3 text-[11px] font-bold uppercase tracking-wider text-ink-faint">{t('booking.orderSummary')}</Text>
-          <SummaryRow label={t('booking.garmentCount', { count, plural: count !== 1 ? 's' : '' })} value={rupees(subtotal)} />
-          {express ? <SummaryRow label={t('booking.expressPlus')} value={rupees(expressFee)} /> : null}
-          {discount > 0 ? <SummaryRow label={t('booking.goldPackDiscount')} value={`−${rupees(discount)}`} accent /> : null}
-          <View className="mt-2 flex-row items-center justify-between border-t border-cream-200 pt-3">
-            <Text className="text-base font-extrabold text-ink">{t('booking.totalToPay')}</Text>
-            <Text className="text-base font-extrabold text-ink">{rupees(total)}</Text>
+      {/* R3-MOB-1: keyboard avoiding wrapper */}
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 130 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Summary */}
+          <View className="mx-5 rounded-2xl bg-white p-4">
+            <Text className="mb-3 text-[11px] font-bold uppercase tracking-wider text-ink-faint">{t('booking.orderSummary')}</Text>
+            <SummaryRow label={t('booking.garmentCount', { count, plural: count !== 1 ? 's' : '' })} value={rupees(subtotal)} />
+            {express ? <SummaryRow label={t('booking.expressPlus')} value={rupees(expressFee)} /> : null}
+            {couponDiscount > 0 ? (
+              <SummaryRow
+                label={t('booking.coupon.discountLine', { code: appliedCoupon ?? '' })}
+                value={`−${rupees(couponDiscount)}`}
+                accent
+              />
+            ) : null}
+            <View className="mt-2 flex-row items-center justify-between border-t border-cream-200 pt-3">
+              <Text className="text-base font-extrabold text-ink">{t('booking.totalToPay')}</Text>
+              <Text className="text-base font-extrabold text-ink">{rupees(total)}</Text>
+            </View>
           </View>
-        </View>
 
-        {/* Methods */}
-        <Text className="mx-5 mb-3 mt-7 text-[11px] font-bold uppercase tracking-wider text-ink-faint">{t('booking.payWith')}</Text>
-        <View className="mx-5 gap-3">
-          {methods.map((m) => {
-            const selected = liveMethod === m.key;
-            // Disable wallet when balance is insufficient
-            const isWalletDisabled = m.key === 'wallet' && (wallet?.balance ?? 0) < total;
-            return (
-              <Pressable
-                key={m.key}
-                onPress={() => {
-                  if (!isWalletDisabled) setPaymentMethod(m.key);
-                }}
-                disabled={isWalletDisabled}
-                accessibilityRole="radio"
-                accessibilityState={{ selected, disabled: isWalletDisabled }}
-                accessibilityLabel={`${m.title}${isWalletDisabled ? ' - ' + t('booking.walletInsufficient') : ''}`}
-                className={[
-                  'flex-row items-center rounded-2xl border bg-white p-4',
-                  selected ? 'border-olive-600' : 'border-cream-300',
-                  isWalletDisabled ? 'opacity-50' : '',
-                ].join(' ')}
-              >
-                <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-cream-100">
-                  <Ionicons name={m.icon} size={20} color="#5C6A33" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-base font-bold text-ink">{m.title}</Text>
-                  <Text className="text-xs text-ink-muted">
-                    {isWalletDisabled ? t('booking.walletInsufficient') : m.subtitle}
-                  </Text>
-                </View>
-                <View className={`h-5 w-5 items-center justify-center rounded-full border-2 ${selected ? 'border-olive-600' : 'border-cream-400'}`}>
-                  {selected ? <View className="h-2.5 w-2.5 rounded-full bg-olive-600" /> : null}
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+          {/* R3-BE-2: Coupon entry */}
+          <CouponBar
+            subtotal={subtotal}
+            appliedCode={appliedCoupon}
+            discountAmount={couponDiscount}
+            onApply={handleCouponApply}
+            onRemove={handleCouponRemove}
+          />
 
-        {/* Coming-soon info row — UPI / Card */}
-        <View className="mx-5 mt-3 flex-row items-start gap-3 rounded-2xl border border-cream-200 bg-white px-4 py-3">
-          <Ionicons name="time-outline" size={18} color="#A8A493" style={{ marginTop: 1 }} />
-          <View className="flex-1">
-            <Text className="text-sm font-bold text-ink-muted">{t('booking.onlinePaymentComingSoonTitle')}</Text>
-            <Text className="mt-0.5 text-xs leading-4 text-ink-faint">
-              {t('booking.onlinePaymentComingSoonBody')}
-            </Text>
+          {/* Methods */}
+          <Text className="mx-5 mb-3 mt-7 text-[11px] font-bold uppercase tracking-wider text-ink-faint">{t('booking.payWith')}</Text>
+          <View className="mx-5 gap-3">
+            {methods.map((m) => {
+              const selected = liveMethod === m.key;
+              const isWalletDisabled = m.key === 'wallet' && (wallet?.balance ?? 0) < total;
+              return (
+                <Pressable
+                  key={m.key}
+                  onPress={() => {
+                    if (!isWalletDisabled) {
+                      hapticImpact();
+                      setPaymentMethod(m.key);
+                    }
+                  }}
+                  disabled={isWalletDisabled}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected, disabled: isWalletDisabled }}
+                  accessibilityLabel={`${m.title}${isWalletDisabled ? ' - ' + t('booking.walletInsufficient') : ''}`}
+                  className={[
+                    'flex-row items-center rounded-2xl border bg-white p-4',
+                    selected ? 'border-olive-600' : 'border-cream-300',
+                    isWalletDisabled ? 'opacity-50' : '',
+                  ].join(' ')}
+                >
+                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-cream-100">
+                    <Ionicons name={m.icon} size={20} color="#5C6A33" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-base font-bold text-ink">{m.title}</Text>
+                    <Text className="text-xs text-ink-muted">
+                      {isWalletDisabled ? t('booking.walletInsufficient') : m.subtitle}
+                    </Text>
+                  </View>
+                  <View className={`h-5 w-5 items-center justify-center rounded-full border-2 ${selected ? 'border-olive-600' : 'border-cream-400'}`}>
+                    {selected ? <View className="h-2.5 w-2.5 rounded-full bg-olive-600" /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
-        </View>
-      </ScrollView>
+
+          {/* Coming-soon info row — UPI / Card */}
+          <View className="mx-5 mt-3 flex-row items-start gap-3 rounded-2xl border border-cream-200 bg-white px-4 py-3">
+            <Ionicons name="time-outline" size={18} color="#A8A493" style={{ marginTop: 1 }} />
+            <View className="flex-1">
+              <Text className="text-sm font-bold text-ink-muted">{t('booking.onlinePaymentComingSoonTitle')}</Text>
+              <Text className="mt-0.5 text-xs leading-4 text-ink-faint">
+                {t('booking.onlinePaymentComingSoonBody')}
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Pay */}
       <View
@@ -287,6 +478,7 @@ export default function PayScreen() {
           accessibilityLabel={walletInsufficient ? t('booking.walletInsufficient') : `Pay ${rupees(total)}`}
           accessibilityState={{ disabled: loading || walletInsufficient }}
         >
+          {loading ? <ActivityIndicator size="small" color="#FFFFFF" /> : null}
           <Text className={`text-base font-extrabold ${walletInsufficient ? 'text-ink-faint' : 'text-white'}`}>
             {loading ? t('booking.confirming') : t('booking.pay', { amount: rupees(total) })}
           </Text>

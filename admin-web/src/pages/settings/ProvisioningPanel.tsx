@@ -29,6 +29,7 @@ export function ProvisioningPanel({ settings }: { settings: AdminSettings }) {
   const dirty = mode !== settings.provisioning.mode
 
   const save = async () => {
+    if (!canManage) return
     setSavedAt(null)
     await update.mutateAsync(mode)
     setSavedAt(new Date().toLocaleTimeString())

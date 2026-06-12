@@ -11,9 +11,10 @@ import type { CreateGarmentRequest, CreateProcessLogRequest } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
 
 /**
- * Live warehouse kanban — refetches every 30s. Gated on the effective brand id
+ * Live warehouse kanban — refetches every 20s. Gated on the effective brand id
  * so the request always carries brand context (the board renders outside the
- * AppShell, where platform_admin's brand is otherwise auto-selected).
+ * AppShell, where platform_admin's brand is otherwise auto-selected). The page
+ * also exposes `refetch` for a manual refresh button (R3-AW-5).
  */
 export function useWarehouseBoard() {
   const brandId = useEffectiveBrandId()
@@ -21,7 +22,7 @@ export function useWarehouseBoard() {
     queryKey: ['warehouse', 'board', brandId],
     queryFn: getWarehouseBoard,
     enabled: !!brandId,
-    refetchInterval: 30_000,
+    refetchInterval: 20_000,
   })
 }
 

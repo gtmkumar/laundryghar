@@ -145,6 +145,19 @@ export function PackagesPage() {
             onRowClick={(p) => setViewing(p)}
             emptyMessage="No packages yet."
             noMatchMessage="No packages match your filters."
+            csvExport={{
+              filename: `packages-${new Date().toISOString().slice(0, 10)}`,
+              columns: [
+                { header: 'Code', value: (p) => p.code },
+                { header: 'Name', value: (p) => p.name },
+                { header: 'Tier', value: (p) => p.tier },
+                { header: 'Price', value: (p) => p.price },
+                { header: 'Credit value', value: (p) => p.creditValue },
+                { header: 'Discount %', value: (p) => p.discountPercent },
+                { header: 'Validity days', value: (p) => (p.isUnlimitedValidity ? 'Unlimited' : p.validityDays ?? '') },
+                { header: 'Status', value: (p) => p.status },
+              ],
+            }}
           />
         )}
       </Card>

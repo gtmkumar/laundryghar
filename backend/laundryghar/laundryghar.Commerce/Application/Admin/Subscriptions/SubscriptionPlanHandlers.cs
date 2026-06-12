@@ -325,6 +325,72 @@ public sealed class PatchSubscriptionPlanStatusValidator : AbstractValidator<Pat
     }
 }
 
+// ── PATCH: admin customer subscription status ──────────────────────────────────
+
+/// <summary>
+/// Narrow status update for a customer subscription — avoids the lost-update race of
+/// re-PUT-ting a stale full DTO. Supports optimistic concurrency via ExpectedUpdatedAt.
+/// Allowed transitions: any non-terminal → suspended, active, or cancelled.
+/// </summary>
+public sealed record PatchCustomerSubscriptionStatusCommand(
+    Guid Id,
+    string Status,
+    DateTimeOffset? ExpectedUpdatedAt,
+    Guid? ActorId
+) : IRequest<CustomerSubscriptionDto?>;
+
+public sealed class PatchCustomerSubscriptionStatusHandler
+    : IRequestHandler<PatchCustomerSubscriptionStatusCommand, CustomerSubscriptionDto?>
+{
+    private static readonly HashSet<string> AllowedStatuses =
+        new(StringComparer.Ordinal) { "active", "suspended", "cancelled", "paused" };
+
+    private readonly LaundryGharDbContext _db;
+    private readonly ICurrentUser _user;
+
+    public PatchCustomerSubscriptionStatusHandler(LaundryGharDbContext db, ICurrentUser user)
+    { _db = db; _user = user; }
+
+    public async Task<CustomerSubscriptionDto?> Handle(
+        PatchCustomerSubscriptionStatusCommand cmd, CancellationToken ct)
+    {
+        var brandId = _user.RequireBrandId();
+        var entity = await _db.CustomerSubscriptions
+            .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
+        if (entity is null) return null;
+
+        // Optimistic concurrency guard — 409 when the caller's snapshot is stale.
+        if (cmd.ExpectedUpdatedAt.HasValue
+            && Math.Abs((entity.UpdatedAt - cmd.ExpectedUpdatedAt.Value).TotalSeconds) > 1)
+        {
+            throw new Utilities.Exceptions.BusinessRuleException(
+                "Subscription was modified by another request. Reload and retry.");
+        }
+
+        entity.Status    = cmd.Status;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        entity.Version++;
+
+        await _db.SaveChangesAsync(ct);
+        return GetCustomerSubscriptionsAdminHandler.ToDto(entity);
+    }
+}
+
+public sealed class PatchCustomerSubscriptionStatusValidator
+    : AbstractValidator<PatchCustomerSubscriptionStatusCommand>
+{
+    private static readonly HashSet<string> AllowedStatuses =
+        new(StringComparer.Ordinal) { "active", "suspended", "cancelled", "paused" };
+
+    public PatchCustomerSubscriptionStatusValidator()
+    {
+        RuleFor(x => x.Status)
+            .NotEmpty()
+            .Must(s => AllowedStatuses.Contains(s))
+            .WithMessage("status must be one of: active, suspended, cancelled, paused");
+    }
+}
+
 public sealed record DeleteSubscriptionPlanCommand(Guid Id, Guid? ActorId) : IRequest<bool>;
 
 public sealed class DeleteSubscriptionPlanHandler : IRequestHandler<DeleteSubscriptionPlanCommand, bool>

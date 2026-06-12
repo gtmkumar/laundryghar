@@ -112,11 +112,14 @@ export function LoginPage() {
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-gray-400">
-          Dev: admin@laundryghar.local / Admin@123
-          <br />
-          Platform admin — set X-Brand-Id via brand switcher in topbar.
-        </p>
+        {/* POS-2: never leak credential hints in a production build. */}
+        {import.meta.env.DEV && (
+          <p className="mt-6 text-center text-xs text-gray-400">
+            Dev: admin@laundryghar.local / Admin@123
+            <br />
+            Platform admin — set X-Brand-Id via brand switcher in topbar.
+          </p>
+        )}
       </div>
     </div>
   )

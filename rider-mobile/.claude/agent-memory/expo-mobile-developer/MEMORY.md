@@ -1,2 +1,3 @@
 - [enabled guard on auth queries](feedback_enabled_guard.md) — all useQuery hooks hitting authenticated endpoints need `enabled: !!accessToken` or isLoading never settles
 - [tailwind fontFamily must match loaded fonts](feedback_tailwind_font.md) — unloaded named fonts in tailwind.config.js break emoji rendering on iOS 26 + Hermes
+- [R3 RM gap analysis bundle](project_gap_r3_rm.md) — inspection badge, keyboard fix, offline flush in root layout, photo queue, shift summary modal, ETA countdown, maps fallback, LayoutAnimation tabs

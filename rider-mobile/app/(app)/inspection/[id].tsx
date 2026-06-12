@@ -13,7 +13,9 @@ import React, { useState } from 'react';
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Switch,
@@ -219,6 +221,10 @@ export default function InspectionScreen() {
           <View className="h-9 w-9" />
         </View>
 
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
@@ -332,6 +338,7 @@ export default function InspectionScreen() {
             onPress={() => router.back()}
           />
         </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
 
       {/* Source action sheet */}

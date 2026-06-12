@@ -24,7 +24,8 @@ import { useBookingStore } from '@/store/bookingStore';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { rupees, formatDateTime } from '@/lib/format';
-import type { OrderStatus, PickupRequestStatus } from '@/types/api';
+import { hapticImpact } from '@/lib/haptics';
+import type { OrderStatus, PickupRequestDto, PickupRequestStatus } from '@/types/api';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -229,10 +230,13 @@ function DemoTracking({ orderNumber }: { orderNumber: string }) {
   );
 }
 
+const RESCHEDULABLE_STATUSES: PickupRequestStatus[] = ['pending', 'no_response', 'rescheduled'];
+
 // ── Pickup-request tracking (real, status-based) ──────────────────────────────
 
 function PickupTracking({ id }: { id: string }) {
   const { t } = useTranslation();
+  const router = useRouter();
   const { data: pickup, isLoading, isError, refetch } = usePickupRequestDetail(id);
 
   if (isLoading) return <ScreenLoader />;
@@ -245,6 +249,7 @@ function PickupTracking({ id }: { id: string }) {
   const timeline = buildTimeline(PICKUP_STEPS, PICKUP_RANK, currentRank, times);
 
   const isCancelled = pickup.status === 'cancelled';
+  const canReschedule = (RESCHEDULABLE_STATUSES as string[]).includes(pickup.status);
 
   const banner = pickup.status === 'completed'
     ? t('tracking.bannerItemsCollected')
@@ -280,6 +285,24 @@ function PickupTracking({ id }: { id: string }) {
             <TimelineNode key={row.label} row={row} isLast={i === timeline.length - 1} />
           ))}
         </View>
+
+        {/* R3-BE-3: Reschedule action */}
+        {canReschedule ? (
+          <View className="mx-5 mt-5">
+            <Pressable
+              onPress={() => {
+                hapticImpact();
+                router.push(`/(app)/orders/reschedule/${id}` as never);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t('reschedule.action')}
+              className="flex-row items-center justify-center gap-2 rounded-2xl border border-olive-600 py-3.5"
+            >
+              <Ionicons name="calendar-outline" size={18} color="#4A552A" />
+              <Text className="text-sm font-bold text-olive-700">{t('reschedule.action')}</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Estimated items */}
         {pickup.cartItems.length > 0 ? (
@@ -408,7 +431,7 @@ function TrackingRatingWidget({ orderId, existingRating }: { orderId: string; ex
 function LiveOrderTracking({ id }: { id: string }) {
   const { t } = useTranslation();
   const { data: order, isLoading: orderLoading, isError, refetch } = useOrderDetail(id);
-  const { data: history, isLoading: histLoading } = useOrderTracking(id);
+  const { data: history, isLoading: histLoading } = useOrderTracking(id, order?.status);
 
   if (orderLoading || histLoading) return <ScreenLoader />;
   if (isError || !order) return <ErrorState onRetry={() => void refetch()} />;

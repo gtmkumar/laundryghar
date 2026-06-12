@@ -145,6 +145,22 @@ export function CouponsPage() {
             onRowClick={(c) => setViewing(c)}
             emptyMessage="No coupons yet."
             noMatchMessage="No coupons match your filters."
+            csvExport={{
+              filename: `coupons-${new Date().toISOString().slice(0, 10)}`,
+              columns: [
+                { header: 'Code', value: (c) => c.code },
+                { header: 'Name', value: (c) => c.name },
+                { header: 'Type', value: (c) => c.couponType },
+                { header: 'Discount value', value: (c) => c.discountValue },
+                { header: 'Max discount', value: (c) => c.maxDiscountAmount ?? '' },
+                { header: 'Min order', value: (c) => c.minOrderValue },
+                { header: 'Used', value: (c) => c.currentUsageCount },
+                { header: 'Max total uses', value: (c) => c.maxTotalUses ?? '' },
+                { header: 'Valid from', value: (c) => c.validFrom },
+                { header: 'Valid until', value: (c) => c.validUntil ?? '' },
+                { header: 'Status', value: (c) => c.status },
+              ],
+            }}
           />
         )}
       </Card>

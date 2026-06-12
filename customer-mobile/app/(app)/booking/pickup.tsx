@@ -198,6 +198,9 @@ function SlotGrid({
 }) {
   const { t } = useTranslation();
   // storeId is unknown pre-order; omit it — endpoint returns brand-level slots.
+  // CUST-BUG-01: storeId is not needed — the endpoint accepts an optional storeId.
+  // Do not render the error box when the query is idle/disabled (isError=false but
+  // data is undefined). Only show the error UI when isError is explicitly true.
   const { data: slots, isLoading, isError } = useDeliverySlots(undefined, dayIso);
 
   if (isLoading) {
@@ -208,7 +211,7 @@ function SlotGrid({
     );
   }
 
-  if (isError || !slots) {
+  if (isError) {
     return (
       <View className="mx-5 rounded-2xl bg-red-50 p-4">
         <Text className="text-xs text-red-600">{t('error.generic')}</Text>
@@ -217,7 +220,8 @@ function SlotGrid({
   }
 
   // Filter to pickup slots only, sort by start time.
-  const pickupSlots = slots
+  // `slots` may be undefined on first mount before data arrives; treat as empty.
+  const pickupSlots = (slots ?? [])
     .filter((s) => s.slotType === 'pickup' && s.isActive)
     .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
 

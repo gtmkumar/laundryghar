@@ -107,7 +107,17 @@ export function DataTable<T>({
             data.map((row) => (
               <tr
                 key={keyFn(row)}
-                onClick={() => onRowClick?.(row)}
+                onClick={(e) => {
+                  if (!onRowClick) return
+                  // Defensive guard (DEF-R3-2): only fire when the click actually
+                  // originated inside this row. React synthetic clicks can bubble
+                  // here from an element that was just unmounted by a re-render
+                  // (e.g. switching tabs while a click is mid-flight), which would
+                  // otherwise open the first row's edit drawer spuriously.
+                  const target = e.target as Node
+                  if (!e.currentTarget.contains(target)) return
+                  onRowClick(row)
+                }}
                 className={cn(
                   'transition-colors',
                   onRowClick && 'cursor-pointer hover:bg-gray-50',

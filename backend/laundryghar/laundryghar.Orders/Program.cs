@@ -89,6 +89,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // ─── Authorization ─────────────────────────────────────────────────────────
 
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, AnyPermissionHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, CustomerOnlyHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddAuthorization();

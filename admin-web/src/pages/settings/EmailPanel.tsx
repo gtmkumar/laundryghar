@@ -38,6 +38,7 @@ export function EmailPanel({ settings }: { settings: AdminSettings }) {
   })
 
   const save = async () => {
+    if (!canManage) return
     setSavedAt(null)
     await update.mutateAsync(payload())
     setPassword('')
@@ -45,6 +46,7 @@ export function EmailPanel({ settings }: { settings: AdminSettings }) {
   }
 
   const runTest = async () => {
+    if (!canManage) return
     setTestResult(null)
     try {
       const r = await test.mutateAsync({ to: testTo.trim(), settings: payload() })

@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMyOrders, useMyPickupRequests } from '@/hooks/useOrders';
+import { hapticImpact } from '@/lib/haptics';
 import { SkeletonOrderList } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -20,6 +21,8 @@ import { Badge } from '@/components/ui/Badge';
 import { rupees, formatDate } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
 import type { OrderDto, OrderStatus, PickupRequestDto, PickupRequestStatus } from '@/types/api';
+
+const RESCHEDULABLE_STATUSES: PickupRequestStatus[] = ['pending', 'no_response', 'rescheduled'];
 
 // ── Status display maps ───────────────────────────────────────────────────────
 
@@ -113,18 +116,35 @@ function PickupCard({ pickup }: { pickup: PickupRequestDto }) {
       </View>
 
       {isActive ? (
-        <Pressable
-          onPress={(e) => {
-            e.stopPropagation?.();
-            goToTracking();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={t('a11y.trackPickup', { number: pickup.requestNumber })}
-          className="mt-3 flex-row items-center gap-1 self-start"
-        >
-          <Text className="text-sm font-bold text-olive-700">{t('orders.trackPickup')}</Text>
-          <Ionicons name="arrow-forward" size={14} color="#4A552A" />
-        </Pressable>
+        <View className="mt-3 flex-row gap-3">
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              goToTracking();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={t('a11y.trackPickup', { number: pickup.requestNumber })}
+            className="flex-row items-center gap-1"
+          >
+            <Text className="text-sm font-bold text-olive-700">{t('orders.trackPickup')}</Text>
+            <Ionicons name="arrow-forward" size={14} color="#4A552A" />
+          </Pressable>
+          {(RESCHEDULABLE_STATUSES as string[]).includes(pickup.status) ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                hapticImpact();
+                router.push(`/(app)/orders/reschedule/${pickup.id}` as never);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t('reschedule.action')}
+              className="flex-row items-center gap-1"
+            >
+              <Ionicons name="calendar-outline" size={14} color="#7B7A6C" />
+              <Text className="text-sm font-semibold text-ink-muted">{t('reschedule.action')}</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
     </Pressable>
   );
@@ -182,6 +202,7 @@ function OrderCard({ order }: { order: OrderDto }) {
 
 export default function MyOrdersScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const ordersQuery   = useMyOrders();
   const pickupsQuery  = useMyPickupRequests();
 
@@ -194,11 +215,10 @@ export default function MyOrdersScreen() {
     void pickupsQuery.refetch();
   };
 
-  if (isLoading) return <SkeletonOrderList />;
-  if (isError) return <ErrorState onRetry={refetch} />;
-
-  // Derive section data with useMemo — never return fresh arrays from selector (zustand v5 rule,
-  // same principle applies here: stable references prevent unnecessary re-renders).
+  // CUST-BUG-03: useMemo MUST be declared before any conditional return.
+  // Placing it after early-return guards violates the Rules of Hooks and causes
+  // "Rendered more hooks than during the previous render" when isLoading/isError
+  // flips between renders, crashing the entire tab navigator.
   const rawOrders  = ordersQuery.data?.list;
   const rawPickups = pickupsQuery.data?.list;
 
@@ -215,6 +235,10 @@ export default function MyOrdersScreen() {
 
   const isEmpty = sections.length === 0;
 
+  // Early returns come AFTER all hooks (Rules of Hooks).
+  if (isLoading) return <SkeletonOrderList />;
+  if (isError) return <ErrorState onRetry={refetch} />;
+
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
       <View className="px-6 pb-3 pt-3">
@@ -226,6 +250,7 @@ export default function MyOrdersScreen() {
           icon="receipt-outline"
           title={t('orders.noOrders')}
           message={t('orders.noOrdersMessage')}
+          action={{ label: t('home.schedulePickup'), onPress: () => router.push('/(app)/booking/items' as never) }}
         />
       ) : (
         <SectionList
