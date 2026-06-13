@@ -28,7 +28,33 @@ public sealed record CreateOrderRequest(
     /// Optional explicit CustomerPackage to apply. When null the handler auto-resolves
     /// the earliest-expiring active package with remaining balance for this customer/brand.
     /// </summary>
-    Guid? CustomerPackageId = null
+    Guid? CustomerPackageId = null,
+    /// <summary>
+    /// Marketplace job kind — see <see cref="laundryghar.SharedDataModel.Enums.JobType"/>.
+    /// Defaults to 'laundry' (current behaviour). 'parcel' is a point-to-point delivery:
+    /// no catalog items, both pickup + delivery addresses required, value = pickup+delivery charge.
+    /// </summary>
+    string JobType = "laundry",
+    /// <summary>
+    /// Optional required vehicle tier — see <see cref="laundryghar.SharedDataModel.Enums.VehicleTier"/>.
+    /// NULL = no constraint. Dispatch matches a rider whose vehicle ranks at least this high.
+    /// </summary>
+    string? RequestedVehicleTier = null,
+    /// <summary>
+    /// Signed fare quote token from POST /fare/quote. REQUIRED for parcel jobs; it locks in
+    /// the pickup + delivery charge. Must match this request's addresses + tier and be unexpired.
+    /// </summary>
+    string? FareQuoteToken = null
+);
+
+/// <summary>Customer parcel (point-to-point) order request. Fare is locked by the quote token.</summary>
+public sealed record CreateParcelOrderRequest(
+    Guid PickupAddressId,
+    Guid DeliveryAddressId,
+    string? VehicleTier,
+    string FareQuoteToken,
+    string? NotesCustomer = null,
+    string? PaymentPreference = null
 );
 
 public sealed record CreateOrderItemRequest(
@@ -114,7 +140,9 @@ public sealed record OrderDto(
     /// Exposed ONLY to the owning customer AND ONLY while status == out_for_delivery.
     /// Null in all other states and for all admin/staff callers.
     /// </summary>
-    string? DeliveryOtp = null
+    string? DeliveryOtp = null,
+    /// <summary>Marketplace job kind — 'laundry' (default) or 'parcel' (point-to-point delivery).</summary>
+    string JobType = "laundry"
 );
 
 public sealed record OrderItemDto(

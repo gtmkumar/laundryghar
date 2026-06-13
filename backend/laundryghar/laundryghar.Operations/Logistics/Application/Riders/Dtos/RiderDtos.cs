@@ -47,7 +47,9 @@ public sealed record RiderDto(
     string? BankAccountNumber = null,
     string? BankIfsc        = null,
     string? BankAccountName = null,
-    string? UpiId           = null);
+    string? UpiId           = null,
+    // ── Vehicle verification gate (Wave 3) ────────────────────────────────
+    string  VehicleVerificationStatus = "pending");
 
 /// <summary>
 /// Applies masking to financial PII fields on a <see cref="RiderDto"/>.

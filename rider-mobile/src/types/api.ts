@@ -336,6 +336,48 @@ export type RiderTaskPhase =
   | 'cancelled';
 
 // ---------------------------------------------------------------------------
+// Rider KYC document DTOs — mirrors the rider self-service /rider/documents
+// contract (GET status + POST multipart upload).
+// ---------------------------------------------------------------------------
+
+/** The five document slots a rider must provide. */
+export type RiderDocType = 'license' | 'rc' | 'insurance' | 'id' | 'photo';
+
+/** Per-document review state. */
+export type RiderDocStatus = 'pending' | 'approved' | 'rejected';
+
+/**
+ * Overall KYC / vehicle verification state. Backend may return either the
+ * compact ('pending') or expanded ('under_review') wording — both are handled
+ * by the badge mapping in the UI.
+ */
+export type RiderVerificationStatus =
+  | 'pending'
+  | 'under_review'
+  | 'approved'
+  | 'verified'
+  | 'rejected';
+
+/** A single uploaded document and its review outcome. */
+export interface RiderDocumentDto {
+  id:               string;
+  docType:          RiderDocType;
+  fileName:         string;
+  status:           RiderDocStatus;
+  rejectionReason?: string | null;
+  reviewedAt?:      string | null;   // ISO-8601
+  uploadedAt:       string;          // ISO-8601
+}
+
+/** Response of GET /api/v1/rider/documents. */
+export interface RiderVerificationDto {
+  kycStatus:                 RiderVerificationStatus;
+  vehicleVerificationStatus: RiderVerificationStatus;
+  vehicleRejectionReason?:   string | null;
+  documents:                 RiderDocumentDto[];
+}
+
+// ---------------------------------------------------------------------------
 // Rider payouts DTOs — mirrors RiderPayoutSummaryDto / RiderPayoutDayDto
 // ---------------------------------------------------------------------------
 
@@ -365,6 +407,44 @@ export interface RiderCashSummaryDto {
   cashInHand:          number;
   lastSettlementAt:    string | null;
   recentSettlements:   RiderCashSettlementItemDto[];
+}
+
+// ---------------------------------------------------------------------------
+// Rider balance + payout request + incentive DTOs
+// (GET /rider/balance, /rider/payout-requests, POST /rider/payout-requests,
+//  GET /rider/incentives) — mirror the LIVE self-service payout endpoints.
+// ---------------------------------------------------------------------------
+
+/** Withdrawable-balance breakdown. `available` = earned + incentives − withdrawnOrPending. */
+export interface RiderBalanceDto {
+  earnedPayout:       number;
+  incentives:         number;
+  withdrawnOrPending: number;
+  available:          number;
+}
+
+/** Lifecycle status of a rider's withdrawal (payout) request. */
+export type RiderPayoutRequestStatus = 'requested' | 'approved' | 'rejected' | 'paid';
+
+/** A single withdrawal request and its review/payment outcome. */
+export interface RiderPayoutRequestDto {
+  id:                string;
+  amount:            number;
+  status:            RiderPayoutRequestStatus;
+  rejectionReason:   string | null;
+  paymentReference:  string | null;
+  requestedAt:       string;        // ISO-8601
+  reviewedAt:        string | null; // ISO-8601
+  paidAt:            string | null; // ISO-8601
+}
+
+/** A single incentive/bonus award. */
+export interface RiderIncentiveDto {
+  id:        string;
+  ruleName:  string;
+  ruleType:  string;
+  amount:    number;
+  awardedAt: string;   // ISO-8601
 }
 
 // ---------------------------------------------------------------------------
@@ -486,4 +566,48 @@ export interface AppSettingsConfigValue {
   force_update_version?: string;
   maintenance_mode?: boolean;
   feature_flags?: Record<string, boolean>;
+}
+
+// ===========================================================================
+// Support tickets — rider self-service helpdesk
+// Maps to GET/POST /api/v1/rider/support/tickets[/{id}[/messages]]
+// ===========================================================================
+
+export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+export type TicketMessageSenderType = 'rider' | 'agent' | 'system';
+
+export interface SupportTicketDto {
+  id: string;
+  ticketNumber: string;
+  requesterType: string;
+  subject: string;
+  category: string | null;
+  priority: string;
+  status: SupportTicketStatus;
+  orderId: string | null;
+  lastMessageAt: string | null;
+  createdAt: string;
+}
+
+export interface TicketMessageDto {
+  id: string;
+  senderType: TicketMessageSenderType;
+  senderId: string | null;
+  body: string;
+  createdAt: string;
+}
+
+/** GET /rider/support/tickets/{id} and POST /rider/support/tickets responses. */
+export interface SupportTicketThreadDto {
+  ticket: SupportTicketDto;
+  messages: TicketMessageDto[];
+}
+
+/** Body for POST /rider/support/tickets. */
+export interface CreateSupportTicketRequest {
+  subject: string;
+  message: string;
+  category?: string;
+  orderId?: string;
 }

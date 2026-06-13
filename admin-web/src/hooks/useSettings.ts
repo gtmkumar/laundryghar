@@ -9,6 +9,10 @@ import {
   updatePaymentGatewaySettings,
   updateWhatsAppSettings,
   updateSmsSettings,
+  getFareSettings,
+  updateFareSettings,
+  getDispatchSettings,
+  updateDispatchSettings,
 } from '@/api/settings'
 import type {
   UpdateEmailPayload,
@@ -17,6 +21,8 @@ import type {
   UpdatePaymentGatewayPayload,
   UpdateWhatsAppPayload,
   UpdateSmsPayload,
+  FareSettings,
+  DispatchSettings,
 } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
 
@@ -88,5 +94,41 @@ export function useUpdateSmsSettings() {
   return useMutation({
     mutationFn: (payload: UpdateSmsPayload) => updateSmsSettings(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+  })
+}
+
+// ── Marketplace fare & dispatch ──────────────────────────────────────────────
+
+export function useFareSettings() {
+  const brandId = useEffectiveBrandId()
+  return useQuery({
+    queryKey: ['settings', 'fare', brandId],
+    queryFn: getFareSettings,
+    enabled: !!brandId,
+  })
+}
+
+export function useUpdateFareSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: FareSettings) => updateFareSettings(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', 'fare'] }),
+  })
+}
+
+export function useDispatchSettings() {
+  const brandId = useEffectiveBrandId()
+  return useQuery({
+    queryKey: ['settings', 'dispatch', brandId],
+    queryFn: getDispatchSettings,
+    enabled: !!brandId,
+  })
+}
+
+export function useUpdateDispatchSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: DispatchSettings) => updateDispatchSettings(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', 'dispatch'] }),
   })
 }

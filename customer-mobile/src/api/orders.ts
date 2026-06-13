@@ -4,15 +4,20 @@
  */
 import { ordersClient, unwrapList, unwrapPaginated, unwrapSingle } from '@/api/client';
 import type {
+  CreateParcelOrderRequest,
   CreatePickupRequestRequest,
   CouponPreviewResult,
   DeliverySlotDto,
+  FareQuoteDto,
+  FareQuoteRequest,
   ListResponse,
   OrderDto,
   OrderStatusHistoryDto,
   PaginatedListResponse,
   PickupRequestDto,
   RateOrderRequest,
+  RateRiderRequest,
+  RateRiderResult,
   ReschedulePickupRequestBody,
   SingleResponse,
   ValidateCouponForPickupRequest,
@@ -66,6 +71,54 @@ export async function rateOrder(
   const res = await ordersClient.post<SingleResponse<OrderDto>>(
     `/customer/orders/${id}/rate`,
     body,
+  );
+  return unwrapSingle(res.data);
+}
+
+/**
+ * POST /api/v1/customer/orders/{id}/rate-rider
+ * Same body shape as rate-order (score 1–5 + optional comment).
+ * Returns the rider's new running average + rating count.
+ * Backend returns 422 when the order has no rider or is not delivered.
+ */
+export async function rateRider(
+  id: string,
+  body: RateRiderRequest,
+): Promise<RateRiderResult> {
+  const res = await ordersClient.post<SingleResponse<RateRiderResult>>(
+    `/customer/orders/${id}/rate-rider`,
+    body,
+  );
+  return unwrapSingle(res.data);
+}
+
+// ── Parcel (point-to-point) ───────────────────────────────────────────────────
+
+/**
+ * POST /api/v1/customer/fare/quote
+ * Returns a short-lived fare quote + token. 422 when an address lacks geo-location.
+ */
+export async function quoteParcelFare(
+  req: FareQuoteRequest,
+): Promise<FareQuoteDto> {
+  const res = await ordersClient.post<SingleResponse<FareQuoteDto>>(
+    '/customer/fare/quote',
+    req,
+  );
+  return unwrapSingle(res.data);
+}
+
+/**
+ * POST /api/v1/customer/orders/parcel
+ * Creates a parcel order from a held fare-quote token (201). 422 on a
+ * missing/expired/tampered/mismatched token.
+ */
+export async function createParcelOrder(
+  req: CreateParcelOrderRequest,
+): Promise<OrderDto> {
+  const res = await ordersClient.post<SingleResponse<OrderDto>>(
+    '/customer/orders/parcel',
+    req,
   );
   return unwrapSingle(res.data);
 }

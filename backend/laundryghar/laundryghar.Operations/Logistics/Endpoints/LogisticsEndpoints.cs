@@ -12,6 +12,8 @@ using laundryghar.Logistics.Application.Riders.Queries;
 using laundryghar.Logistics.Application.RiderOps;
 using laundryghar.Logistics.Application.RiderCod;
 using laundryghar.Logistics.Application.RiderSelf;
+using laundryghar.Logistics.Application.Incentives;
+using laundryghar.Orders.Application.Support;
 using laundryghar.SharedDataModel.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Antiforgery;
@@ -103,6 +105,138 @@ public static class LogisticsEndpoints
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:rider.verify");
+
+        // ── Driver verification queue: documents + vehicle review ─────────────
+        // GET /api/v1/admin/riders/{id}/verification — KYC status + vehicle gate + documents
+        riders.MapGet("/{id:guid}/verification", async (Guid id, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetRiderVerificationQuery(id), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderVerificationView> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.read");
+
+        // POST /api/v1/admin/riders/{id}/vehicle/approve | /reject
+        riders.MapPost("/{id:guid}/vehicle/approve", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewRiderVehicleCommand(id, true, null, u.UserId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderVerificationView> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
+
+        riders.MapPost("/{id:guid}/vehicle/reject", async (
+            Guid id, RejectRiderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewRiderVehicleCommand(id, false, req.Reason, u.UserId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderVerificationView> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
+
+        // Document review group (sibling of /riders)
+        var riderDocs = admin.MapGroup("/rider-documents").WithTags("Admin - Rider Documents");
+
+        // GET /api/v1/admin/rider-documents/{docId}/file — streams the document image
+        riderDocs.MapGet("/{docId:guid}/file", async (Guid docId, ISender sender, CancellationToken ct) =>
+        {
+            var s = await sender.Send(new GetRiderDocumentStreamQuery(docId), ct);
+            return s is null ? Results.NotFound()
+                : Results.Stream(s.Stream, contentType: s.ContentType, fileDownloadName: s.FileName, enableRangeProcessing: false);
+        }).RequireAuthorization("permission:rider.read");
+
+        riderDocs.MapPost("/{docId:guid}/approve", async (Guid docId, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewRiderDocumentCommand(docId, true, null, u.UserId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderDocumentDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
+
+        riderDocs.MapPost("/{docId:guid}/reject", async (
+            Guid docId, RejectRiderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewRiderDocumentCommand(docId, false, req.Reason, u.UserId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderDocumentDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
+
+        // ── Rider payout (withdrawal) requests — admin review ─────────────────
+        var payoutReqs = admin.MapGroup("/rider-payout-requests").WithTags("Admin - Rider Payouts");
+
+        payoutReqs.MapGet("/", async (string? status, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetPayoutRequestsQuery(status), ct);
+            return Results.Ok(new ListResponse<PayoutRequestAdminDto> { Status = true, Data = r.ToList() });
+        }).RequireAuthorization("permission:rider.read");
+
+        payoutReqs.MapPost("/{id:guid}/approve", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewPayoutRequestCommand(id, true, null, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PayoutRequestAdminDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.settle");
+
+        payoutReqs.MapPost("/{id:guid}/reject", async (Guid id, RejectRiderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewPayoutRequestCommand(id, false, req.Reason, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PayoutRequestAdminDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.settle");
+
+        payoutReqs.MapPost("/{id:guid}/mark-paid", async (Guid id, MarkPayoutPaidRequest? req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new MarkPayoutPaidCommand(id, req?.Reference, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PayoutRequestAdminDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.settle");
+
+        // ── Incentive rules — admin CRUD ──────────────────────────────────────
+        var incentives = admin.MapGroup("/incentive-rules").WithTags("Admin - Incentive Rules");
+
+        incentives.MapGet("/", async (bool? activeOnly, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetIncentiveRulesQuery(u.RequireBrandId(), activeOnly), ct);
+            return Results.Ok(new ListResponse<IncentiveRuleDto> { Status = true, Data = r.ToList() });
+        }).RequireAuthorization("permission:rider.read");
+
+        incentives.MapPost("/", async (UpsertIncentiveRuleRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new CreateIncentiveRuleCommand(u.RequireBrandId(), req, u.UserId), ct);
+            return Results.Created($"/api/v1/admin/incentive-rules/{r.Id}", new SingleResponse<IncentiveRuleDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.manage");
+
+        incentives.MapPut("/{id:guid}", async (Guid id, UpsertIncentiveRuleRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new UpdateIncentiveRuleCommand(id, u.RequireBrandId(), req, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<IncentiveRuleDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.manage");
+
+        incentives.MapDelete("/{id:guid}", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var ok = await sender.Send(new DeleteIncentiveRuleCommand(id, u.RequireBrandId()), ct);
+            return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+        }).RequireAuthorization("permission:rider.manage");
+
+        // ── Support inbox (admin) ─────────────────────────────────────────────
+        var supportInbox = admin.MapGroup("/support/tickets").WithTags("Admin - Support");
+
+        supportInbox.MapGet("/", async (string? status, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetTicketsInboxQuery(u.RequireBrandId(), status), ct);
+            return Results.Ok(new ListResponse<SupportTicketDto> { Status = true, Data = r.ToList() });
+        }).RequireAuthorization("permission:support.read");
+
+        supportInbox.MapGet("/{id:guid}", async (Guid id, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetTicketDetailQuery(id, null, true), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<SupportTicketDetailDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:support.read");
+
+        supportInbox.MapPost("/{id:guid}/messages", async (Guid id, PostMessageRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new PostTicketMessageCommand(id, "agent", u.UserId, req.Body, true, null), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<TicketMessageDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:support.manage");
+
+        supportInbox.MapPatch("/{id:guid}", async (Guid id, UpdateTicketRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new UpdateTicketCommand(id, u.RequireBrandId(), req, u.UserId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<SupportTicketDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:support.manage");
 
         // ── Rider Ops (live board) ────────────────────────────────────────────
         // Read-only operational views over existing data: live location/status,
@@ -370,6 +504,141 @@ public static class LogisticsEndpoints
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<RiderAssignmentDto> { Status = true, Data = result });
         }).RequireAuthorization(TasksUpdate);
+
+        // POST /api/v1/rider/assignments/{id}/accept  (offer_accept dispatch)
+        riderSelf.MapPost("/assignments/{id:guid}/accept", async (
+            Guid id, HttpContext ctx, ISender sender, LaundryGharDbContext db, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var rider = await db.Riders.Where(r => r.UserId == userId && r.BrandId == brandId)
+                .Select(r => new { r.Id }).FirstOrDefaultAsync(ct);
+            if (rider is null) return Results.NotFound();
+
+            var r = await sender.Send(new AcceptOfferCommand(id, rider.Id, brandId), ct);
+            return r.Outcome switch
+            {
+                OfferActionOutcome.Ok       => Results.Ok(new SingleResponse<OfferActionResult> { Status = true, Data = r }),
+                OfferActionOutcome.NotFound => Results.NotFound(),
+                OfferActionOutcome.Expired  => Results.StatusCode(410),  // Gone — offer lapsed
+                OfferActionOutcome.Taken    => Results.Conflict(new SingleResponse<OfferActionResult> { Status = false, Data = r }),
+                _                            => Results.StatusCode(500),
+            };
+        }).RequireAuthorization(TasksUpdate);
+
+        // POST /api/v1/rider/assignments/{id}/decline  (offer_accept dispatch)
+        riderSelf.MapPost("/assignments/{id:guid}/decline", async (
+            Guid id, HttpContext ctx, ISender sender, LaundryGharDbContext db, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var rider = await db.Riders.Where(r => r.UserId == userId && r.BrandId == brandId)
+                .Select(r => new { r.Id }).FirstOrDefaultAsync(ct);
+            if (rider is null) return Results.NotFound();
+
+            var r = await sender.Send(new DeclineOfferCommand(id, rider.Id, brandId), ct);
+            return r.Outcome == OfferActionOutcome.NotFound
+                ? Results.NotFound()
+                : Results.Ok(new SingleResponse<OfferActionResult> { Status = true, Data = r });
+        }).RequireAuthorization(TasksUpdate);
+
+        // ── KYC documents (rider-self) ────────────────────────────────────────
+        // GET /api/v1/rider/documents — my verification status + uploaded documents
+        riderSelf.MapGet("/documents", async (HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(new GetMyRiderVerificationQuery(userId, brandId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderVerificationView> { Status = true, Data = r });
+        }).RequireAuthorization("RiderOnly");
+
+        // POST /api/v1/rider/documents — multipart upload (docType + file)
+        riderSelf.MapPost("/documents", async (
+            HttpContext ctx, [FromForm] string docType, IFormFile file, ISender sender, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(new UploadRiderDocumentCommand(userId, brandId, docType, file), ct);
+            return Results.Ok(new SingleResponse<RiderDocumentDto> { Status = true, Data = r });
+        }).RequireAuthorization("RiderOnly")
+          .DisableAntiforgery()
+          .WithMetadata(new RequestSizeLimitAttribute(6 * 1024 * 1024));
+
+        // ── Earnings balance + withdrawals + incentives (rider-self) ──────────
+        riderSelf.MapGet("/balance", async (HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId = GetRiderUserId(ctx); var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetMyBalanceQuery(userId, brandId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<RiderBalanceDto> { Status = true, Data = r });
+        }).RequireAuthorization(TasksRead);
+
+        riderSelf.MapPost("/payout-requests", async (HttpContext ctx, RequestPayoutBody body, ISender sender, CancellationToken ct) =>
+        {
+            var userId = GetRiderUserId(ctx); var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new RequestPayoutCommand(userId, brandId, body.Amount), ct);
+            return Results.Ok(new SingleResponse<RiderPayoutRequestDto> { Status = true, Data = r });
+        }).RequireAuthorization(TasksUpdate);
+
+        riderSelf.MapGet("/payout-requests", async (HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId = GetRiderUserId(ctx); var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetMyPayoutRequestsQuery(userId, brandId), ct);
+            return Results.Ok(new ListResponse<RiderPayoutRequestDto> { Status = true, Data = r.ToList() });
+        }).RequireAuthorization(TasksRead);
+
+        riderSelf.MapGet("/incentives", async (HttpContext ctx, ISender sender, CancellationToken ct, int days = 30) =>
+        {
+            var userId = GetRiderUserId(ctx); var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetMyIncentivesQuery(userId, brandId, days), ct);
+            return Results.Ok(new ListResponse<RiderIncentiveAwardDto> { Status = true, Data = r.ToList() });
+        }).RequireAuthorization(TasksRead);
+
+        // ── Support tickets (rider-self) ──────────────────────────────────────
+        riderSelf.MapPost("/support/tickets", async (HttpContext ctx, CreateTicketRequest req, ISender sender, LaundryGharDbContext db, CancellationToken ct) =>
+        {
+            var userId = GetRiderUserId(ctx); var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+            var riderId = await db.Riders.Where(r => r.UserId == userId && r.BrandId == brandId).Select(r => (Guid?)r.Id).FirstOrDefaultAsync(ct);
+            var r = await sender.Send(new CreateTicketCommand(brandId, "rider", userId, null, riderId, req), ct);
+            return Results.Created($"/api/v1/rider/support/tickets/{r.Ticket.Id}", new SingleResponse<SupportTicketDetailDto> { Status = true, Data = r });
+        }).RequireAuthorization("RiderOnly");
+
+        riderSelf.MapGet("/support/tickets", async (HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId = GetRiderUserId(ctx); var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetMyTicketsQuery(brandId, userId), ct);
+            return Results.Ok(new ListResponse<SupportTicketDto> { Status = true, Data = r.ToList() });
+        }).RequireAuthorization("RiderOnly");
+
+        riderSelf.MapGet("/support/tickets/{id:guid}", async (Guid id, HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId = GetRiderUserId(ctx);
+            if (userId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetTicketDetailQuery(id, userId, false), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<SupportTicketDetailDto> { Status = true, Data = r });
+        }).RequireAuthorization("RiderOnly");
+
+        riderSelf.MapPost("/support/tickets/{id:guid}/messages", async (Guid id, HttpContext ctx, PostMessageRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var userId = GetRiderUserId(ctx);
+            if (userId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new PostTicketMessageCommand(id, "rider", userId, req.Body, false, userId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<TicketMessageDto> { Status = true, Data = r });
+        }).RequireAuthorization("RiderOnly");
 
         // ── Per-order tasks (pickup/delivery legs) ────────────────────────────
         // GET /api/v1/rider/tasks/today

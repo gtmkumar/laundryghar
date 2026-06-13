@@ -41,7 +41,7 @@ public sealed class CancelOrderHandler : IRequestHandler<CancelOrderCommand, Ord
 
         // Admin cancel uses state machine
         if (!cmd.IsCustomer)
-            OrderStateMachine.ValidateTransition(order.Status, OrderStatus.Cancelled);
+            OrderStateMachine.ValidateTransition(order.Status, OrderStatus.Cancelled, order.JobType);
 
         var fromStatus = order.Status;
         order.Status           = OrderStatus.Cancelled;

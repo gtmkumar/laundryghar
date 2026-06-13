@@ -2,9 +2,11 @@ using laundryghar.Orders.Infrastructure.Auth;
 using laundryghar.Orders.Infrastructure.Services;
 using laundryghar.Orders.Application.Delivery.Dtos;
 using laundryghar.Orders.Application.Delivery.Queries;
+using laundryghar.Orders.Application.Fare;
 using laundryghar.Orders.Application.Orders.Commands;
 using laundryghar.Orders.Application.Orders.Dtos;
 using laundryghar.Orders.Application.Orders.Queries;
+using laundryghar.Orders.Application.Support;
 using laundryghar.Orders.Application.Pickup.Commands;
 using laundryghar.Orders.Application.Pickup.Dtos;
 using laundryghar.Orders.Application.Pickup.Queries;
@@ -77,6 +79,55 @@ public static class CustomerOrderEndpoints
                 RateOrderResultKind.InvalidStatus => Results.UnprocessableEntity(new Response { Status = false }),
                 _ => Results.Ok(new SingleResponse<OrderDto> { Status = true, Data = result.Order })
             };
+        }).RequireAuthorization("CustomerOnly");
+
+        orders.MapPost("/{id:guid}/rate-rider", async (Guid id, HttpContext http, RateOrderRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new RateRiderCommand(id, customerId, req.Score, req.Comment), ct);
+            return r.Kind switch
+            {
+                RateRiderResultKind.NotFound => Results.NotFound(),
+                RateRiderResultKind.InvalidStatus => Results.UnprocessableEntity(new Response { Status = false }),
+                RateRiderResultKind.NoRider => Results.UnprocessableEntity(new SingleResponse<string> { Status = false, Data = "No rider to rate on this order." }),
+                _ => Results.Ok(new SingleResponse<object> { Status = true, Data = new { riderAverage = r.RiderAverage, riderCount = r.RiderCount } })
+            };
+        }).RequireAuthorization("CustomerOnly");
+
+        // ── Customer support tickets ──────────────────────────────────────────
+        var support = group.MapGroup("/support/tickets").WithTags("Customer - Support");
+
+        support.MapPost("/", async (HttpContext http, CreateTicketRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http); var brandId = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new CreateTicketCommand(brandId, "customer", customerId, customerId, null, req), ct);
+            return Results.Created($"/api/v1/customer/support/tickets/{r.Ticket.Id}", new SingleResponse<SupportTicketDetailDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        support.MapGet("/", async (HttpContext http, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http); var brandId = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetMyTicketsQuery(brandId, customerId), ct);
+            return Results.Ok(new ListResponse<SupportTicketDto> { Status = true, Data = r.ToList() });
+        }).RequireAuthorization("CustomerOnly");
+
+        support.MapGet("/{id:guid}", async (Guid id, HttpContext http, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetTicketDetailQuery(id, customerId, false), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<SupportTicketDetailDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        support.MapPost("/{id:guid}/messages", async (Guid id, HttpContext http, PostMessageRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new PostTicketMessageCommand(id, "customer", customerId, req.Body, false, customerId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<TicketMessageDto> { Status = true, Data = r });
         }).RequireAuthorization("CustomerOnly");
 
         // ── Pickup scheduling ─────────────────────────────────────────────────
@@ -199,6 +250,40 @@ public static class CustomerOrderEndpoints
             var r = await sender.Send(
                 new ValidateCouponForPickupQuery(customerId, brandId, req.CouponCode, req.EstimatedSubtotal ?? 0m), ct);
             return Results.Ok(new SingleResponse<CouponPreviewResult> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        // ── Parcel orders (point-to-point) ────────────────────────────────────
+        // A parcel is fare-quoted, so booking creates the order directly (unlike laundry,
+        // which schedules a pickup and is converted to an order after weighing).
+        orders.MapPost("/parcel", async (
+            HttpContext http, CreateParcelOrderRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            var brandId    = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(new CreateParcelOrderCommand(customerId, brandId, req), ct);
+            return Results.Created($"/api/v1/customer/orders/{r.Id}",
+                new SingleResponse<OrderDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        // ── Fare quote (point-to-point parcel pricing) ────────────────────────
+        var fare = group.MapGroup("/fare").WithTags("Customer - Fare");
+
+        /// <summary>
+        /// POST /fare/quote — distance + time + surge delivery quote between two of the
+        /// customer's addresses. Returns a TTL-bound token replayed at order creation to
+        /// lock the price. 422 when either address lacks a geo-location.
+        /// </summary>
+        fare.MapPost("/quote", async (
+            HttpContext http, FareQuoteRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            var brandId    = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(new GetFareQuoteQuery(customerId, brandId, req), ct);
+            return Results.Ok(new SingleResponse<FareQuoteDto> { Status = true, Data = r });
         }).RequireAuthorization("CustomerOnly");
 
         // ── Delivery slots ────────────────────────────────────────────────────

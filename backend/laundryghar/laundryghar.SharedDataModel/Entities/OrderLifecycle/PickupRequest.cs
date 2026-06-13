@@ -19,6 +19,12 @@ public class PickupRequest
     public TimeOnly PickupWindowStart { get; set; }
     public TimeOnly PickupWindowEnd { get; set; }
     public bool IsExpress { get; set; }
+
+    /// <summary>Denormalised copy of the job's required vehicle tier (matches riders.vehicle_type),
+    /// so the auto-dispatch worker can match without joining the partitioned orders table.
+    /// NULL = no constraint.</summary>
+    public string? RequestedVehicleTier { get; set; }
+
     public int? EstimatedItems { get; set; }
     public decimal? EstimatedAmount { get; set; }
     public Guid[] ServicesRequested { get; set; } = [];

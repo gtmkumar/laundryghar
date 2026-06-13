@@ -1,3 +1,4 @@
+using laundryghar.SharedDataModel.Enums;
 using laundryghar.Worker.Services.AutoDispatch;
 
 // RiderRanker is a pure static class in the laundryghar.Worker assembly (ProjectReference).
@@ -13,11 +14,13 @@ public sealed class RiderRankerTests
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static RiderCandidate Make(
-        int     load       = 0,
-        int     capacity   = 10,
-        double? lat        = null,
-        double? lng        = null) =>
-        new(Guid.NewGuid(), load, capacity, lat, lng);
+        int     load          = 0,
+        int     capacity      = 10,
+        double? lat           = null,
+        double? lng           = null,
+        string  vehicleType   = VehicleTier.TwoWheeler,
+        bool    sameFranchise = false) =>
+        new(Guid.NewGuid(), load, capacity, lat, lng, vehicleType, sameFranchise);
 
     // ── empty / single ────────────────────────────────────────────────────────
 
@@ -133,6 +136,60 @@ public sealed class RiderRankerTests
         var result = RiderRanker.PickBest([a, b], null, null);
         // b has lower absolute load — ranked first
         Assert.Equal(b.RiderId, result!.RiderId);
+    }
+
+    // ── tier-aware matching (upgrade ladder) ──────────────────────────────────
+
+    [Fact]
+    public void PickBest_NoRequiredTier_MatchesAnyVehicle()
+    {
+        var bike = Make(load: 1, vehicleType: VehicleTier.TwoWheeler);
+        var result = RiderRanker.PickBest([bike], null, null, requiredTier: null);
+        Assert.Equal(bike.RiderId, result!.RiderId);
+    }
+
+    [Fact]
+    public void PickBest_RequiredTier_FiltersOutSmallerVehicles()
+    {
+        // Job needs a four_wheeler; a bike must NOT be selected, the truck must.
+        var bike  = Make(load: 0, vehicleType: VehicleTier.TwoWheeler);
+        var truck = Make(load: 5, vehicleType: VehicleTier.FourWheeler);
+
+        var result = RiderRanker.PickBest([bike, truck], null, null, requiredTier: VehicleTier.FourWheeler);
+        Assert.Equal(truck.RiderId, result!.RiderId);
+    }
+
+    [Fact]
+    public void PickBest_RequiredTier_AllowsLargerVehicle_UpgradeLadder()
+    {
+        // Job needs a two_wheeler; a four_wheeler is allowed to take it (bigger serves smaller).
+        var truck = Make(load: 0, vehicleType: VehicleTier.FourWheeler);
+        var result = RiderRanker.PickBest([truck], null, null, requiredTier: VehicleTier.TwoWheeler);
+        Assert.Equal(truck.RiderId, result!.RiderId);
+    }
+
+    [Fact]
+    public void PickBest_RequiredTier_NoQualifyingRider_ReturnsNull()
+    {
+        var bike  = Make(load: 0, vehicleType: VehicleTier.TwoWheeler);
+        var cycle = Make(load: 0, vehicleType: VehicleTier.Cycle);
+
+        var result = RiderRanker.PickBest([bike, cycle], null, null, requiredTier: VehicleTier.FourWheeler);
+        Assert.Null(result);
+    }
+
+    // ── franchise priority ────────────────────────────────────────────────────
+
+    [Fact]
+    public void PickBest_PrefersSameFranchise_EvenWhenBusierAndFarther()
+    {
+        double reqLat = 12.9716, reqLng = 77.5946;
+        // Brand rider: idle and close. Franchise rider: busier and farther.
+        var brandRider     = Make(load: 0, lat: 12.9760, lng: 77.5946, sameFranchise: false);
+        var franchiseRider = Make(load: 4, lat: 13.05,   lng: 77.5946, sameFranchise: true);
+
+        var result = RiderRanker.PickBest([brandRider, franchiseRider], reqLat, reqLng);
+        Assert.Equal(franchiseRider.RiderId, result!.RiderId);
     }
 
     // ── determinism ──────────────────────────────────────────────────────────

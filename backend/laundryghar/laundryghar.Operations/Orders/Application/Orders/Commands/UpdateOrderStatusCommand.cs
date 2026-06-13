@@ -36,8 +36,8 @@ public sealed class UpdateOrderStatusHandler : IRequestHandler<UpdateOrderStatus
             .FirstOrDefaultAsync(o => o.Id == cmd.OrderId && o.BrandId == brandId, ct);
         if (order is null || order.DeletedAt != null) return null;
 
-        // Enforce state machine
-        OrderStateMachine.ValidateTransition(order.Status, req.ToStatus);
+        // Enforce state machine (parcel jobs use a shorter point-to-point path)
+        OrderStateMachine.ValidateTransition(order.Status, req.ToStatus, order.JobType);
 
         var fromStatus = order.Status;
         order.Status    = req.ToStatus;

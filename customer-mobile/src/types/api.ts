@@ -277,6 +277,63 @@ export interface RateOrderRequest {
   comment?: string | null;
 }
 
+/**
+ * POST /api/v1/customer/orders/{id}/rate-rider — body is the same shape as
+ * RateOrderRequest (score 1–5 + optional comment). 422 when the order has no
+ * rider or is not delivered. Success returns RateRiderResult.
+ */
+export type RateRiderRequest = RateOrderRequest;
+
+export interface RateRiderResult {
+  riderAverage: number;
+  riderCount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Support tickets — maps to Customer - Support endpoints (Orders service)
+//   {Orders}/api/v1/customer/support/tickets
+// ---------------------------------------------------------------------------
+
+export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+export interface SupportTicketDto {
+  id: string;
+  ticketNumber: string;
+  requesterType: string;
+  requesterName?: string | null;
+  subject: string;
+  category: string;
+  priority: string;
+  status: SupportTicketStatus;
+  orderId?: string | null;
+  lastMessageAt: string;
+  createdAt: string;
+}
+
+export interface TicketMessageDto {
+  id: string;
+  senderType: 'customer' | 'agent' | 'system';
+  senderId?: string | null;
+  body: string;
+  createdAt: string;
+}
+
+export interface SupportTicketDetailDto {
+  ticket: SupportTicketDto;
+  messages: TicketMessageDto[];
+}
+
+export interface CreateSupportTicketRequest {
+  subject: string;
+  message: string;
+  category?: string | null;
+  orderId?: string | null;
+}
+
+export interface PostTicketMessageRequest {
+  body: string;
+}
+
 export interface OrderStatusHistoryDto {
   id: string;
   /** Previous status before this transition (null on first event). Backend field: fromStatus. */
@@ -301,6 +358,56 @@ export interface DeliverySlotDto {
   isExpress: boolean;
   isActive: boolean;
   available: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Parcel (point-to-point) DTOs — mirrors CustomerFare/ParcelEndpoints in Orders
+// ---------------------------------------------------------------------------
+
+/**
+ * Backend vehicle-tier values for a parcel job. A larger vehicle can serve a
+ * smaller job. `cycle`/`foot` are valid but not surfaced in the picker.
+ */
+export type VehicleTier =
+  | 'two_wheeler'
+  | 'three_wheeler'
+  | 'four_wheeler'
+  | 'cycle'
+  | 'foot';
+
+/** Request body for POST /customer/fare/quote */
+export interface FareQuoteRequest {
+  pickupAddressId: string;
+  deliveryAddressId: string;
+  vehicleTier?: string;
+  isExpress?: boolean;
+}
+
+/**
+ * Response from POST /customer/fare/quote (unwrap with unwrapSingle).
+ * `token` is short-lived (~10 min) and must be passed verbatim into the
+ * create-parcel-order call. `expiresAt` is an ISO timestamp.
+ */
+export interface FareQuoteDto {
+  pickupCharge: number;
+  deliveryCharge: number;
+  totalCharge: number;
+  distanceKm: number;
+  surgeMultiplier: number;
+  vehicleTier: string | null;
+  expiresAt: string;
+  token: string;
+}
+
+/** Request body for POST /customer/orders/parcel */
+export interface CreateParcelOrderRequest {
+  pickupAddressId: string;
+  deliveryAddressId: string;
+  vehicleTier?: string;
+  fareQuoteToken: string;
+  notesCustomer?: string | null;
+  /** "wallet" | "cod" */
+  paymentPreference?: string;
 }
 
 // ---------------------------------------------------------------------------

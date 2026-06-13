@@ -28,8 +28,10 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         b.Property(e => e.PickupRiderId).HasColumnName("pickup_rider_id");
         b.Property(e => e.DeliveryRiderId).HasColumnName("delivery_rider_id");
         b.Property(e => e.Channel).HasColumnName("channel").HasMaxLength(20).IsRequired();
+        b.Property(e => e.JobType).HasColumnName("job_type").HasMaxLength(20).IsRequired();
         b.Property(e => e.OrderType).HasColumnName("order_type").HasMaxLength(20).IsRequired();
         b.Property(e => e.IsExpress).HasColumnName("is_express").IsRequired();
+        b.Property(e => e.RequestedVehicleTier).HasColumnName("requested_vehicle_tier").HasMaxLength(20);
         b.Property(e => e.RequiresPickup).HasColumnName("requires_pickup").IsRequired();
         b.Property(e => e.RequiresDelivery).HasColumnName("requires_delivery").IsRequired();
         b.Property(e => e.PickupOtp).HasColumnName("pickup_otp").HasMaxLength(10);

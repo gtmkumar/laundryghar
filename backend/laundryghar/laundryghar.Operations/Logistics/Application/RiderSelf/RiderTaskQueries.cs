@@ -588,6 +588,13 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
         if (cmd.Status is "completed" or "failed")
             await RiderLoadHelper.DecrementAsync(_db, da.RiderId, ct);
 
+        // Best-effort incentive evaluation on a completed delivery — never blocks completion.
+        if (cmd.Status == "completed")
+        {
+            try { await Incentives.IncentiveEvaluator.EvaluateOnDeliveryAsync(_db, da, now, ct); }
+            catch { /* incentives are non-critical; swallow to protect the completion path */ }
+        }
+
         return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr, payoutCfg));
     }
 
@@ -684,7 +691,7 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
             //    history row per hop. Off-path / already-advanced orders → no-op.
             if (order is not null)
             {
-                var hops = OrderStateMachine.ForwardPath(order.Status, orderTarget);
+                var hops = OrderStateMachine.ForwardPath(order.Status, orderTarget, order.JobType);
                 foreach (var next in hops)
                 {
                     var from = order.Status;

@@ -3,13 +3,14 @@
  * Tabs: Home · Orders · [ + ] · Wallet · Profile.
  * The FAB launches the booking flow (items picker).
  */
-import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Modal, Pressable, Text, View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useBookingStore } from '@/store/bookingStore';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -64,13 +65,115 @@ function TabButton({
   );
 }
 
+/**
+ * Action sheet launched from the central FAB so the customer can choose between
+ * the laundry pickup flow and the point-to-point parcel flow.
+ */
+function CreateActionSheet({
+  visible,
+  onClose,
+  onLaundry,
+  onParcel,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onLaundry: () => void;
+  onParcel: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable
+        className="flex-1 justify-end bg-black/40"
+        onPress={onClose}
+        accessibilityLabel={t('common.close')}
+      >
+        {/* Stop propagation so taps inside the sheet don't dismiss it. */}
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          className="bg-cream px-5 pb-10 pt-5"
+          style={{ borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
+        >
+          <View className="mb-4 h-1.5 w-12 self-center rounded-full bg-cream-300" />
+          <Text className="mb-4 text-lg font-extrabold text-ink">
+            {t('parcel.chooseFlowTitle')}
+          </Text>
+
+          <Pressable
+            onPress={onLaundry}
+            accessibilityRole="button"
+            accessibilityLabel={t('parcel.laundryOption')}
+            className="mb-3 flex-row items-center rounded-2xl border border-cream-300 bg-white p-4"
+          >
+            <View className="mr-3 h-12 w-12 items-center justify-center rounded-2xl bg-olive-100">
+              <Ionicons name="shirt-outline" size={24} color="#5C6A33" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-extrabold text-ink">{t('parcel.laundryOption')}</Text>
+              <Text className="mt-0.5 text-xs text-ink-muted">{t('parcel.laundryOptionSub')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#A8A493" />
+          </Pressable>
+
+          <Pressable
+            onPress={onParcel}
+            accessibilityRole="button"
+            accessibilityLabel={t('parcel.parcelOption')}
+            className="flex-row items-center rounded-2xl border border-cream-300 bg-white p-4"
+          >
+            <View className="mr-3 h-12 w-12 items-center justify-center rounded-2xl bg-gold-200">
+              <Ionicons name="cube-outline" size={24} color="#8A641D" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-extrabold text-ink">{t('parcel.parcelOption')}</Text>
+              <Text className="mt-0.5 text-xs text-ink-muted">{t('parcel.parcelOptionSub')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#A8A493" />
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const router = useRouter();
   const { t } = useTranslation();
+  const setJobType = useBookingStore((s) => s.setJobType);
+  const setFareQuote = useBookingStore((s) => s.setFareQuote);
+  const setPickupAddress = useBookingStore((s) => s.setPickupAddress);
+  const setDropAddress = useBookingStore((s) => s.setDropAddress);
   const activeName = state.routes[state.index]?.name;
+  const [sheetVisible, setSheetVisible] = useState(false);
 
   const go = (name: string) => {
     navigation.navigate(name);
+  };
+
+  const openSheet = () => setSheetVisible(true);
+
+  // Laundry entry is unchanged from the original FAB behaviour — just push the
+  // items picker. (The laundry screens seed their own store state.)
+  const startLaundry = () => {
+    setSheetVisible(false);
+    setJobType('laundry');
+    router.push('/(app)/booking/items');
+  };
+
+  // Parcel entry starts a fresh parcel session so a prior abandoned run can't
+  // leak stale addresses/quote into a new booking.
+  const startParcel = () => {
+    setSheetVisible(false);
+    setJobType('parcel');
+    setPickupAddress(null);
+    setDropAddress(null);
+    setFareQuote(null);
+    router.push('/(app)/parcel/pickup');
   };
 
   return (
@@ -98,7 +201,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           {/* Center FAB spacer — height matches the paddingTop gap so tabs align */}
           <View className="w-16 items-center" style={{ overflow: 'visible' }}>
             <Pressable
-              onPress={() => router.push('/(app)/booking/items')}
+              onPress={openSheet}
               accessibilityRole="button"
               accessibilityLabel={t('a11y.schedulePickup')}
               className="absolute h-16 w-16 items-center justify-center rounded-full bg-gold-400"
@@ -120,6 +223,13 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           ))}
         </SafeAreaView>
       </View>
+
+      <CreateActionSheet
+        visible={sheetVisible}
+        onClose={() => setSheetVisible(false)}
+        onLaundry={startLaundry}
+        onParcel={startParcel}
+      />
     </View>
   );
 }

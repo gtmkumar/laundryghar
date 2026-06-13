@@ -217,8 +217,19 @@ export default function HelpScreen() {
         contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Support tickets — real ticketing (list + create + chat) */}
+        <Text className="mb-3 text-lg font-extrabold text-ink">
+          {t('help.supportTickets')}
+        </Text>
+        <ContactButton
+          icon="chatbubbles-outline"
+          label={t('help.viewMyTickets')}
+          sublabel={t('help.supportTicketsSub')}
+          onPress={() => router.push('/(app)/support' as never)}
+        />
+
         {/* Contact Us */}
-        <Text className="mb-3 text-lg font-extrabold text-ink">{t('help.contactUs')}</Text>
+        <Text className="mb-3 mt-8 text-lg font-extrabold text-ink">{t('help.contactUs')}</Text>
         <ContactButton
           icon="mail-outline"
           label={t('help.emailSupport')}

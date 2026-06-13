@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Mail, UserCog, Loader2, Map as MapIcon, Coins, CreditCard, MessageCircle, Smartphone } from 'lucide-react'
+import { Mail, UserCog, Loader2, Map as MapIcon, Coins, CreditCard, MessageCircle, Smartphone, Gauge, Radio } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettings } from '@/hooks/useSettings'
 import { EmailPanel } from './EmailPanel'
@@ -9,8 +9,10 @@ import { PayoutPanel } from './PayoutPanel'
 import { PaymentsPanel } from './PaymentsPanel'
 import { WhatsAppPanel } from './WhatsAppPanel'
 import { SmsPanel } from './SmsPanel'
+import { FarePanel } from './FarePanel'
+import { DispatchPanel } from './DispatchPanel'
 
-type Key = 'email' | 'maps' | 'payout' | 'provisioning' | 'payments' | 'whatsapp' | 'sms'
+type Key = 'email' | 'maps' | 'payout' | 'provisioning' | 'payments' | 'whatsapp' | 'sms' | 'fare' | 'dispatch'
 
 const NAV: { section: string; items: { key: Key; label: string; icon: React.ElementType }[] }[] = [
   {
@@ -21,6 +23,13 @@ const NAV: { section: string; items: { key: Key; label: string; icon: React.Elem
       { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
       { key: 'sms', label: 'SMS', icon: Smartphone },
       { key: 'maps', label: 'Maps', icon: MapIcon },
+    ],
+  },
+  {
+    section: 'Marketplace',
+    items: [
+      { key: 'fare', label: 'Fare & pricing', icon: Gauge },
+      { key: 'dispatch', label: 'Dispatch', icon: Radio },
     ],
   },
   { section: 'Operations', items: [{ key: 'payout', label: 'Rider payouts', icon: Coins }] },
@@ -72,7 +81,13 @@ export function SettingsPage() {
 
         {/* Content */}
         <section className="flex-1 min-w-0">
-          {settings.isLoading ? (
+          {/* Fare & dispatch fetch their own settings, so they don't wait on the
+              AdminSettings bundle (which may be loading/erroring independently). */}
+          {active === 'fare' ? (
+            <FarePanel />
+          ) : active === 'dispatch' ? (
+            <DispatchPanel />
+          ) : settings.isLoading ? (
             <div className="flex items-center justify-center py-24 text-gray-400">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading settings...
             </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Loader2,
   Plus,
@@ -12,6 +12,9 @@ import {
   Pencil,
   Check,
   Ban,
+  ShieldCheck,
+  Wallet,
+  Gift,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
@@ -130,15 +133,35 @@ export function RidersPage() {
             Delivery riders across your franchises{typeof total === 'number' ? ` · ${total} total` : ''}
           </p>
         </div>
-        {canManage && (
-          <button
-            type="button"
-            onClick={() => setOnboardOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-lg-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)]"
+        <div className="flex items-center gap-2">
+          <Link
+            to="/riders/verification"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >
-            <Plus className="h-4 w-4" /> Onboard rider
-          </button>
-        )}
+            <ShieldCheck className="h-4 w-4" /> Verification queue
+          </Link>
+          <Link
+            to="/riders/payouts"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <Wallet className="h-4 w-4" /> Payouts
+          </Link>
+          <Link
+            to="/riders/incentives"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <Gift className="h-4 w-4" /> Incentives
+          </Link>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => setOnboardOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-lg-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)]"
+            >
+              <Plus className="h-4 w-4" /> Onboard rider
+            </button>
+          )}
+        </div>
       </div>
 
       {/* View tabs — roster table vs live ops map */}

@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getRiders,
@@ -14,6 +15,12 @@ import {
   updateRider,
   verifyRider,
   rejectRider,
+  getRiderVerification,
+  getRiderDocumentBlob,
+  approveRiderDocument,
+  rejectRiderDocument,
+  approveRiderVehicle,
+  rejectRiderVehicle,
 } from '@/api/riders'
 import type {
   InviteRiderUserPayload,
@@ -212,5 +219,88 @@ export function useRejectRider() {
       qc.invalidateQueries({ queryKey: ['riders'] })
       qc.setQueryData(['riders', 'detail', rider.id], rider)
     },
+  })
+}
+
+// ── Driver verification queue ──────────────────────────────────────────────────
+
+/** The KYC-document + vehicle review packet for one rider, fetched when the drawer opens. */
+export function useRiderVerification(riderId: string | null) {
+  return useQuery({
+    queryKey: ['riders', 'verification', riderId],
+    queryFn: () => getRiderVerification(riderId as string),
+    enabled: !!riderId,
+  })
+}
+
+/**
+ * Object URL for one document's file, streamed through the authed client (a plain
+ * <img src> can't carry the bearer token). Returns undefined while loading; the
+ * URL is revoked on unmount / when the blob changes. Mirrors useItemImageUrl.
+ */
+export function useRiderDocumentUrl(docId: string | null) {
+  const { data: blob } = useQuery({
+    queryKey: ['riders', 'document-file', docId],
+    queryFn: () => getRiderDocumentBlob(docId as string),
+    enabled: !!docId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const url = useMemo(() => (blob ? URL.createObjectURL(blob) : undefined), [blob])
+  useEffect(() => {
+    return () => {
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [url])
+
+  // Surface the blob's MIME type so the UI can render an <img> vs a PDF fallback.
+  return { url, contentType: blob?.type ?? null }
+}
+
+/** Invalidate the list + this rider's verification packet after any review action. */
+function invalidateVerification(qc: ReturnType<typeof useQueryClient>, riderId: string) {
+  qc.invalidateQueries({ queryKey: ['riders', 'verification', riderId] })
+  qc.invalidateQueries({ queryKey: ['riders', 'infinite'] })
+  qc.invalidateQueries({ queryKey: ['riders', 'detail', riderId] })
+}
+
+/** Approve or reject a single KYC document, then refresh list + drawer. */
+export function useReviewRiderDocument() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      docId,
+      action,
+      reason,
+    }: {
+      riderId: string
+      docId: string
+      action: 'approve' | 'reject'
+      reason?: string
+    }) =>
+      action === 'approve'
+        ? approveRiderDocument(docId)
+        : rejectRiderDocument(docId, reason ?? ''),
+    onSuccess: (_doc, { riderId }) => invalidateVerification(qc, riderId),
+  })
+}
+
+/** Approve or reject the rider's vehicle, then refresh list + drawer. */
+export function useReviewRiderVehicle() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      riderId,
+      action,
+      reason,
+    }: {
+      riderId: string
+      action: 'approve' | 'reject'
+      reason?: string
+    }) =>
+      action === 'approve'
+        ? approveRiderVehicle(riderId)
+        : rejectRiderVehicle(riderId, reason ?? ''),
+    onSuccess: (_view, { riderId }) => invalidateVerification(qc, riderId),
   })
 }

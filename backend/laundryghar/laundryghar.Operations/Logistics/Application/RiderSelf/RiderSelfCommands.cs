@@ -165,3 +165,117 @@ public sealed class UpdateMyAssignmentStatusHandler
         return CreateRiderAssignmentHandler.ToDto(assignment);
     }
 }
+
+// ── Offer accept / decline (offer_accept dispatch mode) ─────────────────────────
+
+/// <summary>Outcome of a rider acting on an offered job.</summary>
+public enum OfferActionOutcome { NotFound, Expired, Taken, Ok }
+
+public sealed record OfferActionResult(OfferActionOutcome Outcome, Guid AssignmentId, string Status);
+
+/// <summary>
+/// Rider accepts an offered pickup (offer_accept dispatch). Wins the row by a guarded
+/// transition offered→accepted, expires sibling offers for the same pickup, stamps the
+/// pickup 'assigned', and increments the rider's load. IDOR-guarded by rider + brand.
+/// </summary>
+public sealed record AcceptOfferCommand(Guid AssignmentId, Guid RiderId, Guid BrandId)
+    : IRequest<OfferActionResult>;
+
+public sealed class AcceptOfferHandler : IRequestHandler<AcceptOfferCommand, OfferActionResult>
+{
+    private readonly LaundryGharDbContext _db;
+    public AcceptOfferHandler(LaundryGharDbContext db) => _db = db;
+
+    public async Task<OfferActionResult> Handle(AcceptOfferCommand cmd, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        var da = await _db.DeliveryAssignments
+            .FirstOrDefaultAsync(a => a.Id == cmd.AssignmentId
+                                   && a.RiderId == cmd.RiderId
+                                   && a.BrandId == cmd.BrandId, ct);
+
+        if (da is null || da.Status != DeliveryAssignmentStatus.Offered)
+            return new OfferActionResult(OfferActionOutcome.NotFound, cmd.AssignmentId, "not_found");
+
+        if (da.OfferExpiresAt is not null && da.OfferExpiresAt < now)
+        {
+            da.Status = DeliveryAssignmentStatus.Expired;
+            da.UpdatedAt = now;
+            await _db.SaveChangesAsync(ct);
+            return new OfferActionResult(OfferActionOutcome.Expired, da.Id, da.Status);
+        }
+
+        // Sibling guard: another rider already holds an accepted/active assignment for this pickup.
+        if (da.PickupRequestId is Guid pickupId)
+        {
+            var taken = await _db.DeliveryAssignments.AnyAsync(x =>
+                x.PickupRequestId == pickupId && x.Id != da.Id &&
+                (x.Status == DeliveryAssignmentStatus.Accepted
+              || x.Status == DeliveryAssignmentStatus.Assigned
+              || x.Status == DeliveryAssignmentStatus.Started
+              || x.Status == DeliveryAssignmentStatus.Arrived
+              || x.Status == DeliveryAssignmentStatus.Completed), ct);
+            if (taken)
+                return new OfferActionResult(OfferActionOutcome.Taken, da.Id, "taken");
+        }
+
+        var strategy = _db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+            da.Status     = DeliveryAssignmentStatus.Accepted;
+            da.AcceptedAt = now;
+            da.UpdatedAt  = now;
+
+            if (da.PickupRequestId is Guid pid)
+            {
+                // Expire the other live offers for this pickup.
+                var siblings = await _db.DeliveryAssignments
+                    .Where(x => x.PickupRequestId == pid && x.Id != da.Id
+                             && x.Status == DeliveryAssignmentStatus.Offered)
+                    .ToListAsync(ct);
+                foreach (var s in siblings) { s.Status = DeliveryAssignmentStatus.Expired; s.UpdatedAt = now; }
+
+                var pr = await _db.PickupRequests.FirstOrDefaultAsync(p => p.Id == pid, ct);
+                if (pr is not null && pr.Status == "pending") { pr.Status = "assigned"; pr.UpdatedAt = now; }
+            }
+
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        });
+
+        await SharedDataModel.Logistics.RiderLoadHelper.IncrementAsync(_db, cmd.RiderId, ct);
+        return new OfferActionResult(OfferActionOutcome.Ok, da.Id, da.Status);
+    }
+}
+
+/// <summary>
+/// Rider declines an offered pickup. Marks the offer rejected so the next dispatch cycle
+/// re-offers to another rider (the decliner is excluded). IDOR-guarded by rider + brand.
+/// </summary>
+public sealed record DeclineOfferCommand(Guid AssignmentId, Guid RiderId, Guid BrandId)
+    : IRequest<OfferActionResult>;
+
+public sealed class DeclineOfferHandler : IRequestHandler<DeclineOfferCommand, OfferActionResult>
+{
+    private readonly LaundryGharDbContext _db;
+    public DeclineOfferHandler(LaundryGharDbContext db) => _db = db;
+
+    public async Task<OfferActionResult> Handle(DeclineOfferCommand cmd, CancellationToken ct)
+    {
+        var da = await _db.DeliveryAssignments
+            .FirstOrDefaultAsync(a => a.Id == cmd.AssignmentId
+                                   && a.RiderId == cmd.RiderId
+                                   && a.BrandId == cmd.BrandId, ct);
+
+        if (da is null || da.Status != DeliveryAssignmentStatus.Offered)
+            return new OfferActionResult(OfferActionOutcome.NotFound, cmd.AssignmentId, "not_found");
+
+        da.Status    = DeliveryAssignmentStatus.Rejected;
+        da.UpdatedAt = DateTimeOffset.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return new OfferActionResult(OfferActionOutcome.Ok, da.Id, da.Status);
+    }
+}

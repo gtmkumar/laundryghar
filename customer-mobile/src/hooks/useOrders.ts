@@ -2,21 +2,30 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIsFocused } from '@react-navigation/native';
 import {
   cancelOrder,
+  createParcelOrder,
   getDeliverySlots,
   getMyOrders,
   getMyPickupRequestById,
   getMyPickupRequests,
   getOrderById,
   getOrderTracking,
+  quoteParcelFare,
   rateOrder,
+  rateRider,
   reschedulePickup,
   schedulePickup,
   validateCouponForPickup,
 } from '@/api/orders';
 import type {
+  CreateParcelOrderRequest,
   CreatePickupRequestRequest,
   CouponPreviewResult,
+  FareQuoteDto,
+  FareQuoteRequest,
+  OrderDto,
   RateOrderRequest,
+  RateRiderRequest,
+  RateRiderResult,
   ReschedulePickupRequestBody,
   ValidateCouponForPickupRequest,
 } from '@/types/api';
@@ -121,6 +130,50 @@ export function useRateOrder(orderId: string) {
     onSuccess: (updated) => {
       qc.setQueryData(orderKeys.detail(orderId), updated);
       void qc.invalidateQueries({ queryKey: ['orders', 'list'] });
+    },
+  });
+}
+
+/**
+ * Rate the rider who delivered an order. The mutation resolves to the rider's
+ * new running average + count. The order detail is invalidated so any cached
+ * derived state refreshes. A 422 (no rider / not delivered) surfaces as an
+ * error for the caller to handle.
+ */
+export function useRateRider(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation<RateRiderResult, Error, RateRiderRequest>({
+    mutationFn: (body) => rateRider(orderId, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
+    },
+  });
+}
+
+// ── Parcel (point-to-point) ───────────────────────────────────────────────────
+
+/**
+ * Fetch a fare quote for a parcel job. Exposed as a mutation (not a query) so
+ * the caller controls exactly when to (re-)price — the returned token is
+ * short-lived and must be re-fetched if it expires before order creation.
+ */
+export function useFareQuote() {
+  return useMutation<FareQuoteDto, Error, FareQuoteRequest>({
+    mutationFn: quoteParcelFare,
+  });
+}
+
+/**
+ * Create a parcel order from a held fare-quote token. Invalidates the orders
+ * list and the pickups list (a parcel order can surface in both feeds).
+ */
+export function useCreateParcelOrder() {
+  const qc = useQueryClient();
+  return useMutation<OrderDto, Error, CreateParcelOrderRequest>({
+    mutationFn: createParcelOrder,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['orders'] });
+      void qc.invalidateQueries({ queryKey: ['pickups', 'list'] });
     },
   });
 }

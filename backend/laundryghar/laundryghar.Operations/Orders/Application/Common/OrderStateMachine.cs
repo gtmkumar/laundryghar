@@ -45,23 +45,50 @@ public static class OrderStateMachine
     };
 
     /// <summary>
-    /// Returns true if the transition from → to is valid.
-    /// Throws BusinessRuleException with a descriptive message if invalid.
+    /// Parcel (point-to-point) transitions — same spine as laundry but skips the
+    /// laundry-only intake/processing states (received → sorting → in_process → qc →
+    /// ready) and the separate delivery-assignment leg. A parcel is a single A→B trip:
+    ///   placed → pickup_scheduled → pickup_assigned → pickup_in_progress → picked_up
+    ///          → out_for_delivery → delivered → closed
     /// </summary>
-    public static void ValidateTransition(string from, string to)
+    private static readonly Dictionary<string, HashSet<string>> ParcelTransitions = new()
     {
-        if (!AllowedTransitions.TryGetValue(from, out var allowed))
-            throw new BusinessRuleException($"Unknown source status '{from}'.");
+        [OrderStatus.Placed]            = [OrderStatus.PickupScheduled, OrderStatus.Cancelled, OrderStatus.Disputed],
+        [OrderStatus.PickupScheduled]   = [OrderStatus.PickupAssigned, OrderStatus.Cancelled, OrderStatus.Disputed],
+        [OrderStatus.PickupAssigned]    = [OrderStatus.PickupInProgress, OrderStatus.Cancelled, OrderStatus.Disputed],
+        [OrderStatus.PickupInProgress]  = [OrderStatus.PickedUp, OrderStatus.Cancelled, OrderStatus.Disputed],
+        [OrderStatus.PickedUp]          = [OrderStatus.OutForDelivery, OrderStatus.Disputed],
+        [OrderStatus.OutForDelivery]    = [OrderStatus.Delivered, OrderStatus.Returned, OrderStatus.Disputed],
+        [OrderStatus.Delivered]         = [OrderStatus.Closed, OrderStatus.Disputed],
+        [OrderStatus.Returned]          = [OrderStatus.Closed],
+        [OrderStatus.Disputed]          = [OrderStatus.Closed],
+        [OrderStatus.Cancelled]         = [],   // terminal
+        [OrderStatus.Closed]            = [],   // terminal
+    };
+
+    private static Dictionary<string, HashSet<string>> MapFor(string jobType)
+        => jobType == JobType.Parcel ? ParcelTransitions : AllowedTransitions;
+
+    /// <summary>
+    /// Returns true if the transition from → to is valid for the given job type.
+    /// Throws BusinessRuleException with a descriptive message if invalid.
+    /// jobType defaults to laundry so existing callers are unaffected.
+    /// </summary>
+    public static void ValidateTransition(string from, string to, string jobType = JobType.Laundry)
+    {
+        var map = MapFor(jobType);
+        if (!map.TryGetValue(from, out var allowed))
+            throw new BusinessRuleException($"Unknown source status '{from}' for job type '{jobType}'.");
 
         if (!allowed.Contains(to))
             throw new BusinessRuleException(
-                $"Invalid status transition: '{from}' → '{to}'. " +
+                $"Invalid status transition: '{from}' → '{to}' (job type '{jobType}'). " +
                 $"Allowed targets: [{string.Join(", ", allowed)}].");
     }
 
-    /// <summary>Returns all valid next statuses from the given status.</summary>
-    public static IReadOnlySet<string> AllowedNext(string from)
-        => AllowedTransitions.TryGetValue(from, out var set) ? set : new HashSet<string>();
+    /// <summary>Returns all valid next statuses from the given status for the job type.</summary>
+    public static IReadOnlySet<string> AllowedNext(string from, string jobType = JobType.Laundry)
+        => MapFor(jobType).TryGetValue(from, out var set) ? set : new HashSet<string>();
 
     /// <summary>Returns true if the order can be customer-cancelled from the given status.</summary>
     public static bool CanCustomerCancel(string status) =>
@@ -91,6 +118,19 @@ public static class OrderStateMachine
         OrderStatus.Closed,
     ];
 
+    /// <summary>Parcel linear happy path — skips laundry intake/processing + delivery-leg states.</summary>
+    private static readonly string[] ParcelHappyPath =
+    [
+        OrderStatus.Placed,
+        OrderStatus.PickupScheduled,
+        OrderStatus.PickupAssigned,
+        OrderStatus.PickupInProgress,
+        OrderStatus.PickedUp,
+        OrderStatus.OutForDelivery,
+        OrderStatus.Delivered,
+        OrderStatus.Closed,
+    ];
+
     /// <summary>
     /// DEFECT 6 — returns the ordered list of statuses to step THROUGH to advance an
     /// order from <paramref name="from"/> up to <paramref name="target"/> along the
@@ -100,16 +140,17 @@ public static class OrderStateMachine
     /// the order is already at or beyond the target, or when either status is off the
     /// linear path (caller should then no-op rather than force an illegal jump).
     /// </summary>
-    public static IReadOnlyList<string> ForwardPath(string from, string target)
+    public static IReadOnlyList<string> ForwardPath(string from, string target, string jobType = JobType.Laundry)
     {
-        var fromIdx = Array.IndexOf(HappyPath, from);
-        var targetIdx = Array.IndexOf(HappyPath, target);
+        var path = jobType == JobType.Parcel ? ParcelHappyPath : HappyPath;
+        var fromIdx = Array.IndexOf(path, from);
+        var targetIdx = Array.IndexOf(path, target);
         if (fromIdx < 0 || targetIdx < 0 || targetIdx <= fromIdx)
             return [];
 
         var hops = new List<string>(targetIdx - fromIdx);
         for (var i = fromIdx + 1; i <= targetIdx; i++)
-            hops.Add(HappyPath[i]);
+            hops.Add(path[i]);
         return hops;
     }
 }

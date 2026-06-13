@@ -4,6 +4,7 @@ using System.Text.Json;
 using FluentValidation;
 using laundryghar.Orders.Application.Common;
 using laundryghar.Orders.Application.Orders.Dtos;
+using laundryghar.SharedDataModel.Common;
 using laundryghar.SharedDataModel.Entities.Commerce;
 using Microsoft.Extensions.Options;
 using MediatR;
@@ -28,12 +29,15 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
     private readonly LaundryGharDbContext _db;
     private readonly ICurrentUser _user;
     private readonly OrdersSettings _settings;
+    private readonly laundryghar.SharedDataModel.Crypto.IFieldCipher _cipher;
 
-    public CreateOrderHandler(LaundryGharDbContext db, ICurrentUser user, IOptions<OrdersSettings> opts)
+    public CreateOrderHandler(LaundryGharDbContext db, ICurrentUser user, IOptions<OrdersSettings> opts,
+        laundryghar.SharedDataModel.Crypto.IFieldCipher cipher)
     {
         _db       = db;
         _user     = user;
         _settings = opts.Value;
+        _cipher   = cipher;
     }
 
     public async Task<OrderDto> Handle(CreateOrderCommand cmd, CancellationToken ct)
@@ -41,6 +45,11 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
         var brandId = _user.RequireBrandId();
         var req     = cmd.Request;
         var now     = DateTimeOffset.UtcNow;
+
+        // Marketplace job kind. 'parcel' is a point-to-point delivery that rides the
+        // same order spine but carries no laundry catalog items — its value is purely
+        // the pickup + delivery charge (locked in from a fare quote, Wave 1.3).
+        var isParcel = req.JobType == JobType.Parcel;
 
         // ── B2: Idempotency dedup guard ──────────────────────────────────────
         // When the caller supplies an idempotency key (POS double-tap, network retry),
@@ -525,7 +534,27 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
         var taxTotal      = Math.Round(taxableAmount * (_settings.TaxRatePercent / 100m), 2);
         var cgst          = Math.Round(taxableAmount * (halfRate / 100m), 2);
         var sgst          = taxTotal - cgst;
-        var grandTotal    = taxableAmount + taxTotal;
+
+        // ── Delivery fare (parcel / point-to-point) ─────────────────────────
+        // Pickup + delivery charges come from a signed fare quote token (Wave 1.3).
+        // Laundry orders carry no token → charges stay 0 and the total is unchanged.
+        // The fare is treated as tax-inclusive in v1 (added straight to the total).
+        decimal pickupCharge = 0m, deliveryCharge = 0m;
+        if (isParcel || !string.IsNullOrWhiteSpace(req.FareQuoteToken))
+        {
+            var quote = FareQuoteToken.Verify(_cipher, req.FareQuoteToken, now);
+            if (quote is null)
+                throw new BusinessRuleException("Fare quote is missing, invalid, or expired. Request a fresh quote.");
+            if (quote.PickupAddressId != req.PickupAddressId
+                || quote.DeliveryAddressId != req.DeliveryAddressId
+                || quote.Tier != req.RequestedVehicleTier)
+                throw new BusinessRuleException("Fare quote does not match this order's addresses or vehicle tier.");
+
+            pickupCharge   = quote.PickupCharge;
+            deliveryCharge = quote.DeliveryCharge;
+        }
+
+        var grandTotal    = taxableAmount + taxTotal + pickupCharge + deliveryCharge;
 
         // Update per-line tax proportionally
         foreach (var li in itemEntities)
@@ -551,15 +580,18 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             PickupAddressId  = req.PickupAddressId,
             DeliveryAddressId = req.DeliveryAddressId,
             Channel          = req.Channel,
+            JobType          = req.JobType,
+            RequestedVehicleTier = req.RequestedVehicleTier,
             OrderType        = req.IsExpress ? "express" : "standard",
             IsExpress        = req.IsExpress,
-            RequiresPickup   = req.RequiresPickup,
-            RequiresDelivery = req.RequiresDelivery,
+            // A parcel is always a physical A→B trip — both legs are mandatory.
+            RequiresPickup   = isParcel || req.RequiresPickup,
+            RequiresDelivery = isParcel || req.RequiresDelivery,
             Subtotal         = subtotal,
             AddonTotal       = addonTotal,
             ExpressSurcharge = expressSurcharge,
-            PickupCharge     = 0,
-            DeliveryCharge   = 0,
+            PickupCharge     = pickupCharge,
+            DeliveryCharge   = deliveryCharge,
             DiscountTotal    = couponDiscount + loyaltyDiscount + packageDiscount + promotionDiscount,
             CouponDiscount   = couponDiscount,
             LoyaltyDiscount  = loyaltyDiscount,
@@ -756,7 +788,7 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
         // is translated to SQL where the state machine cannot be evaluated). Empty array
         // for terminal statuses; null when not requested.
         var allowedTransitions = includeAllowedTransitions
-            ? OrderStateMachine.AllowedNext(o.Status).ToList()
+            ? OrderStateMachine.AllowedNext(o.Status, o.JobType).ToList()
             : null;
 
         return new(
@@ -783,7 +815,8 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             o.Rating,
             o.RatingComment,
             o.RatedAt,
-            deliveryOtp);
+            deliveryOtp,
+            o.JobType);
     }
 }
 
@@ -798,12 +831,32 @@ public sealed class CreateOrderValidator : AbstractValidator<CreateOrderCommand>
         RuleFor(x => x.Request.Channel).NotEmpty()
             .Must(c => AllowedChannels.Contains(c))
             .WithMessage($"Channel must be one of: {string.Join(", ", AllowedChannels)}.");
-        RuleFor(x => x.Request.Items).NotEmpty().WithMessage("At least one item is required.");
-        RuleForEach(x => x.Request.Items).ChildRules(item =>
+        RuleFor(x => x.Request.JobType)
+            .Must(JobType.IsValid)
+            .WithMessage($"JobType must be one of: {string.Join(", ", JobType.All)}.");
+        RuleFor(x => x.Request.RequestedVehicleTier)
+            .Must(t => t is null || VehicleTier.IsValid(t))
+            .WithMessage($"RequestedVehicleTier must be one of: {string.Join(", ", VehicleTier.All)}.");
+
+        // Laundry orders require at least one catalog line; parcel (point-to-point)
+        // orders carry no catalog items and instead require both endpoints.
+        When(x => x.Request.JobType != JobType.Parcel, () =>
         {
-            item.RuleFor(i => i.ItemId).NotEmpty();
-            item.RuleFor(i => i.ServiceId).NotEmpty();
-            item.RuleFor(i => i.Quantity).GreaterThan(0);
+            RuleFor(x => x.Request.Items).NotEmpty().WithMessage("At least one item is required.");
+            RuleForEach(x => x.Request.Items).ChildRules(item =>
+            {
+                item.RuleFor(i => i.ItemId).NotEmpty();
+                item.RuleFor(i => i.ServiceId).NotEmpty();
+                item.RuleFor(i => i.Quantity).GreaterThan(0);
+            });
+        });
+
+        When(x => x.Request.JobType == JobType.Parcel, () =>
+        {
+            RuleFor(x => x.Request.PickupAddressId).NotNull()
+                .WithMessage("Parcel orders require a pickup address.");
+            RuleFor(x => x.Request.DeliveryAddressId).NotNull()
+                .WithMessage("Parcel orders require a delivery (drop) address.");
         });
     }
 }

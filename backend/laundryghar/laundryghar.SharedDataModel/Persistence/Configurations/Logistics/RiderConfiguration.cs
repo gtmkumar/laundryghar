@@ -68,6 +68,10 @@ public sealed class RiderConfiguration : IEntityTypeConfiguration<Rider>
         b.Property(e => e.CurrentLoad).HasColumnName("current_load").IsRequired();
         b.Property(e => e.KycStatus).HasColumnName("kyc_status").HasMaxLength(20).IsRequired();
         b.Property(e => e.KycVerifiedAt).HasColumnName("kyc_verified_at");
+        b.Property(e => e.VehicleVerificationStatus).HasColumnName("vehicle_verification_status").HasMaxLength(20).IsRequired();
+        b.Property(e => e.VehicleVerifiedAt).HasColumnName("vehicle_verified_at");
+        b.Property(e => e.VehicleVerifiedBy).HasColumnName("vehicle_verified_by");
+        b.Property(e => e.VehicleRejectionReason).HasColumnName("vehicle_rejection_reason");
         b.Property(e => e.OnboardedAt).HasColumnName("onboarded_at");
         b.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
         b.Property(e => e.Metadata).HasColumnName("metadata").HasColumnType("jsonb").IsRequired();

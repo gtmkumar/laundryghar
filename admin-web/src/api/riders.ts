@@ -15,10 +15,13 @@ import type {
   RiderCodDetail,
   RiderSettlement,
   SettleRiderPayload,
+  RiderVerificationDto,
+  RiderDocumentDto,
 } from '@/types/api'
 
 const ACCESS = '/api/v1/admin/access-control'
 const RIDERS = '/api/v1/admin/riders'
+const RIDER_DOCS = '/api/v1/admin/rider-documents'
 
 // ── List / fetch (Logistics) ─────────────────────────────────────────────────
 
@@ -141,5 +144,61 @@ export async function rejectRider(id: string, reason?: string): Promise<RiderDto
   const { data } = await logisticsClient.post<ApiResponse<RiderDto>>(`${RIDERS}/${id}/reject`, {
     reason: reason || undefined,
   })
+  return unwrap(data)
+}
+
+// ── Driver verification queue (KYC documents + vehicle) ──────────────────────────
+
+/** The full review packet for one rider: KYC status, vehicle status + uploaded documents. */
+export async function getRiderVerification(riderId: string): Promise<RiderVerificationDto> {
+  const { data } = await logisticsClient.get<ApiResponse<RiderVerificationDto>>(
+    `${RIDERS}/${riderId}/verification`,
+  )
+  return unwrap(data)
+}
+
+/**
+ * Stream one document's file (image or PDF) as a Blob. The bearer token rides on
+ * the intercepted client, so a plain <img src> can't carry it — fetch the blob
+ * and hand it to URL.createObjectURL (mirrors the catalog item-image pattern).
+ */
+export async function getRiderDocumentBlob(docId: string): Promise<Blob> {
+  const { data } = await logisticsClient.get<Blob>(`${RIDER_DOCS}/${docId}/file`, {
+    responseType: 'blob',
+  })
+  return data
+}
+
+/** Approve one KYC document → returns the updated doc. */
+export async function approveRiderDocument(docId: string): Promise<RiderDocumentDto> {
+  const { data } = await logisticsClient.post<ApiResponse<RiderDocumentDto>>(
+    `${RIDER_DOCS}/${docId}/approve`,
+  )
+  return unwrap(data)
+}
+
+/** Reject one KYC document with a reason → returns the updated doc. */
+export async function rejectRiderDocument(docId: string, reason: string): Promise<RiderDocumentDto> {
+  const { data } = await logisticsClient.post<ApiResponse<RiderDocumentDto>>(
+    `${RIDER_DOCS}/${docId}/reject`,
+    { reason },
+  )
+  return unwrap(data)
+}
+
+/** Approve the rider's vehicle → returns the refreshed verification view. */
+export async function approveRiderVehicle(riderId: string): Promise<RiderVerificationDto> {
+  const { data } = await logisticsClient.post<ApiResponse<RiderVerificationDto>>(
+    `${RIDERS}/${riderId}/vehicle/approve`,
+  )
+  return unwrap(data)
+}
+
+/** Reject the rider's vehicle with a reason → returns the refreshed verification view. */
+export async function rejectRiderVehicle(riderId: string, reason: string): Promise<RiderVerificationDto> {
+  const { data } = await logisticsClient.post<ApiResponse<RiderVerificationDto>>(
+    `${RIDERS}/${riderId}/vehicle/reject`,
+    { reason },
+  )
   return unwrap(data)
 }

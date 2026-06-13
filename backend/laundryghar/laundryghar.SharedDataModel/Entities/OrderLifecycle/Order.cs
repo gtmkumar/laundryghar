@@ -33,8 +33,18 @@ public class Order : IAuditableEntity, ISoftDeletable
     public Guid? DeliveryRiderId { get; set; }
 
     public string Channel { get; set; } = null!;
+
+    /// <summary>Marketplace job kind — see <see cref="Enums.JobType"/>. Defaults to laundry;
+    /// 'parcel' is a point-to-point delivery riding the same order spine.</summary>
+    public string JobType { get; set; } = "laundry";
+
     public string OrderType { get; set; } = null!;
     public bool IsExpress { get; set; }
+
+    /// <summary>Vehicle tier this job requires — see <see cref="Enums.VehicleTier"/>.
+    /// NULL = no constraint (any eligible rider). Drives tier-aware dispatch matching.</summary>
+    public string? RequestedVehicleTier { get; set; }
+
     public bool RequiresPickup { get; set; }
     public bool RequiresDelivery { get; set; }
     public string? PickupOtp { get; set; }

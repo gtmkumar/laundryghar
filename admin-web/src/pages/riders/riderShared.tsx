@@ -27,6 +27,28 @@ const KYC_BADGE: Record<string, string> = {
   not_submitted: 'bg-slate-100 text-slate-600',
 }
 
+const VEHICLE_BADGE: Record<string, string> = {
+  approved: 'bg-emerald-100 text-emerald-700',
+  under_review: 'bg-sky-100 text-sky-700',
+  pending: 'bg-amber-100 text-amber-700',
+  rejected: 'bg-rose-100 text-rose-700',
+}
+
+const DOC_BADGE: Record<string, string> = {
+  approved: 'bg-emerald-100 text-emerald-700',
+  pending: 'bg-amber-100 text-amber-700',
+  rejected: 'bg-rose-100 text-rose-700',
+}
+
+/** Human labels for the KYC document types the rider app uploads. */
+export const DOC_TYPE_LABEL: Record<string, string> = {
+  license: 'Driving licence',
+  rc: 'Registration certificate',
+  insurance: 'Insurance',
+  id: 'ID proof',
+  photo: 'Rider photo',
+}
+
 const STATUS_DOT: Record<string, { dot: string; text: string }> = {
   active: { dot: 'bg-emerald-500', text: 'text-emerald-700' },
   suspended: { dot: 'bg-rose-500', text: 'text-rose-700' },
@@ -50,12 +72,52 @@ export function isKycActionable(kycStatus: string): boolean {
   return kycStatus === 'pending' || kycStatus === 'submitted'
 }
 
+/** The rider's vehicle still needs a reviewer decision (not yet approved/rejected). */
+export function isVehicleActionable(status: string): boolean {
+  return status === 'pending' || status === 'under_review'
+}
+
+/**
+ * Whether a rider belongs in the verification queue: KYC awaiting a decision OR
+ * vehicle awaiting one. Mirrors the backend's queue predicate so the client-side
+ * default filter and the server stay consistent.
+ */
+export function needsVerification(kycStatus: string, vehicleStatus: string): boolean {
+  return isKycActionable(kycStatus) || isVehicleActionable(vehicleStatus)
+}
+
 export function KycBadge({ status }: { status: string }) {
   return (
     <span
       className={cn(
         'inline-block rounded-full px-2.5 py-1 text-xs font-medium capitalize',
         KYC_BADGE[status] ?? 'bg-slate-100 text-slate-600',
+      )}
+    >
+      {humanise(status)}
+    </span>
+  )
+}
+
+export function VehicleBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-block rounded-full px-2.5 py-1 text-xs font-medium capitalize',
+        VEHICLE_BADGE[status] ?? 'bg-slate-100 text-slate-600',
+      )}
+    >
+      {humanise(status)}
+    </span>
+  )
+}
+
+export function DocStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize',
+        DOC_BADGE[status] ?? 'bg-slate-100 text-slate-600',
       )}
     >
       {humanise(status)}
