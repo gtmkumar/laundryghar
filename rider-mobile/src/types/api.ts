@@ -410,6 +410,44 @@ export interface RiderCashSummaryDto {
 }
 
 // ---------------------------------------------------------------------------
+// Rider balance + payout request + incentive DTOs
+// (GET /rider/balance, /rider/payout-requests, POST /rider/payout-requests,
+//  GET /rider/incentives) — mirror the LIVE self-service payout endpoints.
+// ---------------------------------------------------------------------------
+
+/** Withdrawable-balance breakdown. `available` = earned + incentives − withdrawnOrPending. */
+export interface RiderBalanceDto {
+  earnedPayout:       number;
+  incentives:         number;
+  withdrawnOrPending: number;
+  available:          number;
+}
+
+/** Lifecycle status of a rider's withdrawal (payout) request. */
+export type RiderPayoutRequestStatus = 'requested' | 'approved' | 'rejected' | 'paid';
+
+/** A single withdrawal request and its review/payment outcome. */
+export interface RiderPayoutRequestDto {
+  id:                string;
+  amount:            number;
+  status:            RiderPayoutRequestStatus;
+  rejectionReason:   string | null;
+  paymentReference:  string | null;
+  requestedAt:       string;        // ISO-8601
+  reviewedAt:        string | null; // ISO-8601
+  paidAt:            string | null; // ISO-8601
+}
+
+/** A single incentive/bonus award. */
+export interface RiderIncentiveDto {
+  id:        string;
+  ruleName:  string;
+  ruleType:  string;
+  amount:    number;
+  awardedAt: string;   // ISO-8601
+}
+
+// ---------------------------------------------------------------------------
 // Location ping DTOs — mirrors LocationPingInput / PingBatchResponse
 // ---------------------------------------------------------------------------
 
@@ -528,4 +566,48 @@ export interface AppSettingsConfigValue {
   force_update_version?: string;
   maintenance_mode?: boolean;
   feature_flags?: Record<string, boolean>;
+}
+
+// ===========================================================================
+// Support tickets — rider self-service helpdesk
+// Maps to GET/POST /api/v1/rider/support/tickets[/{id}[/messages]]
+// ===========================================================================
+
+export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+export type TicketMessageSenderType = 'rider' | 'agent' | 'system';
+
+export interface SupportTicketDto {
+  id: string;
+  ticketNumber: string;
+  requesterType: string;
+  subject: string;
+  category: string | null;
+  priority: string;
+  status: SupportTicketStatus;
+  orderId: string | null;
+  lastMessageAt: string | null;
+  createdAt: string;
+}
+
+export interface TicketMessageDto {
+  id: string;
+  senderType: TicketMessageSenderType;
+  senderId: string | null;
+  body: string;
+  createdAt: string;
+}
+
+/** GET /rider/support/tickets/{id} and POST /rider/support/tickets responses. */
+export interface SupportTicketThreadDto {
+  ticket: SupportTicketDto;
+  messages: TicketMessageDto[];
+}
+
+/** Body for POST /rider/support/tickets. */
+export interface CreateSupportTicketRequest {
+  subject: string;
+  message: string;
+  category?: string;
+  orderId?: string;
 }

@@ -111,6 +111,12 @@ public class LaundryGharDbContext : DbContext
     public DbSet<RiderLocationPing> RiderLocationPings => Set<RiderLocationPing>();
     public DbSet<RiderSettlement> RiderSettlements => Set<RiderSettlement>();
     public DbSet<RiderDocument> RiderDocuments => Set<RiderDocument>();
+    public DbSet<RiderPayoutRequest> RiderPayoutRequests => Set<RiderPayoutRequest>();
+    public DbSet<IncentiveRule> IncentiveRules => Set<IncentiveRule>();
+    public DbSet<RiderIncentiveAward> RiderIncentiveAwards => Set<RiderIncentiveAward>();
+    public DbSet<RiderRating> RiderRatings => Set<RiderRating>();
+    public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
+    public DbSet<TicketMessage> TicketMessages => Set<TicketMessage>();
 
     // commerce
     public DbSet<Package> Packages => Set<Package>();

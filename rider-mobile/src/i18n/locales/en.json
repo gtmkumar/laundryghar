@@ -132,7 +132,8 @@
     "logOutMessage": "Are you sure you want to log out?",
     "kycVerified": "KYC verified",
     "kycPending": "KYC pending",
-    "documentsKyc": "Documents & KYC"
+    "documentsKyc": "Documents & KYC",
+    "payouts": "Payouts & Withdrawals"
   },
   "earnings": {
     "title": "Earnings",

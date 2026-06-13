@@ -277,6 +277,63 @@ export interface RateOrderRequest {
   comment?: string | null;
 }
 
+/**
+ * POST /api/v1/customer/orders/{id}/rate-rider — body is the same shape as
+ * RateOrderRequest (score 1–5 + optional comment). 422 when the order has no
+ * rider or is not delivered. Success returns RateRiderResult.
+ */
+export type RateRiderRequest = RateOrderRequest;
+
+export interface RateRiderResult {
+  riderAverage: number;
+  riderCount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Support tickets — maps to Customer - Support endpoints (Orders service)
+//   {Orders}/api/v1/customer/support/tickets
+// ---------------------------------------------------------------------------
+
+export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+export interface SupportTicketDto {
+  id: string;
+  ticketNumber: string;
+  requesterType: string;
+  requesterName?: string | null;
+  subject: string;
+  category: string;
+  priority: string;
+  status: SupportTicketStatus;
+  orderId?: string | null;
+  lastMessageAt: string;
+  createdAt: string;
+}
+
+export interface TicketMessageDto {
+  id: string;
+  senderType: 'customer' | 'agent' | 'system';
+  senderId?: string | null;
+  body: string;
+  createdAt: string;
+}
+
+export interface SupportTicketDetailDto {
+  ticket: SupportTicketDto;
+  messages: TicketMessageDto[];
+}
+
+export interface CreateSupportTicketRequest {
+  subject: string;
+  message: string;
+  category?: string | null;
+  orderId?: string | null;
+}
+
+export interface PostTicketMessageRequest {
+  body: string;
+}
+
 export interface OrderStatusHistoryDto {
   id: string;
   /** Previous status before this transition (null on first event). Backend field: fromStatus. */

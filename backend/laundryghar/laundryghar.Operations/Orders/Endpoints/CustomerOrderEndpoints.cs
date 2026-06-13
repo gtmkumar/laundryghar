@@ -6,6 +6,7 @@ using laundryghar.Orders.Application.Fare;
 using laundryghar.Orders.Application.Orders.Commands;
 using laundryghar.Orders.Application.Orders.Dtos;
 using laundryghar.Orders.Application.Orders.Queries;
+using laundryghar.Orders.Application.Support;
 using laundryghar.Orders.Application.Pickup.Commands;
 using laundryghar.Orders.Application.Pickup.Dtos;
 using laundryghar.Orders.Application.Pickup.Queries;
@@ -78,6 +79,55 @@ public static class CustomerOrderEndpoints
                 RateOrderResultKind.InvalidStatus => Results.UnprocessableEntity(new Response { Status = false }),
                 _ => Results.Ok(new SingleResponse<OrderDto> { Status = true, Data = result.Order })
             };
+        }).RequireAuthorization("CustomerOnly");
+
+        orders.MapPost("/{id:guid}/rate-rider", async (Guid id, HttpContext http, RateOrderRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new RateRiderCommand(id, customerId, req.Score, req.Comment), ct);
+            return r.Kind switch
+            {
+                RateRiderResultKind.NotFound => Results.NotFound(),
+                RateRiderResultKind.InvalidStatus => Results.UnprocessableEntity(new Response { Status = false }),
+                RateRiderResultKind.NoRider => Results.UnprocessableEntity(new SingleResponse<string> { Status = false, Data = "No rider to rate on this order." }),
+                _ => Results.Ok(new SingleResponse<object> { Status = true, Data = new { riderAverage = r.RiderAverage, riderCount = r.RiderCount } })
+            };
+        }).RequireAuthorization("CustomerOnly");
+
+        // ── Customer support tickets ──────────────────────────────────────────
+        var support = group.MapGroup("/support/tickets").WithTags("Customer - Support");
+
+        support.MapPost("/", async (HttpContext http, CreateTicketRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http); var brandId = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new CreateTicketCommand(brandId, "customer", customerId, customerId, null, req), ct);
+            return Results.Created($"/api/v1/customer/support/tickets/{r.Ticket.Id}", new SingleResponse<SupportTicketDetailDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        support.MapGet("/", async (HttpContext http, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http); var brandId = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetMyTicketsQuery(brandId, customerId), ct);
+            return Results.Ok(new ListResponse<SupportTicketDto> { Status = true, Data = r.ToList() });
+        }).RequireAuthorization("CustomerOnly");
+
+        support.MapGet("/{id:guid}", async (Guid id, HttpContext http, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new GetTicketDetailQuery(id, customerId, false), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<SupportTicketDetailDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        support.MapPost("/{id:guid}/messages", async (Guid id, HttpContext http, PostMessageRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+            var r = await sender.Send(new PostTicketMessageCommand(id, "customer", customerId, req.Body, false, customerId), ct);
+            return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<TicketMessageDto> { Status = true, Data = r });
         }).RequireAuthorization("CustomerOnly");
 
         // ── Pickup scheduling ─────────────────────────────────────────────────

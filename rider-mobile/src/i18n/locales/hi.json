@@ -132,7 +132,8 @@
     "logOutMessage": "क्या आप लॉग आउट करना चाहते हैं?",
     "kycVerified": "KYC सत्यापित",
     "kycPending": "KYC बाकी",
-    "documentsKyc": "दस्तावेज़ और KYC"
+    "documentsKyc": "दस्तावेज़ और KYC",
+    "payouts": "भुगतान और निकासी"
   },
   "earnings": {
     "title": "कमाई",

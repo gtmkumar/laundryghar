@@ -52,6 +52,8 @@ export default function AppLayout() {
       <Stack.Screen name="parcel/quote" />
       <Stack.Screen name="orders/[id]" />
       <Stack.Screen name="orders/tracking/[id]" />
+      <Stack.Screen name="support/index" />
+      <Stack.Screen name="support/[id]" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="offers" />
     </Stack>

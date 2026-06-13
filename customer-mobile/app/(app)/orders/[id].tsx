@@ -10,7 +10,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useOrderDetail, useCancelOrder, useRateOrder } from '@/hooks/useOrders';
+import {
+  useOrderDetail,
+  useCancelOrder,
+  useRateOrder,
+  useRateRider,
+} from '@/hooks/useOrders';
+import { ApiError } from '@/api/client';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Button } from '@/components/ui/Button';
@@ -190,6 +196,130 @@ function RatingCard({ order }: RatingCardProps) {
   );
 }
 
+// ── Rider rating widget ───────────────────────────────────────────────────────
+
+function RiderRatingCard({ order }: { order: OrderDto }) {
+  const { t } = useTranslation();
+  const [score, setScore] = useState(0);
+  const [comment, setComment] = useState('');
+  // null = unknown, true = rated, false = backend says no rider on this order
+  const [result, setResult] = useState<{ average: number; count: number } | null>(
+    null,
+  );
+  const [noRider, setNoRider] = useState(false);
+
+  const rateRiderMutation = useRateRider(order.id);
+
+  // The customer order DTO does not expose rider identity, so we optimistically
+  // offer rider rating on delivered/closed orders and let the backend tell us
+  // (422 NoRider) when there is in fact no rider to rate.
+  if (noRider) return null;
+
+  const handleSubmit = () => {
+    if (!score) {
+      Alert.alert(t('orderDetail.selectStars'), t('orderDetail.selectStarsMessage'));
+      return;
+    }
+    rateRiderMutation.mutate(
+      { score, comment: comment.trim() || null },
+      {
+        onSuccess: (res) =>
+          setResult({ average: res.riderAverage, count: res.riderCount }),
+        onError: (err) => {
+          // 422 from the backend (no rider / not delivered) → unwrapSingle throws
+          // an ApiError with status=false. Hide the widget rather than nag.
+          if (err instanceof ApiError) {
+            setNoRider(true);
+            return;
+          }
+          Alert.alert(t('error.generic'), err.message || t('orderDetail.cancelError'));
+        },
+      },
+    );
+  };
+
+  if (result) {
+    return (
+      <View className="mx-6 mt-4 items-center gap-2 rounded-3xl bg-olive-100 px-4 py-6">
+        <Ionicons name="bicycle" size={36} color="#5C6A33" />
+        <Text className="text-base font-extrabold text-ink">
+          {t('orderDetail.rateRiderThankYou')}
+        </Text>
+        <View className="mt-1 flex-row gap-0.5">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <Ionicons
+              key={n}
+              name={n <= score ? 'star' : 'star-outline'}
+              size={20}
+              color={n <= score ? '#D4A62A' : '#D2C8B2'}
+            />
+          ))}
+        </View>
+        <Text className="text-center text-sm text-ink-muted">
+          {t('orderDetail.rateRiderAverage', {
+            average: result.average.toFixed(1),
+            count: result.count,
+          })}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      className="mx-6 mt-4 rounded-3xl bg-white px-4 py-5"
+      style={{
+        shadowColor: '#2E351C',
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 2,
+      }}
+    >
+      <View className="mb-1 flex-row items-center gap-2">
+        <Ionicons name="bicycle-outline" size={18} color="#5C6A33" />
+        <Text className="text-base font-extrabold text-ink">
+          {t('orderDetail.rateRiderTitle')}
+        </Text>
+      </View>
+      <Text className="mb-3 text-sm text-ink-muted">
+        {t('orderDetail.rateRiderSubtitle')}
+      </Text>
+      <View className="items-center gap-4">
+        <StarRow
+          score={score}
+          onSelect={setScore}
+          disabled={rateRiderMutation.isPending}
+        />
+        <TextInput
+          className="w-full rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 text-sm text-ink"
+          placeholder={t('orderDetail.rateRiderCommentPlaceholder')}
+          placeholderTextColor="#A8A493"
+          value={comment}
+          onChangeText={setComment}
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+          maxLength={500}
+          editable={!rateRiderMutation.isPending}
+          accessibilityLabel={t('orderDetail.rateRiderCommentPlaceholder')}
+        />
+        <Button
+          title={
+            rateRiderMutation.isPending
+              ? t('orderDetail.submitting')
+              : t('orderDetail.submitRating')
+          }
+          fullWidth
+          loading={rateRiderMutation.isPending}
+          onPress={handleSubmit}
+          variant="olive"
+        />
+      </View>
+    </View>
+  );
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function OrderDetailScreen() {
@@ -282,6 +412,12 @@ export default function OrderDetailScreen() {
         {/* Rating — show for delivered orders */}
         {canRate ? (
           <RatingCard order={order} />
+        ) : null}
+
+        {/* Rider rating — delivered/closed orders. Self-hides if the backend
+            reports there is no rider on this order (422). */}
+        {canRate ? (
+          <RiderRatingCard order={order} />
         ) : null}
 
         {/* Already rated summary when not showing the widget */}

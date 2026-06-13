@@ -13,6 +13,8 @@ import {
   Check,
   Ban,
   ShieldCheck,
+  Wallet,
+  Gift,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
@@ -137,6 +139,18 @@ export function RidersPage() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >
             <ShieldCheck className="h-4 w-4" /> Verification queue
+          </Link>
+          <Link
+            to="/riders/payouts"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <Wallet className="h-4 w-4" /> Payouts
+          </Link>
+          <Link
+            to="/riders/incentives"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <Gift className="h-4 w-4" /> Incentives
           </Link>
           {canManage && (
             <button

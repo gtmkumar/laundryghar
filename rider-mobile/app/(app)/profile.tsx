@@ -165,6 +165,19 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
+          {/* Payouts & Withdrawals entry point */}
+          <Pressable
+            onPress={() => router.push('/(app)/payouts')}
+            className="mt-3 flex-row items-center gap-3 rounded-2xl bg-white px-4 py-3.5 active:opacity-70"
+            style={{ elevation: 1 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.payouts')}
+          >
+            <Ionicons name="wallet-outline" size={18} color="#8A641D" />
+            <Text className="flex-1 text-sm font-bold text-ink">{t('profile.payouts')}</Text>
+            <Ionicons name="chevron-forward" size={14} color="#A8A493" />
+          </Pressable>
+
           {/* Documents & KYC entry point */}
           <Pressable
             onPress={() => router.push('/(app)/documents')}
@@ -175,6 +188,21 @@ export default function ProfileScreen() {
           >
             <Ionicons name="shield-checkmark-outline" size={18} color="#4A552A" />
             <Text className="flex-1 text-sm font-bold text-ink">{t('profile.documentsKyc')}</Text>
+            <Ionicons name="chevron-forward" size={14} color="#A8A493" />
+          </Pressable>
+
+          {/* Help & Support entry point */}
+          <Pressable
+            onPress={() => router.push('/(app)/support')}
+            className="mt-3 flex-row items-center gap-3 rounded-2xl bg-white px-4 py-3.5 active:opacity-70"
+            style={{ elevation: 1 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.helpSupport', { defaultValue: 'Help & Support' })}
+          >
+            <Ionicons name="chatbubbles-outline" size={18} color="#4A552A" />
+            <Text className="flex-1 text-sm font-bold text-ink">
+              {t('profile.helpSupport', { defaultValue: 'Help & Support' })}
+            </Text>
             <Ionicons name="chevron-forward" size={14} color="#A8A493" />
           </Pressable>
 

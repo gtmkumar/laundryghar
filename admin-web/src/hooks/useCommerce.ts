@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   listPromotions,
+  createPromotion,
+  updatePromotion,
+  deletePromotion,
   listCoupons,
   createCoupon,
   updateCoupon,
@@ -11,6 +14,8 @@ import {
   deletePackage,
 } from '@/api/commerce'
 import type {
+  CreatePromotionPayload,
+  UpdatePromotionPayload,
   CreateCouponPayload,
   UpdateCouponPayload,
   CreatePackagePayload,
@@ -32,6 +37,31 @@ export function usePromotions() {
     queryKey: commerceKeys.promotions(),
     queryFn: () => listPromotions({ pageSize: 100 }),
     staleTime: 60_000,
+  })
+}
+
+export function useCreatePromotion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreatePromotionPayload) => createPromotion(payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: commerceKeys.promotions() }),
+  })
+}
+
+export function useUpdatePromotion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdatePromotionPayload }) =>
+      updatePromotion(id, payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: commerceKeys.promotions() }),
+  })
+}
+
+export function useDeletePromotion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deletePromotion(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: commerceKeys.promotions() }),
   })
 }
 

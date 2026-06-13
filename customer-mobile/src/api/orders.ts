@@ -16,6 +16,8 @@ import type {
   PaginatedListResponse,
   PickupRequestDto,
   RateOrderRequest,
+  RateRiderRequest,
+  RateRiderResult,
   ReschedulePickupRequestBody,
   SingleResponse,
   ValidateCouponForPickupRequest,
@@ -68,6 +70,23 @@ export async function rateOrder(
 ): Promise<OrderDto> {
   const res = await ordersClient.post<SingleResponse<OrderDto>>(
     `/customer/orders/${id}/rate`,
+    body,
+  );
+  return unwrapSingle(res.data);
+}
+
+/**
+ * POST /api/v1/customer/orders/{id}/rate-rider
+ * Same body shape as rate-order (score 1–5 + optional comment).
+ * Returns the rider's new running average + rating count.
+ * Backend returns 422 when the order has no rider or is not delivered.
+ */
+export async function rateRider(
+  id: string,
+  body: RateRiderRequest,
+): Promise<RateRiderResult> {
+  const res = await ordersClient.post<SingleResponse<RateRiderResult>>(
+    `/customer/orders/${id}/rate-rider`,
     body,
   );
   return unwrapSingle(res.data);

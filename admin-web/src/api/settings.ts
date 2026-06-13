@@ -16,6 +16,8 @@ import type {
   UpdateWhatsAppPayload,
   SmsSettingsView,
   UpdateSmsPayload,
+  FareSettings,
+  DispatchSettings,
 } from '@/types/api'
 
 const BASE = '/api/v1/admin/settings'
@@ -67,5 +69,29 @@ export async function updateWhatsAppSettings(payload: UpdateWhatsAppPayload): Pr
 
 export async function updateSmsSettings(payload: UpdateSmsPayload): Promise<SmsSettingsView> {
   const { data } = await identityClient.put<ApiResponse<SmsSettingsView>>(`${BASE}/sms`, payload)
+  return unwrap(data)
+}
+
+// ── Marketplace fare & dispatch ──────────────────────────────────────────────
+// These live on dedicated endpoints (not in the AdminSettings bundle) because
+// the fare/surge matrix and dispatch mode are large, frequently-tuned configs.
+
+export async function getFareSettings(): Promise<FareSettings> {
+  const { data } = await identityClient.get<ApiResponse<FareSettings>>(`${BASE}/fare`)
+  return unwrap(data)
+}
+
+export async function updateFareSettings(payload: FareSettings): Promise<FareSettings> {
+  const { data } = await identityClient.put<ApiResponse<FareSettings>>(`${BASE}/fare`, payload)
+  return unwrap(data)
+}
+
+export async function getDispatchSettings(): Promise<DispatchSettings> {
+  const { data } = await identityClient.get<ApiResponse<DispatchSettings>>(`${BASE}/dispatch`)
+  return unwrap(data)
+}
+
+export async function updateDispatchSettings(payload: DispatchSettings): Promise<DispatchSettings> {
+  const { data } = await identityClient.put<ApiResponse<DispatchSettings>>(`${BASE}/dispatch`, payload)
   return unwrap(data)
 }

@@ -2,6 +2,7 @@ using laundryghar.Identity.Application.Settings.Commands;
 using laundryghar.Identity.Application.Settings.Dtos;
 using laundryghar.Identity.Application.Settings.Queries;
 using laundryghar.Identity.Infrastructure.Services;
+using laundryghar.SharedDataModel.Common;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -85,6 +86,35 @@ public static class SettingsEndpoints
             return Results.Ok(new SingleResponse<PaymentGatewaySettingsView> { Status = true, Data = r });
         }).WithName("UpdatePaymentGatewaySettings")
           .RequireAuthorization(Manage);
+
+        // ── Marketplace: fare (brand) + dispatch (platform) ───────────────────
+        s.MapGet("/fare", async (ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            if (Forbidden(u, out var deny)) return deny;
+            var r = await sender.Send(new GetFareSettingsQuery(u), ct);
+            return Results.Ok(new SingleResponse<FareSettings> { Status = true, Data = r });
+        }).WithName("GetFareSettings").RequireAuthorization(Read);
+
+        s.MapPut("/fare", async ([FromBody] FareSettings req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            if (Forbidden(u, out var deny)) return deny;
+            var r = await sender.Send(new UpdateFareSettingsCommand(req, u), ct);
+            return Results.Ok(new SingleResponse<FareSettings> { Status = true, Data = r });
+        }).WithName("UpdateFareSettings").RequireAuthorization(Manage);
+
+        s.MapGet("/dispatch", async (ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            if (Forbidden(u, out var deny)) return deny;
+            var r = await sender.Send(new GetDispatchSettingsQuery(u), ct);
+            return Results.Ok(new SingleResponse<DispatchSettings> { Status = true, Data = r });
+        }).WithName("GetDispatchSettings").RequireAuthorization(Read);
+
+        s.MapPut("/dispatch", async ([FromBody] DispatchSettings req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            if (Forbidden(u, out var deny)) return deny;
+            var r = await sender.Send(new UpdateDispatchSettingsCommand(req, u), ct);
+            return Results.Ok(new SingleResponse<DispatchSettings> { Status = true, Data = r });
+        }).WithName("UpdateDispatchSettings").RequireAuthorization(Manage);
 
         s.MapPut("/whatsapp", async ([FromBody] UpdateWhatsAppRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
         {

@@ -1353,6 +1353,31 @@ export interface PromotionDto {
   updatedAt: string
 }
 
+/**
+ * POST /admin/promotions body. `rules` and `rewardConfig` are JSON strings the
+ * order pipeline reads. `rewardConfig` is shaped
+ * `{ discount_type: 'percent'|'flat', discount_value: number, max_discount?: number }`.
+ */
+export interface CreatePromotionPayload {
+  code: string
+  name: string
+  description?: string | null
+  promotionType: string
+  targetAudience: string
+  eligibleSegments?: string[] | null
+  rules: string
+  rewardConfig: string
+  couponId?: string | null
+  bannerImageUrl?: string | null
+  deeplinkUrl?: string | null
+  validFrom: string
+  validUntil?: string | null
+  totalBudget?: number | null
+}
+
+/** PUT /admin/promotions/{id} body — same shape as create. */
+export type UpdatePromotionPayload = CreatePromotionPayload
+
 export interface CouponDto {
   id: string
   brandId: string
@@ -1719,6 +1744,42 @@ export interface PayoutSettingsView {
 }
 
 export type UpdatePayoutPayload = PayoutSettingsView
+
+// ── Settings — Marketplace fare & dispatch ───────────────────────────────────
+
+/** Vehicle tiers a fare can be quoted for. */
+export type FareTier = 'two_wheeler' | 'three_wheeler' | 'four_wheeler' | 'cycle' | 'foot'
+
+export interface FareTierRate {
+  baseFare: number
+  perKm: number
+  pickupFlat: number
+}
+
+/** A surge window. `days` are 0=Sun..6=Sat; empty = applies every day. */
+export interface SurgeWindow {
+  days: number[]
+  startHour: number
+  endHour: number
+  multiplier: number
+}
+
+export interface FareSettings {
+  minFare: number
+  roundToNearest: number
+  quoteTtlSeconds: number
+  tierRates: Record<string, FareTierRate>
+  surge: SurgeWindow[]
+}
+
+export type DispatchMode = 'push' | 'offer_accept'
+
+export interface DispatchSettings {
+  mode: DispatchMode
+  offerTtlSeconds: number
+  maxOfferRounds: number
+  offersPerRound: number
+}
 
 // ── Settings — Payment Gateway ───────────────────────────────────────────────
 
@@ -2770,4 +2831,100 @@ export interface AssignFranchisePlanPayload {
   platformPlanId: string
   paymentMethod: string
   autoRenew: boolean
+}
+
+// ── Rider payout requests (Logistics) ──────────────────────────────────────────
+
+export type PayoutRequestStatus = 'requested' | 'approved' | 'rejected' | 'paid'
+
+export interface RiderPayoutRequestDto {
+  id: string
+  riderId: string
+  riderName: string
+  amount: number
+  status: PayoutRequestStatus
+  rejectionReason: string | null
+  paymentReference: string | null
+  requestedAt: string
+  reviewedAt: string | null
+  paidAt: string | null
+}
+
+export interface RejectPayoutPayload {
+  reason: string
+}
+
+export interface MarkPayoutPaidPayload {
+  reference: string
+}
+
+// ── Rider incentive rules (Logistics) ──────────────────────────────────────────
+
+export type IncentiveRuleType = 'trips_target' | 'surge_bonus'
+export type IncentiveWindow = 'daily'
+
+export interface IncentiveRuleDto {
+  id: string
+  name: string
+  ruleType: IncentiveRuleType
+  threshold: number
+  rewardAmount: number
+  window: IncentiveWindow
+  isActive: boolean
+  validFrom: string
+  validUntil: string | null
+}
+
+export interface CreateIncentiveRulePayload {
+  name: string
+  ruleType: IncentiveRuleType
+  threshold: number
+  rewardAmount: number
+  isActive?: boolean
+  validUntil?: string | null
+}
+
+export type UpdateIncentiveRulePayload = CreateIncentiveRulePayload
+
+// ── Support inbox ─────────────────────────────────────────────────────────────
+// Mirrors laundryghar.Operations Orders/Application/Support SupportCommands DTOs,
+// served by the logistics client under /api/v1/admin/support/tickets.
+
+export type SupportRequesterType = 'customer' | 'rider'
+export type SupportTicketPriority = 'low' | 'normal' | 'high'
+export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+export type TicketSenderType = 'customer' | 'rider' | 'agent' | 'system'
+
+export interface SupportTicketDto {
+  id: string
+  ticketNumber: string
+  requesterType: SupportRequesterType
+  requesterName: string | null
+  subject: string
+  category: string
+  priority: SupportTicketPriority
+  status: SupportTicketStatus
+  orderId: string | null
+  lastMessageAt: string
+  createdAt: string
+}
+
+export interface TicketMessageDto {
+  id: string
+  senderType: TicketSenderType
+  senderId: string | null
+  body: string
+  createdAt: string
+}
+
+export interface SupportTicketDetailDto {
+  ticket: SupportTicketDto
+  messages: TicketMessageDto[]
+}
+
+/** PATCH body — every field optional; send only what changes. */
+export interface UpdateTicketPayload {
+  status?: SupportTicketStatus
+  priority?: SupportTicketPriority
+  assignedTo?: string | null
 }

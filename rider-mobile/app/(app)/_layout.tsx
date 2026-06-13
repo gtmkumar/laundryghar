@@ -71,8 +71,11 @@ export default function AppLayout() {
         <Stack.Screen name="delivered" options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen name="profile" options={{ presentation: 'card' }} />
         <Stack.Screen name="earnings" options={{ presentation: 'card' }} />
+        <Stack.Screen name="payouts" options={{ presentation: 'card' }} />
         <Stack.Screen name="cash" options={{ presentation: 'card' }} />
         <Stack.Screen name="documents" options={{ presentation: 'card' }} />
+        <Stack.Screen name="support/index" options={{ presentation: 'card' }} />
+        <Stack.Screen name="support/[id]" options={{ presentation: 'card' }} />
         <Stack.Screen name="inspection/[id]" options={{ presentation: 'card' }} />
         <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
       </Stack>

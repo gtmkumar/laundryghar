@@ -11,6 +11,7 @@ import {
   getOrderTracking,
   quoteParcelFare,
   rateOrder,
+  rateRider,
   reschedulePickup,
   schedulePickup,
   validateCouponForPickup,
@@ -23,6 +24,8 @@ import type {
   FareQuoteRequest,
   OrderDto,
   RateOrderRequest,
+  RateRiderRequest,
+  RateRiderResult,
   ReschedulePickupRequestBody,
   ValidateCouponForPickupRequest,
 } from '@/types/api';
@@ -127,6 +130,22 @@ export function useRateOrder(orderId: string) {
     onSuccess: (updated) => {
       qc.setQueryData(orderKeys.detail(orderId), updated);
       void qc.invalidateQueries({ queryKey: ['orders', 'list'] });
+    },
+  });
+}
+
+/**
+ * Rate the rider who delivered an order. The mutation resolves to the rider's
+ * new running average + count. The order detail is invalidated so any cached
+ * derived state refreshes. A 422 (no rider / not delivered) surfaces as an
+ * error for the caller to handle.
+ */
+export function useRateRider(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation<RateRiderResult, Error, RateRiderRequest>({
+    mutationFn: (body) => rateRider(orderId, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
     },
   });
 }

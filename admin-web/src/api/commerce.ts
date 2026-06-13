@@ -3,6 +3,8 @@ import type {
   ApiResponse,
   PaginatedList,
   PromotionDto,
+  CreatePromotionPayload,
+  UpdatePromotionPayload,
   CouponDto,
   CreateCouponPayload,
   UpdateCouponPayload,
@@ -23,6 +25,21 @@ export async function listPromotions(
     { params: { page: 1, pageSize: 100, ...params } },
   )
   return unwrapPaginated(data)
+}
+
+export async function createPromotion(payload: CreatePromotionPayload): Promise<PromotionDto> {
+  const { data } = await commerceClient.post<ApiResponse<PromotionDto>>(`${ADMIN}/promotions`, payload)
+  return unwrap(data)
+}
+
+export async function updatePromotion(id: string, payload: UpdatePromotionPayload): Promise<PromotionDto> {
+  const { data } = await commerceClient.put<ApiResponse<PromotionDto>>(`${ADMIN}/promotions/${id}`, payload)
+  return unwrap(data)
+}
+
+/** Soft-delete (archive) a promotion. */
+export async function deletePromotion(id: string): Promise<void> {
+  await commerceClient.delete(`${ADMIN}/promotions/${id}`)
 }
 
 // ── Coupons ───────────────────────────────────────────────────────────────────
