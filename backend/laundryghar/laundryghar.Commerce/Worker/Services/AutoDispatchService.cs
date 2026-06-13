@@ -1,6 +1,8 @@
 using System.Text.Json;
+using laundryghar.SharedDataModel.Common;
 using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.SharedDataModel.Enums;
 using laundryghar.SharedDataModel.Logistics;
 using laundryghar.SharedDataModel.Persistence;
 using laundryghar.Worker.Options;
@@ -88,10 +90,14 @@ public sealed class AutoDispatchService : BackgroundService
 
         var minAge = DateTimeOffset.UtcNow.AddMinutes(-_options.AutoDispatchMinAgeMinutes);
 
+        // Expire any offers that lapsed without acceptance, so the pickup becomes eligible
+        // for re-offer (or push fallback) below. Runs first each cycle.
+        await ExpireStaleOffersAsync(db, ct);
+
         // Fetch candidate pickup requests:
         //   - status = 'pending'
         //   - older than MinAgeMinutes (so admins can beat the job for fresh requests)
-        //   - no delivery_assignment yet (any leg_type — idempotency guard)
+        //   - no LIVE delivery_assignment (expired/rejected offers don't count — they re-offer)
         // Worker bypasses RLS, so we get all brands. Cross-brand isolation is maintained
         // by grouping work per brand_id when selecting riders.
         // Project the NTS Point object itself rather than its .Y/.X components.
@@ -102,7 +108,9 @@ public sealed class AutoDispatchService : BackgroundService
             .Where(p => p.Status == "pending"
                      && p.CreatedAt <= minAge
                      && !db.DeliveryAssignments
-                           .Any(a => a.PickupRequestId == p.Id))
+                           .Any(a => a.PickupRequestId == p.Id
+                                  && a.Status != DeliveryAssignmentStatus.Expired
+                                  && a.Status != DeliveryAssignmentStatus.Rejected))
             .OrderBy(p => p.CreatedAt)
             .Take(_options.AutoDispatchMaxPerCycle)
             .Select(p => new
@@ -112,6 +120,7 @@ public sealed class AutoDispatchService : BackgroundService
                 p.StoreId,
                 p.FranchiseId,
                 p.CreatedAt,
+                p.RequestedVehicleTier,
                 AddressPoint = p.Address.GeoLocation   // NTS Point; null when no geo
             })
             .ToListAsync(ct);
@@ -142,8 +151,20 @@ public sealed class AutoDispatchService : BackgroundService
                 r.PrimaryStoreId,
                 r.CurrentLoad,
                 r.DailyDeliveryCapacity,
+                r.VehicleType,
                 LocationPoint = r.LastKnownLocation   // NTS Point; null when no recent ping
             })
+            .ToListAsync(ct);
+
+        // Resolve dispatch mode (push vs offer_accept) per job — franchise > brand > platform.
+        var dispatch = await DispatchConfig.LoadAsync(db, brandIds, ct);
+
+        // Prior offer/assignment rows for these pickups: used to exclude riders already
+        // offered/declined and to count offer rounds for the push fallback.
+        var pickupIds = pendingPickups.Select(p => p.Id).ToList();
+        var priorAssignments = await db.DeliveryAssignments
+            .Where(a => a.PickupRequestId != null && pickupIds.Contains(a.PickupRequestId.Value))
+            .Select(a => new { PickupRequestId = a.PickupRequestId!.Value, a.RiderId, a.OfferRound })
             .ToListAsync(ct);
 
         int assigned = 0;
@@ -152,9 +173,17 @@ public sealed class AutoDispatchService : BackgroundService
         {
             try
             {
+                // Riders already offered/declined for this pickup must be skipped on re-offer;
+                // the highest prior round drives the push fallback after MaxOfferRounds.
+                var priorForPickup = priorAssignments.Where(a => a.PickupRequestId == pickup.Id).ToList();
+                var excludedRiders = priorForPickup.Select(a => a.RiderId).ToHashSet();
+                var roundsSoFar    = priorForPickup.Count == 0
+                    ? 0
+                    : priorForPickup.Max(a => a.OfferRound ?? 0);
+
                 // Filter candidates to the same brand; prefer franchise match when available.
                 var brandRiders = ridersByBrand
-                    .Where(r => r.BrandId == pickup.BrandId)
+                    .Where(r => r.BrandId == pickup.BrandId && !excludedRiders.Contains(r.Id))
                     .ToList();
 
                 // Narrow to same franchise when determinable (franchise-scoped assignments).
@@ -170,13 +199,17 @@ public sealed class AutoDispatchService : BackgroundService
                 var candidates = candidatePool
                     .Select(r => new RiderCandidate(r.Id, r.CurrentLoad, r.DailyDeliveryCapacity,
                                                     r.LocationPoint?.Y,   // latitude
-                                                    r.LocationPoint?.X))  // longitude
+                                                    r.LocationPoint?.X,   // longitude
+                                                    r.VehicleType,
+                                                    pickup.FranchiseId.HasValue
+                                                        && r.FranchiseId == pickup.FranchiseId.Value))
                     .ToList();
 
                 var best = RiderRanker.PickBest(
                     candidates,
                     pickup.AddressPoint?.Y,   // latitude (null → distance ranking skipped)
-                    pickup.AddressPoint?.X);  // longitude
+                    pickup.AddressPoint?.X,   // longitude
+                    pickup.RequestedVehicleTier);  // tier gate (null → unconstrained)
                 if (best is null)
                 {
                     _logger.LogDebug(
@@ -200,6 +233,25 @@ public sealed class AutoDispatchService : BackgroundService
                     continue;
                 }
 
+                // Decide push vs offer_accept for this job. offer_accept only while we still
+                // have rounds left; otherwise fall back to a straight push assign.
+                var mode = dispatch.ResolveMode(pickup.BrandId, pickup.FranchiseId);
+                var useOffer = mode == DispatchSettings.ModeOfferAccept
+                            && roundsSoFar < dispatch.Parameters.MaxOfferRounds;
+
+                if (useOffer)
+                {
+                    // Offer (no load increment until the rider accepts). The rider stays
+                    // eligible for other jobs while an offer is outstanding.
+                    await OfferPickupAsync(db, pickup.Id, pickup.BrandId, resolvedStoreId.Value,
+                        best.RiderId, (short)(roundsSoFar + 1),
+                        dispatch.Parameters.OfferTtlSeconds, ct);
+                    assigned++;
+                    // Record the offer in-memory so a later pickup in this cycle excludes it too.
+                    priorAssignments.Add(new { PickupRequestId = pickup.Id, best.RiderId, OfferRound = (short?)(roundsSoFar + 1) });
+                    continue;
+                }
+
                 await AssignPickupAsync(db, pickup.Id, pickup.BrandId, resolvedStoreId.Value, best.RiderId, ct);
                 assigned++;
 
@@ -214,6 +266,7 @@ public sealed class AutoDispatchService : BackgroundService
                     snapshot.PrimaryStoreId,
                     CurrentLoad           = snapshot.CurrentLoad + 1,
                     snapshot.DailyDeliveryCapacity,
+                    snapshot.VehicleType,
                     snapshot.LocationPoint
                 };
                 ridersByBrand.Remove(snapshot);
@@ -315,5 +368,107 @@ public sealed class AutoDispatchService : BackgroundService
 
         // Increment current_load AFTER the transaction commits.
         await RiderLoadHelper.IncrementAsync(db, riderId, ct);
+    }
+
+    /// <summary>
+    /// offer_accept mode: offers a pickup to a rider by creating a delivery_assignment with
+    /// status='offered' and a TTL. Does NOT change the pickup status or increment the rider's
+    /// load — that happens only when the rider accepts. Emits an 'assignment.offered' event.
+    /// </summary>
+    private static async Task OfferPickupAsync(
+        LaundryGharDbContext db,
+        Guid  pickupRequestId,
+        Guid  brandId,
+        Guid  storeId,
+        Guid  riderId,
+        short offerRound,
+        int   offerTtlSeconds,
+        CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        // Guard: never offer when a live (non-terminal) assignment already exists.
+        var hasLive = await db.DeliveryAssignments.AnyAsync(
+            a => a.PickupRequestId == pickupRequestId
+              && a.Status != DeliveryAssignmentStatus.Expired
+              && a.Status != DeliveryAssignmentStatus.Rejected, ct);
+        if (hasLive) return;
+
+        var pr = await db.PickupRequests
+            .FirstOrDefaultAsync(p => p.Id == pickupRequestId && p.BrandId == brandId, ct);
+        if (pr is null || pr.Status != "pending") return;
+
+        var assignment = new DeliveryAssignment
+        {
+            Id              = Guid.NewGuid(),
+            BrandId         = brandId,
+            StoreId         = storeId,
+            RiderId         = riderId,
+            PickupRequestId = pickupRequestId,
+            LegType         = "pickup",
+            AssignedAt      = now,
+            AssignedBy      = null,
+            OfferedAt       = now,
+            OfferExpiresAt  = now.AddSeconds(offerTtlSeconds),
+            OfferRound      = offerRound,
+            AddressSnapshot = "{}",
+            OtpVerified     = false,
+            Status          = DeliveryAssignmentStatus.Offered,
+            Metadata        = "{}",
+            CreatedAt       = now,
+            UpdatedAt       = now
+        };
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            AssignmentId    = assignment.Id,
+            PickupRequestId = pickupRequestId,
+            BrandId         = brandId,
+            RiderId         = riderId,
+            OfferRound      = offerRound,
+            OfferExpiresAt  = assignment.OfferExpiresAt,
+            Source          = "auto_dispatch"
+        });
+
+        db.DeliveryAssignments.Add(assignment);
+        db.OutboxEvents.Add(new OutboxEvent
+        {
+            Id            = Guid.NewGuid(),
+            BrandId       = brandId,
+            AggregateType = "delivery_assignment",
+            AggregateId   = assignment.Id,
+            EventType     = "assignment.offered",
+            EventVersion  = 1,
+            Payload       = payload,
+            Metadata      = "{}",
+            OccurredAt    = now,
+            Status        = "pending",
+            CreatedAt     = now,
+            CreatedBy     = null
+        });
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// offer_accept mode: marks any 'offered' assignment whose TTL has elapsed as 'expired',
+    /// freeing its pickup to be re-offered (or push-assigned) on the next cycle.
+    /// </summary>
+    private static async Task ExpireStaleOffersAsync(LaundryGharDbContext db, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var stale = await db.DeliveryAssignments
+            .Where(a => a.Status == DeliveryAssignmentStatus.Offered
+                     && a.OfferExpiresAt != null
+                     && a.OfferExpiresAt < now)
+            .ToListAsync(ct);
+
+        if (stale.Count == 0) return;
+
+        foreach (var a in stale)
+        {
+            a.Status    = DeliveryAssignmentStatus.Expired;
+            a.UpdatedAt = now;
+        }
+        await db.SaveChangesAsync(ct);
     }
 }

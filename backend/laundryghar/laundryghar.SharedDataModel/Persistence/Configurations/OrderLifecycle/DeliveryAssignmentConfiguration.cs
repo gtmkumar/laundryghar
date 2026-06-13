@@ -23,6 +23,9 @@ public sealed class DeliveryAssignmentConfiguration : IEntityTypeConfiguration<D
         b.Property(e => e.SequenceNumber).HasColumnName("sequence_number");
         b.Property(e => e.AssignedAt).HasColumnName("assigned_at").IsRequired();
         b.Property(e => e.AssignedBy).HasColumnName("assigned_by");
+        b.Property(e => e.OfferedAt).HasColumnName("offered_at");
+        b.Property(e => e.OfferExpiresAt).HasColumnName("offer_expires_at");
+        b.Property(e => e.OfferRound).HasColumnName("offer_round");
         b.Property(e => e.AcceptedAt).HasColumnName("accepted_at");
         b.Property(e => e.StartedAt).HasColumnName("started_at");
         b.Property(e => e.ArrivedAt).HasColumnName("arrived_at");

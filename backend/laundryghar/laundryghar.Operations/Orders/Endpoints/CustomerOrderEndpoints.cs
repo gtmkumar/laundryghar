@@ -2,6 +2,7 @@ using laundryghar.Orders.Infrastructure.Auth;
 using laundryghar.Orders.Infrastructure.Services;
 using laundryghar.Orders.Application.Delivery.Dtos;
 using laundryghar.Orders.Application.Delivery.Queries;
+using laundryghar.Orders.Application.Fare;
 using laundryghar.Orders.Application.Orders.Commands;
 using laundryghar.Orders.Application.Orders.Dtos;
 using laundryghar.Orders.Application.Orders.Queries;
@@ -199,6 +200,40 @@ public static class CustomerOrderEndpoints
             var r = await sender.Send(
                 new ValidateCouponForPickupQuery(customerId, brandId, req.CouponCode, req.EstimatedSubtotal ?? 0m), ct);
             return Results.Ok(new SingleResponse<CouponPreviewResult> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        // ── Parcel orders (point-to-point) ────────────────────────────────────
+        // A parcel is fare-quoted, so booking creates the order directly (unlike laundry,
+        // which schedules a pickup and is converted to an order after weighing).
+        orders.MapPost("/parcel", async (
+            HttpContext http, CreateParcelOrderRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            var brandId    = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(new CreateParcelOrderCommand(customerId, brandId, req), ct);
+            return Results.Created($"/api/v1/customer/orders/{r.Id}",
+                new SingleResponse<OrderDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        // ── Fare quote (point-to-point parcel pricing) ────────────────────────
+        var fare = group.MapGroup("/fare").WithTags("Customer - Fare");
+
+        /// <summary>
+        /// POST /fare/quote — distance + time + surge delivery quote between two of the
+        /// customer's addresses. Returns a TTL-bound token replayed at order creation to
+        /// lock the price. 422 when either address lacks a geo-location.
+        /// </summary>
+        fare.MapPost("/quote", async (
+            HttpContext http, FareQuoteRequest req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            var brandId    = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(new GetFareQuoteQuery(customerId, brandId, req), ct);
+            return Results.Ok(new SingleResponse<FareQuoteDto> { Status = true, Data = r });
         }).RequireAuthorization("CustomerOnly");
 
         // ── Delivery slots ────────────────────────────────────────────────────

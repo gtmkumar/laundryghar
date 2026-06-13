@@ -23,6 +23,7 @@ public sealed class PickupRequestConfiguration : IEntityTypeConfiguration<Pickup
         b.Property(e => e.PickupWindowStart).HasColumnName("pickup_window_start").HasColumnType("time without time zone").IsRequired();
         b.Property(e => e.PickupWindowEnd).HasColumnName("pickup_window_end").HasColumnType("time without time zone").IsRequired();
         b.Property(e => e.IsExpress).HasColumnName("is_express").IsRequired();
+        b.Property(e => e.RequestedVehicleTier).HasColumnName("requested_vehicle_tier").HasMaxLength(20);
         b.Property(e => e.EstimatedItems).HasColumnName("estimated_items");
         b.Property(e => e.EstimatedAmount).HasColumnName("estimated_amount").HasColumnType("numeric(14,2)");
         b.Property(e => e.ServicesRequested).HasColumnName("services_requested").HasColumnType("uuid[]").IsRequired();

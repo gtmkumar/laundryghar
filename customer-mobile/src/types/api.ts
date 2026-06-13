@@ -304,6 +304,56 @@ export interface DeliverySlotDto {
 }
 
 // ---------------------------------------------------------------------------
+// Parcel (point-to-point) DTOs — mirrors CustomerFare/ParcelEndpoints in Orders
+// ---------------------------------------------------------------------------
+
+/**
+ * Backend vehicle-tier values for a parcel job. A larger vehicle can serve a
+ * smaller job. `cycle`/`foot` are valid but not surfaced in the picker.
+ */
+export type VehicleTier =
+  | 'two_wheeler'
+  | 'three_wheeler'
+  | 'four_wheeler'
+  | 'cycle'
+  | 'foot';
+
+/** Request body for POST /customer/fare/quote */
+export interface FareQuoteRequest {
+  pickupAddressId: string;
+  deliveryAddressId: string;
+  vehicleTier?: string;
+  isExpress?: boolean;
+}
+
+/**
+ * Response from POST /customer/fare/quote (unwrap with unwrapSingle).
+ * `token` is short-lived (~10 min) and must be passed verbatim into the
+ * create-parcel-order call. `expiresAt` is an ISO timestamp.
+ */
+export interface FareQuoteDto {
+  pickupCharge: number;
+  deliveryCharge: number;
+  totalCharge: number;
+  distanceKm: number;
+  surgeMultiplier: number;
+  vehicleTier: string | null;
+  expiresAt: string;
+  token: string;
+}
+
+/** Request body for POST /customer/orders/parcel */
+export interface CreateParcelOrderRequest {
+  pickupAddressId: string;
+  deliveryAddressId: string;
+  vehicleTier?: string;
+  fareQuoteToken: string;
+  notesCustomer?: string | null;
+  /** "wallet" | "cod" */
+  paymentPreference?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Pickup-request DTOs — mirrors PickupDtos.cs in Orders service
 // ---------------------------------------------------------------------------
 

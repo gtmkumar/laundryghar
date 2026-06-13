@@ -371,6 +371,47 @@ public static class LogisticsEndpoints
                 : Results.Ok(new SingleResponse<RiderAssignmentDto> { Status = true, Data = result });
         }).RequireAuthorization(TasksUpdate);
 
+        // POST /api/v1/rider/assignments/{id}/accept  (offer_accept dispatch)
+        riderSelf.MapPost("/assignments/{id:guid}/accept", async (
+            Guid id, HttpContext ctx, ISender sender, LaundryGharDbContext db, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var rider = await db.Riders.Where(r => r.UserId == userId && r.BrandId == brandId)
+                .Select(r => new { r.Id }).FirstOrDefaultAsync(ct);
+            if (rider is null) return Results.NotFound();
+
+            var r = await sender.Send(new AcceptOfferCommand(id, rider.Id, brandId), ct);
+            return r.Outcome switch
+            {
+                OfferActionOutcome.Ok       => Results.Ok(new SingleResponse<OfferActionResult> { Status = true, Data = r }),
+                OfferActionOutcome.NotFound => Results.NotFound(),
+                OfferActionOutcome.Expired  => Results.StatusCode(410),  // Gone — offer lapsed
+                OfferActionOutcome.Taken    => Results.Conflict(new SingleResponse<OfferActionResult> { Status = false, Data = r }),
+                _                            => Results.StatusCode(500),
+            };
+        }).RequireAuthorization(TasksUpdate);
+
+        // POST /api/v1/rider/assignments/{id}/decline  (offer_accept dispatch)
+        riderSelf.MapPost("/assignments/{id:guid}/decline", async (
+            Guid id, HttpContext ctx, ISender sender, LaundryGharDbContext db, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var rider = await db.Riders.Where(r => r.UserId == userId && r.BrandId == brandId)
+                .Select(r => new { r.Id }).FirstOrDefaultAsync(ct);
+            if (rider is null) return Results.NotFound();
+
+            var r = await sender.Send(new DeclineOfferCommand(id, rider.Id, brandId), ct);
+            return r.Outcome == OfferActionOutcome.NotFound
+                ? Results.NotFound()
+                : Results.Ok(new SingleResponse<OfferActionResult> { Status = true, Data = r });
+        }).RequireAuthorization(TasksUpdate);
+
         // ── Per-order tasks (pickup/delivery legs) ────────────────────────────
         // GET /api/v1/rider/tasks/today
         riderSelf.MapGet("/tasks/today", async (HttpContext ctx, ISender sender, CancellationToken ct) =>

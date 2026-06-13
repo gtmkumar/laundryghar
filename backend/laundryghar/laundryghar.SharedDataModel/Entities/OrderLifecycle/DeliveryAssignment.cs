@@ -26,6 +26,16 @@ public class DeliveryAssignment
     public short? SequenceNumber { get; set; }
     public DateTimeOffset AssignedAt { get; set; }
     public Guid? AssignedBy { get; set; }
+
+    /// <summary>offer_accept mode: when this job was offered to the rider.</summary>
+    public DateTimeOffset? OfferedAt { get; set; }
+
+    /// <summary>offer_accept mode: when an un-accepted offer lapses and is re-offered.</summary>
+    public DateTimeOffset? OfferExpiresAt { get; set; }
+
+    /// <summary>offer_accept mode: 1-based round number; re-offers increment this.</summary>
+    public short? OfferRound { get; set; }
+
     public DateTimeOffset? AcceptedAt { get; set; }
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? ArrivedAt { get; set; }

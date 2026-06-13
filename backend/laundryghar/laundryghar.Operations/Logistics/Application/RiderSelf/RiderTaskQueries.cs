@@ -684,7 +684,7 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
             //    history row per hop. Off-path / already-advanced orders → no-op.
             if (order is not null)
             {
-                var hops = OrderStateMachine.ForwardPath(order.Status, orderTarget);
+                var hops = OrderStateMachine.ForwardPath(order.Status, orderTarget, order.JobType);
                 foreach (var next in hops)
                 {
                     var from = order.Status;

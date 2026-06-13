@@ -4,9 +4,12 @@
  */
 import { ordersClient, unwrapList, unwrapPaginated, unwrapSingle } from '@/api/client';
 import type {
+  CreateParcelOrderRequest,
   CreatePickupRequestRequest,
   CouponPreviewResult,
   DeliverySlotDto,
+  FareQuoteDto,
+  FareQuoteRequest,
   ListResponse,
   OrderDto,
   OrderStatusHistoryDto,
@@ -66,6 +69,37 @@ export async function rateOrder(
   const res = await ordersClient.post<SingleResponse<OrderDto>>(
     `/customer/orders/${id}/rate`,
     body,
+  );
+  return unwrapSingle(res.data);
+}
+
+// ── Parcel (point-to-point) ───────────────────────────────────────────────────
+
+/**
+ * POST /api/v1/customer/fare/quote
+ * Returns a short-lived fare quote + token. 422 when an address lacks geo-location.
+ */
+export async function quoteParcelFare(
+  req: FareQuoteRequest,
+): Promise<FareQuoteDto> {
+  const res = await ordersClient.post<SingleResponse<FareQuoteDto>>(
+    '/customer/fare/quote',
+    req,
+  );
+  return unwrapSingle(res.data);
+}
+
+/**
+ * POST /api/v1/customer/orders/parcel
+ * Creates a parcel order from a held fare-quote token (201). 422 on a
+ * missing/expired/tampered/mismatched token.
+ */
+export async function createParcelOrder(
+  req: CreateParcelOrderRequest,
+): Promise<OrderDto> {
+  const res = await ordersClient.post<SingleResponse<OrderDto>>(
+    '/customer/orders/parcel',
+    req,
   );
   return unwrapSingle(res.data);
 }

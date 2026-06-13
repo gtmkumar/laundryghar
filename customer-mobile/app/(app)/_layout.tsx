@@ -46,6 +46,10 @@ export default function AppLayout() {
         name="booking/confirm"
         options={{ animation: 'fade', gestureEnabled: false }}
       />
+      <Stack.Screen name="parcel/pickup" />
+      <Stack.Screen name="parcel/drop" />
+      <Stack.Screen name="parcel/vehicle" />
+      <Stack.Screen name="parcel/quote" />
       <Stack.Screen name="orders/[id]" />
       <Stack.Screen name="orders/tracking/[id]" />
       <Stack.Screen name="notifications" />
