@@ -141,6 +141,8 @@ public sealed class AutoDispatchService : BackgroundService
             .Where(r => brandIds.Contains(r.BrandId)
                      && r.IsOnDuty
                      && r.Status == "active"
+                     && r.KycStatus == "verified"
+                     && r.VehicleVerificationStatus == "approved"
                      && r.CurrentLoad < r.DailyDeliveryCapacity
                      && r.DeletedAt == null)
             .Select(r => new

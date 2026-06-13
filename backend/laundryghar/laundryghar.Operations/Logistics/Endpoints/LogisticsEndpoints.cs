@@ -104,6 +104,57 @@ public static class LogisticsEndpoints
                 : Results.Ok(new SingleResponse<RiderDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:rider.verify");
 
+        // ── Driver verification queue: documents + vehicle review ─────────────
+        // GET /api/v1/admin/riders/{id}/verification — KYC status + vehicle gate + documents
+        riders.MapGet("/{id:guid}/verification", async (Guid id, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new GetRiderVerificationQuery(id), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderVerificationView> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.read");
+
+        // POST /api/v1/admin/riders/{id}/vehicle/approve | /reject
+        riders.MapPost("/{id:guid}/vehicle/approve", async (Guid id, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewRiderVehicleCommand(id, true, null, u.UserId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderVerificationView> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
+
+        riders.MapPost("/{id:guid}/vehicle/reject", async (
+            Guid id, RejectRiderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewRiderVehicleCommand(id, false, req.Reason, u.UserId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderVerificationView> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
+
+        // Document review group (sibling of /riders)
+        var riderDocs = admin.MapGroup("/rider-documents").WithTags("Admin - Rider Documents");
+
+        // GET /api/v1/admin/rider-documents/{docId}/file — streams the document image
+        riderDocs.MapGet("/{docId:guid}/file", async (Guid docId, ISender sender, CancellationToken ct) =>
+        {
+            var s = await sender.Send(new GetRiderDocumentStreamQuery(docId), ct);
+            return s is null ? Results.NotFound()
+                : Results.Stream(s.Stream, contentType: s.ContentType, fileDownloadName: s.FileName, enableRangeProcessing: false);
+        }).RequireAuthorization("permission:rider.read");
+
+        riderDocs.MapPost("/{docId:guid}/approve", async (Guid docId, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewRiderDocumentCommand(docId, true, null, u.UserId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderDocumentDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
+
+        riderDocs.MapPost("/{docId:guid}/reject", async (
+            Guid docId, RejectRiderRequest req, ICurrentUser u, ISender sender, CancellationToken ct) =>
+        {
+            var r = await sender.Send(new ReviewRiderDocumentCommand(docId, false, req.Reason, u.UserId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderDocumentDto> { Status = true, Data = r });
+        }).RequireAuthorization("permission:rider.verify");
+
         // ── Rider Ops (live board) ────────────────────────────────────────────
         // Read-only operational views over existing data: live location/status,
         // GPS breadcrumb trail, and per-rider throughput. Gated by rider.read.
@@ -411,6 +462,33 @@ public static class LogisticsEndpoints
                 ? Results.NotFound()
                 : Results.Ok(new SingleResponse<OfferActionResult> { Status = true, Data = r });
         }).RequireAuthorization(TasksUpdate);
+
+        // ── KYC documents (rider-self) ────────────────────────────────────────
+        // GET /api/v1/rider/documents — my verification status + uploaded documents
+        riderSelf.MapGet("/documents", async (HttpContext ctx, ISender sender, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(new GetMyRiderVerificationQuery(userId, brandId), ct);
+            return r is null ? Results.NotFound()
+                : Results.Ok(new SingleResponse<RiderVerificationView> { Status = true, Data = r });
+        }).RequireAuthorization("RiderOnly");
+
+        // POST /api/v1/rider/documents — multipart upload (docType + file)
+        riderSelf.MapPost("/documents", async (
+            HttpContext ctx, [FromForm] string docType, IFormFile file, ISender sender, CancellationToken ct) =>
+        {
+            var userId  = GetRiderUserId(ctx);
+            var brandId = GetRiderBrandId(ctx);
+            if (userId == Guid.Empty || brandId == Guid.Empty) return Results.Unauthorized();
+
+            var r = await sender.Send(new UploadRiderDocumentCommand(userId, brandId, docType, file), ct);
+            return Results.Ok(new SingleResponse<RiderDocumentDto> { Status = true, Data = r });
+        }).RequireAuthorization("RiderOnly")
+          .DisableAntiforgery()
+          .WithMetadata(new RequestSizeLimitAttribute(6 * 1024 * 1024));
 
         // ── Per-order tasks (pickup/delivery legs) ────────────────────────────
         // GET /api/v1/rider/tasks/today

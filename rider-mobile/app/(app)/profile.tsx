@@ -99,12 +99,18 @@ export default function ProfileScreen() {
             <Text className="mt-3 text-xl font-extrabold text-ink">{name}</Text>
             <Text className="mt-0.5 text-sm text-ink-muted">{profile?.riderCode}</Text>
             {profile?.kycStatus ? (
-              <View className={`mt-2 flex-row items-center gap-1 rounded-full px-3 py-1 ${profile.kycStatus === 'verified' ? 'bg-olive-100' : 'bg-gold-100'}`}>
+              <Pressable
+                onPress={() => router.push('/(app)/documents')}
+                accessibilityRole="button"
+                accessibilityLabel={t('profile.documentsKyc')}
+                className={`mt-2 flex-row items-center gap-1 rounded-full px-3 py-1 active:opacity-70 ${profile.kycStatus === 'verified' ? 'bg-olive-100' : 'bg-gold-100'}`}
+              >
                 <Ionicons name={profile.kycStatus === 'verified' ? 'shield-checkmark' : 'shield-outline'} size={12} color={profile.kycStatus === 'verified' ? '#4A552A' : '#8A641D'} />
                 <Text className={`text-[11px] font-bold ${profile.kycStatus === 'verified' ? 'text-olive-800' : 'text-gold-700'}`}>
                   {profile.kycStatus === 'verified' ? t('profile.kycVerified') : t('profile.kycPending')}
                 </Text>
-              </View>
+                <Ionicons name="chevron-forward" size={11} color={profile.kycStatus === 'verified' ? '#4A552A' : '#8A641D'} />
+              </Pressable>
             ) : null}
           </View>
 
@@ -158,6 +164,19 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={14} color="#A8A493" />
             </Pressable>
           </View>
+
+          {/* Documents & KYC entry point */}
+          <Pressable
+            onPress={() => router.push('/(app)/documents')}
+            className="mt-3 flex-row items-center gap-3 rounded-2xl bg-white px-4 py-3.5 active:opacity-70"
+            style={{ elevation: 1 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.documentsKyc')}
+          >
+            <Ionicons name="shield-checkmark-outline" size={18} color="#4A552A" />
+            <Text className="flex-1 text-sm font-bold text-ink">{t('profile.documentsKyc')}</Text>
+            <Ionicons name="chevron-forward" size={14} color="#A8A493" />
+          </Pressable>
 
           {/* Language switcher */}
           <View

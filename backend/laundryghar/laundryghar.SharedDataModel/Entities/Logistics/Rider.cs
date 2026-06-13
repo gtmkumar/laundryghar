@@ -54,6 +54,14 @@ public class Rider : ISoftDeletable
     public int CurrentLoad { get; set; }
     public string KycStatus { get; set; } = null!;
     public DateTimeOffset? KycVerifiedAt { get; set; }
+
+    /// <summary>Vehicle review gate — pending|under_review|approved|rejected.
+    /// Dispatch requires 'approved' (combined with kyc verified). See <see cref="Enums.VehicleVerificationStatus"/>.</summary>
+    public string VehicleVerificationStatus { get; set; } = "pending";
+    public DateTimeOffset? VehicleVerifiedAt { get; set; }
+    public Guid? VehicleVerifiedBy { get; set; }
+    public string? VehicleRejectionReason { get; set; }
+
     public DateTimeOffset? OnboardedAt { get; set; }
     public string Status { get; set; } = null!;
     public string Metadata { get; set; } = null!;
@@ -71,4 +79,5 @@ public class Rider : ISoftDeletable
     public ICollection<RiderAssignment> Assignments { get; set; } = [];
     public ICollection<RiderCapacityConfig> CapacityConfigs { get; set; } = [];
     public ICollection<RiderLocationPing> LocationPings { get; set; } = [];
+    public ICollection<RiderDocument> Documents { get; set; } = [];
 }

@@ -2079,6 +2079,7 @@ export interface RiderDto {
   isOnDuty: boolean
   currentLoad: number
   kycStatus: string
+  vehicleVerificationStatus: RiderVehicleVerificationStatus
   status: string
   createdAt: string
   updatedAt: string
@@ -2092,6 +2093,31 @@ export interface RiderDto {
 
 export type RiderKycStatus = 'pending' | 'submitted' | 'verified' | 'rejected' | 'expired'
 export type RiderStatus = 'active' | 'suspended' | 'terminated'
+
+/** Vehicle verification lifecycle (separate from KYC) returned on RiderDto + the verification view. */
+export type RiderVehicleVerificationStatus = 'pending' | 'under_review' | 'approved' | 'rejected'
+
+/** A single uploaded KYC document under review. */
+export type RiderDocType = 'license' | 'rc' | 'insurance' | 'id' | 'photo'
+export type RiderDocStatus = 'pending' | 'approved' | 'rejected'
+
+export interface RiderDocumentDto {
+  id: string
+  docType: RiderDocType
+  fileName: string
+  status: RiderDocStatus
+  rejectionReason: string | null
+  reviewedAt: string | null
+  uploadedAt: string
+}
+
+/** GET /admin/riders/{id}/verification — the document + vehicle review packet. */
+export interface RiderVerificationDto {
+  kycStatus: string
+  vehicleVerificationStatus: RiderVehicleVerificationStatus
+  vehicleRejectionReason: string | null
+  documents: RiderDocumentDto[]
+}
 
 /** Sort keys accepted by GET /riders `sort` param. Prefix with `-` for descending. */
 export type RiderSortKey = 'created' | 'name' | 'franchise' | 'kyc' | 'status'

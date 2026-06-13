@@ -147,7 +147,8 @@ public sealed class CreateRiderHandler : IRequestHandler<CreateRiderCommand, Rid
             userStatus,         franchiseName,      primaryStoreName,
             // Financial PII — populated here; masking applied by the handler before HTTP response.
             r.PanNumber,        r.BankAccountNumber,
-            r.BankIfsc,         r.BankAccountName,  r.UpiId);
+            r.BankIfsc,         r.BankAccountName,  r.UpiId,
+            r.VehicleVerificationStatus);
 
     /// <summary>
     /// Re-queries the enrichment rows for a single rider after a write operation

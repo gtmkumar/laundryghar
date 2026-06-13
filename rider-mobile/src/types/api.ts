@@ -336,6 +336,48 @@ export type RiderTaskPhase =
   | 'cancelled';
 
 // ---------------------------------------------------------------------------
+// Rider KYC document DTOs — mirrors the rider self-service /rider/documents
+// contract (GET status + POST multipart upload).
+// ---------------------------------------------------------------------------
+
+/** The five document slots a rider must provide. */
+export type RiderDocType = 'license' | 'rc' | 'insurance' | 'id' | 'photo';
+
+/** Per-document review state. */
+export type RiderDocStatus = 'pending' | 'approved' | 'rejected';
+
+/**
+ * Overall KYC / vehicle verification state. Backend may return either the
+ * compact ('pending') or expanded ('under_review') wording — both are handled
+ * by the badge mapping in the UI.
+ */
+export type RiderVerificationStatus =
+  | 'pending'
+  | 'under_review'
+  | 'approved'
+  | 'verified'
+  | 'rejected';
+
+/** A single uploaded document and its review outcome. */
+export interface RiderDocumentDto {
+  id:               string;
+  docType:          RiderDocType;
+  fileName:         string;
+  status:           RiderDocStatus;
+  rejectionReason?: string | null;
+  reviewedAt?:      string | null;   // ISO-8601
+  uploadedAt:       string;          // ISO-8601
+}
+
+/** Response of GET /api/v1/rider/documents. */
+export interface RiderVerificationDto {
+  kycStatus:                 RiderVerificationStatus;
+  vehicleVerificationStatus: RiderVerificationStatus;
+  vehicleRejectionReason?:   string | null;
+  documents:                 RiderDocumentDto[];
+}
+
+// ---------------------------------------------------------------------------
 // Rider payouts DTOs — mirrors RiderPayoutSummaryDto / RiderPayoutDayDto
 // ---------------------------------------------------------------------------
 

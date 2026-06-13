@@ -28,6 +28,7 @@ export const ROUTE_PERMISSIONS: Record<string, string | null> = {
   '/warehouse/board': 'garment.read',
   '/customers': 'customer.read',
   '/riders': 'rider.read',
+  '/riders/verification': 'rider.read',
   '/catalog': 'pricing.read',
   '/packages': 'packages.manage',
   '/coupons': 'coupons.manage',
