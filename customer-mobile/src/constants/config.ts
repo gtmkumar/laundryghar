@@ -20,18 +20,19 @@ const DEV_HOST =
 // expo-constants surfaces app.config.ts `extra` at runtime
 const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, string | undefined>;
 
-/** Build a default service URL on the resolved dev host. */
-const devUrl = (port: number) => `http://${DEV_HOST}:${port}`;
+/** Build a default service URL on the gateway, with this service's path prefix. */
+const gw = (prefix: string) => `http://${DEV_HOST}:8080/${prefix}`;
 
-// Post-consolidation the 11 services collapsed to 3 hosts:
-//   core (5050) = identity + engagement;  operations (5002) = catalog + orders;
-//   commerce (5005) = commerce.
+// All traffic via gateway :8080/<prefix>; extra overrides win (prod gateway URL).
+// The API Gateway (YARP) strips the prefix and forwards to the right host:
+//   /identity,/engagement -> core (5050);  /catalog,/orders -> operations (5002);
+//   /commerce -> commerce (5005).
 export const CONFIG = {
-  identityApiUrl:   extra['identityApiUrl']   ?? devUrl(5050),
-  catalogApiUrl:    extra['catalogApiUrl']    ?? devUrl(5002),
-  ordersApiUrl:     extra['ordersApiUrl']     ?? devUrl(5002),
-  commerceApiUrl:   extra['commerceApiUrl']   ?? devUrl(5005),
-  engagementApiUrl: extra['engagementApiUrl'] ?? devUrl(5050),
+  identityApiUrl:   extra['identityApiUrl']   ?? gw('identity'),
+  catalogApiUrl:    extra['catalogApiUrl']    ?? gw('catalog'),
+  ordersApiUrl:     extra['ordersApiUrl']     ?? gw('orders'),
+  commerceApiUrl:   extra['commerceApiUrl']   ?? gw('commerce'),
+  engagementApiUrl: extra['engagementApiUrl'] ?? gw('engagement'),
   defaultBrandCode: extra['defaultBrandCode'] ?? 'LG-MAIN',
 } as const;
 

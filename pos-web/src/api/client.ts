@@ -8,8 +8,9 @@
  *  3. On 401, attempt one silent token refresh then retry the original request.
  *  4. On repeated 401 (refresh failed), clear auth and redirect to /login.
  *
- * Four service clients: identity, catalog, orders, finance.
- * Ports: Identity 5000, Catalog 5001, Orders 5002, Finance 5006.
+ * Five service clients: identity, catalog, orders, finance, commerce.
+ * Base URLs come from VITE_*_URL env vars — in dev these point at the API
+ * gateway (http://localhost:8080/<prefix>), which fans in to the hosts.
  */
 
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'

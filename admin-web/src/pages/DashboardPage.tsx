@@ -2,7 +2,7 @@
  * DashboardPage — redesigned warm dashboard.
  *
  * Data wiring:
- *  - KPI 1 (Orders Today) + KPI 2 (Revenue Today): GET :5005/analytics/dashboard → today.*
+ *  - KPI 1 (Orders Today) + KPI 2 (Revenue Today): GET /analytics/dashboard (via gateway) → today.*
  *  - KPI 3 (Pending Pickup): getOrders({status:'pickup_scheduled', pageSize:1}) → totalCount
  *    NOTE: there is no dedicated /count endpoint, but the list response carries a
  *    server-computed TotalCount (COUNT(*) independent of paging). We fetch a single

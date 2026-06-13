@@ -3,3 +3,4 @@
 - [Customer-mobile Android RE-TEST 2026-06-13](customer-mobile-android-test.md) — C1-C9 all PASS; cosmetic wallet-flash on pay screen; no in-app cancel UI (API works)
 - [Rider-mobile Android RE-TEST 2026-06-13](rider-mobile-android-test.md) — R1-R6 all PASS; NEW MED gap: COD never persisted (assign leaves cod_amount NULL); DB landmarks
 - [iOS live test 2026-06-13](ios-live-test-results.md) — both apps PASS full flows; rider iOS login KICKED Android session; COD gap reconfirmed
+- [Gateway routing](gateway-routing.md) — both apps now route via :8080/<prefix> (gw() helper in config.ts); extra-override still wins; guard test added

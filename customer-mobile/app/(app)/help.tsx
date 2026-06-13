@@ -2,7 +2,7 @@
  * Help & Support screen.
  *  - FAQ list (static, structured for future CMS)
  *  - Contact us (mailto / tel via Linking)
- *  - Grievance Officer info fetched from GET :5050/api/v1/public/app-config
+ *  - Grievance Officer info fetched from GET :8080/engagement/api/v1/public/app-config
  *    (config_key = "grievance_officer", DPDP Act Clause 13 requirement)
  */
 import React, { useState } from 'react';

@@ -15,12 +15,16 @@ const hostUri =
   '';
 const DEV_HOST = hostUri.split(':')[0] || 'localhost';
 
-// Post-consolidation the 11 services collapsed to 3 hosts:
-//   core (5050) = identity + engagement;  operations (5002) = logistics.
+/** Build a default service URL on the gateway, with this service's path prefix. */
+const gw = (prefix: string) => `http://${DEV_HOST}:8080/${prefix}`;
+
+// All traffic via gateway :8080/<prefix>; extra overrides win (prod gateway URL).
+// The API Gateway (YARP) strips the prefix and forwards to the right host:
+//   /identity,/engagement -> core (5050);  /logistics -> operations (5002).
 export const CONFIG = {
-  identityApiUrl:   extra['identityApiUrl']   ?? `http://${DEV_HOST}:5050`,
-  logisticsApiUrl:  extra['logisticsApiUrl']  ?? `http://${DEV_HOST}:5002`,
-  engagementApiUrl: extra['engagementApiUrl'] ?? `http://${DEV_HOST}:5050`,
+  identityApiUrl:   extra['identityApiUrl']   ?? gw('identity'),
+  logisticsApiUrl:  extra['logisticsApiUrl']  ?? gw('logistics'),
+  engagementApiUrl: extra['engagementApiUrl'] ?? gw('engagement'),
   defaultBrandCode: extra['defaultBrandCode'] ?? 'LG-MAIN',
 } as const;
 

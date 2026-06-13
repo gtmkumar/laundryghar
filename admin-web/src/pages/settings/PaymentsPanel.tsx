@@ -30,14 +30,16 @@ export function PaymentsPanel({ settings }: { settings: AdminSettings }) {
   }, [p.enabled, p.keyId, p.codEnabled])
 
   // R3-WEB-2: prefer the canonical, env-aware webhook URL served by the backend
-  // settings GET when present. The string-replace fallback below is only correct
-  // in local dev (:5173 admin → :5002 commerce) and wrong in every other env.
+  // settings GET when present. The fallback below derives from the Commerce base
+  // URL (VITE_COMMERCE_URL — now the gateway, e.g. http://localhost:8080/commerce),
+  // so the registered webhook reaches Commerce through the gateway in every env.
   // TODO(R3-WEB-2): once the backend adds `webhookUrl` to PaymentGatewaySettingsView
   // (teammate's wave), drop the fallback and make this purely `p.webhookUrl`.
   const serverWebhookUrl = (p as { webhookUrl?: string | null }).webhookUrl ?? null
+  const commerceBaseUrl = (import.meta.env.VITE_COMMERCE_URL as string | undefined) ?? ''
   const webhookUrl =
     serverWebhookUrl ||
-    `${window.location.origin.replace(':5173', ':5002')}/api/v1/webhooks/razorpay`
+    `${commerceBaseUrl.replace(/\/$/, '')}/api/v1/webhooks/razorpay`
 
   const copyWebhookUrl = async () => {
     await navigator.clipboard.writeText(webhookUrl)
