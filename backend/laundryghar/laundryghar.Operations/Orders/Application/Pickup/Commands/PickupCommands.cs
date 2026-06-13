@@ -1,3 +1,5 @@
+using laundryghar.Orders.Infrastructure.Auth;
+using laundryghar.Orders.Infrastructure.Services;
 using System.Text.Json;
 using FluentValidation;
 using laundryghar.Orders.Application.Pickup.Dtos;
@@ -88,7 +90,10 @@ public sealed class CreatePickupRequestAdminHandler
             EstimatedAmount = req.EstimatedAmount ?? (cartItems.Length > 0
                 ? cartItems.Sum(i => (i.EstimatedUnitPrice ?? 0m) * i.Quantity)
                 : null),
-            ServicesRequested = req.ServicesRequested,
+            // JSON deserialization leaves the array null when the field is omitted
+            // (the DTO type is non-nullable but STJ doesn't enforce it), and the
+            // entity's primitive collection is required — default to empty.
+            ServicesRequested = req.ServicesRequested ?? [],
             CustomerNotes = req.CustomerNotes,
             RequestedItems = requestedItemsJson,
             PaymentPreference = paymentPref,
@@ -159,6 +164,25 @@ public sealed class AssignPickupHandler : IRequestHandler<AssignPickupCommand, D
         _user = user;
     }
 
+    /// <summary>
+    /// COD-CASH (pickup leg) — the amount of cash the rider is expected to collect at a
+    /// pickup, mirroring the delivery-leg COD model (DeliveryAssignment.CodAmount feeds the
+    /// same rider-cash settlement pipeline; see SettleRiderCodHandler / GetCodOutstanding).
+    ///
+    /// A pickup has COD due only when the customer chose to pay cash on collection
+    /// (PaymentPreference == "cod") AND there is a positive estimated amount to collect.
+    /// Wallet / upi-deferred preferences are settled when the order is confirmed after
+    /// weighing, so the rider collects nothing — returns null in that case.
+    /// Pure + static so it is unit-testable without a DbContext.
+    /// </summary>
+    internal static decimal? ResolvePickupCodAmount(string? paymentPreference, decimal? estimatedAmount)
+    {
+        var isCod = string.Equals(paymentPreference?.Trim(), "cod", StringComparison.OrdinalIgnoreCase);
+        if (!isCod) return null;
+        var amount = estimatedAmount ?? 0m;
+        return amount > 0m ? amount : null;
+    }
+
     public async Task<DeliveryAssignmentDto?> Handle(AssignPickupCommand cmd, CancellationToken ct)
     {
         var brandId = _user.RequireBrandId();
@@ -191,6 +215,11 @@ public sealed class AssignPickupHandler : IRequestHandler<AssignPickupCommand, D
                 "No store could be resolved for this assignment. " +
                 "Ensure the pickup request or rider has a store association.");
 
+        // COD-CASH (pickup leg): seed the cash the rider is expected to collect from the
+        // pickup request, so the rider-cash settlement pipeline can later see it. Stamped
+        // here at assign-time; the actual collected_at is set when the rider collects.
+        var pickupCod = ResolvePickupCodAmount(pr.PaymentPreference, pr.EstimatedAmount);
+
         var assignment = new DeliveryAssignment
         {
             Id = Guid.NewGuid(),
@@ -202,6 +231,7 @@ public sealed class AssignPickupHandler : IRequestHandler<AssignPickupCommand, D
             AssignedAt = now,
             AssignedBy = cmd.ActorId,
             AddressSnapshot = "{}",
+            CodAmount = pickupCod,
             OtpVerified = false,
             Status = "assigned",
             Metadata = "{}",
@@ -305,6 +335,14 @@ public sealed class CustomerSchedulePickupHandler
                 return new CustomerSchedulePickupResult(
                     CreatePickupRequestAdminHandler.ToDto(existing), AlreadyExisted: true);
         }
+
+        // ── DEFECT 2: validate cart-item catalog FKs (brand-scoped) ───────────
+        // The mobile app previously passed a price-list ROW id as itemId (with a
+        // null serviceId) and the request was accepted, writing a bogus reference.
+        // Reject any cartItems[i].itemId that is not a live customer_catalog item
+        // for this brand, and any non-null serviceId that doesn't resolve. The
+        // error dictionary keys carry the offending index so the client can map it.
+        await ValidateCartItemsAsync(req.CartItems, cmd.BrandId, ct);
 
         // ── Resolve slot store before opening the transaction ─────────────────
         // ExecuteSqlAsync inside the transaction runs on the same connection; we
@@ -454,6 +492,102 @@ public sealed class CustomerSchedulePickupHandler
         return pg.ConstraintName == IdempotencyIndexName
             || (pg.ConstraintName is null && pg.Message.Contains(IdempotencyIndexName, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// DEFECT 2 — validates that every cart item references a live, brand-scoped
+    /// catalog item (and a live service when a serviceId is supplied). Throws a
+    /// <see cref="ValidationException"/> (→ HTTP 422) whose error dictionary keys
+    /// identify the offending cart index, e.g. <c>cartItems[0].itemId</c>.
+    /// A null itemId is rejected outright — an item reference is required to book.
+    /// Internal so unit tests can exercise it directly.
+    /// </summary>
+    internal static async Task ValidateCartItemsAsync(
+        RequestedCartItemDto[]? cartItems, Guid brandId, CancellationToken ct,
+        LaundryGharDbContext? db = null)
+    {
+        // Allow the instance handler to pass its own context; static test callers pass db.
+        ArgumentNullException.ThrowIfNull(db);
+
+        if (cartItems is null || cartItems.Length == 0) return;
+
+        // Collect the distinct ids to validate in two set-based queries (no N+1).
+        var itemIds = cartItems
+            .Where(c => c.ItemId.HasValue)
+            .Select(c => c.ItemId!.Value)
+            .Distinct()
+            .ToList();
+
+        var serviceIds = cartItems
+            .Where(c => c.ServiceId.HasValue)
+            .Select(c => c.ServiceId!.Value)
+            .Distinct()
+            .ToList();
+
+        var validItemIds = itemIds.Count == 0
+            ? new HashSet<Guid>()
+            : (await db.Items
+                .Where(i => itemIds.Contains(i.Id)
+                         && i.BrandId == brandId
+                         && i.DeletedAt == null)
+                .Select(i => i.Id)
+                .ToListAsync(ct))
+                .ToHashSet();
+
+        var validServiceIds = serviceIds.Count == 0
+            ? new HashSet<Guid>()
+            : (await db.Services
+                .Where(s => serviceIds.Contains(s.Id)
+                         && s.BrandId == brandId
+                         && s.DeletedAt == null)
+                .Select(s => s.Id)
+                .ToListAsync(ct))
+                .ToHashSet();
+
+        var errors = BuildCartItemErrors(cartItems, validItemIds, validServiceIds);
+
+        if (errors.Count > 0)
+            throw new laundryghar.Utilities.Exceptions.ValidationException(errors);
+    }
+
+    /// <summary>
+    /// Pure per-index validation: given the set of catalog item/service ids that DO
+    /// exist for the brand, returns an error dictionary keyed by the offending cart
+    /// index (empty when all items are valid). Split out from the DB-touching method
+    /// so it is unit-testable without a DbContext.
+    /// </summary>
+    internal static Dictionary<string, string[]> BuildCartItemErrors(
+        RequestedCartItemDto[] cartItems,
+        ISet<Guid> validItemIds,
+        ISet<Guid> validServiceIds)
+    {
+        var errors = new Dictionary<string, string[]>();
+        for (var i = 0; i < cartItems.Length; i++)
+        {
+            var c = cartItems[i];
+
+            if (!c.ItemId.HasValue)
+            {
+                errors[$"cartItems[{i}].itemId"] =
+                    ["An itemId is required for each cart item."];
+            }
+            else if (!validItemIds.Contains(c.ItemId.Value))
+            {
+                errors[$"cartItems[{i}].itemId"] =
+                    [$"itemId '{c.ItemId.Value}' is not a valid catalog item for this brand."];
+            }
+
+            if (c.ServiceId.HasValue && !validServiceIds.Contains(c.ServiceId.Value))
+            {
+                errors[$"cartItems[{i}].serviceId"] =
+                    [$"serviceId '{c.ServiceId.Value}' is not a valid service for this brand."];
+            }
+        }
+        return errors;
+    }
+
+    /// <summary>Instance overload used by the handler (binds the injected DbContext).</summary>
+    private Task ValidateCartItemsAsync(RequestedCartItemDto[]? cartItems, Guid brandId, CancellationToken ct)
+        => ValidateCartItemsAsync(cartItems, brandId, ct, _db);
 }
 
 // ── Admin: reject (cancel) a pending/unassigned pickup request ────────────────

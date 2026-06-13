@@ -25,9 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Reference Identity only for OtpSecurityHelper and OtpSettings.
-         Identity is an SDK.Web project; test runner does not start the host. -->
-    <ProjectReference Include="..\laundryghar.Identity\laundryghar.Identity.csproj" />
+    <!-- Reference Core (consolidated Identity+Engagement+Mcp) for OtpSecurityHelper and OtpSettings.
+         Core is an SDK.Web project; test runner does not start the host. -->
+    <ProjectReference Include="..\laundryghar.Core\laundryghar.Core.csproj" />
     <ProjectReference Include="..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
   </ItemGroup>
 

@@ -28,6 +28,7 @@ import { Keypad } from '@/components/ui/Keypad';
 import { verifyOtp, sendOtp } from '@/api/auth';
 import { grantConsent } from '@/api/catalog';
 import { useAuthStore } from '@/store/authStore';
+import { maskPhone } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
 
 const CODE_LENGTH = 6;
@@ -156,9 +157,8 @@ export default function OtpScreen() {
     return () => clearTimeout(timer);
   }, [seconds]);
 
-  const masked = raw
-    ? `+91 98 ●●●● ${raw.slice(-4)}`
-    : (phone ?? '');
+  // Mask derived from the number the user actually entered — no hardcoded prefix.
+  const masked = raw ? maskPhone(raw) : (phone ?? '');
 
   async function verify(full: string) {
     if (!phone) return;

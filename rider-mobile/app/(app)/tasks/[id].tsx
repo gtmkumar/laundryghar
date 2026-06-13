@@ -101,6 +101,8 @@ export default function TaskDetailScreen() {
   const [code, setCode] = useState('');
   const [otpError, setOtpError] = useState('');
   const [busy, setBusy] = useState(false);
+  // "I've arrived" action (status PATCH → arrived) before the collect/handover step.
+  const [arriveBusy, setArriveBusy] = useState(false);
 
   // ── Failure reason modal ──────────────────────────────────────────────────
   const [failModalVisible, setFailModalVisible] = useState(false);
@@ -309,6 +311,34 @@ export default function TaskDetailScreen() {
     }
   }
 
+  /**
+   * Record arrival at the customer (PATCH status → arrived). Shown before the
+   * inspection/collect (pickup) or OTP handover (delivery) step. The API also
+   * accepts started → we backfill it when the rider skipped the list "Start".
+   */
+  async function markArrived() {
+    if (!task || arriveBusy) return;
+    setArriveBusy(true);
+    try {
+      if (task.status === 'assigned') {
+        await updateTaskStatus(task.id, 'started');
+      }
+      await updateTaskStatus(task.id, 'arrived');
+      await queryClient.invalidateQueries({ queryKey: taskKeys.today() });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Network failure — queue for replay; the server accepts late arrivals.
+      await enqueue({ taskId: task.id, status: 'arrived' });
+      Alert.alert(
+        t('common.ok'),
+        'No connection right now. Your arrival will be recorded when you are back online.',
+        [{ text: t('common.ok') }],
+      );
+    } finally {
+      setArriveBusy(false);
+    }
+  }
+
   async function confirm() {
     if (!task || busy) return;
     setBusy(true);
@@ -415,22 +445,28 @@ export default function TaskDetailScreen() {
             </View>
             {!isCompleted ? (
               <View className="flex-row gap-2">
-                <Pressable
-                  onPress={() => void Linking.openURL(`tel:${task.customerPhone}`)}
-                  className="h-10 w-10 items-center justify-center rounded-full border border-cream-300 active:opacity-70"
-                  accessibilityLabel={t('a11y.callCustomer')}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="call-outline" size={18} color="#4A552A" />
-                </Pressable>
-                <Pressable
-                  onPress={() => void Linking.openURL(`sms:${task.customerPhone}`)}
-                  className="h-10 w-10 items-center justify-center rounded-full bg-olive-600 active:opacity-80"
-                  accessibilityLabel={t('a11y.messageCustomer')}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFFFFF" />
-                </Pressable>
+                {/* Call/chat only when we actually have a phone number — a
+                    tel:/sms: link with no number is a dead end. */}
+                {task.customerPhone ? (
+                  <>
+                    <Pressable
+                      onPress={() => void Linking.openURL(`tel:${task.customerPhone}`)}
+                      className="h-10 w-10 items-center justify-center rounded-full border border-cream-300 active:opacity-70"
+                      accessibilityLabel={t('a11y.callCustomer')}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="call-outline" size={18} color="#4A552A" />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => void Linking.openURL(`sms:${task.customerPhone}`)}
+                      className="h-10 w-10 items-center justify-center rounded-full bg-olive-600 active:opacity-80"
+                      accessibilityLabel={t('a11y.messageCustomer')}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFFFFF" />
+                    </Pressable>
+                  </>
+                ) : null}
                 {/* Directions — opens maps app; action sheet on failure */}
                 {task.lat != null && task.lng != null ? (
                   <Pressable
@@ -454,6 +490,32 @@ export default function TaskDetailScreen() {
               </View>
             ) : null}
           </View>
+
+          {/* "I've arrived" — record arrival BEFORE the inspection/collect or
+              OTP handover step. Real-API mode only (demo set has no PATCH). */}
+          {FEATURES.riderTasksApi &&
+          !isCompleted &&
+          !collected &&
+          (task.status === 'assigned' || task.status === 'started') ? (
+            <Pressable
+              onPress={() => void markArrived()}
+              disabled={arriveBusy}
+              className={`mt-4 flex-row items-center gap-3 rounded-3xl border border-olive-200 bg-white px-4 py-4 ${arriveBusy ? 'opacity-60' : 'active:opacity-70'}`}
+              style={{ elevation: 1 }}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: arriveBusy, busy: arriveBusy }}
+              accessibilityLabel={t('taskDetail.arrived')}
+            >
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-olive-100">
+                <Ionicons name="flag-outline" size={20} color="#4A552A" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-bold text-ink">{t('taskDetail.arrived')}</Text>
+                <Text className="mt-0.5 text-xs text-ink-muted">{t('taskDetail.arrivedHint')}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#A8A493" />
+            </Pressable>
+          ) : null}
 
           {/* Delivery OTP */}
           {needsOtp ? (
@@ -670,7 +732,10 @@ export default function TaskDetailScreen() {
               title={
                 isDropStep ? t('taskDetail.markComplete')
                 : isDelivery ? t('taskDetail.markComplete')
-                : t('taskDetail.markCollected')
+                // Payment-aware: only mention COD when there is actually cash due.
+                : task.isPaid || task.amountDue <= 0
+                  ? t('taskDetail.markItemsCollected')
+                  : t('taskDetail.markCollected')
               }
               iconLeft="checkmark"
               variant="confirm"

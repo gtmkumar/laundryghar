@@ -19,10 +19,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { useRiderTasks } from '@/hooks/useRiderTasks';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRiderTasks, taskKeys } from '@/hooks/useRiderTasks';
 import { useMyRiderProfile } from '@/hooks/useRider';
 import { useAuthStore } from '@/store/authStore';
 import { useDutyStore } from '@/store/dutyStore';
+import { useOfflineQueueStore } from '@/store/offlineQueueStore';
+import { updateTaskStatus } from '@/api/tasks';
+import { FEATURES } from '@/constants/config';
 import { TasksListSkeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
 import { useTranslation } from 'react-i18next';
@@ -74,6 +78,11 @@ function CardShell({ children, onPress }: { children: React.ReactNode; onPress: 
   return (
     <Pressable
       onPress={onPress}
+      // Without this iOS merges the whole card into one accessibility element,
+      // hiding the inner Start/Call buttons from VoiceOver. Exposing children
+      // individually keeps the card tap reachable (double-tap on any text hits
+      // this Pressable) while the buttons remain directly activatable.
+      accessible={false}
       className="mb-3 rounded-3xl bg-white p-4 active:opacity-80"
       style={{ shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}
     >
@@ -123,7 +132,19 @@ function MetaRow({ task }: { task: RiderTask }) {
   );
 }
 
-function PendingCard({ task, expanded, onOpen }: { task: RiderTask; expanded: boolean; onOpen: () => void }) {
+function PendingCard({
+  task,
+  expanded,
+  starting,
+  onOpen,
+  onStart,
+}: {
+  task: RiderTask;
+  expanded: boolean;
+  starting: boolean;
+  onOpen: () => void;
+  onStart: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <CardShell onPress={onOpen}>
@@ -137,15 +158,27 @@ function PendingCard({ task, expanded, onOpen }: { task: RiderTask; expanded: bo
 
       {expanded ? (
         <View className="mt-3 flex-row gap-3">
-          <Button
-            title={t('tasks.call')}
-            iconLeft="call-outline"
-            variant="secondary"
-            size="sm"
-            onPress={() => void Linking.openURL(`tel:${task.customerPhone}`)}
-          />
+          {/* Hide Call when the payload carries no phone number — tel: with an
+              empty/undefined number is a dead action. */}
+          {task.customerPhone ? (
+            <Button
+              title={t('tasks.call')}
+              iconLeft="call-outline"
+              variant="secondary"
+              size="sm"
+              onPress={() => void Linking.openURL(`tel:${task.customerPhone}`)}
+            />
+          ) : null}
           <View className="flex-1">
-            <Button title={t('tasks.start')} iconRight="arrow-forward" size="sm" fullWidth onPress={onOpen} />
+            <Button
+              title={t('tasks.start')}
+              iconRight="arrow-forward"
+              size="sm"
+              fullWidth
+              loading={starting}
+              disabled={starting}
+              onPress={onStart}
+            />
           </View>
         </View>
       ) : null}
@@ -196,11 +229,35 @@ function StatTile({ label, value, sub }: { label: string; value: string; sub?: R
 export default function TasksScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const { rider } = useAuthStore();
   const { isOnDuty } = useDutyStore();
   const { data: me } = useMyRiderProfile();
   const { pending, done, stats, isDemo, isLoading, refetch, isRefetching } = useRiderTasks();
+  const enqueue = useOfflineQueueStore((s) => s.enqueue);
   const [tab, setTab] = useState<'tasks' | 'done'>('tasks');
+  const [startingId, setStartingId] = useState<string | null>(null);
+
+  /**
+   * "Start" = tell the server the rider is en route (PATCH status → started),
+   * THEN open the task detail. Previously this only navigated, so started/
+   * arrived timestamps never reached dispatch. Offline → queued for replay.
+   */
+  async function startTask(task: RiderTask) {
+    if (startingId) return;
+    if (FEATURES.riderTasksApi && task.status === 'assigned') {
+      setStartingId(task.id);
+      try {
+        await updateTaskStatus(task.id, 'started');
+        void queryClient.invalidateQueries({ queryKey: taskKeys.today() });
+      } catch {
+        await enqueue({ taskId: task.id, status: 'started' });
+      } finally {
+        setStartingId(null);
+      }
+    }
+    router.push(`/(app)/tasks/${task.id}`);
+  }
 
   const profile = me ?? rider;
   const name = profile?.riderName?.trim() || profile?.riderCode || 'Rider';
@@ -298,7 +355,9 @@ export default function TasksScreen() {
             <PendingCard
               task={item}
               expanded={index === 0}
+              starting={startingId === item.id}
               onOpen={() => router.push(`/(app)/tasks/${item.id}`)}
+              onStart={() => void startTask(item)}
             />
           ) : (
             <DoneCard task={item} onOpen={() => router.push(`/(app)/tasks/${item.id}`)} />
@@ -313,7 +372,11 @@ export default function TasksScreen() {
               {tab === 'tasks' ? t('tasks.noTasks') : t('tasks.noDone')}
             </Text>
             <Text className="mt-1 text-center text-sm text-ink-muted">
-              {tab === 'tasks' ? t('tasks.noTasksMessage') : t('tasks.noDoneMessage')}
+              {tab === 'tasks'
+                // Copy matches the duty state: only tell the rider to "go on duty"
+                // when they actually are off duty.
+                ? (isOnDuty ? t('tasks.noTasksMessageOnDuty') : t('tasks.noTasksMessage'))
+                : t('tasks.noDoneMessage')}
             </Text>
           </View>
         }

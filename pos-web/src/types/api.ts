@@ -336,6 +336,12 @@ export interface OrderDto {
   items: OrderItemDto[] | null
   addons: OrderAddonDto[] | null
   statusHistory: OrderStatusHistoryDto[] | null
+  /**
+   * Valid next statuses computed by the backend OrderStateMachine, returned on
+   * GET /api/v1/admin/orders/{id}. Optional: older API builds omit it, in
+   * which case the UI falls back to the local nextStatuses() mirror.
+   */
+  allowedTransitions?: string[] | null
 }
 
 export interface OrderListParams extends PaginationParams {

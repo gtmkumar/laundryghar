@@ -5,6 +5,7 @@ using laundryghar.SharedDataModel.Entities.Commerce.Subscriptions;
 using laundryghar.Utilities.Common;
 using MediatR;
 
+using laundryghar.Commerce.Infrastructure.Services;
 namespace laundryghar.Commerce.Application.Admin.Subscriptions;
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -412,6 +413,9 @@ public sealed class DeleteSubscriptionPlanHandler : IRequestHandler<DeleteSubscr
             throw new InvalidOperationException(
                 $"Cannot delete a subscription plan with {entity.CurrentSubscriberCount} active subscriber(s). Retire it instead.");
 
+        // Soft-delete must also move status off active so status-keyed reports don't
+        // miscount it. subscription_plans CHECK has no 'archived'; 'retired' is terminal.
+        entity.Status    = "retired";
         entity.DeletedAt = DateTimeOffset.UtcNow;
         entity.UpdatedAt = DateTimeOffset.UtcNow;
         entity.UpdatedBy = cmd.ActorId;

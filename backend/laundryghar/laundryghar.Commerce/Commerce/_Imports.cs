@@ -15,5 +15,9 @@ global using laundryghar.SharedDataModel.Entities.Commerce.Subscriptions;
 global using laundryghar.SharedDataModel.Enums;
 global using laundryghar.Utilities.ApiResponse.ResponseUtil;
 global using laundryghar.Utilities.Exceptions;
-global using laundryghar.Commerce.Infrastructure.Auth;
-global using laundryghar.Commerce.Infrastructure.Services;
+// NOTE (CommerceHub consolidation): the per-project Infrastructure.Auth and
+// Infrastructure.Services namespaces are intentionally NOT global-imported here.
+// In the merged assembly, Commerce/Finance/Analytics each define identically-named
+// types (ICurrentUser, TokenClaims, JwtSettings, PermissionHandler, ...) in their own
+// namespace; globally importing all three would make those simple names ambiguous.
+// Files that consume these types now carry an explicit file-scoped `using`.

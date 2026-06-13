@@ -3,6 +3,7 @@ using laundryghar.Finance.Application.CashBooks.Dtos;
 using laundryghar.Utilities.Common;
 using MediatR;
 
+using laundryghar.Finance.Infrastructure.Services;
 namespace laundryghar.Finance.Application.CashBooks.Queries;
 
 // ── List cash books ───────────────────────────────────────────────────────────

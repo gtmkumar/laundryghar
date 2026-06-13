@@ -1,3 +1,5 @@
+using laundryghar.Engagement.Infrastructure.Services;
+using ICurrentUser = laundryghar.Engagement.Infrastructure.Services.ICurrentUser;
 using FluentValidation;
 using laundryghar.Engagement.Application.Cms.Dtos;
 using MediatR;
@@ -176,6 +178,22 @@ public sealed class CreateNotificationTemplateValidator
         RuleFor(x => x.Request.Category).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Request.Locale).NotEmpty().MaximumLength(10);
         RuleFor(x => x.Request.BodyTemplate).NotEmpty();
-        RuleFor(x => x.Request.Variables).NotEmpty();
+        RuleFor(x => x.Request.Variables).NotEmpty().MustBeJsonObject();
+    }
+}
+
+public sealed class UpdateNotificationTemplateValidator
+    : AbstractValidator<UpdateNotificationTemplateCommand>
+{
+    private static readonly string[] ValidStatuses = ["active", "archived"];
+
+    public UpdateNotificationTemplateValidator()
+    {
+        RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Request.BodyTemplate).NotEmpty();
+        RuleFor(x => x.Request.Variables).NotEmpty().MustBeJsonObject();
+        RuleFor(x => x.Request.Status).NotEmpty()
+            .Must(s => ValidStatuses.Contains(s))
+            .WithMessage("status must be one of: active, archived");
     }
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useCustomerLtv } from '@/hooks/useAnalytics'
+import { useCustomerNameMap } from '@/hooks/useCatalog'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
@@ -26,6 +27,10 @@ function formatDate(s: string) {
 export function CustomerLtvTab() {
   const [page, setPage] = useState(1)
   const { data, isLoading, isError, error, refetch } = useCustomerLtv({ page, pageSize: 20 })
+  // The LTV endpoint only returns customerId (verified live) — resolve display
+  // names client-side via the cached admin-customers list. Unknown ids (beyond
+  // the first page of customers) fall back to the short id.
+  const nameMap = useCustomerNameMap()
 
   return (
     <div className="space-y-4">
@@ -73,8 +78,16 @@ export function CustomerLtvTab() {
                   ) : (
                     data.list.map((r: CustomerLtvDto) => (
                       <tr key={r.customerId} className="border-b border-gray-50 hover:bg-gray-50">
-                        <td className="px-3 py-2 font-mono text-xs text-gray-500">
-                          {r.customerId.slice(0, 8)}…
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {nameMap.has(r.customerId) ? (
+                            <span className="font-medium text-gray-800" title={r.customerId}>
+                              {nameMap.get(r.customerId)}
+                            </span>
+                          ) : (
+                            <span className="font-mono text-xs text-gray-500" title={r.customerId}>
+                              {r.customerId.slice(0, 8)}…
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           <span className="text-xs bg-gray-100 rounded px-2 py-0.5">

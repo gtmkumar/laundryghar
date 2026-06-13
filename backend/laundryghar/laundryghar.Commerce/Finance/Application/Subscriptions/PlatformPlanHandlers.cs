@@ -5,6 +5,7 @@ using laundryghar.Utilities.Common;
 using laundryghar.Utilities.Exceptions;
 using MediatR;
 
+using laundryghar.Finance.Infrastructure.Services;
 namespace laundryghar.Finance.Application.Subscriptions;
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -301,6 +302,10 @@ public sealed class DeletePlatformPlanHandler : IRequestHandler<DeletePlatformPl
         if (hasActiveSubscriptions)
             throw new InvalidOperationException("Cannot delete a plan that has active franchise subscriptions. Retire it instead.");
 
+        // Soft-delete must also move status off active so status-keyed reports don't
+        // miscount it. platform_plans CHECK is ('draft','active','retired'); 'retired'
+        // is terminal.
+        entity.Status    = "retired";
         entity.DeletedAt = DateTimeOffset.UtcNow;
         entity.UpdatedAt = DateTimeOffset.UtcNow;
         entity.UpdatedBy = cmd.ActorId;

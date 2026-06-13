@@ -19,7 +19,7 @@ public static class AdminTenancyEndpoints
         // Platforms
         var platforms = group.MapGroup("/platforms").WithTags("Admin - Platforms").RequireAuthorization();
 
-        platforms.MapGet("/", async (int page, int pageSize, ISender sender, CancellationToken ct) =>
+        platforms.MapGet("/", async (ISender sender, CancellationToken ct, int page = 1, int pageSize = 20) =>
         {
             var r = await sender.Send(new GetPlatformsQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize), ct);
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.PaginatedListResponse<PlatformDto>
@@ -43,7 +43,7 @@ public static class AdminTenancyEndpoints
         // Franchises
         var franchises = group.MapGroup("/franchises").WithTags("Admin - Franchises").RequireAuthorization();
 
-        franchises.MapGet("/", async (Guid? brandId, int page, int pageSize, ISender sender, CancellationToken ct) =>
+        franchises.MapGet("/", async (Guid? brandId, ISender sender, CancellationToken ct, int page = 1, int pageSize = 20) =>
         {
             var r = await sender.Send(new GetFranchisesQuery(brandId, page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize), ct);
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.PaginatedListResponse<FranchiseDto> { Status = true, Data = r });
@@ -120,7 +120,7 @@ public static class AdminTenancyEndpoints
         // Stores
         var stores = group.MapGroup("/stores").WithTags("Admin - Stores").RequireAuthorization();
 
-        stores.MapGet("/", async (Guid? brandId, Guid? franchiseId, int page, int pageSize, ISender sender, CancellationToken ct) =>
+        stores.MapGet("/", async (Guid? brandId, Guid? franchiseId, ISender sender, CancellationToken ct, int page = 1, int pageSize = 20) =>
         {
             var r = await sender.Send(new GetStoresQuery(brandId, franchiseId, page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize), ct);
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.PaginatedListResponse<StoreDto> { Status = true, Data = r });
@@ -154,7 +154,7 @@ public static class AdminTenancyEndpoints
         // Warehouses
         var warehouses = group.MapGroup("/warehouses").WithTags("Admin - Warehouses").RequireAuthorization();
 
-        warehouses.MapGet("/", async (Guid? brandId, Guid? franchiseId, int page, int pageSize, ISender sender, CancellationToken ct) =>
+        warehouses.MapGet("/", async (Guid? brandId, Guid? franchiseId, ISender sender, CancellationToken ct, int page = 1, int pageSize = 20) =>
         {
             var r = await sender.Send(new GetWarehousesQuery(brandId, franchiseId, page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize), ct);
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.PaginatedListResponse<WarehouseDto> { Status = true, Data = r });

@@ -3,6 +3,7 @@ using laundryghar.Finance.Application.Expenses.Dtos;
 using laundryghar.Utilities.Common;
 using MediatR;
 
+using laundryghar.Finance.Infrastructure.Services;
 namespace laundryghar.Finance.Application.Expenses.Queries;
 
 // ── List expense categories ───────────────────────────────────────────────────

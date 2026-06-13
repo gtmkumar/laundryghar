@@ -1,0 +1,5 @@
+- [Android emulator testing gotchas](android-emulator-testing.md) — lsof-kill kills emulator; ESC/BACK destroy modals; expo start --offline; exp:// deep link
+- [iOS simulator testing gotchas](ios-simulator-testing.md) — idb AX-tree taps in points; black-screen first launch fix; PHPicker invisible to AX; dual permission layers
+- [Customer-mobile Android RE-TEST 2026-06-13](customer-mobile-android-test.md) — C1-C9 all PASS; cosmetic wallet-flash on pay screen; no in-app cancel UI (API works)
+- [Rider-mobile Android RE-TEST 2026-06-13](rider-mobile-android-test.md) — R1-R6 all PASS; NEW MED gap: COD never persisted (assign leaves cod_amount NULL); DB landmarks
+- [iOS live test 2026-06-13](ios-live-test-results.md) — both apps PASS full flows; rider iOS login KICKED Android session; COD gap reconfirmed

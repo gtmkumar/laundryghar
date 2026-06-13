@@ -1,3 +1,6 @@
+using laundryghar.Orders.Application.Common;
+using laundryghar.Logistics.Infrastructure.Auth;
+using laundryghar.Logistics.Infrastructure.Services;
 using laundryghar.Logistics.Application.Assignments.Commands;
 using laundryghar.Logistics.Application.Assignments.Dtos;
 using laundryghar.Logistics.Application.Riders.Commands;
@@ -38,7 +41,12 @@ public sealed class GetMyAssignmentsTodayHandler
 
     public async Task<List<RiderAssignmentDto>> Handle(GetMyAssignmentsTodayQuery q, CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // DEFECT 7: shift_date is a calendar day; "today" must be the rider's local
+        // (IST/store-tz) day, not the UTC day. At 04:30 IST DateTime.UtcNow is still
+        // yesterday, so the UTC-based DateOnly returned [] while tasks/today had work.
+        var tz = LocalDateRange.Resolve(LocalDateRange.DefaultTimeZoneId);
+        var today = DateOnly.FromDateTime(
+            TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz).DateTime);
 
         var assignments = await _db.RiderAssignments
             .Where(a => a.BrandId == q.BrandId && a.ShiftDate == today)

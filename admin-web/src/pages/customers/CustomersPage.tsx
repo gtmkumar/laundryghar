@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Eye, Pencil, Loader2 } from 'lucide-react'
-import { useAdminCustomersInfinite } from '@/hooks/useCatalog'
+import { Eye, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { useAdminCustomersInfinite, useDeleteAdminCustomer } from '@/hooks/useCatalog'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { usePermissions } from '@/hooks/usePermissions'
+import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -90,6 +91,7 @@ const baseColumns: Column<AdminCustomerDto>[] = [
 export function CustomersPage() {
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('customer.update')
+  const canDelete = hasPermission('customer.delete')
   const {
     data,
     isLoading,
@@ -111,6 +113,28 @@ export function CustomersPage() {
   const [viewing, setViewing] = useState<AdminCustomerDto | null>(null)
   const [editing, setEditing] = useState<AdminCustomerDto | null>(null)
 
+  const del = useDeleteAdminCustomer()
+  const gate = useConfirm()
+
+  const confirmDelete = (c: AdminCustomerDto) =>
+    gate.confirm({
+      title: `Delete ${customerName(c)}?`,
+      description: (
+        <>
+          This permanently removes customer <span className="font-mono">{c.customerCode}</span>{' '}
+          ({c.phoneE164}). Their order history remains, but the customer record cannot be
+          recovered.
+        </>
+      ),
+      confirmLabel: 'Delete customer',
+      tone: 'danger',
+      onConfirm: async () => {
+        // Failure feedback comes from the global mutation-error toast
+        // (App.tsx MutationCache); swallow here so the dialog settles cleanly.
+        await del.mutateAsync(c.id).catch(() => undefined)
+      },
+    })
+
   const columns: Column<AdminCustomerDto>[] = [
     ...baseColumns,
     {
@@ -127,6 +151,11 @@ export function CustomersPage() {
                 {canManage && (
                   <ActionMenuItem icon={Pencil} onClick={() => { close(); setEditing(r) }}>
                     Edit
+                  </ActionMenuItem>
+                )}
+                {canDelete && (
+                  <ActionMenuItem icon={Trash2} danger onClick={() => { close(); confirmDelete(r) }}>
+                    Delete
                   </ActionMenuItem>
                 )}
               </>
@@ -214,6 +243,7 @@ export function CustomersPage() {
         }}
       />
       <CustomerEditDrawer customer={editing} onClose={() => setEditing(null)} />
+      <ConfirmDialog {...gate.dialogProps} />
     </div>
   )
 }

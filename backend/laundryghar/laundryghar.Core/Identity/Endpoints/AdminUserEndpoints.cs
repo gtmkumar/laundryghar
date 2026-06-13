@@ -18,8 +18,8 @@ public static class AdminUserEndpoints
         // Users
         var users = group.MapGroup("/users").WithTags("Admin - Users").RequireAuthorization();
 
-        users.MapGet("/", async (int page, int pageSize, string? status, string? userType, string? search,
-            ISender sender, CancellationToken ct) =>
+        users.MapGet("/", async (string? status, string? userType, string? search,
+            ISender sender, CancellationToken ct, int page = 1, int pageSize = 20) =>
         {
             var r = await sender.Send(new GetUsersQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status, userType, search), ct);
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.PaginatedListResponse<UserDto>
@@ -75,7 +75,7 @@ public static class AdminUserEndpoints
         // Roles & permissions
         var roles = group.MapGroup("/roles").WithTags("Admin - Roles").RequireAuthorization();
 
-        roles.MapGet("/", async (int page, int pageSize, ISender sender, CancellationToken ct) =>
+        roles.MapGet("/", async (ISender sender, CancellationToken ct, int page = 1, int pageSize = 50) =>
         {
             var r = await sender.Send(new GetRolesQuery(page < 1 ? 1 : page, pageSize < 1 ? 50 : pageSize), ct);
             return Results.Ok(new laundryghar.Utilities.ApiResponse.ResponseUtil.ListResponse<RoleDto> { Status = true, Data = r });

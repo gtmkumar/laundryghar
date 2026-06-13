@@ -1,5 +1,24 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { X, Loader2, AlertTriangle } from 'lucide-react'
+import { apiErrorMessage, apiFieldErrors } from '@/lib/apiError'
+
+/**
+ * Per-field API validation errors, keyed by a *normalized* field name
+ * (lowercase, alphanumerics only) so the backend's `Price` / `name_localized` /
+ * `nameLocalized` all match a `<Field name="nameLocalized">`. Provided by
+ * FormDrawer, consumed by Field.
+ */
+const DrawerFieldErrorsContext = createContext<Record<string, string[]>>({})
+
+function normalizeFieldKey(key: string): string {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function normalizeFieldErrors(errors: Record<string, string[]>): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const [k, v] of Object.entries(errors)) out[normalizeFieldKey(k)] = v
+  return out
+}
 
 const WIDTHS = {
   sm: 'max-w-md',
@@ -42,8 +61,18 @@ interface FormDrawerProps {
   /** Raise to z-[60] so this drawer layers above another open drawer. */
   elevated?: boolean
 
-  /** Inline error banner rendered at the bottom of the body. */
+  /**
+   * Error banner pinned above the footer (always visible — never below the
+   * fold of a long scrolling form). Announced via role="alert".
+   */
   error?: string | null
+  /**
+   * Per-field API validation errors (e.g. from `apiFieldErrors(e)`), rendered
+   * inline under any `<Field name="…">` whose name matches the key
+   * (case/format-insensitive). Unmatched keys still surface via the banner /
+   * global mutation toast, so nothing is silently dropped.
+   */
+  fieldErrors?: Record<string, string[]> | null
 
   // ── Footer ──
   /**
@@ -51,8 +80,13 @@ interface FormDrawerProps {
    * `null` hides the footer entirely. Omit for the standard Cancel + submit row.
    */
   footer?: ReactNode | null
-  /** When provided, renders the primary submit button. */
-  onSubmit?: () => void
+  /**
+   * When provided, renders the primary submit button. May return a promise:
+   * if it REJECTS, FormDrawer itself parses the API error envelope and renders
+   * the banner + inline field errors — so a drawer that forgets its own
+   * try/catch still gives visible feedback instead of silently staying open.
+   */
+  onSubmit?: () => void | Promise<unknown>
   submitLabel?: string
   submittingLabel?: string
   submitIcon?: React.ElementType
@@ -85,6 +119,7 @@ export function FormDrawer({
   bodyClassName,
   elevated = false,
   error,
+  fieldErrors,
   footer,
   onSubmit,
   submitLabel = 'Save',
@@ -97,6 +132,42 @@ export function FormDrawer({
   const panelRef = useRef<HTMLDivElement>(null)
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const id = useId()
+
+  // Error caught from a rejected onSubmit promise (drawers without their own
+  // try/catch). Cleared on (re)open and on every new submit attempt.
+  const [caughtError, setCaughtError] = useState<unknown>(null)
+  // Render-time state adjustment (not an effect): reset the caught error the
+  // moment the drawer re-opens, before children render with stale errors.
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open && caughtError != null) setCaughtError(null)
+  }
+
+  const handleSubmit = onSubmit
+    ? () => {
+        setCaughtError(null)
+        try {
+          const result = onSubmit()
+          if (result && typeof (result as Promise<unknown>).then === 'function') {
+            void (result as Promise<unknown>).catch((e: unknown) => setCaughtError(e))
+          }
+        } catch (e) {
+          setCaughtError(e)
+        }
+      }
+    : undefined
+
+  // Banner text: explicit page-provided `error` wins; otherwise derive one
+  // from a caught submit rejection (the API envelope's validator text).
+  const bannerError = error ?? (caughtError != null ? apiErrorMessage(caughtError) : null)
+
+  // Inline per-field errors: page-provided `fieldErrors` merged with any parsed
+  // from a caught rejection, normalized so PascalCase/snake_case keys match.
+  const resolvedFieldErrors = useMemo(() => {
+    const merged = { ...apiFieldErrors(caughtError), ...(fieldErrors ?? {}) }
+    return normalizeFieldErrors(merged)
+  }, [caughtError, fieldErrors])
 
   // A11y while open: scroll-lock, focus-into-panel + trap, and Escape-to-close —
   // but only the topmost layer responds to Escape (drawerStack), so an elevated /
@@ -205,14 +276,24 @@ export function FormDrawer({
 
         {/* Body */}
         <div className={bodyClassName ?? 'flex-1 space-y-6 overflow-y-auto px-6 py-5'}>
-          {children}
-          {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          <DrawerFieldErrorsContext.Provider value={resolvedFieldErrors}>
+            {children}
+          </DrawerFieldErrorsContext.Provider>
         </div>
+
+        {/* Error banner — pinned above the footer (never hidden below the fold
+            of a long scrolling form) and announced to screen readers. */}
+        {bannerError && (
+          <div className="px-6 pb-3 pt-3 border-t border-gray-100">
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{bannerError}</span>
+            </div>
+          </div>
+        )}
 
         {/* Footer — `null` hides it; a node gets full layout control; otherwise
             the standard right-aligned Cancel + submit row. */}
@@ -227,10 +308,10 @@ export function FormDrawer({
             >
               {onSubmit ? cancelLabel : 'Close'}
             </button>
-            {onSubmit && (
+            {handleSubmit && (
               <button
                 type="button"
-                onClick={onSubmit}
+                onClick={handleSubmit}
                 disabled={submitting || submitDisabled}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
               >
@@ -267,15 +348,29 @@ export function Field({
   label,
   children,
   hint,
+  name,
 }: {
   label: ReactNode
   children: ReactNode
   hint?: ReactNode
+  /**
+   * API field name this input maps to (e.g. "nameLocalized"). When the
+   * enclosing FormDrawer has per-field API errors whose key matches
+   * (case/format-insensitive), they render inline beneath the input.
+   */
+  name?: string
 }) {
+  const fieldErrors = useContext(DrawerFieldErrorsContext)
+  const messages = name ? fieldErrors[normalizeFieldKey(name)] : undefined
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-gray-500">{label}</span>
       {children}
+      {messages && messages.length > 0 && (
+        <span role="alert" className="mt-1 block text-xs text-red-600">
+          {messages.join(' ')}
+        </span>
+      )}
       {hint && <span className="mt-1 block text-xs text-gray-500">{hint}</span>}
     </label>
   )

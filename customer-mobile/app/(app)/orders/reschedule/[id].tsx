@@ -31,6 +31,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useDeliverySlots, useReschedulePickup } from '@/hooks/useOrders';
 import { hapticError, hapticImpact, hapticSuccess } from '@/lib/haptics';
+import { localDateIso } from '@/lib/format';
 import type { DeliverySlotDto } from '@/types/api';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -49,7 +50,8 @@ function nextDays(n: number): DayOption[] {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     out.push({
-      iso: d.toISOString().slice(0, 10),
+      // LOCAL date parts — toISOString() is UTC and yields *yesterday* before 05:30 IST
+      iso: localDateIso(d),
       weekday: d.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase(),
       day: String(d.getDate()),
       month: d.toLocaleDateString('en-IN', { month: 'short' }),

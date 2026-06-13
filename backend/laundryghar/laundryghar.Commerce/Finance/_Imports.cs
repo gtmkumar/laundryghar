@@ -15,5 +15,6 @@ global using laundryghar.SharedDataModel.Entities.TenancyOrg;
 global using laundryghar.SharedDataModel.Enums;
 global using laundryghar.Utilities.ApiResponse.ResponseUtil;
 global using laundryghar.Utilities.Exceptions;
-global using laundryghar.Finance.Infrastructure.Auth;
-global using laundryghar.Finance.Infrastructure.Services;
+// NOTE (CommerceHub consolidation): Infrastructure.Auth / Infrastructure.Services are
+// not global-imported — see Commerce/_Imports.cs for the rationale. Consumers carry an
+// explicit file-scoped `using laundryghar.Finance.Infrastructure.Services;`.

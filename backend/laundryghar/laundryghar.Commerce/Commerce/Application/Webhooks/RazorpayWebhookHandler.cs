@@ -79,14 +79,31 @@ public sealed class ProcessRazorpayWebhookHandler
 
         webhookSecret ??= _config["Razorpay:WebhookSecret"];
 
+        // Fail-closed policy (applies in ALL environments):
+        //   • Secret configured  → signature MUST be present and valid, else reject.
+        //   • Secret NOT configured + non-Development → reject (never trust unsigned in prod/staging).
+        //   • Secret NOT configured + Development:
+        //       - if an X-Razorpay-Signature header IS present, we cannot verify it →
+        //         reject (an unverifiable signature is treated as hostile, not skipped).
+        //       - if NO signature header is present, accept-unsigned so the dev gateway
+        //         (DevPaymentGateway) can drive the flow locally — logged loudly.
         if (string.IsNullOrWhiteSpace(webhookSecret))
         {
             if (!_env.IsDevelopment())
                 return new WebhookProcessResult(false,
                     "Razorpay:WebhookSecret is not configured. Webhook rejected.");
 
-            // In Development: log the skip so it's visible, but allow through.
-            _logger.LogWarning("[DEV] Razorpay:WebhookSecret not set — skipping HMAC verification.");
+            if (!string.IsNullOrEmpty(cmd.Signature))
+            {
+                _logger.LogWarning(
+                    "[DEV] Razorpay:WebhookSecret not set but X-Razorpay-Signature header present — "
+                    + "cannot verify, rejecting fail-closed.");
+                return new WebhookProcessResult(false, "Invalid signature.");
+            }
+
+            _logger.LogWarning(
+                "[DEV] Razorpay:WebhookSecret not set and no signature header — accepting UNSIGNED "
+                + "webhook (Development only; never reachable in non-Development).");
         }
         else
         {
@@ -102,9 +119,7 @@ public sealed class ProcessRazorpayWebhookHandler
         WebhookEvent? evt;
         try
         {
-            evt = JsonSerializer.Deserialize<WebhookEvent>(
-                cmd.RawBody,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            evt = ParseEvent(cmd.RawBody);
         }
         catch (JsonException ex)
         {
@@ -282,7 +297,58 @@ public sealed class ProcessRazorpayWebhookHandler
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static bool VerifyHmac(byte[] body, string? signature, string secret)
+    // Real Razorpay payloads are snake_case (order_id, error_code). Dev gateway and
+    // existing fixtures may send camelCase (orderId, errorCode). We parse with the
+    // snake_case policy first, then fill any nulls from a camelCase parse so BOTH
+    // shapes bind. PropertyNameCaseInsensitive on each pass tolerates casing drift.
+    private static readonly JsonSerializerOptions SnakeOptions = new()
+    {
+        PropertyNamingPolicy   = JsonNamingPolicy.SnakeCaseLower,
+        PropertyNameCaseInsensitive = true
+    };
+
+    private static readonly JsonSerializerOptions CamelOptions = new()
+    {
+        PropertyNamingPolicy   = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+
+    // internal for white-box unit testing of the dual snake_case/camelCase parse.
+    internal static WebhookEvent? ParseEvent(byte[] rawBody)
+    {
+        var snake = JsonSerializer.Deserialize<WebhookEvent>(rawBody, SnakeOptions);
+        var camel = JsonSerializer.Deserialize<WebhookEvent>(rawBody, CamelOptions);
+
+        if (snake is null) return camel;
+        if (camel is null) return snake;
+
+        // Merge: prefer snake_case (real gateway), fall back to camelCase per field.
+        snake.Event ??= camel.Event;
+
+        var snakeEntity = snake.Payload?.Payment?.Entity;
+        var camelEntity = camel.Payload?.Payment?.Entity;
+        if (camelEntity is not null)
+        {
+            if (snakeEntity is null)
+            {
+                snake.Payload ??= new WebhookPayload();
+                snake.Payload.Payment ??= new WebhookPaymentWrapper();
+                snake.Payload.Payment.Entity = camelEntity;
+            }
+            else
+            {
+                snakeEntity.Id               ??= camelEntity.Id;
+                snakeEntity.OrderId          ??= camelEntity.OrderId;
+                snakeEntity.ErrorCode        ??= camelEntity.ErrorCode;
+                snakeEntity.ErrorDescription ??= camelEntity.ErrorDescription;
+            }
+        }
+
+        return snake;
+    }
+
+    // internal for white-box unit testing of bad-signature rejection.
+    internal static bool VerifyHmac(byte[] body, string? signature, string secret)
     {
         if (string.IsNullOrEmpty(signature)) return false;
 
@@ -315,23 +381,23 @@ public sealed class ProcessRazorpayWebhookHandler
 
     // ── Razorpay webhook payload model (minimal projection) ───────────────────
 
-    private sealed class WebhookEvent
+    internal sealed class WebhookEvent
     {
         public string? Event   { get; set; }
         public WebhookPayload? Payload { get; set; }
     }
 
-    private sealed class WebhookPayload
+    internal sealed class WebhookPayload
     {
         public WebhookPaymentWrapper? Payment { get; set; }
     }
 
-    private sealed class WebhookPaymentWrapper
+    internal sealed class WebhookPaymentWrapper
     {
         public WebhookPaymentEntity? Entity { get; set; }
     }
 
-    private sealed class WebhookPaymentEntity
+    internal sealed class WebhookPaymentEntity
     {
         public string? Id               { get; set; }
         public string? OrderId          { get; set; }

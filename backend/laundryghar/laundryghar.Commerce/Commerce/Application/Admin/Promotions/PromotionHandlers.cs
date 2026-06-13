@@ -3,6 +3,7 @@ using laundryghar.Commerce.Application;
 using laundryghar.Utilities.Common;
 using MediatR;
 
+using laundryghar.Commerce.Infrastructure.Services;
 namespace laundryghar.Commerce.Application.Admin.Promotions;
 
 // ── Queries ───────────────────────────────────────────────────────────────────

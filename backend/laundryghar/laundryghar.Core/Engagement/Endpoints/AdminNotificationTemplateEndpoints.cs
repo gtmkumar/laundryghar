@@ -1,3 +1,5 @@
+using laundryghar.Engagement.Infrastructure.Services;
+using ICurrentUser = laundryghar.Engagement.Infrastructure.Services.ICurrentUser;
 using laundryghar.Engagement.Application.Cms.Commands;
 using laundryghar.Engagement.Application.Cms.Dtos;
 using laundryghar.Engagement.Application.Cms.Queries;
@@ -14,10 +16,10 @@ public static class AdminNotificationTemplateEndpoints
 
         g.MapGet("/", async (
             [FromServices] ISender sender, CancellationToken ct,
-            int page = 1, int pageSize = 20) =>
+            int page = 1, int pageSize = 20, string? status = null) =>
         {
             var r = await sender.Send(new GetNotificationTemplatesQuery(
-                page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize), ct);
+                page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status), ct);
             return Results.Ok(new PaginatedListResponse<NotificationTemplateDto> { Status = true, Data = r });
         }).RequireAuthorization("permission:cms.template.manage");
 

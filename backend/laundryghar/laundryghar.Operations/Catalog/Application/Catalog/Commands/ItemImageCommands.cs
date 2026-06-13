@@ -1,3 +1,5 @@
+using laundryghar.Catalog.Infrastructure.Auth;
+using laundryghar.Catalog.Infrastructure.Services;
 using FluentValidation;
 using laundryghar.Catalog.Application.Catalog.Dtos;
 using laundryghar.ServiceDefaults.Storage;

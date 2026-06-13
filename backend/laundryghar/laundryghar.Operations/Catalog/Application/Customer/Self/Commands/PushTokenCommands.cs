@@ -1,3 +1,5 @@
+using laundryghar.Catalog.Infrastructure.Auth;
+using laundryghar.Catalog.Infrastructure.Services;
 using FluentValidation;
 using laundryghar.SharedDataModel.Entities.EngagementCms;
 using MediatR;

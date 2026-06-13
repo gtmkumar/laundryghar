@@ -10,6 +10,7 @@ using laundryghar.Finance.Application.Royalty.Queries;
 using laundryghar.Finance.Application.Subscriptions;
 using MediatR;
 
+using laundryghar.Finance.Infrastructure.Services;
 namespace laundryghar.Finance.Endpoints;
 
 public static class FinanceEndpoints

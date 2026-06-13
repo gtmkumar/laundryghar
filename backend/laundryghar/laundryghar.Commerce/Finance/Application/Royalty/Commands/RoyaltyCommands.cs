@@ -2,6 +2,7 @@ using FluentValidation;
 using laundryghar.Finance.Application.Royalty.Dtos;
 using MediatR;
 
+using laundryghar.Finance.Infrastructure.Services;
 namespace laundryghar.Finance.Application.Royalty.Commands;
 
 // ── Shared mapping ────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useServices, useAddresses } from '@/hooks/useCatalog';
 import { useHomeBanners } from '@/hooks/useEngagement';
-import { useAuthStore } from '@/store/authStore';
+import { useMe } from '@/hooks/useMe';
 import { SkeletonHomeScreen } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { serviceMeta } from '@/lib/serviceMeta';
@@ -173,7 +173,9 @@ function PromoBanner({ banner }: { banner?: AppBannerDto }) {
 export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { customer } = useAuthStore();
+  // Same profile source as the Profile tab — keeps the greeting in sync after
+  // profile edits / re-login (the edit mutation invalidates ['customer','me']).
+  const { data: me } = useMe();
   const { data: services, isLoading, isError, refetch, isFetching } = useServices();
   const { data: banners, refetch: refetchBanners } = useHomeBanners('home_top');
   const { data: addresses, refetch: refetchAddresses } = useAddresses();
@@ -184,7 +186,8 @@ export default function HomeScreen() {
     void refetchAddresses();
   };
 
-  const displayName = customer?.displayName ?? customer?.firstName ?? 'there';
+  // No "there" fallback — when the name is unknown we show the greeting alone.
+  const displayName = me?.displayName ?? me?.firstName ?? null;
   const defaultAddr = addresses?.find((a) => a.isDefault) ?? addresses?.[0];
   const addrLabel = defaultAddr
     ? `${defaultAddr.label ?? defaultAddr.addressLine1}`
@@ -215,12 +218,18 @@ export default function HomeScreen() {
               <Ionicons name="menu" size={22} color="#3C3F35" />
             </View>
             <View>
-              <Text className="text-xs text-ink-muted">{greeting()}</Text>
-              <Text className="text-lg font-extrabold text-ink">{displayName} 👋</Text>
+              {displayName ? (
+                <>
+                  <Text className="text-xs text-ink-muted">{greeting()}</Text>
+                  <Text className="text-lg font-extrabold text-ink">{displayName} 👋</Text>
+                </>
+              ) : (
+                <Text className="text-lg font-extrabold text-ink">{greeting()} 👋</Text>
+              )}
             </View>
           </View>
           <Pressable
-            onPress={() => router.push('/(app)/(tabs)/my-orders')}
+            onPress={() => router.push('/(app)/notifications' as never)}
             className="h-10 w-10 items-center justify-center rounded-xl bg-white"
             accessibilityRole="button"
             accessibilityLabel={t('a11y.notifications')}

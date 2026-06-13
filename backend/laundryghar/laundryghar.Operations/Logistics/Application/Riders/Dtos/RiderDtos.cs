@@ -1,3 +1,4 @@
+using laundryghar.Logistics.Infrastructure.Auth;
 using laundryghar.Logistics.Infrastructure.Services;
 using laundryghar.SharedDataModel.Crypto;
 

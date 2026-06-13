@@ -1,3 +1,5 @@
+using laundryghar.Catalog.Infrastructure.Auth;
+using laundryghar.Catalog.Infrastructure.Services;
 using FluentValidation;
 using laundryghar.Catalog.Application.Pricing.Dtos;
 using MediatR;
@@ -155,6 +157,10 @@ public sealed class DeletePriceListHandler : IRequestHandler<DeletePriceListComm
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return false;
 
+        // Soft-delete must also move status off the live ('draft'/'published') states so
+        // status-keyed reports don't miscount it. price_lists CHECK is
+        // ('draft','published','archived') — 'archived' is the terminal state.
+        e.Status    = "archived";
         e.DeletedAt = DateTimeOffset.UtcNow;
         e.UpdatedAt = DateTimeOffset.UtcNow;
         e.UpdatedBy = cmd.ActorId;

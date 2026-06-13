@@ -11,7 +11,7 @@
  * No UI text is tested; only the return values from pure logic.
  */
 
-import { rupees, formatDate, formatDateTime, greeting } from '../lib/format';
+import { rupees, formatDate, formatDateTime, greeting, localDateIso, maskPhone } from '../lib/format';
 
 // ---------------------------------------------------------------------------
 // rupees
@@ -144,5 +144,62 @@ describe('greeting', () => {
   test('no argument → returns a valid greeting string', () => {
     const result = greeting();
     expect(['Good morning', 'Good afternoon', 'Good evening']).toContain(result);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// localDateIso — LOCAL calendar date, never UTC-shifted
+// ---------------------------------------------------------------------------
+
+describe('localDateIso', () => {
+  test('formats yyyy-mm-dd with zero padding', () => {
+    const d = new Date(2026, 0, 5); // 5 Jan 2026, local time
+    expect(localDateIso(d)).toBe('2026-01-05');
+  });
+
+  test('uses the LOCAL date just after local midnight (UTC would be yesterday in IST)', () => {
+    // 00:30 local on 13 Jun — toISOString().slice(0,10) gives 2026-06-12 in
+    // any zone ahead of UTC (e.g. IST +05:30). localDateIso must not.
+    const d = new Date(2026, 5, 13, 0, 30, 0);
+    expect(localDateIso(d)).toBe('2026-06-13');
+  });
+
+  test('uses the LOCAL date just before local midnight', () => {
+    const d = new Date(2026, 5, 13, 23, 59, 59);
+    expect(localDateIso(d)).toBe('2026-06-13');
+  });
+
+  test('no argument → today, matching local date parts', () => {
+    const now = new Date();
+    const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    expect(localDateIso()).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// maskPhone — derived from the actual number, no hardcoded prefix
+// ---------------------------------------------------------------------------
+
+describe('maskPhone', () => {
+  test('masks a 10-digit number keeping first 2 + last 4 digits', () => {
+    expect(maskPhone('7733441234')).toBe('+91 77 ●●●● 1234');
+  });
+
+  test('different numbers produce different masks (regression: was hardcoded "98")', () => {
+    expect(maskPhone('9812341234')).toBe('+91 98 ●●●● 1234');
+    expect(maskPhone('6000005678')).toBe('+91 60 ●●●● 5678');
+  });
+
+  test('strips non-digits before masking', () => {
+    expect(maskPhone('98123-41234')).toBe('+91 98 ●●●● 1234');
+  });
+
+  test('returns input unchanged when too short to mask', () => {
+    expect(maskPhone('1234')).toBe('1234');
+  });
+
+  test('handles null/undefined gracefully', () => {
+    expect(maskPhone(undefined)).toBe('');
+    expect(maskPhone(null)).toBe('');
   });
 });

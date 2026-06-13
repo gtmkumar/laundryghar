@@ -3,6 +3,7 @@ using laundryghar.Finance.Application.Royalty.Dtos;
 using laundryghar.Utilities.Common;
 using MediatR;
 
+using laundryghar.Finance.Infrastructure.Services;
 namespace laundryghar.Finance.Application.Royalty.Queries;
 
 // ── List royalty invoices ─────────────────────────────────────────────────────

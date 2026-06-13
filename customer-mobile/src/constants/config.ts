@@ -23,16 +23,22 @@ const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, string | und
 /** Build a default service URL on the resolved dev host. */
 const devUrl = (port: number) => `http://${DEV_HOST}:${port}`;
 
+// Post-consolidation the 11 services collapsed to 3 hosts:
+//   core (5050) = identity + engagement;  operations (5002) = catalog + orders;
+//   commerce (5005) = commerce.
 export const CONFIG = {
   identityApiUrl:   extra['identityApiUrl']   ?? devUrl(5050),
-  catalogApiUrl:    extra['catalogApiUrl']    ?? devUrl(5001),
+  catalogApiUrl:    extra['catalogApiUrl']    ?? devUrl(5002),
   ordersApiUrl:     extra['ordersApiUrl']     ?? devUrl(5002),
   commerceApiUrl:   extra['commerceApiUrl']   ?? devUrl(5005),
-  engagementApiUrl: extra['engagementApiUrl'] ?? devUrl(5007),
+  engagementApiUrl: extra['engagementApiUrl'] ?? devUrl(5050),
   defaultBrandCode: extra['defaultBrandCode'] ?? 'LG-MAIN',
 } as const;
 
 export type ServiceName = keyof typeof CONFIG;
+
+/** Flat express surcharge (₹) applied at payment; mirrored on the tracking summary. */
+export const EXPRESS_SURCHARGE = 50;
 
 // ---------------------------------------------------------------------------
 // Feature flags

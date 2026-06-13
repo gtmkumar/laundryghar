@@ -1,3 +1,5 @@
+using laundryghar.Catalog.Infrastructure.Auth;
+using laundryghar.Catalog.Infrastructure.Services;
 using FluentValidation;
 using laundryghar.Catalog.Application.Catalog.Dtos;
 using MediatR;
@@ -97,6 +99,9 @@ public sealed class DeleteItemGroupHandler : IRequestHandler<DeleteItemGroupComm
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return false;
 
+        // Soft-delete must also move status off 'active' so status-keyed reports don't
+        // miscount it. item_groups CHECK is ('active','disabled') — 'disabled' is terminal.
+        e.Status    = "disabled";
         e.DeletedAt = DateTimeOffset.UtcNow;
         e.UpdatedAt = DateTimeOffset.UtcNow;
         e.UpdatedBy = cmd.ActorId;
@@ -111,6 +116,6 @@ public sealed class CreateItemGroupValidator : AbstractValidator<CreateItemGroup
     {
         RuleFor(x => x.Request.Code).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Request.NameLocalized).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Request.NameLocalized).NotEmpty().MaximumLength(200).MustBeJsonObject();
     }
 }

@@ -10,19 +10,11 @@
     <UserSecretsId>laundryghar-apphost-secrets</UserSecretsId>
   </PropertyGroup>
 
-  <!-- 9 service projects - each becomes an Aspire orchestrated resource -->
+  <!-- 3 consolidated services + gateway - each becomes an Aspire orchestrated resource -->
   <ItemGroup>
-    <ProjectReference Include="..\laundryghar.Identity\laundryghar.Identity.csproj" />
-    <ProjectReference Include="..\laundryghar.Catalog\laundryghar.Catalog.csproj" />
-    <ProjectReference Include="..\laundryghar.Orders\laundryghar.Orders.csproj" />
-    <ProjectReference Include="..\laundryghar.Warehouse\laundryghar.Warehouse.csproj" />
-    <ProjectReference Include="..\laundryghar.Logistics\laundryghar.Logistics.csproj" />
+    <ProjectReference Include="..\laundryghar.Core\laundryghar.Core.csproj" />
+    <ProjectReference Include="..\laundryghar.Operations\laundryghar.Operations.csproj" />
     <ProjectReference Include="..\laundryghar.Commerce\laundryghar.Commerce.csproj" />
-    <ProjectReference Include="..\laundryghar.Finance\laundryghar.Finance.csproj" />
-    <ProjectReference Include="..\laundryghar.Engagement\laundryghar.Engagement.csproj" />
-    <ProjectReference Include="..\laundryghar.Analytics\laundryghar.Analytics.csproj" />
-    <ProjectReference Include="..\laundryghar.Worker\laundryghar.Worker.csproj" />
-    <ProjectReference Include="..\laundryghar.Mcp\laundryghar.Mcp.csproj" />
     <ProjectReference Include="..\laundryghar.Gateway\laundryghar.Gateway.csproj" />
   </ItemGroup>
 

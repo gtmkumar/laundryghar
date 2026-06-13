@@ -111,33 +111,59 @@ export function normalizePhoneE164(raw: string): string | null {
 export function orderStatusColor(status: string): string {
   const map: Record<string, string> = {
     placed: 'bg-blue-100 text-blue-800',
+    pickup_scheduled: 'bg-sky-100 text-sky-800',
+    pickup_assigned: 'bg-sky-100 text-sky-800',
+    pickup_in_progress: 'bg-sky-100 text-sky-800',
     picked_up: 'bg-indigo-100 text-indigo-800',
     received: 'bg-purple-100 text-purple-800',
     sorting: 'bg-yellow-100 text-yellow-800',
     in_process: 'bg-orange-100 text-orange-800',
     qc: 'bg-cyan-100 text-cyan-800',
     ready: 'bg-green-100 text-green-800',
+    delivery_scheduled: 'bg-teal-100 text-teal-800',
+    delivery_assigned: 'bg-teal-100 text-teal-800',
     out_for_delivery: 'bg-teal-100 text-teal-800',
     delivered: 'bg-green-200 text-green-900',
+    closed: 'bg-gray-200 text-gray-700',
     cancelled: 'bg-red-100 text-red-800',
+    disputed: 'bg-amber-100 text-amber-800',
     returned: 'bg-gray-100 text-gray-800',
     rewash: 'bg-pink-100 text-pink-800',
   }
   return map[status] ?? 'bg-gray-100 text-gray-800'
 }
 
-/** Returns allowed next statuses for a given current order status (POS-relevant transitions). */
+/**
+ * Allowed next statuses per current status — FALLBACK ONLY.
+ *
+ * The source of truth is the backend state machine
+ * (laundryghar.Operations/Orders/Application/Common/OrderStateMachine.cs);
+ * order detail responses carry `allowedTransitions` computed there, and the UI
+ * must prefer that field. This map is a verbatim mirror kept for older API
+ * responses that don't include it yet — if you change it, change the backend
+ * first (a divergent entry here renders buttons whose PATCH 422s).
+ */
 export function nextStatuses(current: string): string[] {
   const map: Record<string, string[]> = {
-    placed: ['received', 'cancelled'],
-    picked_up: ['received', 'cancelled'],
-    received: ['sorting'],
-    sorting: ['in_process'],
-    in_process: ['qc'],
-    qc: ['ready', 'rewash'],
-    ready: ['out_for_delivery', 'delivered'],
-    out_for_delivery: ['delivered'],
-    rewash: ['in_process'],
+    placed: ['pickup_scheduled', 'cancelled', 'disputed'],
+    pickup_scheduled: ['pickup_assigned', 'cancelled', 'disputed'],
+    pickup_assigned: ['pickup_in_progress', 'cancelled', 'disputed'],
+    pickup_in_progress: ['picked_up', 'cancelled', 'disputed'],
+    picked_up: ['received', 'disputed'],
+    received: ['sorting', 'disputed'],
+    sorting: ['in_process', 'disputed'],
+    in_process: ['qc', 'disputed'],
+    qc: ['ready', 'rewash', 'disputed'],
+    ready: ['delivery_scheduled', 'returned', 'disputed'],
+    delivery_scheduled: ['delivery_assigned', 'returned', 'disputed'],
+    delivery_assigned: ['out_for_delivery', 'returned', 'disputed'],
+    out_for_delivery: ['delivered', 'returned', 'disputed'],
+    delivered: ['closed', 'rewash', 'disputed'],
+    rewash: ['sorting', 'disputed'],
+    returned: ['closed'],
+    disputed: ['closed', 'in_process'],
+    cancelled: [],
+    closed: [],
   }
   return map[current] ?? []
 }

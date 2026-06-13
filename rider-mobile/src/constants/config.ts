@@ -15,10 +15,12 @@ const hostUri =
   '';
 const DEV_HOST = hostUri.split(':')[0] || 'localhost';
 
+// Post-consolidation the 11 services collapsed to 3 hosts:
+//   core (5050) = identity + engagement;  operations (5002) = logistics.
 export const CONFIG = {
   identityApiUrl:   extra['identityApiUrl']   ?? `http://${DEV_HOST}:5050`,
-  logisticsApiUrl:  extra['logisticsApiUrl']  ?? `http://${DEV_HOST}:5004`,
-  engagementApiUrl: extra['engagementApiUrl'] ?? `http://${DEV_HOST}:5007`,
+  logisticsApiUrl:  extra['logisticsApiUrl']  ?? `http://${DEV_HOST}:5002`,
+  engagementApiUrl: extra['engagementApiUrl'] ?? `http://${DEV_HOST}:5050`,
   defaultBrandCode: extra['defaultBrandCode'] ?? 'LG-MAIN',
 } as const;
 

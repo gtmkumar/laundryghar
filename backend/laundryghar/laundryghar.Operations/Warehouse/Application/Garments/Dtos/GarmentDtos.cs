@@ -1,3 +1,5 @@
+using laundryghar.Warehouse.Infrastructure.Auth;
+using laundryghar.Warehouse.Infrastructure.Services;
 namespace laundryghar.Warehouse.Application.Garments.Dtos;
 
 public sealed record GarmentDto(

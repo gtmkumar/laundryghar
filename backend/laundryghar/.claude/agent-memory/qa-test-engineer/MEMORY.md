@@ -1,2 +1,7 @@
 - [BC-6 Commerce QA findings](project-commerce-bc6.md) — 3 critical defects fixed; DB constraint values; IDOR/separation patterns confirmed
 - [QA-R3 Live Browser findings](project-qa-r3-live-browser.md) — admin-web+pos-web smoke 2026-06-12; defects, verified behaviors, Playwright gotchas
+- [Core consolidation QA](project-core-consolidation.md) — Identity+Engagement+Mcp live CRUD 2026-06-13; bare-list 500, raw DB-error leaks, soft/hard delete map, gotchas
+- [Commerce consolidation QA](project-commerce-consolidation.md) — Commerce+Finance+Analytics+Worker live 2026-06-13; webhook HMAC-skip/snake_case, rider-perf 500, worker confirmed, schema map
+- [Operations service QA](project-operations-service-qa.md) — 5002 consolidated svc; request-contract enum/jsonb values, QA auth setup, delete-surface gaps
+- [Operations jsonb/500 leak defect](defect-operations-jsonb-leak.md) — raw Npgsql/deserialization exceptions surface as 400/500 instead of clean 422
+- [admin-web Live QA R4](project-adminweb-r4.md) — 2026-06-13; PORT SWAP (admin=5174), full UI CRUD verified, soft-delete status bug, pkg bronze-tier 422, silent-fail + focus-trap a11y

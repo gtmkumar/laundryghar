@@ -19,9 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Reference Worker to reach CustomerErasureService.AnonymizeCustomer (internal static).
-         Worker is a SDK.Worker project; test runner does not start the hosted services. -->
-    <ProjectReference Include="..\laundryghar.Worker\laundryghar.Worker.csproj" />
+    <!-- Reference Commerce (consolidated Commerce+Finance+Analytics+Worker) to reach
+         CustomerErasureService.AnonymizeCustomer. The worker hosted services run inside
+         the Commerce host; the test runner does not start them. -->
+    <ProjectReference Include="..\laundryghar.Commerce\laundryghar.Commerce.csproj" />
     <ProjectReference Include="..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
   </ItemGroup>
 

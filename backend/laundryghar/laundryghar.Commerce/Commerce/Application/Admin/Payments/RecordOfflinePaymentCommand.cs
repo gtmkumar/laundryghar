@@ -3,6 +3,7 @@ using laundryghar.Commerce.Application;
 using laundryghar.SharedDataModel.Entities.FinanceRoyalty;
 using MediatR;
 
+using laundryghar.Commerce.Infrastructure.Services;
 namespace laundryghar.Commerce.Application.Admin.Payments;
 
 // ── Request / Response DTOs ───────────────────────────────────────────────────

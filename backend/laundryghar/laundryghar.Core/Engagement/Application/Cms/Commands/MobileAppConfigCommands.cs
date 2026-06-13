@@ -1,3 +1,5 @@
+using laundryghar.Engagement.Infrastructure.Services;
+using ICurrentUser = laundryghar.Engagement.Infrastructure.Services.ICurrentUser;
 using FluentValidation;
 using laundryghar.Engagement.Application.Cms.Dtos;
 using MediatR;
@@ -188,7 +190,27 @@ public sealed class CreateMobileAppConfigValidator
             .Must(p => ValidPlatforms.Contains(p))
             .WithMessage("platform must be one of: android, ios, web");
         RuleFor(x => x.Request.ConfigKey).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Request.ConfigValue).NotEmpty();
+        RuleFor(x => x.Request.ConfigValue).NotEmpty().MustBeJson();
+        RuleFor(x => x.Request.AppType).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.Request.RolloutPercent)
+            .InclusiveBetween((short)0, (short)100)
+            .When(x => x.Request.RolloutPercent.HasValue)
+            .WithMessage("rollout_percent must be between 0 and 100");
+    }
+}
+
+public sealed class UpdateMobileAppConfigValidator
+    : AbstractValidator<UpdateMobileAppConfigCommand>
+{
+    private static readonly string[] ValidPlatforms = ["android", "ios", "web"];
+
+    public UpdateMobileAppConfigValidator()
+    {
+        RuleFor(x => x.Request.Platform).NotEmpty()
+            .Must(p => ValidPlatforms.Contains(p))
+            .WithMessage("platform must be one of: android, ios, web");
+        RuleFor(x => x.Request.ConfigKey).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Request.ConfigValue).NotEmpty().MustBeJson();
         RuleFor(x => x.Request.AppType).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Request.RolloutPercent)
             .InclusiveBetween((short)0, (short)100)

@@ -3,6 +3,7 @@ using laundryghar.SharedDataModel.Entities.FinanceRoyalty.Subscriptions;
 using laundryghar.Utilities.Common;
 using MediatR;
 
+using laundryghar.Finance.Infrastructure.Services;
 namespace laundryghar.Finance.Application.Subscriptions;
 
 // ── Queries ───────────────────────────────────────────────────────────────────

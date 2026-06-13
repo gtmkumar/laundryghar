@@ -1,3 +1,5 @@
+using laundryghar.Logistics.Infrastructure.Auth;
+using laundryghar.Logistics.Infrastructure.Services;
 namespace laundryghar.Logistics.Application.Assignments.Dtos;
 
 public sealed record RiderAssignmentDto(

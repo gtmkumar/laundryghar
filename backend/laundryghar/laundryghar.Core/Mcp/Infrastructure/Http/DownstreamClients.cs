@@ -20,6 +20,7 @@ public sealed class DownstreamServicesConfig
 {
     public const string SectionName = "DownstreamServices";
 
-    public string CatalogBaseUrl { get; set; } = "http://localhost:5001";
+    // Post-consolidation Catalog + Orders both live in laundryghar.Operations on port 5002.
+    public string CatalogBaseUrl { get; set; } = "http://localhost:5002";
     public string OrdersBaseUrl { get; set; } = "http://localhost:5002";
 }

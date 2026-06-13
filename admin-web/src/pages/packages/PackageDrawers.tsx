@@ -12,12 +12,17 @@ import {
 import type { PackageDto, CreatePackagePayload, UpdatePackagePayload } from '@/types/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
+/**
+ * Must mirror the packages.tier DB check constraint:
+ * silver | gold | diamond | platinum | custom. ("bronze" is NOT allowed — it
+ * previously shipped here and produced a guaranteed 422 on create.)
+ */
 export const TIERS = [
-  { value: 'bronze', label: 'Bronze' },
   { value: 'silver', label: 'Silver' },
   { value: 'gold', label: 'Gold' },
   { value: 'diamond', label: 'Diamond' },
   { value: 'platinum', label: 'Platinum' },
+  { value: 'custom', label: 'Custom' },
 ] as const
 
 const STATUSES = [

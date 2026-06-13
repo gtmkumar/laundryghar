@@ -20,9 +20,17 @@ import { rupees } from '@/lib/format';
 import { DEMO_ITEMS } from '@/data/demoItems';
 
 interface PickerItem {
+  /** Price-list ROW id — local cart key only, never sent as itemId. */
   id: string;
+  /** Real catalog ids from the price-list entry (null for demo items). */
+  itemId: string | null;
+  serviceId: string | null;
+  /** Row title, e.g. "Shirt". */
   name: string;
+  /** Sub-label, e.g. the service name. */
   fabric: string;
+  /** Full display label sent to the API, e.g. "Shirt · Wash & Iron". */
+  label: string;
   unitPrice: number;
 }
 
@@ -47,7 +55,14 @@ function ItemRow({ item }: { item: PickerItem }) {
         value={qty}
         onChange={(next) =>
           setQty(
-            { id: item.id, name: item.name, service: item.fabric, unitPrice: item.unitPrice },
+            {
+              id: item.id,
+              itemId: item.itemId,
+              serviceId: item.serviceId,
+              name: item.label,
+              service: item.fabric,
+              unitPrice: item.unitPrice,
+            },
             next,
           )
         }
@@ -81,13 +96,27 @@ export default function ItemsScreen() {
   const items: PickerItem[] = useMemo(() => {
     const live = (priceList ?? [])
       .filter((p) => p.isActive)
-      .map((p) => ({
-        id: p.id,
-        name: p.displayLabel ?? p.notes ?? 'Garment',
-        fabric: p.notes ?? 'Standard',
-        unitPrice: p.basePrice,
-      }));
-    return live.length > 0 ? live : DEMO_ITEMS;
+      .map((p) => {
+        // Backend now returns itemName/serviceName/displayLabel on price-list rows.
+        const joined = [p.itemName, p.serviceName].filter(Boolean).join(' · ');
+        const label = p.displayLabel ?? (joined || p.notes || 'Garment');
+        return {
+          id: p.id,
+          itemId: p.itemId ?? null,
+          serviceId: p.serviceId ?? null,
+          name: p.itemName ?? label,
+          fabric: p.serviceName ?? p.notes ?? 'Standard',
+          label,
+          unitPrice: p.basePrice,
+        };
+      });
+    if (live.length > 0) return live;
+    return DEMO_ITEMS.map((d) => ({
+      ...d,
+      itemId: null,
+      serviceId: null,
+      label: `${d.name} · ${d.fabric}`,
+    }));
   }, [priceList]);
 
   // Express surcharge mirrors the mockup (+₹50 flat shown later); here we only

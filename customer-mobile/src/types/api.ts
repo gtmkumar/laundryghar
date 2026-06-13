@@ -127,6 +127,10 @@ export interface PriceListItemDto {
   isTaxable: boolean;
   /** Optional display label; used as the item name when present */
   displayLabel?: string;
+  /** Resolved catalog item name, e.g. "Shirt" (added alongside displayLabel). */
+  itemName?: string;
+  /** Resolved catalog service name, e.g. "Wash & Iron" (added alongside displayLabel). */
+  serviceName?: string;
   notes?: string;
   isActive: boolean;
   status: string;
@@ -348,6 +352,8 @@ export interface PickupRequestDto {
   cartItems: RequestedCartItemDto[];
   /** Payment intent recorded at booking: "wallet" | "cod" | "upi-deferred". */
   paymentPreference: string;
+  /** Coupon code applied at booking, when any (pickup_requests.coupon_code). */
+  couponCode?: string | null;
 }
 
 export interface CreatePickupRequestRequest {

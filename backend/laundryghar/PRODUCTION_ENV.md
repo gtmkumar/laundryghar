@@ -1,5 +1,19 @@
 # Production environment variables
 
+> **Consolidation note (service topology):** The 11 services have been consolidated
+> into **3 deployable hosts** behind the gateway:
+> - **core** (`laundryghar.Core`, port 5050) = Identity + Engagement + Mcp
+> - **operations** (`laundryghar.Operations`, port 5002) = Catalog + Orders + Warehouse + Logistics
+> - **commerce** (`laundryghar.Commerce`, port 5005) = Commerce + Finance + Analytics + Worker
+>   (the Worker background jobs run as in-process hosted services inside this host)
+>
+> All env-var keys and config sections below (`Jwt__*`, `Worker__*`, `Storage__*`, etc.)
+> are **unchanged** — only the host that reads them differs. Where the text below says
+> "9 APIs + Worker" or names an old per-service project path (e.g.
+> `laundryghar.Worker/appsettings.Development.json`), read it as the corresponding
+> consolidated host. The per-service rows still indicate *which lane* requires the value
+> (e.g. "Identity only" → core; "Warehouse, Logistics" → operations; "Worker" → commerce).
+
 The base `appsettings.json` of every service is intentionally **secret-free**.
 Development values live in `appsettings.Development.json` (loaded only when
 `ASPNETCORE_ENVIRONMENT=Development`). In Production these files provide no

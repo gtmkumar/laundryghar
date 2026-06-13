@@ -10,6 +10,7 @@ import {
   getPriceListItems,
   getAdminCustomers,
   updateAdminCustomer,
+  deleteAdminCustomer,
   createServiceCategory,
   updateServiceCategory,
   deleteServiceCategory,
@@ -376,6 +377,16 @@ export function useUpdateAdminCustomer() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: AdminUpdateCustomerPayload }) =>
       updateAdminCustomer(id, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['catalog', 'adminCustomers'] })
+    },
+  })
+}
+
+export function useDeleteAdminCustomer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteAdminCustomer(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['catalog', 'adminCustomers'] })
     },

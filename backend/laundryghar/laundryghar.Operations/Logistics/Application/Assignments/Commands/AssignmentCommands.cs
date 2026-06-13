@@ -1,3 +1,5 @@
+using laundryghar.Logistics.Infrastructure.Auth;
+using laundryghar.Logistics.Infrastructure.Services;
 using FluentValidation;
 using laundryghar.Logistics.Application.Assignments.Dtos;
 using laundryghar.SharedDataModel.Enums;

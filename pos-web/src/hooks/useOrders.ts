@@ -18,6 +18,9 @@ export function useOrders(params: OrderListParams = {}) {
   return useQuery({
     queryKey: orderKeys.list(params),
     queryFn: () => getOrders(params),
+    // Wait until the active store is resolved — an unscoped request is
+    // rejected by the backend (401) before brand/store selection completes.
+    enabled: Boolean(params.storeId),
     staleTime: 30_000,
   })
 }

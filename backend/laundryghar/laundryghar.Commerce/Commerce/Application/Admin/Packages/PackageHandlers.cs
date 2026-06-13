@@ -3,6 +3,7 @@ using laundryghar.Commerce.Application;
 using laundryghar.Utilities.Common;
 using MediatR;
 
+using laundryghar.Commerce.Infrastructure.Services;
 namespace laundryghar.Commerce.Application.Admin.Packages;
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ public sealed class CreatePackageValidator : AbstractValidator<CreatePackageComm
     {
         RuleFor(x => x.Request.Code).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Request.NameLocalized).NotEmpty();
+        RuleFor(x => x.Request.NameLocalized).NotEmpty().MustBeJsonObject();
         RuleFor(x => x.Request.Tier).NotEmpty();
         RuleFor(x => x.Request.Price).GreaterThan(0);
         RuleFor(x => x.Request.CreditValue).GreaterThan(0);
@@ -186,6 +187,10 @@ public sealed class DeletePackageHandler : IRequestHandler<DeletePackageCommand,
         var entity = await _db.Packages.FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId && x.DeletedAt == null, ct);
         if (entity is null) return false;
 
+        // Soft-delete must also move status off 'active' so status-keyed reports don't
+        // miscount archived packages. The packages CHECK constraint has no 'archived'
+        // value; 'retired' is its terminal/archived state.
+        entity.Status    = "retired";
         entity.DeletedAt = DateTimeOffset.UtcNow;
         entity.UpdatedAt = DateTimeOffset.UtcNow;
         entity.UpdatedBy = cmd.ActorId;

@@ -58,7 +58,8 @@
       "phoneCharged": "फोन चार्ज है",
       "vehicleDocs": "वाहन के दस्तावेज़",
       "cashFloat": "नकद ₹500"
-    }
+    },
+    "offDutyTasksHint": "आप ऑफ़ ड्यूटी हैं — नए टास्क पाने के लिए ड्यूटी शुरू करें।"
   },
   "tasks": {
     "title": "आज के टास्क",
@@ -79,7 +80,8 @@
     "collected": "मिल गया",
     "taskCount": "{{completed}}/{{total}} पूरे",
     "earnings": "₹{{amount}} कमाई",
-    "rating": "{{score}} ★"
+    "rating": "{{score}} ★",
+    "noTasksMessageOnDuty": "आप ड्यूटी पर हैं — नए टास्क असाइन होते ही यहां दिखेंगे।"
   },
   "taskDetail": {
     "pickup": "पिकअप",
@@ -106,7 +108,10 @@
         "vehicle_breakdown": "वाहन खराब",
         "other": "अन्य"
       }
-    }
+    },
+    "arrived": "मैं पहुंच गया",
+    "arrivedHint": "ग्राहक तक पहुंचने पर टैप करें — डिस्पैच को आपका आगमन समय दिखेगा।",
+    "markItemsCollected": "आइटम मिल गए"
   },
   "profile": {
     "title": "प्रोफ़ाइल",

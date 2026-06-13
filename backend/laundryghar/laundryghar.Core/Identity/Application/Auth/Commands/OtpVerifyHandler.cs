@@ -39,6 +39,22 @@ public sealed class OtpVerifyHandler : IRequestHandler<OtpVerifyCommand, OtpVeri
         _env         = env;
     }
 
+    /// <summary>
+    /// DEFECT 8 — pure decision for what a successful OTP verification does to the
+    /// user's account status. Split out so the rules are unit-testable.
+    /// Returns (blocked, nextStatus): when <c>blocked</c> is true the login must be
+    /// refused; otherwise <c>nextStatus</c> is the status to persist (unchanged for
+    /// already-active users, or <c>active</c> when activating an invited user).
+    /// </summary>
+    internal static (bool Blocked, string NextStatus) ResolveStatusOnVerify(string currentStatus)
+    {
+        if (currentStatus is UserStatus.Suspended or UserStatus.Deleted or UserStatus.Locked)
+            return (true, currentStatus);
+        if (currentStatus == UserStatus.Invited)
+            return (false, UserStatus.Active);
+        return (false, currentStatus);
+    }
+
     public async Task<OtpVerifiedResponse> Handle(OtpVerifyCommand cmd, CancellationToken ct)
     {
         // SEC1: Rolling-window lockout — check BEFORE loading the OTP row so we don't
@@ -99,19 +115,30 @@ public sealed class OtpVerifyHandler : IRequestHandler<OtpVerifyCommand, OtpVeri
             ? await _db.Users.FindAsync([otpCode.UserId.Value], ct)
             : null;
 
-        if (user is not null)
+        if (user is null)
         {
-            if (cmd.IdentifierType == "phone")
-                user.PhoneVerifiedAt = DateTimeOffset.UtcNow;
-            else if (cmd.IdentifierType == "email")
-                user.EmailVerifiedAt = DateTimeOffset.UtcNow;
-            user.UpdatedAt = DateTimeOffset.UtcNow;
+            // Mark the OTP consumed even though there's no user to log in.
+            await _db.SaveChangesAsync(ct);
+            throw new UnauthorizedAccessException("No user associated with this OTP.");
         }
 
-        await _db.SaveChangesAsync(ct);
+        // DEFECT 8: a deactivated account must never complete OTP login, even with a
+        // valid code (suspended / deleted / locked are blocked); the first successful
+        // verification activates an invited rider/staff user (invited → active). This
+        // runs only on the verified path, so a wrong code can never activate or bypass.
+        var (blocked, nextStatus) = ResolveStatusOnVerify(user.Status);
+        if (blocked)
+            throw new UnauthorizedAccessException("This account is not allowed to sign in.");
 
-        if (user is null)
-            throw new UnauthorizedAccessException("No user associated with this OTP.");
+        if (cmd.IdentifierType == "phone")
+            user.PhoneVerifiedAt = DateTimeOffset.UtcNow;
+        else if (cmd.IdentifierType == "email")
+            user.EmailVerifiedAt = DateTimeOffset.UtcNow;
+
+        user.Status = nextStatus;
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _db.SaveChangesAsync(ct);
 
         var ipAddress = string.IsNullOrEmpty(cmd.IpAddress) ? null
             : IPAddress.TryParse(cmd.IpAddress, out var ip) ? ip : null;

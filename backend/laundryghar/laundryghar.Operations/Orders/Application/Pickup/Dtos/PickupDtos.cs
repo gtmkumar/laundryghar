@@ -1,3 +1,5 @@
+using laundryghar.Orders.Infrastructure.Auth;
+using laundryghar.Orders.Infrastructure.Services;
 namespace laundryghar.Orders.Application.Pickup.Dtos;
 
 // ── Estimated cart item submitted by customer at booking time ────────────────
@@ -136,6 +138,15 @@ public sealed record ReschedulePickupRequest(
     DateOnly NewDate,
     /// <summary>New slot id. When provided the old slot capacity is released and the new slot is booked atomically.</summary>
     Guid? NewSlotId
+);
+
+/// <summary>
+/// Request body for POST /customer/pickup-requests/{id}/cancel (DEFECT 3).
+/// The body is optional; an absent body cancels with a default reason.
+/// </summary>
+public sealed record CancelPickupRequest(
+    /// <summary>Optional free-text reason recorded on the pickup request.</summary>
+    string? Reason
 );
 
 /// <summary>Request body for POST /customer/coupons/validate (Orders service preview — no redemption written).</summary>

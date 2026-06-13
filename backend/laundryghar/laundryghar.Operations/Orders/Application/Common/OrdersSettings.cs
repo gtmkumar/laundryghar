@@ -1,3 +1,5 @@
+using laundryghar.Orders.Infrastructure.Auth;
+using laundryghar.Orders.Infrastructure.Services;
 namespace laundryghar.Orders.Application.Common;
 
 public sealed class OrdersSettings

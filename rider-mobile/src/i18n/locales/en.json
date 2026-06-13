@@ -45,7 +45,7 @@
     "goOffDuty": "Go off duty?",
     "goOffDutyMessage": "You will stop receiving new task assignments.",
     "stayOnline": "Stay online",
-    "pendingTasks": "{{count}} tasks waiting in your zone ({{zone}}).",
+    "pendingTasks": "{{count}} task{{plural}} waiting in your zone ({{zone}}).",
     "avgPayout": "Avg payout ₹{{amount}}/task today.",
     "demoNote": "Showing demo tasks — live task feed activates when the backend rider-tasks API ships.",
     "viewTodaysTasks": "View today's tasks",
@@ -58,7 +58,8 @@
       "phoneCharged": "Phone charged",
       "vehicleDocs": "Vehicle docs",
       "cashFloat": "Cash float ₹500"
-    }
+    },
+    "offDutyTasksHint": "You're off duty — go on duty to receive new task assignments."
   },
   "tasks": {
     "title": "Today's Tasks",
@@ -79,7 +80,8 @@
     "collected": "Collected",
     "taskCount": "{{completed}}/{{total}} done",
     "earnings": "₹{{amount}} earned",
-    "rating": "{{score}} ★"
+    "rating": "{{score}} ★",
+    "noTasksMessageOnDuty": "You're on duty — new tasks will appear here as they're assigned."
   },
   "taskDetail": {
     "pickup": "Pickup",
@@ -106,7 +108,10 @@
         "vehicle_breakdown": "Vehicle breakdown",
         "other": "Other"
       }
-    }
+    },
+    "arrived": "I've arrived",
+    "arrivedHint": "Tap when you reach the customer — dispatch sees your arrival time.",
+    "markItemsCollected": "Mark items collected"
   },
   "profile": {
     "title": "Profile",

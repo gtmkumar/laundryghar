@@ -39,7 +39,10 @@ export function OrderDetailPage() {
     return <ErrorState message="Order not found." onRetry={() => refetch()} />
   }
 
-  const allowedNext = nextStatuses(order.status)
+  // Prefer the backend-computed transition list (always in sync with the
+  // OrderStateMachine); fall back to the local mirror for API builds that
+  // don't return `allowedTransitions` yet.
+  const allowedNext = order.allowedTransitions ?? nextStatuses(order.status)
 
   function handlePrint(mode: 'receipt' | 'tags') {
     setPrintMode(mode)
@@ -109,10 +112,22 @@ export function OrderDetailPage() {
               <Button
                 key={status}
                 size="touch"
-                variant={status === 'cancelled' ? 'destructive' : 'default'}
+                variant={
+                  status === 'cancelled'
+                    ? 'destructive'
+                    : status === 'disputed' || status === 'returned'
+                      ? 'outline'
+                      : status === 'delivered' || status === 'closed'
+                        ? 'success'
+                        : 'default'
+                }
                 disabled={isPending}
                 onClick={() => handleStatusChange(status)}
-                className="capitalize"
+                className={`capitalize ${
+                  status === 'disputed' || status === 'returned'
+                    ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
+                    : ''
+                }`}
               >
                 {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {status.replace(/_/g, ' ')}

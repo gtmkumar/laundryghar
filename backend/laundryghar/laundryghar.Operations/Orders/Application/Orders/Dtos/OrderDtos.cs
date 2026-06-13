@@ -1,3 +1,5 @@
+using laundryghar.Orders.Infrastructure.Auth;
+using laundryghar.Orders.Infrastructure.Services;
 namespace laundryghar.Orders.Application.Orders.Dtos;
 
 // ── Request records ─────────────────────────────────────────────────────────
@@ -96,6 +98,13 @@ public sealed record OrderDto(
     IReadOnlyList<OrderItemDto>? Items,
     IReadOnlyList<OrderAddonDto>? Addons,
     IReadOnlyList<OrderStatusHistoryDto>? StatusHistory,
+    /// <summary>
+    /// Status codes this order may legally transition to next, sourced from
+    /// <c>OrderStateMachine</c> for the current <see cref="Status"/>. Empty array for
+    /// terminal states. Populated only on order-detail responses (null on list rows,
+    /// where the projection runs in SQL and cannot evaluate the state machine).
+    /// </summary>
+    IReadOnlyList<string>? AllowedTransitions = null,
     /// <summary>Customer rating 1–5. Null until the customer rates the order.</summary>
     short? Rating = null,
     string? RatingComment = null,

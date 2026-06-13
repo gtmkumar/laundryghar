@@ -70,25 +70,23 @@ probe_get() {
 echo ""
 echo "=== Health checks ==="
 
-health_check "Health:Identity:5050"   "http://${HOST}:5050/health/live"
-health_check "Health:Catalog:5001"    "http://${HOST}:5001/health/live"
-health_check "Health:Orders:5002"     "http://${HOST}:5002/health/live"
-health_check "Health:Warehouse:5003"  "http://${HOST}:5003/health/live"
-health_check "Health:Logistics:5004"  "http://${HOST}:5004/health/live"
+# Consolidated topology: Core (Identity+Engagement+Mcp) :5050,
+# Operations (Catalog+Orders+Warehouse+Logistics) :5002,
+# Commerce (Commerce+Finance+Analytics+Worker jobs) :5005, Gateway :8080
+health_check "Health:Core:5050"       "http://${HOST}:5050/health/live"
+health_check "Health:Operations:5002" "http://${HOST}:5002/health/live"
 health_check "Health:Commerce:5005"   "http://${HOST}:5005/health/live"
-health_check "Health:Finance:5006"    "http://${HOST}:5006/health/live"
-health_check "Health:Engagement:5007" "http://${HOST}:5007/health/live"
-health_check "Health:Analytics:5008"  "http://${HOST}:5008/health/live"
+health_check "Health:Gateway:8080"    "http://${HOST}:8080/health/services"
 
-# ── 2. Worker process check ───────────────────────────────────────────────────
+# ── 2. Worker jobs check (hosted inside Commerce) ────────────────────────────
 
 echo ""
-echo "=== Worker process ==="
+echo "=== Worker host process ==="
 
-if pgrep -f "laundryghar.Worker" >/dev/null 2>&1; then
-  pass "Worker:pgrep"
+if pgrep -f "laundryghar.Commerce" >/dev/null 2>&1; then
+  pass "Worker:hosted-in-Commerce"
 else
-  fail "Worker:pgrep (process not found)"
+  fail "Worker:hosted-in-Commerce (Commerce process not found)"
 fi
 
 # ── 3. Admin login ────────────────────────────────────────────────────────────
@@ -118,21 +116,21 @@ echo ""
 echo "=== Per-service reads ==="
 
 probe_get "Identity:UsersList"         "http://${HOST}:5050/api/v1/admin/users?page=1&pageSize=1"
-probe_get "Catalog:CustomersList"      "http://${HOST}:5001/api/v1/admin/customers?page=1&pageSize=1"
+probe_get "Catalog:CustomersList"      "http://${HOST}:5002/api/v1/admin/customers?page=1&pageSize=1"
 probe_get "Orders:OrdersList"          "http://${HOST}:5002/api/v1/admin/orders?page=1&pageSize=1"
 probe_get "Orders:OpsQueues"           "http://${HOST}:5002/api/v1/admin/orders/ops-queues"
-probe_get "Warehouse:GarmentsBoard"    "http://${HOST}:5003/api/v1/admin/garments/board"
-probe_get "Logistics:RidersList"       "http://${HOST}:5004/api/v1/admin/riders?page=1&pageSize=1"
+probe_get "Warehouse:GarmentsBoard"    "http://${HOST}:5002/api/v1/admin/garments/board"
+probe_get "Logistics:RidersList"       "http://${HOST}:5002/api/v1/admin/riders?page=1&pageSize=1"
 probe_get "Commerce:PaymentsList"      "http://${HOST}:5005/api/v1/admin/payments?page=1&pageSize=1"
-probe_get "Finance:CashBooksList"      "http://${HOST}:5006/api/v1/admin/cash-books?page=1&pageSize=1"
-probe_get "Finance:RoyaltyInvoices"    "http://${HOST}:5006/api/v1/admin/royalty-invoices?page=1&pageSize=1"
-probe_get "Analytics:Dashboard"        "http://${HOST}:5008/api/v1/admin/analytics/dashboard"
+probe_get "Finance:CashBooksList"      "http://${HOST}:5005/api/v1/admin/cash-books?page=1&pageSize=1"
+probe_get "Finance:RoyaltyInvoices"    "http://${HOST}:5005/api/v1/admin/royalty-invoices?page=1&pageSize=1"
+probe_get "Analytics:Dashboard"        "http://${HOST}:5005/api/v1/admin/analytics/dashboard"
 
 # Engagement public app-config — no auth header
 APP_CONFIG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "X-Brand-Id: ${BRAND_ID}" \
   --max-time 10 \
-  "http://${HOST}:5007/api/v1/public/app-config?appType=customer&platform=ios" 2>/dev/null || echo "000")
+  "http://${HOST}:5050/api/v1/public/app-config?appType=customer&platform=ios" 2>/dev/null || echo "000")
 if [ "${APP_CONFIG_STATUS}" = "200" ]; then
   pass "Engagement:PublicAppConfig [HTTP ${APP_CONFIG_STATUS}]"
 else

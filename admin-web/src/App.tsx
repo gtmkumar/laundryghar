@@ -4,8 +4,10 @@ import {
   RouterProvider,
   Navigate,
 } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { showToast } from '@/stores/toastStore'
+import { apiErrorMessage, apiErrorStatus } from '@/lib/apiError'
 
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
@@ -25,6 +27,19 @@ function lazyPage(
 }
 
 const queryClient = new QueryClient({
+  // Global safety net: NO failed mutation is ever silent. Drawers additionally
+  // render inline banners / per-field errors via FormDrawer, but even a screen
+  // that forgot to wire error handling gets a visible toast with the backend's
+  // responseMessage / validator text (409 duplicate, 422 validation, 404 …).
+  // 401 is excluded (handled by the silent refresh-and-retry interceptor) and
+  // 403 is excluded (the axios interceptor already shows a permission toast).
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      const status = apiErrorStatus(error)
+      if (status === 401 || status === 403) return
+      showToast('error', apiErrorMessage(error))
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 30_000,

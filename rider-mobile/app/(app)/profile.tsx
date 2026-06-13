@@ -16,6 +16,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { useTranslation } from 'react-i18next';
 import { changeLanguage, getActiveLocale, type AppLocale } from '@/i18n';
+import { formatPhone, humanizeVehicleType } from '@/lib/format';
 
 function StatCard({ icon, value, label }: { icon: React.ComponentProps<typeof Ionicons>['name']; value: string; label: string }) {
   return (
@@ -116,11 +117,18 @@ export default function ProfileScreen() {
 
           {/* Details */}
           <View className="mt-6 rounded-3xl bg-white px-4" style={{ elevation: 1 }}>
-            <Row label={t('profile.phone')} value={profile?.phone} />
+            <Row label={t('profile.phone')} value={formatPhone(profile?.phone)} />
             <Row label={t('profile.email')} value={profile?.email} />
             <Row label={t('profile.franchise')} value={profile?.franchiseName} />
             <Row label={t('profile.store')} value={profile?.primaryStoreName} />
-            <Row label={t('profile.vehicle')} value={[profile?.vehicleType, profile?.vehicleNumber].filter(Boolean).join(' · ') || null} />
+            <Row
+              label={t('profile.vehicle')}
+              value={
+                [humanizeVehicleType(profile?.vehicleType), profile?.vehicleNumber]
+                  .filter(Boolean)
+                  .join(' · ') || null
+              }
+            />
             <Row label={t('profile.employment')} value={profile?.employmentType} />
             <Row label={t('profile.status')} value={profile?.status} />
           </View>

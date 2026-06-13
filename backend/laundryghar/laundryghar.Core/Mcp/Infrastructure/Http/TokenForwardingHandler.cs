@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+
 namespace laundryghar.Mcp.Infrastructure.Http;
 
 /// <summary>

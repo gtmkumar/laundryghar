@@ -23,6 +23,8 @@ import { useCartStore, CartLine } from '../store/cartStore';
 function line(overrides: Partial<CartLine> = {}): Omit<CartLine, 'qty'> {
   return {
     id: 'item-1',
+    itemId: 'catalog-item-1',
+    serviceId: 'catalog-service-1',
     name: 'Shirt',
     service: 'Wash & Iron',
     unitPrice: 120,

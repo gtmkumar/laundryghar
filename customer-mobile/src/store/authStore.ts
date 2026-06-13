@@ -5,6 +5,7 @@
  */
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { configureApiAuth } from '@/api/client';
 import { refreshAccessToken as apiRefreshAccessToken, logout as apiLogout } from '@/api/auth';
 import type { CustomerTokenResponse, CustomerMeResponse } from '@/types/api';
@@ -16,6 +17,9 @@ import { deregisterPushNotifications } from '@/lib/pushNotifications';
 const KEY_ACCESS_TOKEN  = 'lg_access_token';
 const KEY_REFRESH_TOKEN = 'lg_refresh_token';
 
+/** AsyncStorage (not SecureStore) — survives logout; it is not a secret. */
+const KEY_HAS_ONBOARDED = 'lg_has_onboarded';
+
 // ---------------------------------------------------------------------------
 // State shape
 // ---------------------------------------------------------------------------
@@ -24,10 +28,13 @@ export interface AuthState {
   refreshToken: string | null;
   customer:     CustomerMeResponse | null;
   isHydrated:   boolean;
+  /** True once the user has completed/skipped the onboarding carousel. Survives logout. */
+  hasOnboarded: boolean;
 
   // Actions
   setTokens:     (tokens: CustomerTokenResponse) => Promise<void>;
   setCustomer:   (customer: CustomerMeResponse) => void;
+  setHasOnboarded: () => Promise<void>;
   refreshTokens: () => Promise<void>;
   logout:        () => Promise<void>;
   hydrate:       () => Promise<void>;
@@ -41,6 +48,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   refreshToken: null,
   customer:     null,
   isHydrated:   false,
+  hasOnboarded: false,
 
   setTokens: async (tokens) => {
     await SecureStore.setItemAsync(KEY_ACCESS_TOKEN,  tokens.accessToken);
@@ -49,6 +57,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   setCustomer: (customer) => set({ customer }),
+
+  setHasOnboarded: async () => {
+    set({ hasOnboarded: true });
+    try {
+      await AsyncStorage.setItem(KEY_HAS_ONBOARDED, 'true');
+    } catch {
+      // best-effort — worst case the carousel shows once more
+    }
+  },
 
   refreshTokens: async () => {
     const { refreshToken } = get();
@@ -74,11 +91,17 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   hydrate: async () => {
-    const [access, refresh] = await Promise.all([
+    const [access, refresh, onboarded] = await Promise.all([
       SecureStore.getItemAsync(KEY_ACCESS_TOKEN),
       SecureStore.getItemAsync(KEY_REFRESH_TOKEN),
+      AsyncStorage.getItem(KEY_HAS_ONBOARDED).catch(() => null),
     ]);
-    set({ accessToken: access, refreshToken: refresh, isHydrated: true });
+    set({
+      accessToken: access,
+      refreshToken: refresh,
+      hasOnboarded: onboarded === 'true',
+      isHydrated: true,
+    });
   },
 }));
 

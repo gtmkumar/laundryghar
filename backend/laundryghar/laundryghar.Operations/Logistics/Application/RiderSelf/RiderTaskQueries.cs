@@ -1,9 +1,12 @@
+using laundryghar.Logistics.Infrastructure.Auth;
+using laundryghar.Logistics.Infrastructure.Services;
 using System.Text.Json;
 using laundryghar.Logistics.Application.Payout;
 using laundryghar.SharedDataModel.Common;
 using laundryghar.SharedDataModel.Entities.Commerce;
 using laundryghar.SharedDataModel.Entities.CustomerCatalog;
 using laundryghar.SharedDataModel.Entities.Kernel;
+using laundryghar.Orders.Application.Common;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
 using laundryghar.SharedDataModel.Enums;
 using laundryghar.SharedDataModel.Logistics;
@@ -119,19 +122,39 @@ internal static class RiderTaskMapper
         return st == "started" ? "to_customer" : "assigned";
     }
 
-    public static RiderTaskDto ToDto(DeliveryAssignment da, Order? o, Customer? c, CustomerAddress? addr, RiderPayoutSettings payout)
+    /// <param name="pr">
+    /// DEFECT 4 — the source pickup request for a pickup leg. Pickup-leg assignments
+    /// link to a PickupRequest (not an Order: order_id is null), so without this the
+    /// order-derived fields all fell back to placeholders ("—", "Customer",
+    /// "Address on file", 0, 0). When <paramref name="o"/> is null we read the
+    /// customer-facing fields from <paramref name="pr"/> instead.
+    /// </param>
+    public static RiderTaskDto ToDto(
+        DeliveryAssignment da, Order? o, Customer? c, CustomerAddress? addr,
+        RiderPayoutSettings payout, PickupRequest? pr = null)
     {
-        var isExpress = o?.IsExpress ?? false;
-        var amountDue = o?.AmountDue ?? 0m;
         var isDelivery = da.LegType is "delivery" or "return";
+
+        var isExpress = o?.IsExpress ?? pr?.IsExpress ?? false;
+        // Amount due: the order balance for deliveries; the pickup request's estimated
+        // amount for an un-converted pickup leg (what the rider collects as COD).
+        var amountDue = o?.AmountDue ?? (o is null ? pr?.EstimatedAmount ?? 0m : 0m);
+
         // OTP applies to BOTH legs: the customer reads it out to confirm the handover —
         // collecting items at pickup AND receiving them at delivery.
         var legOtp = isDelivery ? o?.DeliveryOtp : o?.PickupOtp;
         var requiresOtp = !string.IsNullOrWhiteSpace(legOtp);
 
-        // Scheduled time from the relevant order timestamp, rendered in IST.
+        // Scheduled time: order timestamp when available; else the pickup request's
+        // scheduled window start (rendered in IST as "HH:mm").
+        string? scheduled;
         var scheduledAt = isDelivery ? o?.PromisedDeliveryAt : o?.PickupScheduledAt;
-        var scheduled = scheduledAt?.ToOffset(Ist).ToString("HH:mm");
+        if (scheduledAt is not null)
+            scheduled = scheduledAt.Value.ToOffset(Ist).ToString("HH:mm");
+        else if (o is null && pr is not null)
+            scheduled = pr.PickupWindowStart.ToString("HH:mm");
+        else
+            scheduled = null;
 
         // Prefer the assignment's own geo, else the address geo.
         var pt = da.GeoLocation ?? addr?.GeoLocation;
@@ -144,9 +167,12 @@ internal static class RiderTaskMapper
                   || (isDelivery && amountDue > 0m && o?.PaymentStatus != "paid");
         var payoutAmt = da.PayoutAmount ?? payout.Compute(da.DistanceKm, isExpress, hasCod);
 
+        var garmentCount = o?.TotalGarments ?? (o is null ? pr?.EstimatedItems ?? 0 : 0);
+        var isPaid = (o?.PaymentStatus == "paid") || amountDue <= 0m;
+
         return new RiderTaskDto(
             Id: da.Id,
-            OrderNumber: o?.OrderNumber ?? "—",
+            OrderNumber: o?.OrderNumber ?? pr?.RequestNumber ?? "—",
             LegType: da.LegType,
             Status: MapStatus(da.Status),
             IsExpress: isExpress,
@@ -157,9 +183,9 @@ internal static class RiderTaskMapper
             DistanceKm: da.DistanceKm,
             EtaMinutes: da.DurationMinutes,
             ScheduledTime: scheduled,
-            GarmentCount: o?.TotalGarments ?? 0,
+            GarmentCount: garmentCount,
             AmountDue: amountDue,
-            IsPaid: (o?.PaymentStatus == "paid") || amountDue <= 0m,
+            IsPaid: isPaid,
             RequiresOtp: requiresOtp,
             OtpVerified: da.OtpVerified,
             Payout: payoutAmt,
@@ -190,7 +216,13 @@ public sealed class GetMyTasksTodayHandler : IRequestHandler<GetMyTasksTodayQuer
             .FirstOrDefaultAsync(ct);
         if (rider is null) return [];
 
-        var startOfToday = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+        // DEFECT 7: "today" must mean the rider's local (IST/store-tz) calendar day,
+        // not the UTC day. At 04:30 IST the UTC day is still yesterday, which dropped
+        // completed legs from the feed. Bracket "today" by the local-day UTC bounds.
+        var tz = LocalDateRange.Resolve(LocalDateRange.DefaultTimeZoneId);
+        var localToday = DateOnly.FromDateTime(
+            TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz).DateTime);
+        var startOfToday = LocalDateRange.StartUtc(localToday, tz);
         var open = RiderTaskMapper.OpenStatuses;
 
         // delivery_assignments (this rider) ⟕ orders ⟕ customers
@@ -210,11 +242,30 @@ public sealed class GetMyTasksTodayHandler : IRequestHandler<GetMyTasksTodayQuer
             select new { da, o, c })
             .ToListAsync(ct);
 
-        // Resolve the relevant address per leg (pickup→pickup_address, else delivery_address).
+        // DEFECT 4: pickup-leg assignments carry pickup_request_id (order_id is null),
+        // so the order join above misses and every field fell back to a placeholder.
+        // Load the linked pickup requests and resolve customer/address from them.
+        var pickupReqIds = rows
+            .Where(x => x.o == null && x.da.PickupRequestId.HasValue)
+            .Select(x => x.da.PickupRequestId!.Value)
+            .Distinct().ToList();
+
+        var prById = pickupReqIds.Count == 0
+            ? new Dictionary<Guid, PickupRequest>()
+            : await _db.PickupRequests
+                .Where(p => pickupReqIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, ct);
+
+        PickupRequest? PrFor(DeliveryAssignment da) =>
+            da.PickupRequestId.HasValue && prById.TryGetValue(da.PickupRequestId.Value, out var p) ? p : null;
+
+        // Resolve the relevant address per leg — order legs use the order's pickup/
+        // delivery address; pickup-request legs use the request's address.
         var addrIds = rows
             .Where(x => x.o != null)
             .Select(x => x.da.LegType == "pickup" ? x.o!.PickupAddressId : x.o!.DeliveryAddressId)
             .Where(id => id.HasValue).Select(id => id!.Value)
+            .Concat(prById.Values.Select(p => p.AddressId))
             .Distinct().ToList();
 
         var addrById = addrIds.Count == 0
@@ -223,16 +274,36 @@ public sealed class GetMyTasksTodayHandler : IRequestHandler<GetMyTasksTodayQuer
                 .Where(a => addrIds.Contains(a.Id))
                 .ToDictionaryAsync(a => a.Id, ct);
 
-        CustomerAddress? AddrFor(DeliveryAssignment da, Order? o)
+        // Customers for pickup-request legs (order-leg customers came from the join).
+        var prCustomerIds = prById.Values.Select(p => p.CustomerId).Distinct().ToList();
+        var custById = prCustomerIds.Count == 0
+            ? new Dictionary<Guid, Customer>()
+            : await _db.Customers
+                .Where(c => prCustomerIds.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id, ct);
+
+        CustomerAddress? AddrFor(DeliveryAssignment da, Order? o, PickupRequest? pr)
         {
-            if (o is null) return null;
-            var id = da.LegType == "pickup" ? o.PickupAddressId : o.DeliveryAddressId;
+            Guid? id = o is not null
+                ? (da.LegType == "pickup" ? o.PickupAddressId : o.DeliveryAddressId)
+                : pr?.AddressId;
             return id.HasValue && addrById.TryGetValue(id.Value, out var a) ? a : null;
+        }
+
+        Customer? CustFor(Customer? joined, PickupRequest? pr)
+        {
+            if (joined is not null) return joined;
+            return pr is not null && custById.TryGetValue(pr.CustomerId, out var c) ? c : null;
         }
 
         var payoutCfg = await PayoutConfig.LoadAsync(_db, q.BrandId, ct);
         var tasks = rows
-            .Select(x => RiderTaskMapper.ToDto(x.da, x.o, x.c, AddrFor(x.da, x.o), payoutCfg))
+            .Select(x =>
+            {
+                var pr = x.o == null ? PrFor(x.da) : null;
+                return RiderTaskMapper.ToDto(
+                    x.da, x.o, CustFor(x.c, pr), AddrFor(x.da, x.o, pr), payoutCfg, pr);
+            })
             .ToList();
 
         // Active work first, by route sequence then scheduled time; completed sink to the bottom.
@@ -297,9 +368,29 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
                 return RiderTaskResult.Conflict("Only pickup legs can be collected.");
             da.CollectedAt ??= now;
             if (da.Status == "started") { da.Status = "arrived"; da.ArrivedAt ??= now; }
+
+            // COD-CASH (pickup leg): collecting the items IS collecting the cash. Stamp
+            // cod_collected_at and ensure cod_amount is set so this collection enters the
+            // SAME rider-cash settlement pipeline the delivery legs use (the outstanding/
+            // settle queries key off cod_amount != null && settlement_id == null, leg-type
+            // agnostic). Mirrors the delivery-completion COD block below — no new mechanism.
+            // Only when cash is actually due (PaymentPreference == "cod" && amount > 0);
+            // wallet/upi-deferred pickups collect nothing. Idempotent on re-tap via ??=.
+            var cod = da.CodAmount ?? await ResolvePickupCodAsync(da, ct);
+            if (cod is > 0m)
+            {
+                da.CodAmount ??= cod;
+                da.CodCollectedAt ??= now;
+            }
+
             da.UpdatedAt = now;
             da.UpdatedBy = cmd.UserId;
-            await _db.SaveChangesAsync(ct);
+
+            // DEFECT 6: collection reflects "picked_up" in the order lifecycle. Advance
+            // the linked order (if any) up to picked_up through the legal path, in the
+            // same transaction as the assignment change.
+            await AdvancePickupLegAsync(da, pickupTarget: null, orderTarget: OrderStatus.PickedUp,
+                                        now: now, userId: cmd.UserId, ct: ct);
             return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr, payoutCfg));
         }
 
@@ -349,6 +440,17 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
         }
         da.UpdatedAt = now;
         da.UpdatedBy = cmd.UserId;
+
+        // ── DEFECT 6: pickup-leg completion advances the pickup request + order ────
+        // A completed pickup leg means the items were collected AND dropped at the
+        // store. Advance the pickup request assigned→completed and the linked order
+        // up to 'received' (dropped at store) through the legal happy-path. Done in
+        // its own transaction (mirrors the delivery side-effect block below).
+        if (cmd.Status == "completed" && da.LegType == "pickup")
+        {
+            await AdvancePickupLegAsync(da, pickupTarget: "completed", orderTarget: OrderStatus.Received,
+                                        now: now, userId: cmd.UserId, ct: ct);
+        }
 
         // ── DOC-1: Transactional delivery-completion side-effects ─────────────────
         // When a delivery/return leg completes, atomically:
@@ -489,6 +591,27 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
         return RiderTaskResult.Ok(RiderTaskMapper.ToDto(da, o, c, addr, payoutCfg));
     }
 
+    /// <summary>
+    /// COD-CASH (pickup leg): resolves the cash due for a pickup leg from its linked
+    /// pickup request, applying the SAME rule as assign-time
+    /// (<see cref="laundryghar.Orders.Application.Pickup.Commands.AssignPickupHandler.ResolvePickupCodAmount"/>):
+    /// cash is due only when PaymentPreference == "cod" and EstimatedAmount &gt; 0.
+    /// Returns null for non-pickup legs, unlinked legs, or non-COD preferences. Used as a
+    /// fallback on collect when the assignment was created before COD seeding (assign-time
+    /// normally sets it).
+    /// </summary>
+    private async Task<decimal?> ResolvePickupCodAsync(DeliveryAssignment da, CancellationToken ct)
+    {
+        if (da.LegType != "pickup" || da.PickupRequestId is null) return null;
+        var pr = await _db.PickupRequests
+            .Where(p => p.Id == da.PickupRequestId.Value)
+            .Select(p => new { p.PaymentPreference, p.EstimatedAmount })
+            .FirstOrDefaultAsync(ct);
+        if (pr is null) return null;
+        return laundryghar.Orders.Application.Pickup.Commands.AssignPickupHandler
+            .ResolvePickupCodAmount(pr.PaymentPreference, pr.EstimatedAmount);
+    }
+
     private async Task<(Order?, Customer?, CustomerAddress?)> LoadOrderAsync(DeliveryAssignment da, CancellationToken ct)
     {
         if (da.OrderId is null || da.OrderCreatedAt is null) return (null, null, null);
@@ -503,6 +626,99 @@ public sealed class UpdateMyTaskStatusHandler : IRequestHandler<UpdateMyTaskStat
             ? await _db.CustomerAddresses.FirstOrDefaultAsync(a => a.Id == addrId.Value, ct)
             : null;
         return (o, c, addr);
+    }
+
+    /// <summary>
+    /// DEFECT 6 — advances a pickup leg's pickup_request and (when linked) its order to
+    /// reflect physical progress: collection → order 'picked_up'; drop-at-store →
+    /// pickup_request 'completed' + order 'received'. Resolution path:
+    ///   delivery_assignment.pickup_request_id → pickup_request.converted_order_id → order
+    /// (an order linked directly via assignment.order_id is also honoured). When no
+    /// order is linked (the QA flow where the booking was never converted) only the
+    /// pickup request advances — no illegal jump is forced. Each order hop along the
+    /// legal happy-path writes an order_status_history row. Idempotent: a status
+    /// already at/beyond the target is a no-op. Runs in a retry-capable transaction.
+    /// </summary>
+    private async Task AdvancePickupLegAsync(
+        DeliveryAssignment da, string? pickupTarget, string orderTarget,
+        DateTimeOffset now, Guid userId, CancellationToken ct)
+    {
+        // Resolve the pickup request (the canonical link for a pickup leg).
+        PickupRequest? pr = da.PickupRequestId.HasValue
+            ? await _db.PickupRequests.FirstOrDefaultAsync(p => p.Id == da.PickupRequestId.Value, ct)
+            : null;
+
+        // Resolve the linked order: prefer the assignment's own order link, else the
+        // pickup request's converted order.
+        Order? order = null;
+        if (da.OrderId is not null && da.OrderCreatedAt is not null)
+        {
+            order = await _db.Orders.FirstOrDefaultAsync(
+                x => x.Id == da.OrderId && x.CreatedAt == da.OrderCreatedAt, ct);
+        }
+        else if (pr?.ConvertedOrderId is not null)
+        {
+            order = await _db.Orders.FirstOrDefaultAsync(x => x.Id == pr.ConvertedOrderId.Value, ct);
+        }
+
+        // Nothing to advance and nothing to persist beyond the caller's own changes.
+        if (pr is null && order is null) return;
+
+        var strategy = _db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+            // 1. Advance the pickup request status (idempotent; only forward).
+            if (pr is not null && pickupTarget is not null
+                && !string.Equals(pr.Status, pickupTarget, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(pr.Status, "cancelled", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(pr.Status, "converted", StringComparison.OrdinalIgnoreCase))
+            {
+                pr.Status = pickupTarget;
+                pr.UpdatedAt = now;
+                pr.UpdatedBy = userId;
+            }
+
+            // 2. Walk the order forward along legal single-step transitions, writing a
+            //    history row per hop. Off-path / already-advanced orders → no-op.
+            if (order is not null)
+            {
+                var hops = OrderStateMachine.ForwardPath(order.Status, orderTarget);
+                foreach (var next in hops)
+                {
+                    var from = order.Status;
+                    order.Status = next;
+                    order.Version += 1;
+                    order.UpdatedAt = now;
+                    order.UpdatedBy = userId;
+
+                    if (next == OrderStatus.PickedUp) order.PickedUpAt ??= now;
+                    if (next == OrderStatus.Received) order.ReceivedAt ??= now;
+
+                    _db.OrderStatusHistories.Add(new OrderStatusHistory
+                    {
+                        Id = Guid.NewGuid(),
+                        OrderId = order.Id,
+                        OrderCreatedAt = order.CreatedAt,
+                        BrandId = da.BrandId,
+                        FromStatus = from,
+                        ToStatus = next,
+                        ChangedAt = now,
+                        ChangedByType = "system",
+                        ChangedById = userId,
+                        Reason = "Pickup leg progressed by rider",
+                        CustomerNotified = false,
+                        Metadata = "{}",
+                        CreatedAt = now,
+                        CreatedBy = userId,
+                    });
+                }
+            }
+
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        });
     }
 }
 

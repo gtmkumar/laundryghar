@@ -2,6 +2,7 @@ using FluentValidation;
 using laundryghar.Finance.Application.CashBooks.Dtos;
 using MediatR;
 
+using laundryghar.Finance.Infrastructure.Services;
 namespace laundryghar.Finance.Application.CashBooks.Commands;
 
 // ── Shared mapping ────────────────────────────────────────────────────────────
@@ -190,7 +191,10 @@ public sealed class AddCashBookEntryHandler : IRequestHandler<AddCashBookEntryCo
             await _db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
 
-            book.Entries.Add(entry);
+            // EF relationship fix-up already added the tracked new entry to book.Entries
+            // (the book was loaded with .Include(b => b.Entries)). Adding it again here
+            // would duplicate it in the response aggregate, so we don't. Map the
+            // already-correct tracked collection.
             result = CashBookMapper.ToDto(book);
         });
 

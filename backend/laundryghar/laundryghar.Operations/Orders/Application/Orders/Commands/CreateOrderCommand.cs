@@ -1,3 +1,5 @@
+using laundryghar.Orders.Infrastructure.Auth;
+using laundryghar.Orders.Infrastructure.Services;
 using System.Text.Json;
 using FluentValidation;
 using laundryghar.Orders.Application.Common;
@@ -734,7 +736,8 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
         IEnumerable<OrderItem>? items = null,
         IEnumerable<OrderAddon>? addons = null,
         IEnumerable<OrderStatusHistory>? history = null,
-        bool includeDeliveryOtp = false)
+        bool includeDeliveryOtp = false,
+        bool includeAllowedTransitions = false)
     {
         // Derive promotion discount as the residual after named discount components.
         // For historical orders placed before this feature PromotionDiscount evaluates to 0.
@@ -746,6 +749,14 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
         // from customer-self query handlers.
         var deliveryOtp = includeDeliveryOtp && o.Status == "out_for_delivery"
             ? o.DeliveryOtp
+            : null;
+
+        // allowedTransitions is derived from the in-memory order status via the state
+        // machine, so it can only be populated on detail responses (the list projection
+        // is translated to SQL where the state machine cannot be evaluated). Empty array
+        // for terminal statuses; null when not requested.
+        var allowedTransitions = includeAllowedTransitions
+            ? OrderStateMachine.AllowedNext(o.Status).ToList()
             : null;
 
         return new(
@@ -768,6 +779,7 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Ord
             history?.Select(h => new OrderStatusHistoryDto(
                 h.Id, h.FromStatus, h.ToStatus, h.ChangedAt, h.ChangedByType,
                 h.Reason, h.CustomerNotified)).ToList(),
+            allowedTransitions,
             o.Rating,
             o.RatingComment,
             o.RatedAt,

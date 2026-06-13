@@ -26,6 +26,7 @@ import { useRiderTasks } from '@/hooks/useRiderTasks';
 import { useAuthStore } from '@/store/authStore';
 import { useDutyStore, type ChecklistItem } from '@/store/dutyStore';
 import { sendCurrentLocationPing } from '@/lib/sendCurrentLocation';
+import { pluralSuffix } from '@/lib/format';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { HomeScreenSkeleton } from '@/components/ui/Skeleton';
@@ -246,7 +247,11 @@ export default function HomeScreen() {
               <Ionicons name="clipboard-outline" size={16} color="#5C6A33" />
             </View>
             <Text className="ml-3 flex-1 text-sm leading-5 text-ink-soft">
-              {t('home.pendingTasks', { count: stats.pendingCount, zone })}{'\n'}
+              {t('home.pendingTasks', {
+                count: stats.pendingCount,
+                plural: pluralSuffix(stats.pendingCount),
+                zone,
+              })}{'\n'}
               {t('home.avgPayout', { amount: stats.avgPayout })}
             </Text>
           </View>
@@ -289,16 +294,21 @@ export default function HomeScreen() {
           </View>
         </ScrollView>
 
-        {/* CTA */}
+        {/* CTA — viewing tasks is allowed even while off duty; receiving NEW
+            tasks still requires going on duty (hinted below the button). */}
         <View className="px-5 pb-3 pt-1">
           <Button
             title={t('home.viewTodaysTasks')}
             iconRight="arrow-forward"
             size="lg"
             fullWidth
-            disabled={!isOnDuty}
             onPress={() => router.push('/(app)/tasks')}
           />
+          {!isOnDuty ? (
+            <Text className="mt-2 text-center text-xs text-ink-muted">
+              {t('home.offDutyTasksHint')}
+            </Text>
+          ) : null}
         </View>
       </SafeAreaView>
 

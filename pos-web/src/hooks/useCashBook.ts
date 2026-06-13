@@ -18,6 +18,24 @@ export const cashBookKeys = {
   detail: (id: string) => ['cash-books', 'detail', id] as const,
 }
 
+/**
+ * Defensive de-dupe before the mutation response is written into the query
+ * cache: the add-entry POST has been observed double-including the new entry
+ * in `entries` (backend bug being fixed separately). Duplicate ids would
+ * render duplicate React keys and double rows, so keep the first occurrence
+ * of each entry id. Generic over the detail DTO to avoid an import cycle.
+ */
+function dedupeEntries<T extends { entries?: { id: string }[] | null }>(book: T): T {
+  if (!book?.entries?.length) return book
+  const seen = new Set<string>()
+  const entries = book.entries.filter((e) => {
+    if (seen.has(e.id)) return false
+    seen.add(e.id)
+    return true
+  })
+  return entries.length === book.entries.length ? book : { ...book, entries }
+}
+
 export function useCashBooks(params: CashBookListParams = {}) {
   return useQuery({
     queryKey: cashBookKeys.list(params),
@@ -51,7 +69,7 @@ export function useAddCashBookEntry() {
     mutationFn: ({ id, req }: { id: string; req: AddCashBookEntryRequest }) =>
       addCashBookEntry(id, req),
     onSuccess: (updated) => {
-      qc.setQueryData(cashBookKeys.detail(updated.id), updated)
+      qc.setQueryData(cashBookKeys.detail(updated.id), dedupeEntries(updated))
       void qc.invalidateQueries({ queryKey: ['cash-books', 'list'] })
     },
   })
@@ -63,7 +81,7 @@ export function useCloseCashBook() {
     mutationFn: ({ id, req }: { id: string; req: CloseCashBookRequest }) =>
       closeCashBook(id, req),
     onSuccess: (updated) => {
-      qc.setQueryData(cashBookKeys.detail(updated.id), updated)
+      qc.setQueryData(cashBookKeys.detail(updated.id), dedupeEntries(updated))
       void qc.invalidateQueries({ queryKey: ['cash-books', 'list'] })
     },
   })

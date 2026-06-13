@@ -1,3 +1,5 @@
+using laundryghar.Orders.Infrastructure.Auth;
+using laundryghar.Orders.Infrastructure.Services;
 using laundryghar.Orders.Application.Delivery.Dtos;
 using laundryghar.Orders.Application.Delivery.Queries;
 using laundryghar.Orders.Application.Orders.Commands;
@@ -148,6 +150,35 @@ public static class CustomerOrderEndpoints
             var r = await sender.Send(
                 new ReschedulePickupCommand(id, customerId, brandId, req, customerId), ct);
             return r is null ? Results.NotFound() : Results.Ok(new SingleResponse<PickupRequestDto> { Status = true, Data = r });
+        }).RequireAuthorization("CustomerOnly");
+
+        /// <summary>
+        /// POST /pickup-requests/{id}/cancel — DEFECT 3. Customer cancels an own pickup
+        /// request while it is still pending/assigned (before collection). IDOR-guarded.
+        /// Outcomes → 404 (not found), 200 (cancelled), 409 (already terminal),
+        /// 422 (past the cancellable window).
+        /// </summary>
+        pickups.MapPost("/{id:guid}/cancel", async (
+            Guid id, HttpContext http, CancelPickupRequest? req, ISender sender, CancellationToken ct) =>
+        {
+            var customerId = GetCustomerId(http);
+            var brandId    = GetBrandId(http);
+            if (customerId == Guid.Empty) return Results.Unauthorized();
+
+            var result = await sender.Send(
+                new CancelPickupByCustomerCommand(id, customerId, brandId, req?.Reason, customerId), ct);
+
+            return result.Outcome switch
+            {
+                CancelPickupOutcome.Cancelled => Results.Ok(
+                    new SingleResponse<PickupRequestDto> { Status = true, Data = result.Dto }),
+                CancelPickupOutcome.NotFound => Results.NotFound(),
+                CancelPickupOutcome.AlreadyTerminal => Results.Conflict(
+                    new SingleResponse<string> { Status = false, Data = result.Reason }),
+                CancelPickupOutcome.NotCancellable => Results.UnprocessableEntity(
+                    new SingleResponse<string> { Status = false, Data = result.Reason }),
+                _ => Results.StatusCode(500),
+            };
         }).RequireAuthorization("CustomerOnly");
 
         // ── Coupon validation (preview only — does not redeem) ────────────────

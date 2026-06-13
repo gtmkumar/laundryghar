@@ -1,3 +1,5 @@
+using laundryghar.Catalog.Infrastructure.Auth;
+using laundryghar.Catalog.Infrastructure.Services;
 using laundryghar.Catalog.Application.Pricing.Commands;
 using laundryghar.Catalog.Application.Pricing.Dtos;
 using laundryghar.Catalog.Application.Pricing.Queries;

@@ -1,3 +1,6 @@
+using laundryghar.Orders.Infrastructure.Auth;
+using laundryghar.Orders.Infrastructure.Services;
+using laundryghar.Orders.Application.Common;
 using laundryghar.Orders.Application.Orders.Commands;
 using laundryghar.Orders.Application.Orders.Dtos;
 using laundryghar.Utilities.Common;
@@ -30,7 +33,7 @@ public sealed class GetOrdersHandler : IRequestHandler<GetOrdersQuery, Paginated
 
     public GetOrdersHandler(LaundryGharDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
-    public Task<PaginatedList<OrderDto>> Handle(GetOrdersQuery q, CancellationToken ct)
+    public async Task<PaginatedList<OrderDto>> Handle(GetOrdersQuery q, CancellationToken ct)
     {
         var brandId = _user.RequireBrandId();
         var query   = _db.Orders.Where(o => o.BrandId == brandId);
@@ -51,14 +54,44 @@ public sealed class GetOrdersHandler : IRequestHandler<GetOrdersQuery, Paginated
         }
 
         if (q.StoreId.HasValue)                query = query.Where(o => o.StoreId == q.StoreId.Value);
-        if (q.DateFrom.HasValue)
-            query = query.Where(o => o.CreatedAt >= q.DateFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
-        if (q.DateTo.HasValue)
-            query = query.Where(o => o.CreatedAt <= q.DateTo.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc));
 
-        return PaginatedList<OrderDto>.CreateAsync(
+        // Date-only bounds are interpreted in the operator's local timezone (the scoped
+        // store's, or Asia/Kolkata when unscoped) and converted to UTC instants before
+        // filtering placed_at — otherwise a "today" filter drops orders placed in the
+        // pre-dawn local hours that fall on the previous UTC day.
+        if (q.DateFrom.HasValue || q.DateTo.HasValue)
+        {
+            var tz = LocalDateRange.Resolve(await ResolveTimeZoneIdAsync(brandId, q.StoreId, ct));
+
+            if (q.DateFrom.HasValue)
+            {
+                var fromUtc = LocalDateRange.StartUtc(q.DateFrom.Value, tz);
+                query = query.Where(o => o.PlacedAt >= fromUtc);
+            }
+            if (q.DateTo.HasValue)
+            {
+                var toUtcExclusive = LocalDateRange.EndUtcExclusive(q.DateTo.Value, tz);
+                query = query.Where(o => o.PlacedAt < toUtcExclusive);
+            }
+        }
+
+        return await PaginatedList<OrderDto>.CreateAsync(
             query.OrderByDescending(o => o.CreatedAt).Select(o => CreateOrderHandler.ToDto(o)),
             q.Page, q.PageSize, ct);
+    }
+
+    /// <summary>
+    /// Returns the IANA timezone id to interpret date-only filter bounds in: the scoped
+    /// store's when a storeId filter is present, otherwise null (caller falls back to the
+    /// platform default). Brand-scoped lookup so a foreign storeId can never be read.
+    /// </summary>
+    private async Task<string?> ResolveTimeZoneIdAsync(Guid brandId, Guid? storeId, CancellationToken ct)
+    {
+        if (!storeId.HasValue) return null;
+        return await _db.Stores
+            .Where(s => s.Id == storeId.Value && s.BrandId == brandId)
+            .Select(s => s.Timezone)
+            .FirstOrDefaultAsync(ct);
     }
 }
 
@@ -84,7 +117,9 @@ public sealed class GetOrderByIdHandler : IRequestHandler<GetOrderByIdQuery, Ord
                           .OrderBy(h => h.ChangedAt).ToListAsync(ct);
 
         // H4: expose DeliveryOtp to owning customer only, only while out_for_delivery.
-        return CreateOrderHandler.ToDto(order, items, addons, history, includeDeliveryOtp: true);
+        // DEF: surface allowedTransitions (next legal statuses) on the admin detail view.
+        return CreateOrderHandler.ToDto(order, items, addons, history,
+            includeDeliveryOtp: true, includeAllowedTransitions: true);
     }
 }
 
@@ -152,7 +187,10 @@ public sealed class GetMyOrderByIdHandler : IRequestHandler<GetMyOrderByIdQuery,
         var history = await _db.OrderStatusHistories.Where(h => h.OrderId == q.OrderId)
                           .OrderBy(h => h.ChangedAt).ToListAsync(ct);
 
-        return CreateOrderHandler.ToDto(order, items, addons, history);
+        // allowedTransitions is derived purely from order status, so it is safe to share
+        // with the customer detail view (no admin-only data leaks through it).
+        return CreateOrderHandler.ToDto(order, items, addons, history,
+            includeAllowedTransitions: true);
     }
 }
 

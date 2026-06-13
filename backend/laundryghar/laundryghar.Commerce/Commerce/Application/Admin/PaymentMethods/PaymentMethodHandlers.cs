@@ -3,6 +3,7 @@ using laundryghar.Commerce.Application;
 using laundryghar.Utilities.Common;
 using MediatR;
 
+using laundryghar.Commerce.Infrastructure.Services;
 namespace laundryghar.Commerce.Application.Admin.PaymentMethods;
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -105,7 +106,7 @@ public sealed class CreatePaymentMethodValidator : AbstractValidator<CreatePayme
     {
         RuleFor(x => x.Request.Code).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Request.NameLocalized).NotEmpty();
+        RuleFor(x => x.Request.NameLocalized).NotEmpty().MustBeJsonObject();
         RuleFor(x => x.Request.MethodType).NotEmpty().MaximumLength(50);
     }
 }

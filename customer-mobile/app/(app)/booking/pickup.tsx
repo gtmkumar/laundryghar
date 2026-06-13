@@ -26,6 +26,7 @@ import { useAddresses } from '@/hooks/useCatalog';
 import { useDeliverySlots } from '@/hooks/useOrders';
 import { useBookingStore } from '@/store/bookingStore';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
+import { localDateIso } from '@/lib/format';
 import type { CustomerAddressDto, DeliverySlotDto } from '@/types/api';
 
 interface DayOption {
@@ -42,7 +43,8 @@ function nextDays(n: number): DayOption[] {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     out.push({
-      iso: d.toISOString().slice(0, 10),
+      // LOCAL date parts — toISOString() is UTC and yields *yesterday* before 05:30 IST
+      iso: localDateIso(d),
       weekday: d.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase(),
       day: String(d.getDate()),
       month: d.toLocaleDateString('en-IN', { month: 'short' }),

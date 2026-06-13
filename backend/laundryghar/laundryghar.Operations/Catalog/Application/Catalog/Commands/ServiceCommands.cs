@@ -1,3 +1,5 @@
+using laundryghar.Catalog.Infrastructure.Auth;
+using laundryghar.Catalog.Infrastructure.Services;
 using FluentValidation;
 using laundryghar.Catalog.Application.Catalog.Dtos;
 using MediatR;
@@ -127,6 +129,9 @@ public sealed class DeleteServiceHandler : IRequestHandler<DeleteServiceCommand,
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return false;
 
+        // Soft-delete must also move status off 'active' so status-keyed reports don't
+        // miscount it. services CHECK is ('active','disabled') — 'disabled' is terminal.
+        e.Status    = "disabled";
         e.DeletedAt = DateTimeOffset.UtcNow;
         e.UpdatedAt = DateTimeOffset.UtcNow;
         e.UpdatedBy = cmd.ActorId;
@@ -141,7 +146,7 @@ public sealed class CreateServiceValidator : AbstractValidator<CreateServiceComm
     {
         RuleFor(x => x.Request.Code).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Request.NameLocalized).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Request.NameLocalized).NotEmpty().MaximumLength(200).MustBeJsonObject();
         RuleFor(x => x.Request.CategoryId).NotEmpty();
         RuleFor(x => x.Request.PricingModel).NotEmpty();
     }

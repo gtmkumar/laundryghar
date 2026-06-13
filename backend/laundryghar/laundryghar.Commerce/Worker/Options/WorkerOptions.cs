@@ -154,4 +154,25 @@ public sealed class WorkerOptions
 
     /// <summary>Maximum number of pickup requests auto-assigned per poll cycle. Default: 10.</summary>
     public int AutoDispatchMaxPerCycle { get; set; } = 10;
+
+    // ── DEFECT 5b: daily-partition maintenance ────────────────────────────────────
+
+    /// <summary>
+    /// Master switch for the partition-maintenance job that pre-creates upcoming daily
+    /// partitions for <c>logistics.rider_location_pings</c>. Enabled by default — the
+    /// original root cause of the broken location ping was that NO such job existed and
+    /// partitions silently ran out, so rows fell into (or failed against) the DEFAULT
+    /// partition. Disable only if an external scheduler (e.g. pg_partman) owns this.
+    /// </summary>
+    public bool PartitionMaintenanceEnabled { get; set; } = true;
+
+    /// <summary>How often the partition-maintenance job runs (seconds). Default: 86400 (daily).</summary>
+    public int PartitionMaintenanceIntervalSeconds { get; set; } = 86400;
+
+    /// <summary>
+    /// How many days of future daily partitions to keep provisioned ahead of "today"
+    /// (store-local IST). Default: 14. Each run idempotently creates any missing day
+    /// from today through today+N.
+    /// </summary>
+    public int PartitionMaintenanceDaysAhead { get; set; } = 14;
 }

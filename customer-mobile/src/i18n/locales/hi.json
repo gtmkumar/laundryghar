@@ -279,7 +279,8 @@
     "bannerItemsCollected": "कपड़े लिए गए!",
     "bannerOrderAtStore": "स्टोर पर ऑर्डर बना",
     "bannerPickupCancelled": "पिकअप रद्द हो गया",
-    "bannerNoResponse": "जवाब नहीं मिला"
+    "bannerNoResponse": "जवाब नहीं मिला",
+    "estimatedTotal": "अनुमानित कुल"
   },
   "wallet": {
     "tabLabel": "वॉलेट",
@@ -427,5 +428,16 @@
     "resendCode": "OTP कोड दोबारा भेजें",
     "brandSplash": "Laundry Ghar लोडिंग स्क्रीन",
     "otpCell": "OTP अंक {{n}}"
+  },
+  "notifications": {
+    "title": "सूचनाएं",
+    "pushOnTitle": "पुश सूचनाएं चालू हैं",
+    "pushOnBody": "ऑर्डर की स्थिति बदलने पर हम आपको सूचित करेंगे।",
+    "pushOffTitle": "पुश सूचनाएं बंद हैं",
+    "pushOffBody": "इस डिवाइस पर ऑर्डर अपडेट पाने के लिए सूचनाएं चालू करें।",
+    "openSettings": "सेटिंग्स खोलें",
+    "recentUpdates": "हाल के अपडेट",
+    "emptyTitle": "अभी यहां कुछ नहीं है",
+    "emptyMessage": "पिकअप बुक करने के बाद ऑर्डर और पिकअप अपडेट यहां दिखेंगे।"
   }
 }

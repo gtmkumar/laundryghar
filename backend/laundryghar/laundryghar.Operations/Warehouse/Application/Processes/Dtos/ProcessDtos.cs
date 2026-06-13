@@ -1,3 +1,5 @@
+using laundryghar.Warehouse.Infrastructure.Auth;
+using laundryghar.Warehouse.Infrastructure.Services;
 namespace laundryghar.Warehouse.Application.Processes.Dtos;
 
 public sealed record WarehouseProcessDto(

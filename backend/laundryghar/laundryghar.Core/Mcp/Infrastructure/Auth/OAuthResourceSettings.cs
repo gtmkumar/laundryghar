@@ -11,9 +11,10 @@ public sealed class OAuthResourceSettings
     /// <summary>
     /// Base URL of this MCP service. Used to build the resource identifier and the
     /// resource_metadata URL placed in the WWW-Authenticate challenge header.
-    /// Defaults to http://localhost:5009 (dev port).
+    /// Defaults to http://localhost:5050 — post-consolidation the MCP resource server
+    /// runs in-process inside the Core host (Identity + Engagement + Mcp) on port 5050.
     /// </summary>
-    public string McpBaseUrl { get; set; } = "http://localhost:5009";
+    public string McpBaseUrl { get; set; } = "http://localhost:5050";
 
     /// <summary>
     /// Base URL of the LaundryGhar Identity authorization server.

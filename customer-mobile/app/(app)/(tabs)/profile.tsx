@@ -8,10 +8,10 @@ import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
-import { getMe } from '@/api/auth';
+import { useMe } from '@/hooks/useMe';
 import { patchProfile } from '@/api/catalog';
 import { useTranslation } from 'react-i18next';
 import { changeLanguage, getActiveLocale, type AppLocale } from '@/i18n';
@@ -308,21 +308,13 @@ function DeleteAccountSection() {
 export default function ProfileScreen() {
   const customer = useAuthStore((s) => s.customer);
   const logout = useAuthStore((s) => s.logout);
-  const setCustomer = useAuthStore((s) => s.setCustomer);
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const [editMode, setEditMode] = useState(false);
   const [activeLocale, setActiveLocale] = useState<AppLocale>(getActiveLocale());
 
-  const { data: me, isLoading } = useQuery({
-    queryKey: ['customer', 'me'],
-    queryFn: async () => {
-      const data = await getMe();
-      setCustomer(data);
-      return data;
-    },
-    staleTime: 5 * 60_000,
-  });
+  // Shared identity query — Home's greeting reads the same source (useMe).
+  const { data: me, isLoading } = useMe();
 
   // Catalog profile carries email (Identity /me does not)
   const { data: catalogProfile } = useCustomerProfile();
@@ -335,7 +327,10 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           await logout();
-          router.replace('/(auth)/onboarding');
+          // Returning users skip the onboarding carousel and land on login.
+          router.replace(
+            useAuthStore.getState().hasOnboarded ? '/(auth)/phone' : '/(auth)/onboarding',
+          );
         },
       },
     ]);

@@ -1,6 +1,9 @@
+using laundryghar.Orders.Infrastructure.Auth;
+using laundryghar.Orders.Infrastructure.Services;
 using FluentValidation;
 using laundryghar.Orders.Application.Pickup.Dtos;
 using laundryghar.SharedDataModel.Entities.Commerce;
+using laundryghar.SharedDataModel.Logistics;
 using MediatR;
 
 namespace laundryghar.Orders.Application.Pickup.Commands;
@@ -262,5 +265,170 @@ public sealed class ReschedulePickupValidator : AbstractValidator<ReschedulePick
         RuleFor(x => x.Request.NewDate)
             .Must(d => d >= DateOnly.FromDateTime(DateTime.UtcNow.Date))
             .WithMessage("New pickup date must be today or in the future.");
+    }
+}
+
+// ── DEFECT 3 — Customer: cancel an own pickup request ──────────────────────────
+
+/// <summary>
+/// Outcome of a customer pickup cancellation, so the endpoint can return the
+/// right HTTP status without leaking handler internals.
+/// </summary>
+public enum CancelPickupOutcome
+{
+    /// <summary>No pickup request matched the id for this customer/brand → 404.</summary>
+    NotFound,
+    /// <summary>Cancellation succeeded → 200 with the updated DTO.</summary>
+    Cancelled,
+    /// <summary>The request is already in a terminal state (cancelled/completed/converted) → 409.</summary>
+    AlreadyTerminal,
+    /// <summary>The request has progressed past the cancellable window (e.g. picked up) → 422.</summary>
+    NotCancellable,
+}
+
+/// <summary>Result wrapper for <see cref="CancelPickupByCustomerCommand"/>.</summary>
+public sealed record CancelPickupResult(CancelPickupOutcome Outcome, PickupRequestDto? Dto = null, string? Reason = null);
+
+/// <summary>
+/// Cancels a pickup request the customer owns. Allowed only while the request is
+/// <c>pending</c> or <c>assigned</c> (i.e. a rider hasn't collected the items yet).
+/// Atomically:
+///   1. Sets status → cancelled (cancelled_by_type='customer').
+///   2. Releases any booked slot capacity + marks the slot booking cancelled.
+///   3. Cancels any ACTIVE pickup-leg rider delivery assignment for this request
+///      (status not yet terminal) and decrements that rider's current load.
+/// Terminal states (cancelled/completed/converted) → 409; states past the
+/// cancellable window (rider_dispatched/arrived) → 422.
+/// </summary>
+public sealed record CancelPickupByCustomerCommand(
+    Guid PickupRequestId,
+    Guid CustomerId,
+    Guid BrandId,
+    string? Reason,
+    Guid? ActorId
+) : IRequest<CancelPickupResult>;
+
+public sealed class CancelPickupByCustomerHandler : IRequestHandler<CancelPickupByCustomerCommand, CancelPickupResult>
+{
+    /// <summary>Statuses from which a customer self-cancel is permitted.</summary>
+    private static readonly HashSet<string> CancellableStatuses =
+        new(StringComparer.OrdinalIgnoreCase) { "pending", "assigned" };
+
+    /// <summary>Terminal statuses — cancelling these is a no-op conflict.</summary>
+    private static readonly HashSet<string> TerminalStatuses =
+        new(StringComparer.OrdinalIgnoreCase) { "cancelled", "completed", "converted" };
+
+    /// <summary>Non-terminal delivery-assignment statuses that should be released on cancel.</summary>
+    private static readonly string[] ActiveAssignmentStatuses =
+        ["assigned", "accepted", "started", "arrived", "rescheduled"];
+
+    private readonly LaundryGharDbContext _db;
+    private readonly ILogger<CancelPickupByCustomerHandler> _logger;
+
+    public CancelPickupByCustomerHandler(LaundryGharDbContext db, ILogger<CancelPickupByCustomerHandler> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Pure transition decision: maps a pickup request's current status to the cancel
+    /// outcome. Split out so the 200/409/422 boundary is unit-testable without a DB.
+    /// (404 is decided earlier by row lookup, not by status.)
+    /// </summary>
+    internal static CancelPickupOutcome DecideOutcome(string currentStatus)
+    {
+        if (TerminalStatuses.Contains(currentStatus)) return CancelPickupOutcome.AlreadyTerminal;
+        if (CancellableStatuses.Contains(currentStatus)) return CancelPickupOutcome.Cancelled;
+        return CancelPickupOutcome.NotCancellable;
+    }
+
+    public async Task<CancelPickupResult> Handle(CancelPickupByCustomerCommand cmd, CancellationToken ct)
+    {
+        // IDOR guard — scope to the caller's brand + customer.
+        var pr = await _db.PickupRequests
+            .FirstOrDefaultAsync(p => p.Id == cmd.PickupRequestId
+                                   && p.CustomerId == cmd.CustomerId
+                                   && p.BrandId == cmd.BrandId, ct);
+
+        if (pr is null)
+            return new CancelPickupResult(CancelPickupOutcome.NotFound);
+
+        var outcome = DecideOutcome(pr.Status);
+        if (outcome == CancelPickupOutcome.AlreadyTerminal)
+            return new CancelPickupResult(outcome, Reason: $"Pickup request is already '{pr.Status}'.");
+        if (outcome == CancelPickupOutcome.NotCancellable)
+            return new CancelPickupResult(outcome,
+                Reason: $"Pickup request cannot be cancelled from status '{pr.Status}'. " +
+                        "Cancellation is only possible before the rider collects the items.");
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Wrap the multi-statement cancel in a retry-capable transaction.
+        // (NpgsqlRetryingExecutionStrategy rejects bare BeginTransactionAsync — see
+        //  project-retry-strategy memory.)
+        var strategy = _db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+            // 1. Release slot capacity + cancel the active slot booking.
+            if (pr.PickupSlotId.HasValue)
+            {
+                await _db.Database.ExecuteSqlAsync(
+                    $"""
+                    UPDATE order_lifecycle.delivery_slots
+                       SET booked_count = GREATEST(booked_count - 1, 0), updated_at = NOW()
+                     WHERE id = {pr.PickupSlotId.Value}
+                       AND brand_id = {cmd.BrandId}
+                    """, ct);
+
+                var booking = await _db.DeliverySlotBookings
+                    .FirstOrDefaultAsync(b => b.PickupRequestId == pr.Id
+                                           && b.SlotId == pr.PickupSlotId.Value
+                                           && b.Status == "active", ct);
+                if (booking is not null)
+                {
+                    booking.Status = "cancelled";
+                    booking.CancelledAt = now;
+                    booking.CancelledReason = "customer_cancelled";
+                }
+            }
+
+            // 2. Cancel any active pickup-leg rider assignment(s) for this request.
+            var assignments = await _db.DeliveryAssignments
+                .Where(a => a.PickupRequestId == pr.Id
+                         && a.BrandId == cmd.BrandId
+                         && ActiveAssignmentStatuses.Contains(a.Status))
+                .ToListAsync(ct);
+
+            foreach (var a in assignments)
+            {
+                a.Status = "cancelled";
+                a.CancellationReason ??= "pickup_cancelled_by_customer";
+                a.UpdatedAt = now;
+                a.UpdatedBy = cmd.ActorId;
+                // Free the rider's load for the released leg.
+                await RiderLoadHelper.DecrementAsync(_db, a.RiderId, ct);
+            }
+
+            // 3. Cancel the pickup request itself.
+            pr.Status = "cancelled";
+            pr.CancellationReason = string.IsNullOrWhiteSpace(cmd.Reason) ? "Cancelled by customer" : cmd.Reason.Trim();
+            pr.CancelledByType = "customer";
+            pr.CancelledById = cmd.ActorId;
+            pr.UpdatedAt = now;
+            pr.UpdatedBy = cmd.ActorId;
+
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        });
+
+        _logger.LogInformation(
+            "Pickup request {PickupRequestId} cancelled by customer {CustomerId}",
+            pr.Id, cmd.CustomerId);
+
+        return new CancelPickupResult(CancelPickupOutcome.Cancelled,
+            CreatePickupRequestAdminHandler.ToDto(pr));
     }
 }

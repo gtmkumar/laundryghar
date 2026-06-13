@@ -1,3 +1,5 @@
+using laundryghar.Catalog.Infrastructure.Auth;
+using laundryghar.Catalog.Infrastructure.Services;
 namespace laundryghar.Catalog.Application.Pricing.Dtos;
 
 // ── PriceList ─────────────────────────────────────────────────────────────────
@@ -71,7 +73,14 @@ public sealed record PriceListItemDto(
     bool IsActive,
     string Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt
+    DateTimeOffset UpdatedAt,
+    // ── DEFECT 1 (additive) — denormalised catalog names for client display ──────
+    // Populated by the customer-facing published price-list query so the mobile app
+    // can render a real label instead of "Garment · Standard". Null on admin paths
+    // that don't project the joins (existing positional callers are unaffected:
+    // both default to null).
+    string? ItemName = null,
+    string? ServiceName = null
 );
 
 public sealed record CreatePriceListItemRequest(

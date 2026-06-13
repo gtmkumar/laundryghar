@@ -3,6 +3,7 @@ using laundryghar.Commerce.Application;
 using laundryghar.Utilities.Common;
 using MediatR;
 
+using laundryghar.Commerce.Infrastructure.Services;
 namespace laundryghar.Commerce.Application.Admin.Coupons;
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -183,6 +184,10 @@ public sealed class DeleteCouponHandler : IRequestHandler<DeleteCouponCommand, b
         var entity = await _db.Coupons.FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId && x.DeletedAt == null, ct);
         if (entity is null) return false;
 
+        // Soft-delete must also move status off 'active' so status-keyed reports don't
+        // miscount archived coupons. The coupons CHECK constraint has no 'archived' value;
+        // 'retired' is its terminal/archived state.
+        entity.Status    = "retired";
         entity.DeletedAt = DateTimeOffset.UtcNow;
         entity.UpdatedAt = DateTimeOffset.UtcNow;
         entity.UpdatedBy = cmd.ActorId;

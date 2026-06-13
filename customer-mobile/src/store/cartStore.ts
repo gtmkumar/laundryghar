@@ -6,8 +6,13 @@
 import { create } from 'zustand';
 
 export interface CartLine {
-  /** Stable id — the price-list item id (or a synthetic id for demo items). */
+  /** Stable id — the price-list ROW id (or a synthetic id for demo items). Used only as the local cart key. */
   id: string;
+  /** Catalog item id from the price-list entry — null for demo/fallback items. Sent to the API. */
+  itemId: string | null;
+  /** Catalog service id from the price-list entry — null for demo/fallback items. Sent to the API. */
+  serviceId: string | null;
+  /** Full display label (backend displayLabel, falling back to itemName + serviceName). */
   name: string;
   service: string;
   unitPrice: number;

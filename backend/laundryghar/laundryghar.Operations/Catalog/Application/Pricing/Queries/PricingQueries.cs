@@ -1,3 +1,5 @@
+using laundryghar.Catalog.Infrastructure.Auth;
+using laundryghar.Catalog.Infrastructure.Services;
 using laundryghar.Catalog.Application.Pricing.Commands;
 using laundryghar.Catalog.Application.Pricing.Dtos;
 using laundryghar.Utilities.Common;
@@ -194,10 +196,44 @@ public sealed class GetPublishedPriceListHandler : IRequestHandler<GetPublishedP
 
         if (priceList is null) return [];
 
-        return await _db.PriceListItems
+        // DEFECT 1: project the item + service names alongside the row so the client
+        // gets a real display label. Admin authoring may leave DisplayLabel null; we
+        // synthesise "Item · Service" in that case. The join uses the Item/Service
+        // navigations (translated to SQL JOINs — single round-trip, no N+1).
+        var rows = await _db.PriceListItems
             .Where(pi => pi.PriceListId == priceList.Id && pi.IsActive && pi.Status == "active")
             .OrderBy(pi => pi.CreatedAt)
-            .Select(pi => CreatePriceListItemHandler.ToDto(pi))
+            .Select(pi => new
+            {
+                Item = pi,
+                ItemName = pi.Item.Name,
+                ServiceName = pi.Service.Name,
+            })
             .ToListAsync(ct);
+
+        return rows
+            .Select(r =>
+            {
+                var dto = CreatePriceListItemHandler.ToDto(r.Item) with
+                {
+                    ItemName = r.ItemName,
+                    ServiceName = r.ServiceName,
+                };
+                // Fill a sensible label when the authored one is blank.
+                var label = string.IsNullOrWhiteSpace(dto.DisplayLabel)
+                    ? BuildLabel(r.ItemName, r.ServiceName)
+                    : dto.DisplayLabel;
+                return dto with { DisplayLabel = label };
+            })
+            .ToList();
+    }
+
+    /// <summary>Composes a "Item · Service" label, omitting blanks gracefully.</summary>
+    internal static string BuildLabel(string? itemName, string? serviceName)
+    {
+        var parts = new[] { itemName, serviceName }
+            .Where(p => !string.IsNullOrWhiteSpace(p));
+        var label = string.Join(" · ", parts); // middle dot separator
+        return string.IsNullOrWhiteSpace(label) ? "Item" : label;
     }
 }

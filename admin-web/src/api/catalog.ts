@@ -282,3 +282,8 @@ export async function updateAdminCustomer(
   )
   return unwrap(data)
 }
+
+/** DELETE returns a bare { status: true } envelope (no data) — don't unwrap. */
+export async function deleteAdminCustomer(id: string): Promise<void> {
+  await catalogClient.delete(`${ADMIN}/customers/${id}`)
+}

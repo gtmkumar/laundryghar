@@ -35,11 +35,9 @@ import { useBookingStore, type PaymentMethod } from '@/store/bookingStore';
 import { useWallet } from '@/hooks/useCommerce';
 import { useCoupons } from '@/hooks/useCommerce';
 import { useSchedulePickup, useValidateCoupon } from '@/hooks/useOrders';
-import { rupees } from '@/lib/format';
+import { localDateIso, rupees } from '@/lib/format';
 import { hapticError, hapticImpact, hapticSuccess, hapticWarning } from '@/lib/haptics';
-import { FEATURES } from '@/constants/config';
-
-const EXPRESS_SURCHARGE = 50;
+import { EXPRESS_SURCHARGE, FEATURES } from '@/constants/config';
 
 /** Only the two methods that are live today. */
 type LivePaymentMethod = Extract<PaymentMethod, 'wallet' | 'cod'>;
@@ -206,7 +204,7 @@ export default function PayScreen() {
   const lines = useCartStore((s) => s.lines);
   const clearCart = useCartStore((s) => s.clear);
   const { express, slot, address, paymentMethod, setPaymentMethod, setConfirmed } = useBookingStore();
-  const { data: wallet } = useWallet();
+  const { data: wallet, isError: walletError } = useWallet();
 
   const [loading, setLoading] = useState(false);
   // R3-BE-2: coupon state
@@ -230,6 +228,16 @@ export default function PayScreen() {
 
   const walletBalance = wallet?.balance ?? 0;
   const walletInsufficient = liveMethod === 'wallet' && walletBalance < total;
+
+  // UX: never pre-select a method the user cannot use. When the wallet balance
+  // cannot cover the total, fall back to COD automatically (wallet stays
+  // visible but disabled, so this cannot fight a valid user choice).
+  React.useEffect(() => {
+    const cannotCover = wallet ? wallet.balance < total : walletError;
+    if (liveMethod === 'wallet' && cannotCover) {
+      setPaymentMethod('cod');
+    }
+  }, [wallet, walletError, liveMethod, total, setPaymentMethod]);
 
   const methods: MethodMeta[] = useMemo(
     () => [
@@ -261,6 +269,20 @@ export default function PayScreen() {
     setCouponDiscount(0);
   }, []);
 
+  /**
+   * Navigate to the confirmation screen with the booking stack RESET.
+   * dismissAll() pops items→pickup→pay off the stack first, so hardware back
+   * (or swipe) from the confirmation lands on the tabs, not a stale pay screen.
+   */
+  const goToConfirm = useCallback(() => {
+    try {
+      router.dismissAll();
+    } catch {
+      // Nothing to dismiss — e.g. deep-linked straight to pay. Safe to ignore.
+    }
+    router.push('/(app)/booking/confirm');
+  }, [router]);
+
   const handlePay = async () => {
     if (count === 0) {
       hapticWarning();
@@ -277,15 +299,18 @@ export default function PayScreen() {
         return;
       }
 
-      const pickupDateIso = slot?.date ?? new Date().toISOString().slice(0, 10);
+      const pickupDateIso = slot?.date ?? localDateIso();
       const [winStart, winEnd] = slot
         ? [slot.windowStart ?? '09:00:00', slot.windowEnd ?? '21:00:00']
         : ['09:00:00', '21:00:00'];
 
+      // Send the REAL catalog ids carried on the cart line (the line's own id is
+      // the price-list ROW id — the backend 422s that). l.name is already the
+      // resolved display label (displayLabel ?? itemName · serviceName).
       const cartItems = lineList.map((l) => ({
-        serviceId: null,
-        itemId: l.id.startsWith('demo-') ? null : l.id,
-        displayLabel: `${l.name} · ${l.service}`,
+        serviceId: l.serviceId,
+        itemId: l.itemId,
+        displayLabel: l.name,
         quantity: l.qty,
         estimatedUnitPrice: l.unitPrice,
       }));
@@ -321,7 +346,7 @@ export default function PayScreen() {
           paymentMethod: liveMethod,
         });
         clearCart();
-        router.replace('/(app)/booking/confirm');
+        goToConfirm();
       } catch (err: unknown) {
         hapticError();
         const msg = err instanceof Error ? err.message : t('booking.bookingFailedMessage');
@@ -343,7 +368,7 @@ export default function PayScreen() {
         paymentMethod: liveMethod,
       });
       clearCart();
-      router.replace('/(app)/booking/confirm');
+      goToConfirm();
     }
   };
 

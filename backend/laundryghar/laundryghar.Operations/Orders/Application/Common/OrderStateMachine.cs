@@ -1,3 +1,5 @@
+using laundryghar.Orders.Infrastructure.Auth;
+using laundryghar.Orders.Infrastructure.Services;
 namespace laundryghar.Orders.Application.Common;
 
 /// <summary>
@@ -64,4 +66,50 @@ public static class OrderStateMachine
     /// <summary>Returns true if the order can be customer-cancelled from the given status.</summary>
     public static bool CanCustomerCancel(string status) =>
         status is OrderStatus.Placed or OrderStatus.PickupScheduled;
+
+    /// <summary>
+    /// The single linear "happy path" the pickup→intake flow advances along. Used by
+    /// <see cref="ForwardPath"/> to walk an order that has fallen behind reality (e.g.
+    /// a rider completed the physical pickup but the order was still pickup_scheduled).
+    /// </summary>
+    private static readonly string[] HappyPath =
+    [
+        OrderStatus.Placed,
+        OrderStatus.PickupScheduled,
+        OrderStatus.PickupAssigned,
+        OrderStatus.PickupInProgress,
+        OrderStatus.PickedUp,
+        OrderStatus.Received,
+        OrderStatus.Sorting,
+        OrderStatus.InProcess,
+        OrderStatus.Qc,
+        OrderStatus.Ready,
+        OrderStatus.DeliveryScheduled,
+        OrderStatus.DeliveryAssigned,
+        OrderStatus.OutForDelivery,
+        OrderStatus.Delivered,
+        OrderStatus.Closed,
+    ];
+
+    /// <summary>
+    /// DEFECT 6 — returns the ordered list of statuses to step THROUGH to advance an
+    /// order from <paramref name="from"/> up to <paramref name="target"/> along the
+    /// linear happy path (excludes <paramref name="from"/>, includes
+    /// <paramref name="target"/>). Each hop is a legal single-step transition, so
+    /// callers can record one status-history row per hop. Returns an empty list when
+    /// the order is already at or beyond the target, or when either status is off the
+    /// linear path (caller should then no-op rather than force an illegal jump).
+    /// </summary>
+    public static IReadOnlyList<string> ForwardPath(string from, string target)
+    {
+        var fromIdx = Array.IndexOf(HappyPath, from);
+        var targetIdx = Array.IndexOf(HappyPath, target);
+        if (fromIdx < 0 || targetIdx < 0 || targetIdx <= fromIdx)
+            return [];
+
+        var hops = new List<string>(targetIdx - fromIdx);
+        for (var i = fromIdx + 1; i <= targetIdx; i++)
+            hops.Add(HappyPath[i]);
+        return hops;
+    }
 }

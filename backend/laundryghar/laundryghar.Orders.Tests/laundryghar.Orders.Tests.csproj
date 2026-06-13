@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\laundryghar.Orders\laundryghar.Orders.csproj" />
+    <ProjectReference Include="..\laundryghar.Operations\laundryghar.Operations.csproj" />
   </ItemGroup>
 
 </Project>

@@ -23,8 +23,9 @@ import { useOrderDetail, useOrderTracking, usePickupRequestDetail, useRateOrder 
 import { useBookingStore } from '@/store/bookingStore';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { rupees, formatDateTime } from '@/lib/format';
+import { rupees, formatDate, formatDateTime } from '@/lib/format';
 import { hapticImpact } from '@/lib/haptics';
+import { EXPRESS_SURCHARGE } from '@/constants/config';
 import type { OrderStatus, PickupRequestDto, PickupRequestStatus } from '@/types/api';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -259,10 +260,23 @@ function PickupTracking({ id }: { id: string }) {
         ? t('tracking.bannerPickupCancelled')
         : pickup.status === 'no_response'
           ? t('tracking.bannerNoResponse')
-          : t('tracking.bannerPickupDate', { date: pickup.pickupDate });
+          : t('tracking.bannerPickupDate', { date: formatDate(pickup.pickupDate) });
 
   const itemCount = pickup.estimatedItems
     ?? pickup.cartItems.reduce((n, i) => n + i.quantity, 0);
+
+  // Estimate summary: derive the coupon discount from the line subtotal
+  // (+ express surcharge) vs. the recorded estimatedAmount. Shown only when a
+  // coupon was applied at booking (couponCode is the new backend field).
+  const lineSubtotal = pickup.cartItems.reduce(
+    (sum, i) => sum + (i.estimatedUnitPrice ?? 0) * i.quantity,
+    0,
+  );
+  const expressFee = pickup.isExpress ? EXPRESS_SURCHARGE : 0;
+  const couponDiscount =
+    pickup.couponCode && pickup.estimatedAmount != null && lineSubtotal > 0
+      ? Math.max(0, lineSubtotal + expressFee - pickup.estimatedAmount)
+      : 0;
 
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={['top']}>
@@ -326,6 +340,28 @@ function PickupTracking({ id }: { id: string }) {
                   ) : null}
                 </View>
               ))}
+
+              {/* Estimate summary — express fee, coupon discount, payable total */}
+              {pickup.isExpress ? (
+                <View className="flex-row items-center justify-between border-b border-cream-200 py-3">
+                  <Text className="text-sm text-ink-muted">{t('booking.expressPlus')}</Text>
+                  <Text className="text-sm font-bold text-ink">{rupees(expressFee)}</Text>
+                </View>
+              ) : null}
+              {couponDiscount > 0 ? (
+                <View className="flex-row items-center justify-between border-b border-cream-200 py-3">
+                  <Text className="text-sm text-ink-muted">
+                    {t('booking.coupon.discountLine', { code: pickup.couponCode ?? '' })}
+                  </Text>
+                  <Text className="text-sm font-bold text-success">−{rupees(couponDiscount)}</Text>
+                </View>
+              ) : null}
+              {pickup.estimatedAmount != null ? (
+                <View className="flex-row items-center justify-between py-3">
+                  <Text className="text-sm font-extrabold text-ink">{t('tracking.estimatedTotal')}</Text>
+                  <Text className="text-sm font-extrabold text-ink">{rupees(pickup.estimatedAmount)}</Text>
+                </View>
+              ) : null}
             </View>
           </>
         ) : itemCount > 0 ? (

@@ -20,6 +20,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/Button';
+import { useAuthStore } from '@/store/authStore';
 import { useOnboardingSlides } from '@/hooks/useEngagement';
 import { useTranslation } from 'react-i18next';
 import { pickLocalized } from '@/i18n';
@@ -105,6 +106,7 @@ export default function OnboardingScreen() {
   const flatRef = useRef<FlatList<OnboardingSlideDto>>(null);
 
   const { data: cmsSlides } = useOnboardingSlides('customer');
+  const setHasOnboarded = useAuthStore((s) => s.setHasOnboarded);
   const slides = cmsSlides && cmsSlides.length > 0 ? cmsSlides : FALLBACK_SLIDES;
   const current = slides[index] ?? slides[0];
   const isLast = index === slides.length - 1;
@@ -113,11 +115,17 @@ export default function OnboardingScreen() {
     if (viewableItems[0]?.index != null) setIndex(viewableItems[0].index);
   }).current;
 
+  // Persist the flag so returning users land directly on login next time.
+  const finishOnboarding = () => {
+    void setHasOnboarded();
+    router.replace('/(auth)/phone');
+  };
+
   const goNext = () => {
     if (!isLast) {
       flatRef.current?.scrollToIndex({ index: index + 1, animated: true });
     } else {
-      router.replace('/(auth)/phone');
+      finishOnboarding();
     }
   };
 
@@ -170,7 +178,7 @@ export default function OnboardingScreen() {
                   variant="secondary"
                   size="lg"
                   fullWidth
-                  onPress={() => router.replace('/(auth)/phone')}
+                  onPress={finishOnboarding}
                 />
               </View>
               <View className="flex-1">

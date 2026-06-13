@@ -11,14 +11,15 @@ import { initialisePushNotifications } from '@/lib/pushNotifications';
 const CREAM = '#F3EEE3';
 
 export default function AppLayout() {
-  const { accessToken, isHydrated } = useAuthStore();
+  const { accessToken, isHydrated, hasOnboarded } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
     if (isHydrated && !accessToken) {
-      router.replace('/(auth)/onboarding');
+      // Returning users have already seen the carousel — go straight to login.
+      router.replace(hasOnboarded ? '/(auth)/phone' : '/(auth)/onboarding');
     }
-  }, [accessToken, isHydrated, router]);
+  }, [accessToken, isHydrated, hasOnboarded, router]);
 
   // Register for push notifications when the customer is authenticated.
   // Best-effort — failures never block navigation or render.
@@ -47,6 +48,7 @@ export default function AppLayout() {
       />
       <Stack.Screen name="orders/[id]" />
       <Stack.Screen name="orders/tracking/[id]" />
+      <Stack.Screen name="notifications" />
       <Stack.Screen name="offers" />
     </Stack>
   );

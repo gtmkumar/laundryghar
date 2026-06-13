@@ -1,3 +1,5 @@
+using laundryghar.Catalog.Infrastructure.Auth;
+using laundryghar.Catalog.Infrastructure.Services;
 namespace laundryghar.Catalog.Application.Customer.Admin.Dtos;
 
 public sealed record AdminCustomerDto(

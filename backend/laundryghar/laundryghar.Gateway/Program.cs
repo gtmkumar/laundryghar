@@ -3,15 +3,18 @@
 // Listening port: http://localhost:8080 (dev)
 //
 // Responsibilities:
-//   - Path-prefix routing to 9 downstream services via YARP
+//   - Path-prefix routing via YARP. The 9 path prefixes (+ /mcp) fan in to 3 hosts:
+//       /identity, /engagement, /mcp                 → core       @5050
+//       /catalog, /orders, /warehouse, /logistics    → operations @5002
+//       /commerce, /finance, /analytics              → commerce   @5005
 //   - Central CORS (single point for all clients)
 //   - Global per-IP rate limiting (fixed-window, 300 req/min)
 //   - Security response headers (mirrors ServiceDefaults.UseSecurityHeaders)
 //   - Forwarding: Authorization, X-Brand-Id, X-Forwarded-For/Proto/Host (YARP default)
 //   - Aggregate health: GET /health/services fans out to each service's /health/ready
 //
-// ADDITIVE: per-service direct ports (:5050–:5008) remain fully operational.
-// Clients can switch from N per-service base URLs to a single http://localhost:8080
+// ADDITIVE: the 3 consolidated direct ports (:5050, :5002, :5005) remain fully operational.
+// Clients can switch from per-service base URLs to a single http://localhost:8080
 // without any URL-path changes — the first path segment selects the upstream.
 
 using System.Net;
@@ -49,6 +52,19 @@ RouteConfig MakeRoute(string routeId, string pathPrefix, string clusterId) =>
         Transforms = [new Dictionary<string, string> { ["PathPattern"] = "/{**catch-all}" }]
     };
 
+// Pass-through route: forwards the request path verbatim (no prefix strip).
+// Used for the MCP resource server which is mounted at the literal "/mcp" path on
+// the core host (app.MapMcp("/mcp")), so the gateway must NOT strip the segment —
+// it forwards /mcp and /mcp/... unchanged to http://localhost:5050/mcp.
+RouteConfig MakeVerbatimRoute(string routeId, string path, string clusterId) =>
+    new()
+    {
+        RouteId   = routeId,
+        ClusterId = clusterId,
+        Match     = new RouteMatch { Path = path }
+        // No transforms — YARP forwards the matched path as-is.
+    };
+
 ClusterConfig MakeCluster(string clusterId)
 {
     var address = gatewaySection[$"{clusterId}:Destinations:primary:Address"]
@@ -65,6 +81,9 @@ ClusterConfig MakeCluster(string clusterId)
     };
 }
 
+// Path prefixes are unchanged from the pre-consolidation gateway; only the upstream
+// cluster addresses fan in to 3 services (identity/engagement/mcp→core,
+// catalog/orders/warehouse/logistics→operations, commerce/finance/analytics→commerce).
 var routes = new[]
 {
     MakeRoute("identity-route",   "identity",   "identity"),
@@ -76,6 +95,9 @@ var routes = new[]
     MakeRoute("finance-route",    "finance",    "finance"),
     MakeRoute("engagement-route", "engagement", "engagement"),
     MakeRoute("analytics-route",  "analytics",  "analytics"),
+    // MCP resource server lives at the literal /mcp path on core — forward verbatim.
+    MakeVerbatimRoute("mcp-route",        "/mcp",       "mcp"),
+    MakeVerbatimRoute("mcp-subpath-route", "/mcp/{**catch-all}", "mcp"),
 };
 
 var clusters = new[]
@@ -89,6 +111,7 @@ var clusters = new[]
     MakeCluster("finance"),
     MakeCluster("engagement"),
     MakeCluster("analytics"),
+    MakeCluster("mcp"),
 };
 
 builder.Services

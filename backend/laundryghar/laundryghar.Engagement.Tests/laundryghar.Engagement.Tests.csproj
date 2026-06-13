@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\laundryghar.Engagement\laundryghar.Engagement.csproj" />
+    <ProjectReference Include="..\laundryghar.Core\laundryghar.Core.csproj" />
   </ItemGroup>
 
 </Project>
