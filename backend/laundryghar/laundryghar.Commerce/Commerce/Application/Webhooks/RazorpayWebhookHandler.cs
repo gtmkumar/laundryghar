@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using laundryghar.Commerce.Infrastructure.Gateway;
 using laundryghar.SharedDataModel.Crypto;
+using laundryghar.SharedDataModel.Entities.Commerce;
 using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Persistence;
 using MediatR;
@@ -66,13 +67,44 @@ public sealed class ProcessRazorpayWebhookHandler
     public async Task<WebhookProcessResult> Handle(
         ProcessRazorpayWebhookCommand cmd, CancellationToken ct)
     {
-        // ── 1. HMAC verification ──────────────────────────────────────────────
+        // ── 1. Parse event (UNTRUSTED — not yet verified) ─────────────────────
+        // We must parse before we can verify, because the webhook secret is per-brand and
+        // the brand is only knowable from the payment row referenced by the parsed entity.
+        // Nothing is persisted/acted upon until HMAC passes in step 3.
+        WebhookEvent? evt;
+        try
+        {
+            evt = ParseEvent(cmd.RawBody);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Razorpay webhook payload parse error.");
+            return new WebhookProcessResult(false, "Malformed JSON payload.");
+        }
 
-        // Resolution order: DB settings → env config → skip in Development / reject in Production.
+        if (evt is null)
+            return new WebhookProcessResult(false, "Empty payload.");
+
+        var gatewayOrderId = evt.Payload?.Payment?.Entity?.OrderId;
+
+        // ── 2. Resolve the matched payment + its brand ────────────────────────
+        // bypass_rls is set for this anonymous path so we must filter manually by gateway id.
+        // (No RLS brand predicate is available on an anonymous webhook.)
+        Payment? payment = null;
+        if (!string.IsNullOrEmpty(gatewayOrderId))
+        {
+            payment = await _db.Payments
+                .FirstOrDefaultAsync(p => p.GatewayOrderId == gatewayOrderId, ct);
+        }
+
+        // ── 3. HMAC verification, scoped to the matched payment's brand (SEC-2) ─
+        // Resolution order: DB settings for the PAYMENT's brand → env config →
+        // skip in Development / reject in Production. We never prime the secret from a
+        // process-global cache populated by an unrelated caller.
         string? webhookSecret = null;
         if (_cache is not null && _cipher is not null)
         {
-            var dbSettings = await _cache.GetAsync(_db, ct);
+            var dbSettings = await _cache.GetAsync(_db, payment?.BrandId, ct);
             if (!string.IsNullOrWhiteSpace(dbSettings.WebhookSecret))
                 webhookSecret = dbSettings.WebhookSecret;
         }
@@ -114,21 +146,7 @@ public sealed class ProcessRazorpayWebhookHandler
             }
         }
 
-        // ── 2. Parse event ────────────────────────────────────────────────────
-
-        WebhookEvent? evt;
-        try
-        {
-            evt = ParseEvent(cmd.RawBody);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError(ex, "Razorpay webhook payload parse error.");
-            return new WebhookProcessResult(false, "Malformed JSON payload.");
-        }
-
-        if (evt is null)
-            return new WebhookProcessResult(false, "Empty payload.");
+        // ── 4. Act on the verified event ──────────────────────────────────────
 
         _logger.LogInformation(
             "Razorpay webhook event={EventType} entity={EntityId}",
@@ -136,8 +154,8 @@ public sealed class ProcessRazorpayWebhookHandler
 
         return evt.Event switch
         {
-            "payment.captured" => await HandleCapturedAsync(evt, ct),
-            "payment.failed"   => await HandleFailedAsync(evt, ct),
+            "payment.captured" => await HandleCapturedAsync(evt, payment, ct),
+            "payment.failed"   => await HandleFailedAsync(evt, payment, ct),
             _                  => new WebhookProcessResult(true, $"Event '{evt.Event}' ignored.")
         };
     }
@@ -145,7 +163,7 @@ public sealed class ProcessRazorpayWebhookHandler
     // ── payment.captured ──────────────────────────────────────────────────────
 
     private async Task<WebhookProcessResult> HandleCapturedAsync(
-        WebhookEvent evt, CancellationToken ct)
+        WebhookEvent evt, Payment? payment, CancellationToken ct)
     {
         var entity = evt.Payload?.Payment?.Entity;
         if (entity is null)
@@ -157,12 +175,7 @@ public sealed class ProcessRazorpayWebhookHandler
         if (string.IsNullOrEmpty(gatewayOrderId) || string.IsNullOrEmpty(gatewayPaymentId))
             return new WebhookProcessResult(false, "Missing gateway order/payment id.");
 
-        // Explicit filter by gateway ids (bypass_rls is true for this path so we must
-        // filter manually — no RLS brand predicate available on anonymous webhooks).
-        var payment = await _db.Payments
-            .FirstOrDefaultAsync(
-                p => p.GatewayOrderId == gatewayOrderId, ct);
-
+        // `payment` was resolved + brand-scoped for HMAC in Handle(); reuse it.
         if (payment is null)
         {
             _logger.LogWarning(
@@ -227,7 +240,7 @@ public sealed class ProcessRazorpayWebhookHandler
     // ── payment.failed ────────────────────────────────────────────────────────
 
     private async Task<WebhookProcessResult> HandleFailedAsync(
-        WebhookEvent evt, CancellationToken ct)
+        WebhookEvent evt, Payment? payment, CancellationToken ct)
     {
         var entity = evt.Payload?.Payment?.Entity;
         if (entity is null)
@@ -239,9 +252,7 @@ public sealed class ProcessRazorpayWebhookHandler
         if (string.IsNullOrEmpty(gatewayOrderId))
             return new WebhookProcessResult(false, "Missing gateway order id.");
 
-        var payment = await _db.Payments
-            .FirstOrDefaultAsync(p => p.GatewayOrderId == gatewayOrderId, ct);
-
+        // `payment` was resolved + brand-scoped for HMAC in Handle(); reuse it.
         if (payment is null)
         {
             _logger.LogWarning(

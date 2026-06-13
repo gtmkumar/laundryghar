@@ -1,4 +1,5 @@
 using laundryghar.SharedDataModel.Common;
+using laundryghar.SharedDataModel.Contracts;
 using laundryghar.SharedDataModel.Persistence;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +29,7 @@ internal sealed class SettingsFirstPaymentGateway : IPaymentGateway
 {
     private readonly GatewaySettingsCache _cache;
     private readonly LaundryGharDbContext _db;
+    private readonly ICurrentTenant _tenant;
     private readonly RazorpaySettings _envSettings;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<SettingsFirstPaymentGateway> _logger;
@@ -35,12 +37,14 @@ internal sealed class SettingsFirstPaymentGateway : IPaymentGateway
     public SettingsFirstPaymentGateway(
         GatewaySettingsCache cache,
         LaundryGharDbContext db,
+        ICurrentTenant tenant,
         IOptions<RazorpaySettings> envSettings,
         IHttpClientFactory httpFactory,
         ILogger<SettingsFirstPaymentGateway> logger)
     {
         _cache       = cache;
         _db          = db;
+        _tenant      = tenant;
         _envSettings = envSettings.Value;
         _httpFactory = httpFactory;
         _logger      = logger;
@@ -77,8 +81,10 @@ internal sealed class SettingsFirstPaymentGateway : IPaymentGateway
     /// </summary>
     private async Task<RazorpayPaymentGateway> ResolveAsync(CancellationToken ct)
     {
-        // 1. Try DB settings (TTL-cached)
-        var dbSettings = await _cache.GetAsync(_db, ct);
+        // 1. Try DB settings (TTL-cached, keyed by the CURRENT brand so one brand's creds
+        //    are never served to another — SEC-2). _tenant.BrandId is the authenticated
+        //    caller's brand on the customer/admin payment lanes.
+        var dbSettings = await _cache.GetAsync(_db, _tenant.BrandId, ct);
 
         if (dbSettings.Enabled
             && !string.IsNullOrWhiteSpace(dbSettings.KeyId)

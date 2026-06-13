@@ -83,7 +83,7 @@ public sealed class AutoDispatchService : BackgroundService
 
     private async Task ProcessCycleAsync(CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = _scopeFactory.CreateWorkerAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
 
         var minAge = DateTimeOffset.UtcNow.AddMinutes(-_options.AutoDispatchMinAgeMinutes);

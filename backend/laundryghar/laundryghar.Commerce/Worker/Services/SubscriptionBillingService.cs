@@ -91,7 +91,7 @@ public sealed class SubscriptionBillingService : BackgroundService
 
     private async Task RunCycleAsync(CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = _scopeFactory.CreateWorkerAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
 
         var now = DateTimeOffset.UtcNow;

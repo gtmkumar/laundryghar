@@ -62,7 +62,7 @@ public sealed class MatviewRefreshService : BackgroundService
     {
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
+            await using var scope = _scopeFactory.CreateWorkerAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
 
             await db.Database.ExecuteSqlRawAsync("SELECT analytics.refresh_all_matviews();", ct);

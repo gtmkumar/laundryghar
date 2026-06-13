@@ -94,7 +94,7 @@ public sealed class RetentionSweepService : BackgroundService
     {
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
+            await using var scope = _scopeFactory.CreateWorkerAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
 
             var cutoff = DateTimeOffset.UtcNow.AddDays(-_options.NotificationOutboxRetentionDays);
@@ -128,7 +128,7 @@ public sealed class RetentionSweepService : BackgroundService
     {
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
+            await using var scope = _scopeFactory.CreateWorkerAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
 
             var cutoff = DateTimeOffset.UtcNow.AddDays(-_options.OtpCodeRetentionDays);
@@ -162,7 +162,7 @@ public sealed class RetentionSweepService : BackgroundService
     {
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
+            await using var scope = _scopeFactory.CreateWorkerAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
 
             var now    = DateTimeOffset.UtcNow;

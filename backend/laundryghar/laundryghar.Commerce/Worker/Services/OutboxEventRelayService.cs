@@ -61,7 +61,7 @@ public sealed class OutboxEventRelayService : BackgroundService
 
     private async Task ProcessBatchAsync(CancellationToken ct)
     {
-        await using var scope     = _scopeFactory.CreateAsyncScope();
+        await using var scope     = _scopeFactory.CreateWorkerAsyncScope();
         var db        = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
         var publisher = scope.ServiceProvider.GetRequiredService<IEventPublisher>();
 

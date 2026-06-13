@@ -66,7 +66,7 @@ public sealed class NotificationDispatcherService : BackgroundService
     {
         // Each poll cycle gets its own DI scope so the scoped DbContext + interceptor
         // are fresh (important: the interceptor sets RLS vars per-scope).
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = _scopeFactory.CreateWorkerAsyncScope();
         var db     = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
         var sender = scope.ServiceProvider.GetRequiredService<IChannelSender>();
 

@@ -114,7 +114,7 @@ public sealed class DailyReconService : BackgroundService
 
     private async Task RunForAllWarehousesAsync(DateOnly today, CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = _scopeFactory.CreateWorkerAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
 
         // Worker bypasses RLS — all brands/warehouses are visible.

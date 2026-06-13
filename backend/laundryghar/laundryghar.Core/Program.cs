@@ -425,6 +425,9 @@ app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthC
     Predicate = _ => false
 });
 
+// SEC-4: a check's Description can carry Npgsql connection details (DB host / name / user)
+// on failure. Only expose it in Development; in non-Dev return name + status only.
+var exposeHealthDescriptions = app.Environment.IsDevelopment();
 app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = hc => hc.Tags.Contains("ready"),
@@ -437,7 +440,12 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
         {
             status,
             duration = report.TotalDuration.TotalMilliseconds,
-            checks = report.Entries.Select(e => new { name = e.Key, status = e.Value.Status.ToString(), description = e.Value.Description })
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = exposeHealthDescriptions ? e.Value.Description : null
+            })
         });
         await ctx.Response.WriteAsync(payload);
     }
@@ -454,6 +462,30 @@ static bool IsScopeResolvingAuthPath(PathString path) =>
     || path.StartsWithSegments("/api/v1/auth/refresh")
     || path.StartsWithSegments("/oauth");
 
+// SEC-3: narrowed allow-list for the anonymous public CMS endpoints.
+//
+// Why an exact-path allow-list and NOT a blanket "/api/v1/public" prefix bypass:
+//   This process now also hosts Identity (users, credentials, secrets). A blanket prefix
+//   bypass means any FUTURE /api/v1/public/* route that forgets an explicit brand predicate
+//   would read across ALL tenants. We therefore only disable RLS for the 3 known CMS routes
+//   that are individually proven to resolve a brand and pass it as an explicit .Where(brandId)
+//   predicate (see PublicEngagementEndpoints + the public CMS queries).
+//
+// Why bypass at all (rather than GUC-enforce): each of these handlers must first resolve the
+// brand by reading tenancy_org.brands by code/header — and that table's RLS policy
+// (rls_admin_only = kernel.rls_bypass()) blocks an anonymous, brand-scoped read. The RLS
+// interceptor also fixes the brand GUC at connection-open, so we cannot resolve-then-narrow on
+// the same pooled connection. The CMS content tables (app_banners, mobile_app_config,
+// onboarding_slides) are all guarded at the LINQ level by the resolved brandId, so isolation
+// holds even with RLS disabled on these 3 routes.
+//
+// INVARIANT: any NEW anonymous public route MUST be added here explicitly AND must pass an
+// explicit brand predicate in its query. Do NOT broaden this back to a prefix match.
+static bool IsAllowlistedPublicCmsPath(PathString path) =>
+    path.StartsWithSegments("/api/v1/public/banners")
+    || path.StartsWithSegments("/api/v1/public/onboarding-slides")
+    || path.StartsWithSegments("/api/v1/public/app-config");
+
 app.Use(async (ctx, next) =>
 {
     // Identity: pre-auth scope-resolving flows (only when unauthenticated).
@@ -463,7 +495,8 @@ app.Use(async (ctx, next) =>
         ctx.Items["bypass_rls"] = true;
     }
     // Engagement: anonymous public CMS endpoints (explicit brand predicate is the guard).
-    if (ctx.Request.Path.StartsWithSegments("/api/v1/public"))
+    // Narrowed to the exact known routes — NOT the whole /api/v1/public prefix (SEC-3).
+    if (IsAllowlistedPublicCmsPath(ctx.Request.Path))
     {
         ctx.Items["bypass_rls"] = true;
     }

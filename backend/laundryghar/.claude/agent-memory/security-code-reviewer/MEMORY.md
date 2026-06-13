@@ -2,3 +2,4 @@
 - [Rider multi-tenancy](project-rider-multitenancy.md) — franchise-scope clamp pattern, cross-service activation, InviteRider authz, UpdateRider kyc-gate bypass gap
 - [OAuth 2.1 facade + MCP](project-oauth-mcp.md) — PKCE/redirect-URI/DCR review, MCP CustomerOnly + token-forwarding SSRF analysis, pickup idempotency isolation
 - [RBAC seeder drift](project-rbac-seeder-drift.md) — 8 endpoint perm codes exist only in SQL patches not IdentitySeeder; POS↔Orders coupling; admin-web route gating is auth-only
+- [11→3 consolidation boundaries](project-consolidation-boundaries.md) — Commerce RLS fail-open default + worker-now-app_user; GatewaySettingsCache cross-brand bleed; Core public-lane bypass_rls; policy unification verified safe

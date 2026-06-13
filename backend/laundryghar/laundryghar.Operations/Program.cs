@@ -212,6 +212,9 @@ app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthC
     Predicate = _ => false
 });
 
+// SEC-4: a check's Description can carry Npgsql connection details (DB host / name / user)
+// on failure. Only expose it in Development; in non-Dev return name + status only.
+var exposeHealthDescriptions = app.Environment.IsDevelopment();
 app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = hc => hc.Tags.Contains("ready"),
@@ -224,7 +227,12 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
         {
             status,
             duration = report.TotalDuration.TotalMilliseconds,
-            checks   = report.Entries.Select(e => new { name = e.Key, status = e.Value.Status.ToString(), description = e.Value.Description })
+            checks   = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = exposeHealthDescriptions ? e.Value.Description : null
+            })
         });
         await ctx.Response.WriteAsync(payload);
     }

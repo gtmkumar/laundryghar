@@ -92,7 +92,7 @@ public sealed class PartitionMaintenanceService : BackgroundService
     {
         try
         {
-            using var scope = _scopeFactory.CreateScope();
+            using var scope = _scopeFactory.CreateWorkerScope();
             var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
 
             var daysAhead = Math.Max(0, _options.PartitionMaintenanceDaysAhead);

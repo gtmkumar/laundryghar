@@ -112,7 +112,7 @@ public sealed class RoyaltyGenerationService : BackgroundService
     private async Task RunGenerationBatchAsync(
         DateOnly periodStart, DateOnly periodEnd, CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = _scopeFactory.CreateWorkerAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
 
         // Load all active franchises with their agreement data.
