@@ -1,4 +1,4 @@
-using core.Application.Repositories;
+using core.Application.Common.Interfaces;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.EngagementCms;
 using laundryghar.Utilities.Results;
@@ -19,10 +19,9 @@ public record CreateNotificationTemplateCommand : ICommand<Result<Guid>>
 public class CreateNotificationTemplateCommandHandler
     : ICommandHandler<CreateNotificationTemplateCommand, Result<Guid>>
 {
-    private readonly INotificationTemplateRepository _repository;
+    private readonly ICoreDbContext _db;
 
-    public CreateNotificationTemplateCommandHandler(INotificationTemplateRepository repository)
-        => _repository = repository;
+    public CreateNotificationTemplateCommandHandler(ICoreDbContext db) => _db = db;
 
     public async Task<Result<Guid>> HandleAsync(CreateNotificationTemplateCommand command, CancellationToken cancellationToken)
     {
@@ -40,7 +39,9 @@ public class CreateNotificationTemplateCommandHandler
             IsActive = true,
         };
 
-        var result = await _repository.AddAsync(entity, cancellationToken);
-        return new Result<Guid>(result.ResultCode, entity.Id);
+        _db.NotificationTemplates.Add(entity);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return new Result<Guid>(new ResultCode(ResultType.Success, 1, "Template created."), entity.Id);
     }
 }

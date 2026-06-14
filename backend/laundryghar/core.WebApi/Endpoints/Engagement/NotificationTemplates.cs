@@ -2,6 +2,7 @@ using core.Application.NotificationTemplates.Commands.CreateNotificationTemplate
 using core.Application.NotificationTemplates.Queries.GetNotificationTemplateByCode;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.Endpoints;
+using laundryghar.Utilities.Validation;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace core.WebApi.Endpoints.Engagement;
@@ -11,7 +12,7 @@ public class NotificationTemplates : IEndpointGroup
 {
     public static void Map(RouteGroupBuilder group)
     {
-        group.MapPost(Create);
+        group.MapPost(Create).AddEndpointFilter<ValidationFilter<CreateNotificationTemplateCommand>>();
         group.MapGet(GetByCode, "{brandId:guid}/{code}");
     }
 

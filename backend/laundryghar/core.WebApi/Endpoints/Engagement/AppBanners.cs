@@ -4,6 +4,7 @@ using core.Application.Engagement.Cms.AppBanners.Commands.UpdateAppBanner;
 using core.Application.Engagement.Cms.AppBanners.Queries.GetAppBannerById;
 using core.Application.Engagement.Cms.AppBanners.Queries.GetAppBanners;
 using core.Application.Engagement.Cms.Dtos;
+using laundryghar.Utilities.Validation;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.Endpoints;
@@ -26,8 +27,8 @@ public class AppBanners : IEndpointGroup
 
         group.MapGet(GetAll);
         group.MapGet(GetById, "{id:guid}");
-        group.MapPost(Create);
-        group.MapPut(Update, "{id:guid}");
+        group.MapPost(Create).AddEndpointFilter<ValidationFilter<CreateAppBannerRequest>>();
+        group.MapPut(Update, "{id:guid}").AddEndpointFilter<ValidationFilter<UpdateAppBannerRequest>>();
         group.MapDelete(Delete, "{id:guid}");
     }
 
@@ -46,7 +47,6 @@ public class AppBanners : IEndpointGroup
             ? Results.NotFound()
             : Results.Ok(new SingleResponse<AppBannerDto> { Status = true, Data = data });
     }
-
     public static async Task<IResult> Create(CreateAppBannerRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
     {
         var data = await dispatcher.SendAsync(new CreateAppBannerCommand(req, user.UserId), ct);

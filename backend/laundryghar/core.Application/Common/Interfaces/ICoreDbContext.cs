@@ -13,6 +13,7 @@ namespace core.Application.Common.Interfaces;
 public interface ICoreDbContext
 {
     DbSet<AppBanner> AppBanners { get; }
+    DbSet<NotificationTemplate> NotificationTemplates { get; }
     DbSet<Promotion> Promotions { get; }
     DbSet<Coupon> Coupons { get; }
 

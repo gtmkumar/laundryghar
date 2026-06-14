@@ -18,6 +18,7 @@ public sealed class CoreDbContext : ICoreDbContext
     public CoreDbContext(LaundryGharDbContext db) => _db = db;
 
     public DbSet<AppBanner> AppBanners => _db.AppBanners;
+    public DbSet<NotificationTemplate> NotificationTemplates => _db.NotificationTemplates;
     public DbSet<Promotion> Promotions => _db.Promotions;
     public DbSet<Coupon> Coupons => _db.Coupons;
 
