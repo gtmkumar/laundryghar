@@ -1,18 +1,25 @@
 <Solution>
-  <Project Path="laundryghar.ServiceDefaults.Tests/laundryghar.ServiceDefaults.Tests.csproj" />
-  <Project Path="laundryghar.Commerce.Tests/laundryghar.Commerce.Tests.csproj" />
-  <Project Path="laundryghar.Orders.Tests/laundryghar.Orders.Tests.csproj" />
-  <Project Path="laundryghar.Identity.Tests/laundryghar.Identity.Tests.csproj" />
-  <Project Path="laundryghar.Worker.Tests/laundryghar.Worker.Tests.csproj" />
-  <Project Path="laundryghar.Engagement.Tests/laundryghar.Engagement.Tests.csproj" />
-  <Project Path="laundryghar.Finance.Tests/laundryghar.Finance.Tests.csproj" />
-  <Project Path="laundryghar.Logistics.Tests/laundryghar.Logistics.Tests.csproj" />
-  <Project Path="laundryghar.ServiceDefaults/laundryghar.ServiceDefaults.csproj" />
   <Project Path="laundryghar.AppHost/laundryghar.AppHost.csproj" />
   <Project Path="laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
   <Project Path="laundryghar.Utilities/laundryghar.Utilities.csproj" />
-  <Project Path="laundryghar.Core/laundryghar.Core.csproj" />
-  <Project Path="laundryghar.Operations/laundryghar.Operations.csproj" />
-  <Project Path="laundryghar.Commerce/laundryghar.Commerce.csproj" />
+  <Project Path="laundryghar.ServiceDefaults/laundryghar.ServiceDefaults.csproj" />
+  <Folder Name="/laundryghar-commerce/">
+    <Project Path="commerce.WebApi/commerce.WebApi.csproj" />
+    <Project Path="commerce.Domain/commerce.Domain.csproj" />
+    <Project Path="commerce.Application/commerce.Application.csproj" />
+    <Project Path="commerce.Infrastructure/commerce.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/laundryghar-core/">
+    <Project Path="core.WebApi/core.WebApi.csproj" />
+    <Project Path="core.Domain/core.Domain.csproj" />
+    <Project Path="core.Application/core.Application.csproj" />
+    <Project Path="core.Infrastructure/core.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/laundryghar-operations/">
+    <Project Path="operations.WebApi/operations.WebApi.csproj" />
+    <Project Path="operations.Domain/operations.Domain.csproj" />
+    <Project Path="operations.Application/operations.Application.csproj" />
+    <Project Path="operations.Infrastructure/operations.Infrastructure.csproj" />
+  </Folder>
   <Project Path="laundryghar.Gateway/laundryghar.Gateway.csproj" />
 </Solution>

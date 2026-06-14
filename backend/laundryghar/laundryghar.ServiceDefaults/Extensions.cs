@@ -1,97 +1,78 @@
-using laundryghar.ServiceDefaults.Secrets;
-using laundryghar.ServiceDefaults.Storage;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 namespace Microsoft.Extensions.Hosting;
 
-/// <summary>
-/// Aspire service defaults: OpenTelemetry, service discovery, standard resilience, and
-/// health-check endpoints. Call <see cref="AddServiceDefaults{TBuilder}"/> immediately after
-/// <c>WebApplication.CreateBuilder</c> and <see cref="MapDefaultEndpoints"/> after <c>builder.Build()</c>.
-/// These additions are strictly additive — existing health endpoints and middleware are unaffected.
-/// </summary>
+// Adds common Aspire services: service discovery, resilience, health checks, and OpenTelemetry.
+// This project should be referenced by each service project in your solution.
+// To learn more about using this project, see https://aka.ms/aspire/service-defaults
 public static class Extensions
 {
-    // Aspire dashboard health paths (used to filter these out of OTel traces)
-    private const string HealthPath  = "/health";
-    private const string AlivePath   = "/alive";
+    private const string HealthEndpointPath = "/health";
+    private const string AlivenessEndpointPath = "/alive";
 
-    /// <summary>
-    /// Registers OpenTelemetry, service discovery, standard HTTP resilience, and a baseline
-    /// liveness health check. Safe to call on any <see cref="IHostApplicationBuilder"/>.
-    /// </summary>
-    public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
-        where TBuilder : IHostApplicationBuilder
+    public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
-        // ── Secrets abstraction ────────────────────────────────────────────────────────
-        // Layer provider-sourced secrets into IConfiguration before the rest of the
-        // pipeline reads them. The EnvironmentSecretsProvider (default) contributes
-        // nothing, so Development config is byte-for-byte unchanged. File / cloud
-        // providers are activated only when Secrets:Provider is explicitly set.
-        //
-        // Ordering: this config source is appended AFTER appsettings / appsettings.{env},
-        // but the host builder re-adds environment variables AFTER Build() is called,
-        // so env vars still win over any value this source supplies — which is the
-        // correct precedence (env vars / Aspire-injected vars always take priority).
-        builder.AddSecretsConfiguration();
-
-        // ── File storage abstraction ───────────────────────────────────────────────────
-        // Registers IFileStorageProvider. Defaults to LocalFileStorageProvider in
-        // Development (writes to Storage:Local:RootPath). Cloud providers are activated
-        // by setting Storage:Provider = s3 | azure-blob (see FileStorageProviderFactory seams).
-        builder.AddFileStorage();
-
         builder.ConfigureOpenTelemetry();
+
         builder.AddDefaultHealthChecks();
 
         builder.Services.AddServiceDiscovery();
 
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
-            // Standard resilience pipeline (retry, circuit-breaker, timeout, hedging)
+            // Turn on resilience by default
             http.AddStandardResilienceHandler();
-            // Resolve http+serviceName:// URIs via Aspire service discovery
+
+            // Turn on service discovery by default
             http.AddServiceDiscovery();
         });
+
+        // Uncomment the following to restrict the allowed schemes for service discovery.
+        // builder.Services.Configure<ServiceDiscoveryOptions>(options =>
+        // {
+        //     options.AllowedSchemes = ["https"];
+        // });
 
         return builder;
     }
 
-    /// <summary>Configures OpenTelemetry tracing, metrics, and logging with OTLP export.</summary>
-    public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder)
-        where TBuilder : IHostApplicationBuilder
+    public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
         builder.Logging.AddOpenTelemetry(logging =>
         {
             logging.IncludeFormattedMessage = true;
-            logging.IncludeScopes           = true;
+            logging.IncludeScopes = true;
         });
 
         builder.Services.AddOpenTelemetry()
             .WithMetrics(metrics =>
             {
                 metrics.AddAspNetCoreInstrumentation()
-                       .AddHttpClientInstrumentation()
-                       .AddRuntimeInstrumentation();
+                    .AddHttpClientInstrumentation()
+                    .AddRuntimeInstrumentation();
             })
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
-                       .AddAspNetCoreInstrumentation(otel =>
-                           // Exclude health / liveness pings from traces to reduce noise
-                           otel.Filter = ctx =>
-                               !ctx.Request.Path.StartsWithSegments(HealthPath)
-                               && !ctx.Request.Path.StartsWithSegments(AlivePath))
-                       .AddHttpClientInstrumentation();
+                    .AddAspNetCoreInstrumentation(tracing =>
+                        // Exclude health check requests from tracing
+                        tracing.Filter = context =>
+                            !context.Request.Path.StartsWithSegments(HealthEndpointPath)
+                            && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath)
+                    )
+                    // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
+                    //.AddGrpcClientInstrumentation()
+                    .AddHttpClientInstrumentation();
             });
 
         builder.AddOpenTelemetryExporters();
@@ -99,45 +80,45 @@ public static class Extensions
         return builder;
     }
 
-    private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder)
-        where TBuilder : IHostApplicationBuilder
+    private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
-        // OTLP exporter is activated only when the endpoint env var is set (Aspire sets it automatically)
-        if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+        var useOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+
+        if (useOtlpExporter)
         {
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
 
+        // Uncomment the following lines to enable the Azure Monitor exporter (requires the Azure.Monitor.OpenTelemetry.AspNetCore package)
+        //if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+        //{
+        //    builder.Services.AddOpenTelemetry()
+        //       .UseAzureMonitor();
+        //}
+
         return builder;
     }
 
-    /// <summary>
-    /// Adds a baseline liveness health check ("self") so the Aspire dashboard can detect the
-    /// process is alive, without requiring any additional infrastructure dependencies.
-    /// </summary>
-    public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder)
-        where TBuilder : IHostApplicationBuilder
+    public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
         builder.Services.AddHealthChecks()
+            // Add a default liveness check to ensure app is responsive
             .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
 
         return builder;
     }
 
-    /// <summary>
-    /// Maps <c>/health</c> (all checks) and <c>/alive</c> (liveness-tagged checks only) in
-    /// Development. These are additive to the services' existing <c>/health/ready</c> and
-    /// <c>/health/live</c> endpoints — nothing is removed or replaced.
-    /// </summary>
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        // Only expose in Development — health endpoints without auth are a security risk in prod.
-        // See https://aka.ms/dotnet/aspire/healthchecks for production guidance.
+        // Adding health checks endpoints to applications in non-development environments has security implications.
+        // See https://aka.ms/aspire/healthchecks for details before enabling these endpoints in non-development environments.
         if (app.Environment.IsDevelopment())
         {
-            app.MapHealthChecks(HealthPath);
+            // All health checks must pass for app to be considered ready to accept traffic after starting
+            app.MapHealthChecks(HealthEndpointPath);
 
-            app.MapHealthChecks(AlivePath, new HealthCheckOptions
+            // Only health checks tagged with the "live" tag must pass for app to be considered alive
+            app.MapHealthChecks(AlivenessEndpointPath, new HealthCheckOptions
             {
                 Predicate = r => r.Tags.Contains("live")
             });
@@ -147,36 +128,10 @@ public static class Extensions
     }
 
     /// <summary>
-    /// Applies a baseline set of security-hardening response headers for non-Development
-    /// environments.
-    ///
-    /// <para>
-    /// Headers applied in non-Development:
-    /// <list type="bullet">
-    ///   <item><c>Strict-Transport-Security: max-age=31536000; includeSubDomains</c> — instructs
-    ///     clients to use HTTPS exclusively for one year. Safe for all JSON API services that sit
-    ///     behind a TLS-terminating load balancer in production.</item>
-    ///   <item><c>X-Content-Type-Options: nosniff</c> — prevents browsers from MIME-sniffing a
-    ///     response away from the declared content-type (mitigates drive-by-download XSS).</item>
-    ///   <item><c>X-Frame-Options: DENY</c> — equivalent to <c>frame-ancestors 'none'</c>; blocks
-    ///     clickjacking. APIs serving JSON to SPAs have no legitimate use for framing.</item>
-    ///   <item><c>Referrer-Policy: strict-origin-when-cross-origin</c> — limits the Referer header
-    ///     to the origin only on cross-origin requests, preventing path/query leakage.</item>
-    /// </list>
-    /// No headers are set in Development so that local tooling (Swagger, Aspire dashboard,
-    /// browser DevTools) is unaffected.
-    /// </para>
-    ///
-    /// <para>
-    /// Placement: call <b>before</b> <c>UseCors</c> so that security headers are present even
-    /// on CORS preflight responses. Must run <b>after</b> <c>UseForwardedHeadersIfEnabled</c>
-    /// (pipeline ordering mirrors the Identity service convention).
-    /// </para>
-    ///
-    /// <para>
-    /// A Content-Security-Policy is intentionally omitted — these are pure JSON APIs consumed
-    /// by SPA and mobile clients; the SPAs enforce their own CSP.
-    /// </para>
+    /// Adds standard security response headers to every response.
+    /// No-op in Development so local tooling (Swagger UI, hot reload, etc.) is unaffected.
+    /// Call early in the pipeline — before CORS / rate limiting / endpoints — so the
+    /// headers are present even on preflight rejections and error responses.
     /// </summary>
     public static WebApplication UseSecurityHeaders(this WebApplication app)
     {
@@ -220,7 +175,7 @@ public static class Extensions
     /// </para>
     ///
     /// <para>
-    /// Security note — <c>KnownNetworks</c> and <c>KnownProxies</c> are intentionally
+    /// Security note — <c>KnownIPNetworks</c> and <c>KnownProxies</c> are intentionally
     /// cleared only when the flag is set, so the middleware trusts the <em>first</em>
     /// hop in <c>X-Forwarded-For</c> completely.  This is correct when your edge
     /// proxy rewrites / sanitises the header before forwarding (e.g. AWS ALB, Azure
@@ -232,7 +187,6 @@ public static class Extensions
     /// <para>
     /// Default: <c>false</c> (off in Development — loopback traffic needs no rewrite).
     /// Enable in Production/Staging by setting <c>ForwardedHeaders__Enabled=true</c>.
-    /// See <c>PRODUCTION_ENV.md</c> for details.
     /// </para>
     /// </summary>
     public static WebApplication UseForwardedHeadersIfEnabled(this WebApplication app)
@@ -255,26 +209,5 @@ public static class Extensions
         app.UseForwardedHeaders(options);
 
         return app;
-    }
-
-    /// <summary>
-    /// Adds the secrets abstraction layer to <paramref name="builder"/>'s configuration
-    /// pipeline. The active provider is selected by <c>Secrets:Provider</c>:
-    /// <list type="bullet">
-    ///   <item><c>env</c> (default) — no-op; existing config sources are unaffected.</item>
-    ///   <item><c>file</c> — reads secret files from the directory at <c>Secrets:FilePath</c>.</item>
-    ///   <item><c>azure-keyvault</c> / <c>aws-secretsmanager</c> / <c>vault</c> — reserved seams; throw <see cref="NotSupportedException"/> until wired.</item>
-    /// </list>
-    /// Called automatically by <see cref="AddServiceDefaults{TBuilder}"/>; no per-service
-    /// call is needed.
-    /// </summary>
-    public static TBuilder AddSecretsConfiguration<TBuilder>(this TBuilder builder)
-        where TBuilder : IHostApplicationBuilder
-    {
-        var provider = SecretsProviderFactory.Create(builder.Configuration);
-        // IConfigurationManager implements IConfigurationBuilder; .Add() is the standard
-        // method to append a new IConfigurationSource.
-        ((IConfigurationBuilder)builder.Configuration).Add(new SecretsConfigurationSource(provider));
-        return builder;
     }
 }

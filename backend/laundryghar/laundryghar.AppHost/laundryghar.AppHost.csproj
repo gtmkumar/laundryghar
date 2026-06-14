@@ -12,9 +12,9 @@
 
   <!-- 3 consolidated services + gateway - each becomes an Aspire orchestrated resource -->
   <ItemGroup>
-    <ProjectReference Include="..\laundryghar.Core\laundryghar.Core.csproj" />
-    <ProjectReference Include="..\laundryghar.Operations\laundryghar.Operations.csproj" />
-    <ProjectReference Include="..\laundryghar.Commerce\laundryghar.Commerce.csproj" />
+    <ProjectReference Include="..\core.WebApi\core.WebApi.csproj" />
+    <ProjectReference Include="..\operations.WebApi\operations.WebApi.csproj" />
+    <ProjectReference Include="..\commerce.WebApi\commerce.WebApi.csproj" />
     <ProjectReference Include="..\laundryghar.Gateway\laundryghar.Gateway.csproj" />
   </ItemGroup>
 

@@ -2,9 +2,9 @@
 
 > **Consolidation note (service topology):** The 11 services have been consolidated
 > into **3 deployable hosts** behind the gateway:
-> - **core** (`laundryghar.Core`, port 5050) = Identity + Engagement + Mcp
-> - **operations** (`laundryghar.Operations`, port 5002) = Catalog + Orders + Warehouse + Logistics
-> - **commerce** (`laundryghar.Commerce`, port 5005) = Commerce + Finance + Analytics + Worker
+> - **core** (`core.WebApi`, port 5050) = Identity + Engagement + Mcp
+> - **operations** (`operations.WebApi`, port 5002) = Catalog + Orders + Warehouse + Logistics
+> - **commerce** (`commerce.WebApi`, port 5005) = Commerce + Finance + Analytics + Worker
 >   (the Worker background jobs run as in-process hosted services inside this host)
 >
 > All env-var keys and config sections below (`Jwt__*`, `Worker__*`, `Storage__*`, etc.)

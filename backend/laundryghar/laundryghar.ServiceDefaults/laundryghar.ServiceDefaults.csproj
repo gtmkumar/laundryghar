@@ -5,19 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsAspireSharedProject>true</IsAspireSharedProject>
-    <RootNamespace>laundryghar.ServiceDefaults</RootNamespace>
-    <AssemblyName>laundryghar.ServiceDefaults</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Expose internals to the companion test project only -->
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>laundryghar.ServiceDefaults.Tests</_Parameter1>
-    </AssemblyAttribute>
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Required to use WebApplication, MapHealthChecks, etc. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
 
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.6.0" />

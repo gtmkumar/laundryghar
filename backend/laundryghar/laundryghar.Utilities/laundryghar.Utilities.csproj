@@ -11,8 +11,17 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- ICurrentUser impl needs UserType/ScopeType constants from the shared model -->
+        <ProjectReference Include="..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="MailKit" Version="4.17.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
+        <!-- ValidationFilter<T> runs FluentValidation validators as a minimal-API endpoint filter -->
+        <PackageReference Include="FluentValidation" Version="11.11.0" />
+        <!-- CQRS handler/behavior assembly scanning (services.Scan) -->
+        <PackageReference Include="Scrutor" Version="5.0.2" />
     </ItemGroup>
 
 </Project>

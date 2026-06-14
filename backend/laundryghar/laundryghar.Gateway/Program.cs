@@ -229,6 +229,11 @@ var app = builder.Build();
 //      YARP by default forwards X-Forwarded-For, X-Forwarded-Proto,
 //      X-Forwarded-Host and passes through Authorization and X-Brand-Id untouched.
 
+// Rewrite RemoteIpAddress/scheme from X-Forwarded-* (prod/staging, behind the edge proxy).
+// Must run first so the per-IP rate limiter and security headers see the real client.
+// No-op unless ForwardedHeaders:Enabled = true.
+app.UseForwardedHeadersIfEnabled();
+
 // No-op in Development (mirrors ServiceDefaults.UseSecurityHeaders behaviour).
 app.UseSecurityHeaders();
 

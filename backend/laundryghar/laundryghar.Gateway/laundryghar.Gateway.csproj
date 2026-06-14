@@ -9,13 +9,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\laundryghar.ServiceDefaults\laundryghar.ServiceDefaults.csproj" />
+    
   </ItemGroup>
 
   <ItemGroup>
     <!-- YARP reverse proxy — latest stable, supports .NET 10 -->
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
     <!-- Built-in rate limiting is in-box from .NET 7+; no extra package needed -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Aspire ServiceDefaults: AddServiceDefaults / MapDefaultEndpoints / UseSecurityHeaders -->
+    <ProjectReference Include="..\laundryghar.ServiceDefaults\laundryghar.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>
