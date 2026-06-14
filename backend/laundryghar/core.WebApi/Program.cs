@@ -14,6 +14,7 @@ using core.Application;
 using core.Infrastructure;
 using laundryghar.SharedDataModel;
 using laundryghar.Utilities.Endpoints;
+using laundryghar.Utilities.OpenApi;
 using laundryghar.Utilities.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,6 +37,9 @@ builder.Services
     .AddCoreApplication()      // validators + command/query handlers (no mediator)
     .AddCoreInfrastructure();  // feature repositories
 
+// ── OpenAPI document (+ Bearer scheme & standard error responses) ──────────────
+builder.Services.AddDefaultOpenApi();
+
 var app = builder.Build();
 
 // ── Forwarded headers (prod/staging, behind the gateway/edge proxy) ───────────
@@ -45,6 +49,13 @@ app.UseForwardedHeadersIfEnabled();
 
 // ── Aspire default health endpoints (/health + /alive) ────────────────────────
 app.MapDefaultEndpoints();
+
+// ── OpenAPI doc (/openapi/v1.json) + Scalar UI (/scalar), dev only ────────────
+if (app.Environment.IsDevelopment())
+{
+    app.MapDefaultOpenApi();
+    app.MapGet("/", () => Results.Redirect("/scalar"));
+}
 
 // ── Feature endpoints — discovered from IEndpointGroup classes in this assembly ─
 app.MapEndpoints(Assembly.GetExecutingAssembly());
