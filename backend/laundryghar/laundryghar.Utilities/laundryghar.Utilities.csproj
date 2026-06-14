@@ -22,6 +22,10 @@
         <PackageReference Include="FluentValidation" Version="11.11.0" />
         <!-- CQRS handler/behavior assembly scanning (services.Scan) -->
         <PackageReference Include="Scrutor" Version="5.0.2" />
+        <!-- OpenAPI document + Bearer/error-response transformers (AddDefaultOpenApi) -->
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.4" />
+        <!-- Scalar API reference UI (MapDefaultOpenApi serves it at /scalar) -->
+        <PackageReference Include="Scalar.AspNetCore" Version="2.16.3" />
     </ItemGroup>
 
 </Project>
