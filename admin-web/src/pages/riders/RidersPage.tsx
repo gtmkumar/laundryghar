@@ -18,7 +18,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import { showToast } from '@/stores/toastStore'
 import { useRidersInfinite, useVerifyRider, useRejectRider } from '@/hooks/useRiders'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
@@ -109,14 +110,20 @@ export function RidersPage() {
   // Deep link: `/riders?rider=<id>` opens that rider's detail once, then drops
   // the param so closing the drawer doesn't immediately reopen it. (searchParams
   // is declared at the top of the component for the view tab.)
+  // Adjust state during render when the param appears; strip the param in an
+  // effect (a navigation, not a setState).
+  const riderParam = searchParams.get('rider')
+  const [consumedRiderParam, setConsumedRiderParam] = useState<string | null>(null)
+  if (riderParam && consumedRiderParam !== riderParam) {
+    setConsumedRiderParam(riderParam)
+    setDetailId(riderParam)
+  }
   useEffect(() => {
-    const rid = searchParams.get('rider')
-    if (!rid) return
-    setDetailId(rid)
+    if (!riderParam) return
     const next = new URLSearchParams(searchParams)
     next.delete('rider')
     setSearchParams(next, { replace: true })
-  }, [searchParams, setSearchParams])
+  }, [riderParam, searchParams, setSearchParams])
 
   // Toggle sort on a column: first click → ascending, second → descending.
   const toggleSort = (key: RiderSortKey) => {

@@ -7,3 +7,4 @@
 - [i18n Task #23](project-i18n-task23.md) — COMPLETE: en/hi in all 4 clients; full extraction customer+rider mobile; pos-web 3 screens; admin-web infra+exemplar; locale key conventions + gotchas
 - [A11y Task #28 mobile](project-a11y-task28.md) — a11y namespace in all 4 locale files; tab roles, switch for duty toggle, decorative hidden, OtpInput group label, star roles; tsc+jest+export green
 - [GAP R2 customer-mobile](project-gap-r2-customer-mobile.md) — DOC-3 delete-account, MOB-1 live slots, MOB-3 email, MOB-4 wallet guard, MOB-6/7/8/9/10/12/17 + polish; tsc clean 115 tests green
+- [ESLint setup](project-eslint-setup.md) — both mobile apps: eslint 8.57 + eslint-config-expo 8 legacy .eslintrc; install needs --legacy-peer-deps; lint clean

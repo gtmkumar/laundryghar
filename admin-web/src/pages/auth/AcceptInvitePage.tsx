@@ -11,7 +11,8 @@ export function AcceptInvitePage() {
   const token = params.get('token') ?? ''
 
   const [preview, setPreview] = useState<InvitePreview | null>(null)
-  const [loading, setLoading] = useState(true)
+  // No token → nothing to fetch, so don't start in the loading state.
+  const [loading, setLoading] = useState(() => !!token)
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -20,8 +21,8 @@ export function AcceptInvitePage() {
   const [done, setDone] = useState(false)
 
   useEffect(() => {
+    if (!token) return
     let alive = true
-    if (!token) { setLoading(false); return }
     getInvitePreview(token)
       .then((p) => { if (alive) setPreview(p) })
       .catch(() => { if (alive) setPreview({ valid: false, email: null, name: null }) })

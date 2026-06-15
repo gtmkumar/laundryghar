@@ -68,8 +68,6 @@ describe('taskOverrideStore — complete()', () => {
 
   test('completing same task twice overwrites — no duplicate keys', () => {
     useTaskOverrideStore.getState().complete('task-1');
-    const firstTs = useTaskOverrideStore.getState().overrides['task-1'].completedAt;
-    // Small delay to ensure timestamp differs
     const override2 = useTaskOverrideStore.getState().complete('task-1');
     const overrides = useTaskOverrideStore.getState().overrides;
     // Only one key for task-1

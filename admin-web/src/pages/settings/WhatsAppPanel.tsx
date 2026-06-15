@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Eye, EyeOff, Loader2, Save, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdateWhatsAppSettings } from '@/hooks/useSettings'
@@ -19,13 +19,19 @@ export function WhatsAppPanel({ settings }: { settings: AdminSettings }) {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-seed when the source settings change. React's "adjust state while
+  // rendering" pattern (prev-value tracked in state via a composite key), so
+  // there's no extra render commit.
+  const sig = `${w.enabled}|${w.phoneNumberId ?? ''}|${w.otpEnabled}|${w.otpTemplateName ?? ''}`
+  const [seededSig, setSeededSig] = useState(sig)
+  if (seededSig !== sig) {
+    setSeededSig(sig)
     setEnabled(w.enabled)
     setPhoneNumberId(w.phoneNumberId ?? '')
     setAccessToken('')
     setOtpEnabled(w.otpEnabled)
     setOtpTemplateName(w.otpTemplateName ?? '')
-  }, [w.enabled, w.phoneNumberId, w.otpEnabled, w.otpTemplateName])
+  }
 
   const save = async () => {
     if (!canManage) return

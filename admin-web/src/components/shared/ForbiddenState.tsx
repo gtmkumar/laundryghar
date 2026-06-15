@@ -30,6 +30,8 @@ export function ForbiddenState({ message }: ForbiddenStateProps) {
  * True when an error from a query/axios call is an HTTP 403. Pages use this to
  * decide between <ForbiddenState/> (403) and <ErrorState/> (anything else).
  */
+// Small co-located 403 helper used alongside this component; not worth its own module.
+// eslint-disable-next-line react-refresh/only-export-components
 export function isForbiddenError(error: unknown): boolean {
   return (
     typeof error === 'object' &&

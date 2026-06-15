@@ -3,7 +3,8 @@ import { Loader2, Wallet, BadgeIndianRupee, Receipt, AlertTriangle, Check } from
 import { usePermissions } from '@/hooks/usePermissions'
 import { useCodOutstanding, useRiderCod, useRiderSettlements, useSettleRider } from '@/hooks/useRiders'
 import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import type { RiderCodSummary } from '@/types/api'
 import { formatDate } from './riderShared'
 

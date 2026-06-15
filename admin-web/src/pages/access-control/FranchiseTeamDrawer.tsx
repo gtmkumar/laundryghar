@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Store, Users, Bike, Loader2, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -25,9 +25,14 @@ export function FranchiseTeamDrawer({ open, franchiseId, franchiseName, scope: i
   const [scope, setScope] = useState<TeamScope>(initialScope)
   const [person, setPerson] = useState<PersonSummary | null>(null)
   const navigate = useNavigate()
-  useEffect(() => {
+  // Re-seed the scope tab from the prop while open (mirrors the prior effect's
+  // [open, initialScope] deps): on open, or when the requested scope changes.
+  const [seed, setSeed] = useState(`${open}|${initialScope}`)
+  const nextSeed = `${open}|${initialScope}`
+  if (seed !== nextSeed) {
+    setSeed(nextSeed)
     if (open) setScope(initialScope)
-  }, [open, initialScope])
+  }
 
   // Row click → the right detail surface. Staff opens the person drawer in place;
   // riders deep-link to their full detail; stores land on the Stores list.

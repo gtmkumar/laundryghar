@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Store as StoreIcon, Save } from 'lucide-react'
 import { useUpdateStore } from '@/hooks/useTenancy'
 import { FormDrawer, Field, drawerInputCls } from '@/components/shared/FormDrawer'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import type { StoreDto, StoreStatus } from '@/types/api'
 
 // Statuses that take the store offline — gated by a confirmation.
@@ -13,6 +14,9 @@ interface Props {
   onClose: () => void
 }
 
+// Tightly coupled to this drawer's status <select>; one external consumer
+// (TenancyPage) reuses the labels. Co-located rather than split into a module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const STORE_STATUSES: { value: StoreStatus; label: string }[] = [
   { value: 'active', label: 'Active' },
   { value: 'paused', label: 'Paused' },
@@ -28,14 +32,17 @@ export function StoreEditDrawer({ store, onClose }: Props) {
   const [contactPhone, setContactPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (store) {
-      setName(store.name)
-      setStatus((store.status as StoreStatus) ?? 'active')
-      setContactPhone('')
-      setError(null)
-    }
-  }, [store])
+  // Re-seed the form when a different store is opened. Uses React's documented
+  // "adjust state while rendering" pattern (a prev-value tracked in state) rather
+  // than an effect, so there's no extra render commit when the drawer opens.
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (store && seededId !== store.id) {
+    setSeededId(store.id)
+    setName(store.name)
+    setStatus((store.status as StoreStatus) ?? 'active')
+    setContactPhone('')
+    setError(null)
+  }
 
   if (!store) return null
 

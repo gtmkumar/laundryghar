@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { UserPlus, MailCheck, ShieldCheck } from 'lucide-react'
 import { useInviteUser } from '@/hooks/useAccessControl'
 import { useSettings } from '@/hooks/useSettings'
@@ -39,11 +39,14 @@ export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
   const [franchiseId, setFranchiseId] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Clear the form whenever the drawer (re)opens.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setFirstName(''); setLastName(''); setEmail(''); setRoleId(''); setFranchiseId(''); setError(null)
     }
-  }, [open])
+  }
 
   if (!open) return null
 

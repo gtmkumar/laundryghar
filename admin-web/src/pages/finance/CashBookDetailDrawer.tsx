@@ -12,7 +12,8 @@ import {
   DetailSection,
   DetailRow,
 } from '@/components/shared/FormDrawer'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'

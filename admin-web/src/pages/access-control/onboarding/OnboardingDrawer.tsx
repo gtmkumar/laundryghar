@@ -7,7 +7,8 @@ import {
   useOnboardingState, useStartOnboarding, useSaveDetails, useSaveCommercials,
   useInviteOwner, useAddStore, useActivateFranchise,
 } from '@/hooks/useOnboarding'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import type { OnboardingState } from '@/types/api'
 
 interface Props {

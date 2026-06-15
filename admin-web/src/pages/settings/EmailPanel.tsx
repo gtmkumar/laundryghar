@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Eye, EyeOff, Loader2, Send, CheckCircle2, XCircle, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdateEmailSettings, useSendTestEmail } from '@/hooks/useSettings'
@@ -25,12 +25,17 @@ export function EmailPanel({ settings }: { settings: AdminSettings }) {
   const [testTo, setTestTo] = useState(e.fromEmail || '')
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
-  useEffect(() => {
+  // Re-seed when the source settings change. React's "adjust state while
+  // rendering" pattern (prev-value tracked in state via a composite key), so
+  // there's no extra render commit.
+  const sig = `${e.enabled}|${e.host}|${e.port}|${e.secure}|${e.username}|${e.fromEmail}|${e.fromName}`
+  const [seededSig, setSeededSig] = useState(sig)
+  if (seededSig !== sig) {
+    setSeededSig(sig)
     setEnabled(e.enabled); setHost(e.host); setPort(e.port); setSecure(e.secure)
     setUsername(e.username); setFromEmail(e.fromEmail); setFromName(e.fromName)
     setPassword(''); if (!testTo) setTestTo(e.fromEmail || '')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [e.enabled, e.host, e.port, e.secure, e.username, e.fromEmail, e.fromName])
+  }
 
   const payload = (): UpdateEmailPayload => ({
     enabled, host, port: Number(port) || 0, secure, username,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Eye, EyeOff, Loader2, Save, CreditCard, Copy, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdatePaymentGatewaySettings } from '@/hooks/useSettings'
@@ -21,13 +21,19 @@ export function PaymentsPanel({ settings }: { settings: AdminSettings }) {
   const [error, setError] = useState<string | null>(null)
   const [webhookCopied, setWebhookCopied] = useState(false)
 
-  useEffect(() => {
+  // Re-seed when the source settings change. React's "adjust state while
+  // rendering" pattern (prev-value tracked in state via a composite key), so
+  // there's no extra render commit.
+  const sig = `${p.enabled}|${p.keyId ?? ''}|${p.codEnabled}`
+  const [seededSig, setSeededSig] = useState(sig)
+  if (seededSig !== sig) {
+    setSeededSig(sig)
     setEnabled(p.enabled)
     setKeyId(p.keyId ?? '')
     setKeySecret('')
     setWebhookSecret('')
     setCodEnabled(p.codEnabled)
-  }, [p.enabled, p.keyId, p.codEnabled])
+  }
 
   // R3-WEB-2: prefer the canonical, env-aware webhook URL served by the backend
   // settings GET when present. The fallback below derives from the Commerce base

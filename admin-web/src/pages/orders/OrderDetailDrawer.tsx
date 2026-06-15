@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Package,
   Loader2,
@@ -477,14 +477,17 @@ function ActionsSection({
   const targets = canUpdateStatus ? advanceableTargets(order.status) : []
   const showCancel = canCancel && canCancelFrom(order.status)
 
-  // Reset the confirm panel whenever the order (status) changes.
-  useEffect(() => {
+  // Reset the confirm panel whenever the order (or its status) changes.
+  const orderSig = `${order.id}|${order.status}`
+  const [resetSig, setResetSig] = useState(orderSig)
+  if (resetSig !== orderSig) {
+    setResetSig(orderSig)
     setPending(null)
     setReason('')
     setNotes('')
     setNotify(false)
     setError(null)
-  }, [order.id, order.status])
+  }
 
   if (targets.length === 0 && !showCancel) {
     return (

@@ -22,7 +22,8 @@ import {
   DetailRow,
 } from '@/components/shared/FormDrawer'
 import { FieldError } from '@/components/ui/FieldError'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import { nonNegativeMoney } from '@/lib/validation'
 import { apiErrorMessage } from '@/lib/apiError'
 import type {
@@ -508,9 +509,12 @@ export function SubscriptionPlanDetailDrawer({
   const [error, setError] = useState<string | null>(null)
   const gate = useConfirm()
 
-  useEffect(() => {
-    if (plan) setError(null)
-  }, [plan])
+  // Clear the error whenever a new plan is opened (adjust-state-while-rendering).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (plan && seededId !== plan.id) {
+    setSeededId(plan.id)
+    setError(null)
+  }
 
   if (!plan) return null
 
@@ -704,10 +708,13 @@ export function CustomerSubscriptionDetailDrawer({
   const gate = useConfirm()
   const [error, setError] = useState<string | null>(null)
 
-  // Reset any prior action error whenever a different subscription opens.
-  useEffect(() => {
+  // Reset any prior action error whenever a different subscription opens
+  // (adjust-state-while-rendering; tracks the previous id in state).
+  const [seededId, setSeededId] = useState<string | null>(subscription?.id ?? null)
+  if (seededId !== (subscription?.id ?? null)) {
+    setSeededId(subscription?.id ?? null)
     setError(null)
-  }, [subscription?.id])
+  }
 
   if (!subscription) return null
   const s = subscription
@@ -883,6 +890,8 @@ export function SubscriptionStatusBadge({ status }: { status: string }) {
   )
 }
 
+// Small co-located status constant used alongside this drawer's badge; not worth its own module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const SUBSCRIPTION_STATUSES = [
   'pending',
   'trialing',

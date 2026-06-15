@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Loader2, Warehouse as WarehouseIcon, Plus, Save, Pencil, Lock } from 'lucide-react'
 import { useFranchises, useCreateWarehouse, useUpdateWarehouse } from '@/hooks/useTenancy'
 import { useOnboardingState } from '@/hooks/useOnboarding'
 import { useEffectiveBrandId } from '@/hooks/useBrandContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { FormDrawer, DrawerSection, Field, drawerInputCls, DetailSection, DetailRow } from '@/components/shared/FormDrawer'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import { Badge } from '@/components/ui/badge'
 import type { WarehouseDto, WarehouseType, WarehouseStatus } from '@/types/api'
 import { formatDate } from '@/lib/utils'
@@ -20,6 +21,8 @@ const WAREHOUSE_TYPES: { value: WarehouseType; label: string }[] = [
   { value: 'specialty', label: 'Specialty' },
 ]
 
+// Small status constant co-located with this drawer's form; not worth a separate module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const WAREHOUSE_STATUSES: { value: WarehouseStatus; label: string }[] = [
   { value: 'active', label: 'Active' },
   { value: 'paused', label: 'Paused' },
@@ -52,12 +55,15 @@ export function AddWarehouseDrawer({ open, onClose }: { open: boolean; onClose: 
 
   const lockFranchise = isFranchiseScoped && !!scopedFranchiseId
 
-  useEffect(() => {
+  // Re-seed the form on each open (adjust-state-while-rendering, not an effect).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setForm({ ...blankForm, franchiseId: lockFranchise ? scopedFranchiseId! : '' })
       setError(null)
     }
-  }, [open, lockFranchise, scopedFranchiseId])
+  }
 
   const franchises = useMemo(() => franchisesQ.data?.list ?? [], [franchisesQ.data])
   const lockedFranchiseName = useMemo(
@@ -73,8 +79,20 @@ export function AddWarehouseDrawer({ open, onClose }: { open: boolean; onClose: 
     (franchiseAddress.line1 || franchiseAddress.city || franchiseAddress.pincode)
   )
 
-  useEffect(() => {
-    if (!form.sameAsFranchise || !franchiseAddress) return
+  // Keep the address fields mirrored to the franchise while the box is ticked.
+  // Adjust-state-while-rendering: re-apply whenever the (sameAsFranchise,
+  // franchiseAddress) trigger pair changes, matching the old effect's deps.
+  const [mirroredFrom, setMirroredFrom] = useState<{
+    sameAsFranchise: boolean
+    franchiseAddress: typeof franchiseAddress
+  }>({ sameAsFranchise: form.sameAsFranchise, franchiseAddress })
+  if (
+    (mirroredFrom.sameAsFranchise !== form.sameAsFranchise ||
+      mirroredFrom.franchiseAddress !== franchiseAddress) &&
+    form.sameAsFranchise &&
+    franchiseAddress
+  ) {
+    setMirroredFrom({ sameAsFranchise: form.sameAsFranchise, franchiseAddress })
     setForm((f) => ({
       ...f,
       addressLine1: franchiseAddress.line1 ?? '',
@@ -82,7 +100,7 @@ export function AddWarehouseDrawer({ open, onClose }: { open: boolean; onClose: 
       state: franchiseAddress.state ?? '',
       pincode: franchiseAddress.pincode ?? '',
     }))
-  }, [form.sameAsFranchise, franchiseAddress])
+  }
 
   if (!open) return null
 
@@ -335,14 +353,15 @@ export function WarehouseEditDrawer({
   const [contactPhone, setContactPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (warehouse) {
-      setName(warehouse.name)
-      setStatus((warehouse.status as WarehouseStatus) ?? 'active')
-      setContactPhone('')
-      setError(null)
-    }
-  }, [warehouse])
+  // Seed the form from the warehouse (adjust-state-while-rendering, keyed on id).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (warehouse && seededId !== warehouse.id) {
+    setSeededId(warehouse.id)
+    setName(warehouse.name)
+    setStatus((warehouse.status as WarehouseStatus) ?? 'active')
+    setContactPhone('')
+    setError(null)
+  }
 
   if (!warehouse) return null
 

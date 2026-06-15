@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ListChecks,
   Plus,
@@ -28,7 +28,8 @@ import {
   drawerInputCls,
 } from '@/components/shared/FormDrawer'
 import { Badge } from '@/components/ui/badge'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import { apiErrorMessage } from '@/lib/apiError'
 import type {
   PriceListDto,
@@ -69,21 +70,25 @@ export function CreatePriceListDrawer({ open, onClose }: { open: boolean; onClos
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!open) return
-    setError(null)
-    setCode('')
-    setName('')
-    setDescription('')
-    setCurrencyCode('INR')
-    setScopeType('brand')
-    setFranchiseId('')
-    setStoreId('')
-    setEffectiveFrom(new Date().toISOString().slice(0, 10))
-    setEffectiveTo('')
-    setIsDefault(false)
-    setNotes('')
-  }, [open])
+  // Re-seed the form on each open (adjust-state-while-rendering, not an effect).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setError(null)
+      setCode('')
+      setName('')
+      setDescription('')
+      setCurrencyCode('INR')
+      setScopeType('brand')
+      setFranchiseId('')
+      setStoreId('')
+      setEffectiveFrom(new Date().toISOString().slice(0, 10))
+      setEffectiveTo('')
+      setIsDefault(false)
+      setNotes('')
+    }
+  }
 
   // Stores belonging to the chosen franchise narrow the store picker.
   const scopedStores = useMemo(
@@ -287,8 +292,10 @@ export function PriceListDetailDrawer({
   const [rowError, setRowError] = useState<string | null>(null)
   const gate = useConfirm()
 
-  useEffect(() => {
-    if (!priceList) return
+  // Seed the editor from the price list (adjust-while-rendering, keyed on id).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (priceList && seededId !== priceList.id) {
+    setSeededId(priceList.id)
     setName(priceList.name)
     setEffectiveFrom(dateOnly(priceList.effectiveFrom))
     setEffectiveTo(dateOnly(priceList.effectiveTo))
@@ -298,7 +305,7 @@ export function PriceListDetailDrawer({
     setDraft(blankRow())
     setEditingRowId(null)
     setRowError(null)
-  }, [priceList])
+  }
 
   const serviceName = (sid: string) => services.find((s) => s.id === sid)?.name ?? sid.slice(0, 8)
   const itemName = (iid: string) => catalogItems.find((i) => i.id === iid)?.name ?? iid.slice(0, 8)

@@ -7,7 +7,8 @@ import {
   DrawerSection,
   FormDrawer,
 } from '@/components/shared/FormDrawer'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import {
   useCreateStockReconciliation,
   useStockReconciliations,

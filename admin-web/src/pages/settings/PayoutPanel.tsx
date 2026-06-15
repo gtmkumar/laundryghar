@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Loader2, Save, Coins } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdatePayoutSettings } from '@/hooks/useSettings'
@@ -27,7 +27,13 @@ export function PayoutPanel({ settings }: { settings: AdminSettings }) {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-seed when the source settings change. React's "adjust state while
+  // rendering" pattern (prev-value tracked in state via a composite key), so
+  // there's no extra render commit.
+  const sig = `${p.baseFare}|${p.perKm}|${p.expressBonus}|${p.codBonus}|${p.roundToNearest}`
+  const [seededSig, setSeededSig] = useState(sig)
+  if (seededSig !== sig) {
+    setSeededSig(sig)
     setForm({
       baseFare: String(p.baseFare),
       perKm: String(p.perKm),
@@ -35,7 +41,7 @@ export function PayoutPanel({ settings }: { settings: AdminSettings }) {
       codBonus: String(p.codBonus),
       roundToNearest: String(p.roundToNearest),
     })
-  }, [p.baseFare, p.perKm, p.expressBonus, p.codBonus, p.roundToNearest])
+  }
 
   const set = <K extends keyof typeof form>(k: K, v: string) => setForm((f) => ({ ...f, [k]: v }))
 

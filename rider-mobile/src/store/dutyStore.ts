@@ -18,7 +18,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { patchRiderDuty, getMyRiderProfile } from '@/api/rider';
 
 const STORAGE_KEY = 'lg_rider_duty_v1';
-const SYNC_BANNER_KEY = 'lg_rider_duty_sync_banner';
 
 export interface ChecklistState {
   bagTags:      boolean;

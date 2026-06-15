@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Eye, EyeOff, Loader2, Save, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdateSmsSettings } from '@/hooks/useSettings'
@@ -18,12 +18,18 @@ export function SmsPanel({ settings }: { settings: AdminSettings }) {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-seed when the source settings change. React's "adjust state while
+  // rendering" pattern (prev-value tracked in state via a composite key), so
+  // there's no extra render commit.
+  const sig = `${s.enabled}|${s.senderId ?? ''}|${s.dltTemplateId ?? ''}`
+  const [seededSig, setSeededSig] = useState(sig)
+  if (seededSig !== sig) {
+    setSeededSig(sig)
     setEnabled(s.enabled)
     setAuthKey('')
     setSenderId(s.senderId ?? '')
     setDltTemplateId(s.dltTemplateId ?? '')
-  }, [s.enabled, s.senderId, s.dltTemplateId])
+  }
 
   const save = async () => {
     if (!canManage) return

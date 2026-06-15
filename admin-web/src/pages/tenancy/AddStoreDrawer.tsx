@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Loader2, Store as StoreIcon, Plus, Lock } from 'lucide-react'
 import { useFranchises, useCreateStore } from '@/hooks/useTenancy'
 import { useOnboardingState } from '@/hooks/useOnboarding'
@@ -45,12 +45,15 @@ export function AddStoreDrawer({ open, onClose }: Props) {
   // we lock the selector to it. The backend enforces this regardless.
   const lockFranchise = isFranchiseScoped && !!scopedFranchiseId
 
-  useEffect(() => {
+  // Re-seed the form on each open (adjust-state-while-rendering, not an effect).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setForm({ ...blankForm, franchiseId: lockFranchise ? scopedFranchiseId! : '' })
       setError(null)
     }
-  }, [open, lockFranchise, scopedFranchiseId])
+  }
 
   const franchises = useMemo(() => franchisesQ.data?.list ?? [], [franchisesQ.data])
 
@@ -72,9 +75,19 @@ export function AddStoreDrawer({ open, onClose }: Props) {
   )
 
   // Keep the address fields mirrored to the franchise while the box is ticked.
-  useEffect(() => {
-    if (!form.sameAsFranchise) return
-    if (!franchiseAddress) return
+  // Adjust-state-while-rendering: re-apply whenever the (sameAsFranchise,
+  // franchiseAddress) trigger pair changes, matching the old effect's deps.
+  const [mirroredFrom, setMirroredFrom] = useState<{
+    sameAsFranchise: boolean
+    franchiseAddress: typeof franchiseAddress
+  }>({ sameAsFranchise: form.sameAsFranchise, franchiseAddress })
+  if (
+    (mirroredFrom.sameAsFranchise !== form.sameAsFranchise ||
+      mirroredFrom.franchiseAddress !== franchiseAddress) &&
+    form.sameAsFranchise &&
+    franchiseAddress
+  ) {
+    setMirroredFrom({ sameAsFranchise: form.sameAsFranchise, franchiseAddress })
     setForm((f) => ({
       ...f,
       addressLine1: franchiseAddress.line1 ?? '',
@@ -82,7 +95,7 @@ export function AddStoreDrawer({ open, onClose }: Props) {
       state: franchiseAddress.state ?? '',
       pincode: franchiseAddress.pincode ?? '',
     }))
-  }, [form.sameAsFranchise, franchiseAddress])
+  }
 
   if (!open) return null
 

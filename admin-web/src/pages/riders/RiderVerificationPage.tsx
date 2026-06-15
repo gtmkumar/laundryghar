@@ -70,6 +70,8 @@ export function RiderVerificationPage() {
     if (!rid) return
     const match = allRiders.find((r) => r.id === rid)
     if (match) {
+      // Sync from async-loaded roster + a navigation (param strip); can't move to render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setReviewRider(match)
       const next = new URLSearchParams(params)
       next.delete('rider')

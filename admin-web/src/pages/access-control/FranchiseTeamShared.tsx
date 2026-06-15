@@ -12,6 +12,8 @@ function avatarColor(s: string): string {
   return AVATAR_BG[h % AVATAR_BG.length]
 }
 
+// Small status-tone helper co-located with the team-row component it styles.
+// eslint-disable-next-line react-refresh/only-export-components
 export function statusTone(status: string): { dot: string; text: string } {
   const s = status.toLowerCase()
   if (['active', 'approved', 'verified', 'online'].includes(s)) return { dot: 'bg-emerald-500', text: 'text-emerald-700' }

@@ -59,6 +59,12 @@ export function useNewItemDetector(ids: string[], opts: Options = {}): Result {
 
     fresh.forEach((id) => onNewRef.current?.(id))
 
+    // Legitimate external-stream sync: `ids` is a polling snapshot and this
+    // effect diffs it against a baseline ref to surface newly-arrived items as
+    // highlight state. This is the "subscribe to an external system, setState on
+    // change" case the rule explicitly allows; the work (ref diffing + timers)
+    // can't move into render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHighlighted((prev) => {
       const next = new Set(prev)
       fresh.forEach((id) => next.add(id))

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { LifeBuoy, Loader2, Send, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
@@ -275,9 +275,11 @@ function ReplyComposer({ ticketId }: { ticketId: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Reset the draft when switching tickets in the same drawer mount.
-  useEffect(() => {
+  const [draftTicketId, setDraftTicketId] = useState(ticketId)
+  if (draftTicketId !== ticketId) {
+    setDraftTicketId(ticketId)
     setBody('')
-  }, [ticketId])
+  }
 
   const send = async () => {
     const trimmed = body.trim()

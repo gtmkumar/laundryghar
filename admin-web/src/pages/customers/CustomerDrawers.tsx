@@ -11,6 +11,8 @@ import { optionalEmail } from '@/lib/validation'
 import type { AdminCustomerDto } from '@/types/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
+// Small co-located display helper used alongside these drawers; not worth its own module.
+// eslint-disable-next-line react-refresh/only-export-components
 export function customerName(c: AdminCustomerDto): string {
   return c.displayName || [c.firstName, c.lastName].filter(Boolean).join(' ') || c.customerCode
 }

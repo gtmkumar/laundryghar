@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Loader2, Save, Map as MapIcon, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdateMapsSettings } from '@/hooks/useSettings'
@@ -23,11 +23,16 @@ export function MapsPanel({ settings }: { settings: AdminSettings }) {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-seed when the source prop changes. React's "adjust state while
+  // rendering" pattern (prev-value tracked in state), so there's no extra
+  // render commit.
+  const [seeded, setSeeded] = useState(m.provider)
+  if (seeded !== m.provider) {
+    setSeeded(m.provider)
     setProvider(m.provider)
     setGoogleApiKey('')
     setMapboxToken('')
-  }, [m.provider])
+  }
 
   const googleSet = !!m.googleApiKey
   const mapboxSet = !!m.mapboxToken

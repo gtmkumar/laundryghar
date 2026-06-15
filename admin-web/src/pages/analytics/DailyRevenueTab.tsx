@@ -30,11 +30,12 @@ function MiniBar({ value, max }: { value: number; max: number }) {
 }
 
 export function DailyRevenueTab() {
-  const today = new Date().toISOString().slice(0, 10)
-  const thirtyAgo = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10)
-
-  const [from, setFrom] = useState(thirtyAgo)
-  const [to, setTo] = useState(today)
+  // Seed the date range once via lazy initializers — `new Date()`/`Date.now()`
+  // are impure and must not run in the render body.
+  const [from, setFrom] = useState(() =>
+    new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10),
+  )
+  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10))
 
   const { data, isLoading, isError, error, refetch } = useDailyStoreRevenue({ from, to })
 

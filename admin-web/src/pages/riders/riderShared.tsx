@@ -3,6 +3,10 @@ import { cn } from '@/lib/utils'
 // Shared label maps + badges for the Riders feature, so the list, detail drawer
 // and edit drawer stay visually consistent without duplicating Tailwind classes.
 
+// This module pairs the rider badge components with their small co-located label
+// maps + pure helpers. Non-component exports are disabled individually for
+// react-refresh rather than split into a separate module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const VEHICLE_LABEL: Record<string, string> = {
   two_wheeler: 'Two-wheeler',
   three_wheeler: 'Three-wheeler',
@@ -11,6 +15,7 @@ export const VEHICLE_LABEL: Record<string, string> = {
   foot: 'On foot',
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const EMPLOYMENT_LABEL: Record<string, string> = {
   employee: 'Employee',
   contractor: 'Contractor',
@@ -41,6 +46,7 @@ const DOC_BADGE: Record<string, string> = {
 }
 
 /** Human labels for the KYC document types the rider app uploads. */
+// eslint-disable-next-line react-refresh/only-export-components
 export const DOC_TYPE_LABEL: Record<string, string> = {
   license: 'Driving licence',
   rc: 'Registration certificate',
@@ -56,10 +62,12 @@ const STATUS_DOT: Record<string, { dot: string; text: string }> = {
   inactive: { dot: 'bg-gray-300', text: 'text-gray-500' },
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function humanise(value: string): string {
   return value.replace(/_/g, ' ')
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatDate(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -68,11 +76,13 @@ export function formatDate(iso: string | null): string {
 }
 
 /** A rider is awaiting a KYC decision when pending or submitted. */
+// eslint-disable-next-line react-refresh/only-export-components
 export function isKycActionable(kycStatus: string): boolean {
   return kycStatus === 'pending' || kycStatus === 'submitted'
 }
 
 /** The rider's vehicle still needs a reviewer decision (not yet approved/rejected). */
+// eslint-disable-next-line react-refresh/only-export-components
 export function isVehicleActionable(status: string): boolean {
   return status === 'pending' || status === 'under_review'
 }
@@ -82,6 +92,7 @@ export function isVehicleActionable(status: string): boolean {
  * vehicle awaiting one. Mirrors the backend's queue predicate so the client-side
  * default filter and the server stay consistent.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function needsVerification(kycStatus: string, vehicleStatus: string): boolean {
   return isKycActionable(kycStatus) || isVehicleActionable(vehicleStatus)
 }

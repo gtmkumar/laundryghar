@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Loader2, ChevronRight, Volume2, VolumeX } from 'lucide-react'
@@ -330,16 +330,10 @@ export function OrdersPage() {
 
   // Deep-link: ?order=<id> opens the detail drawer (used by the dashboard
   // "needs action" panel). Kept in the URL so the drawer survives a refresh.
-  const orderParam = searchParams.get('order')
-  const [selectedId, setSelectedId] = useState<string | null>(orderParam)
-
-  // Sync state ← URL when the param changes from outside (e.g. navigation).
-  useEffect(() => {
-    setSelectedId(orderParam)
-  }, [orderParam])
+  // The URL param is the source of truth for the open drawer, so derive directly.
+  const selectedId = searchParams.get('order')
 
   const openOrder = (id: string | null) => {
-    setSelectedId(id)
     const next = new URLSearchParams(searchParams)
     if (id) next.set('order', id)
     else next.delete('order')

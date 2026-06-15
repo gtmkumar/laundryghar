@@ -42,12 +42,15 @@ export function PickupDetailDrawer({ pickupId, open, onClose }: Props) {
   const [rejecting, setRejecting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  // Reset all panels whenever the drawer target changes.
-  useEffect(() => {
+  // Reset all panels whenever the drawer target (id or open state) changes.
+  const targetSig = `${pickupId}|${open}`
+  const [resetSig, setResetSig] = useState(targetSig)
+  if (resetSig !== targetSig) {
+    setResetSig(targetSig)
     setAssigning(false)
     setRejecting(false)
     setActionError(null)
-  }, [pickupId, open])
+  }
 
   const isAssignable = !!pickup && ASSIGNABLE_STATUSES.has(pickup.status)
   const activePanel = assigning ? 'assign' : rejecting ? 'reject' : null

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Loader2, Check, Copy, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSetRoleCell } from '@/hooks/useAccessControl'
@@ -48,9 +48,13 @@ export function RolesTab({ query, search }: Props) {
   // Draft cell set for the selected role (edit locally, then Save).
   const [draft, setDraft] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
-  useEffect(() => {
-    if (selected) setDraft(new Set(selected.onCells))
-  }, [selected?.id, selected?.onCells])
+  // Reseed the draft when the selected role — or its persisted cells — change.
+  const seedSig = selected ? `${selected.id}|${selected.onCells.join(',')}` : null
+  const [draftSig, setDraftSig] = useState<string | null>(null)
+  if (selected && draftSig !== seedSig) {
+    setDraftSig(seedSig)
+    setDraft(new Set(selected.onCells))
+  }
 
   if (isLoading) {
     return (

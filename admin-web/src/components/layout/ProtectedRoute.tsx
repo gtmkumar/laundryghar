@@ -45,10 +45,10 @@ export function ProtectedRoute() {
     if (ranBootstrap.current) return
     ranBootstrap.current = true
 
-    if (!accessToken || !isExpiringSoon(accessToken)) {
-      setPhase('ready')
-      return
-    }
+    // When there's no token or it's fresh, `phase` was already initialized to
+    // 'ready' (see useState initializer) — nothing to sync, just bail. (Avoids a
+    // redundant synchronous setState in the effect body.)
+    if (!accessToken || !isExpiringSoon(accessToken)) return
 
     // No `cancelled` guard here: under React StrictMode (dev) the effect's
     // cleanup runs between the double-invoked mount, while `ranBootstrap`

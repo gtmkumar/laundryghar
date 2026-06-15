@@ -41,6 +41,8 @@ const STATUSES = [
  * `services_pricing_model_check` (per_item / per_kg / per_sqft / per_pair /
  * per_side / flat) — anything else 400s with a 23514 constraint violation.
  */
+// Small constant co-located with this drawer's <select>; not worth a separate module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const PRICING_MODELS = [
   { value: 'per_item', label: 'Per item' },
   { value: 'per_kg', label: 'Per kg' },
@@ -115,8 +117,11 @@ export function CategoryEditDrawer({ open, category, onClose }: CategoryDrawerPr
   const [status, setStatus] = useState('active')
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!open) return
+  // Seed the form when opened or the target category changes
+  // (adjust-state-while-rendering, not an effect).
+  const [seededFor, setSeededFor] = useState<{ open: boolean; category: ServiceCategoryDto | null | undefined }>({ open, category })
+  if ((seededFor.open !== open || seededFor.category !== category) && open) {
+    setSeededFor({ open, category })
     setError(null)
     if (category) {
       const loc = parseNameLocalized(category.nameLocalized)
@@ -142,7 +147,10 @@ export function CategoryEditDrawer({ open, category, onClose }: CategoryDrawerPr
       setVisiblePos(true)
       setStatus('active')
     }
-  }, [open, category])
+  } else if (seededFor.open !== open) {
+    // Keep the tracker in sync when closing so the next open re-seeds.
+    setSeededFor({ open, category })
+  }
 
   if (!open) return null
 
@@ -275,8 +283,11 @@ export function ServiceEditDrawer({ open, service, onClose }: ServiceDrawerProps
   const [status, setStatus] = useState('active')
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!open) return
+  // Seed the form when opened or the target service changes
+  // (adjust-state-while-rendering, not an effect).
+  const [seededFor, setSeededFor] = useState<{ open: boolean; service: ServiceDto | null | undefined }>({ open, service })
+  if ((seededFor.open !== open || seededFor.service !== service) && open) {
+    setSeededFor({ open, service })
     setError(null)
     if (service) {
       const loc = parseNameLocalized(service.nameLocalized)
@@ -312,7 +323,9 @@ export function ServiceEditDrawer({ open, service, onClose }: ServiceDrawerProps
       setDisplayOrder('0')
       setStatus('active')
     }
-  }, [open, service])
+  } else if (seededFor.open !== open) {
+    setSeededFor({ open, service })
+  }
 
   if (!open) return null
 
@@ -491,8 +504,11 @@ export function ItemEditDrawer({ open, item, onClose }: ItemDrawerProps) {
   }, [pickedImageUrl])
   const imagePreview = pickedImageUrl ?? (removeImage ? undefined : storedImageUrl)
 
-  useEffect(() => {
-    if (!open) return
+  // Seed the form when opened or the target item changes
+  // (adjust-state-while-rendering, not an effect).
+  const [seededFor, setSeededFor] = useState<{ open: boolean; item: ItemDto | null | undefined }>({ open, item })
+  if ((seededFor.open !== open || seededFor.item !== item) && open) {
+    setSeededFor({ open, item })
     setError(null)
     if (item) {
       const loc = parseNameLocalized(item.nameLocalized)
@@ -522,7 +538,9 @@ export function ItemEditDrawer({ open, item, onClose }: ItemDrawerProps) {
     }
     setImageFile(null)
     setRemoveImage(false)
-  }, [open, item])
+  } else if (seededFor.open !== open) {
+    setSeededFor({ open, item })
+  }
 
   if (!open) return null
 
@@ -712,9 +730,12 @@ export function DeleteCatalogDrawer({
   const delItem = useDeleteItem()
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (entity) setError(null)
-  }, [entity])
+  // Clear stale errors when a new entity is targeted (adjust-while-rendering).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (entity && seededId !== entity.id) {
+    setSeededId(entity.id)
+    setError(null)
+  }
 
   if (!entity) return null
 

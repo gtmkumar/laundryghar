@@ -179,6 +179,7 @@ export function useOnboardRider() {
         throw new Error(
           `Rider login was created (${invite.email}), but the rider profile could not be saved: ${detail}. ` +
             'Retry from the Riders list using this existing account before creating a duplicate login.',
+          { cause: e },
         )
       }
     },

@@ -29,4 +29,6 @@ function Badge({ className, variant, ...props }: BadgeProps) {
   return <div className={cn(badgeVariants({ variant }), className)} {...props} />
 }
 
+// shadcn pattern: variant fn is intentionally co-located with its component.
+// eslint-disable-next-line react-refresh/only-export-components
 export { Badge, badgeVariants }

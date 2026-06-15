@@ -16,7 +16,7 @@
  *  - Smart Insight: derived from chart data (today vs 7-day avg)
  */
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, ArrowDownRight, RefreshCw, Zap } from 'lucide-react'
 import { useAnalyticsDashboard, useDailyStoreRevenue } from '@/hooks/useAnalytics'
@@ -128,6 +128,11 @@ function RevenueChart({ bars, loading }: RevenueChartProps) {
   const avgRev = avg(last7)
   const todayRev = bars.find((b) => b.date === today)?.revenue ?? 0
   const trendPct = avgRev > 0 ? ((todayRev - avgRev) / avgRev) * 100 : 0
+  // Random skeleton bar heights are decorative; seed once via a lazy state
+  // initializer (Math.random() is impure and can't run in the render body).
+  const [skeletonHeights] = useState(() =>
+    Array.from({ length: 14 }, () => 30 + Math.random() * 60),
+  )
 
   return (
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-[#ede9e0]">
@@ -146,8 +151,8 @@ function RevenueChart({ bars, loading }: RevenueChartProps) {
 
       {loading ? (
         <div className="flex items-end gap-1 h-32">
-          {Array.from({ length: 14 }).map((_, i) => (
-            <Skeleton key={i} className="flex-1 h-full" style={{ height: `${30 + Math.random() * 60}%` } as React.CSSProperties} />
+          {skeletonHeights.map((h, i) => (
+            <Skeleton key={i} className="flex-1 h-full" style={{ height: `${h}%` } as React.CSSProperties} />
           ))}
         </div>
       ) : bars.length === 0 ? (

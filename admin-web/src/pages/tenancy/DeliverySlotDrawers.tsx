@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { CalendarClock, Plus, Save } from 'lucide-react'
 import { useStores } from '@/hooks/useTenancy'
 import { useEffectiveBrandId } from '@/hooks/useBrandContext'
@@ -6,11 +6,15 @@ import { useCreateDeliverySlot, useUpdateDeliverySlot } from '@/hooks/usePickups
 import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import type { DeliverySlotDto, DeliverySlotType, StoreDto } from '@/types/api'
 
+// Small constant co-located with this drawer's <select>; not worth a separate module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const SLOT_TYPES: { value: DeliverySlotType; label: string }[] = [
   { value: 'pickup', label: 'Pickup' },
   { value: 'delivery', label: 'Delivery' },
 ]
 
+// Small constant co-located with this drawer's <select>; not worth a separate module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const SLOT_STATUSES: { value: string; label: string }[] = [
   { value: 'active', label: 'Active' },
   { value: 'closed', label: 'Closed' },
@@ -51,12 +55,15 @@ export function AddSlotDrawer({
   const [form, setForm] = useState(blankForm)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-seed the form on each open (adjust-state-while-rendering, not an effect).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setForm(blankForm)
       setError(null)
     }
-  }, [open])
+  }
 
   if (!open) return null
 
@@ -207,13 +214,14 @@ export function EditSlotDrawer({
   const [isActive, setIsActive] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (slot) {
-      setCapacity(slot.capacity)
-      setIsActive(slot.isActive)
-      setError(null)
-    }
-  }, [slot])
+  // Seed the form from the slot (adjust-state-while-rendering, keyed on id).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (slot && seededId !== slot.id) {
+    setSeededId(slot.id)
+    setCapacity(slot.capacity)
+    setIsActive(slot.isActive)
+    setError(null)
+  }
 
   if (!slot) return null
 
@@ -282,6 +290,8 @@ export function EditSlotDrawer({
 // ── Store-picker hook used by the slots tab + add drawer ──────────────────────────
 
 /** All stores for the active brand (one page is enough for the picker/lookup). */
+// Store-picker hook co-located with the slots drawers; not worth a separate module.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSlotStores() {
   const brandId = useEffectiveBrandId()
   const storesQ = useStores({ brandId: brandId ?? undefined, pageSize: 100 })

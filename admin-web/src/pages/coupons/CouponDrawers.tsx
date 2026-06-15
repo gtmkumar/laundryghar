@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Ticket, Plus, Save, Archive } from 'lucide-react'
 import { useCreateCoupon, useUpdateCoupon, useDeleteCoupon } from '@/hooks/useCommerce'
 import {
@@ -12,11 +12,15 @@ import {
 import type { CouponDto, CreateCouponPayload, UpdateCouponPayload } from '@/types/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
+// Small constant co-located with this drawer's <select>; not worth a separate module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const COUPON_TYPES = [
   { value: 'percent', label: 'Percentage (%)' },
   { value: 'flat', label: 'Flat amount (₹)' },
 ] as const
 
+// Small constant co-located with this drawer's <select>; not worth a separate module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const ELIGIBILITY = [
   { value: 'all', label: 'All customers' },
   { value: 'new', label: 'New customers only' },
@@ -125,12 +129,16 @@ export function CouponEditDrawer({ open, coupon, onClose }: EditDrawerProps) {
   const [form, setForm] = useState<FormState>(blankForm())
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Seed the form when opened or the target coupon changes
+  // (adjust-state-while-rendering, not an effect).
+  const [seededFor, setSeededFor] = useState<{ open: boolean; coupon: CouponDto | null | undefined }>({ open, coupon })
+  if (seededFor.open !== open || seededFor.coupon !== coupon) {
+    setSeededFor({ open, coupon })
     if (open) {
       setForm(coupon ? fromCoupon(coupon) : blankForm())
       setError(null)
     }
-  }, [open, coupon])
+  }
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -499,9 +507,12 @@ export function ArchiveCouponDrawer({ coupon, onClose }: { coupon: CouponDto | n
   const del = useDeleteCoupon()
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (coupon) setError(null)
-  }, [coupon])
+  // Clear stale errors when a new coupon is targeted (adjust-while-rendering).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (coupon && seededId !== coupon.id) {
+    setSeededId(coupon.id)
+    setError(null)
+  }
 
   if (!coupon) return null
 

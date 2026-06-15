@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Package as PackageIcon, Plus, Save, Archive } from 'lucide-react'
 import { useCreatePackage, useUpdatePackage, useDeletePackage } from '@/hooks/useCommerce'
 import {
@@ -17,6 +17,8 @@ import { formatCurrency, formatDate } from '@/lib/utils'
  * silver | gold | diamond | platinum | custom. ("bronze" is NOT allowed — it
  * previously shipped here and produced a guaranteed 422 on create.)
  */
+// Small co-located tier constant mirroring the DB check constraint; not worth its own module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const TIERS = [
   { value: 'silver', label: 'Silver' },
   { value: 'gold', label: 'Gold' },
@@ -146,12 +148,16 @@ export function PackageEditDrawer({ open, pkg, onClose }: EditDrawerProps) {
   const [form, setForm] = useState<FormState>(blankForm())
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-seed the form whenever the {open, package} pair changes (adjust-state-while-rendering).
+  const seedSig = `${open}:${pkg?.id ?? ''}`
+  const [seededSig, setSeededSig] = useState(seedSig)
+  if (seedSig !== seededSig) {
+    setSeededSig(seedSig)
     if (open) {
       setForm(pkg ? fromPackage(pkg) : blankForm())
       setError(null)
     }
-  }, [open, pkg])
+  }
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -455,9 +461,12 @@ export function ArchivePackageDrawer({ pkg, onClose }: { pkg: PackageDto | null;
   const del = useDeletePackage()
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (pkg) setError(null)
-  }, [pkg])
+  // Clear the error whenever a new package is opened (adjust-state-while-rendering).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (pkg && seededId !== pkg.id) {
+    setSeededId(pkg.id)
+    setError(null)
+  }
 
   if (!pkg) return null
 

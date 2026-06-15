@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Loader2, Pencil, Mail, Phone, Shield, MapPin, Clock, Check, Briefcase, CreditCard, IdCard, BadgeCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FormDrawer, DetailSection, DetailRow, Field } from '@/components/shared/FormDrawer'
@@ -83,24 +83,28 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  useEffect(() => {
-    if (user) {
-      setForm({
-        first: user.firstName ?? '', last: user.lastName ?? '', email: user.email ?? '',
-        phone: user.phoneE164 ?? '', designation: user.designation ?? '',
-        employmentType: user.employmentType ?? '', pan: user.panNumber ?? '',
-        aadhaar: user.aadhaarNumberMasked ?? '', kycStatus: user.kycStatus ?? '',
-        bankName: user.bankAccountName ?? '', bankNumber: user.bankAccountNumber ?? '',
-        ifsc: user.bankIfsc ?? '', upi: user.upiId ?? '',
-      })
-    }
-  }, [user])
-  useEffect(() => {
+  // Seed the edit form from the fetched user whenever the loaded record changes.
+  const [seededUserId, setSeededUserId] = useState<string | null>(null)
+  if (user && seededUserId !== user.id) {
+    setSeededUserId(user.id)
+    setForm({
+      first: user.firstName ?? '', last: user.lastName ?? '', email: user.email ?? '',
+      phone: user.phoneE164 ?? '', designation: user.designation ?? '',
+      employmentType: user.employmentType ?? '', pan: user.panNumber ?? '',
+      aadhaar: user.aadhaarNumberMasked ?? '', kycStatus: user.kycStatus ?? '',
+      bankName: user.bankAccountName ?? '', bankNumber: user.bankAccountNumber ?? '',
+      ifsc: user.bankIfsc ?? '', upi: user.upiId ?? '',
+    })
+  }
+  // Reset all transient panels when the drawer closes.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (!open) {
       setEditing(false); setErr(null); setSavedAt(null)
       setRoleEditing(false); setRoleErr(null); setRoleOverride(null); setNewRoleId(''); setNewFranchiseId('')
     }
-  }, [open])
+  }
 
   if (!open || !person) return null
 

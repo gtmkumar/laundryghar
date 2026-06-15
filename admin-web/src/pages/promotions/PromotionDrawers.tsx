@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Megaphone, Plus, Save, Archive } from 'lucide-react'
 import { useCreatePromotion, useUpdatePromotion, useDeletePromotion } from '@/hooks/useCommerce'
 import {
@@ -12,18 +12,24 @@ import {
 import type { PromotionDto, CreatePromotionPayload, UpdatePromotionPayload } from '@/types/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
+// Small co-located option constant for this drawer's selects; not worth its own module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const PROMOTION_TYPES = [
   { value: 'discount', label: 'Discount' },
   { value: 'cashback', label: 'Cashback' },
   { value: 'banner', label: 'Banner / awareness' },
 ] as const
 
+// Small co-located option constant for this drawer's selects; not worth its own module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const TARGET_AUDIENCES = [
   { value: 'all', label: 'All customers' },
   { value: 'new_customers', label: 'New customers' },
   { value: 'segment', label: 'Specific segments' },
 ] as const
 
+// Small co-located option constant for this drawer's selects; not worth its own module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const REWARD_DISCOUNT_TYPES = [
   { value: 'percent', label: 'Percentage (%)' },
   { value: 'flat', label: 'Flat amount (₹)' },
@@ -147,12 +153,16 @@ export function PromotionEditDrawer({ open, promotion, onClose }: EditDrawerProp
   const [form, setForm] = useState<FormState>(blankForm())
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-seed the form whenever the {open, promotion} pair changes (adjust-state-while-rendering).
+  const seedSig = `${open}:${promotion?.id ?? ''}`
+  const [seededSig, setSeededSig] = useState(seedSig)
+  if (seedSig !== seededSig) {
+    setSeededSig(seedSig)
     if (open) {
       setForm(promotion ? fromPromotion(promotion) : blankForm())
       setError(null)
     }
-  }, [open, promotion])
+  }
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -531,9 +541,12 @@ export function ArchivePromotionDrawer({ promotion, onClose }: { promotion: Prom
   const del = useDeletePromotion()
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (promotion) setError(null)
-  }, [promotion])
+  // Clear the error whenever a new promotion is opened (adjust-state-while-rendering).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (promotion && seededId !== promotion.id) {
+    setSeededId(promotion.id)
+    setError(null)
+  }
 
   if (!promotion) return null
 

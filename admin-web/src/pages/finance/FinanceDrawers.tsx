@@ -437,12 +437,13 @@ export function RejectExpenseDrawer({
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (expense) {
-      setReason('')
-      setError(null)
-    }
-  }, [expense])
+  // Reset the sub-form whenever a new expense is opened (adjust-state-while-rendering).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (expense && seededId !== expense.id) {
+    setSeededId(expense.id)
+    setReason('')
+    setError(null)
+  }
 
   if (!expense) return null
 
@@ -524,13 +525,15 @@ export function GenerateRoyaltyDrawer({ open, onClose }: GenerateRoyaltyDrawerPr
   const [form, setForm] = useState(blank)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Reset the form each time the drawer transitions to open (adjust-state-while-rendering).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setForm(blank)
       setError(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }
 
   const set = <K extends keyof typeof form>(key: K, value: string) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -700,15 +703,16 @@ export function RoyaltyDetailDrawer({ invoice, onClose, canManage }: RoyaltyDeta
   const [payNotes, setPayNotes] = useState('')
   const [payError, setPayError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (invoice) {
-      setIssuingNotes('')
-      setIssueError(null)
-      setPayAmount('')
-      setPayNotes('')
-      setPayError(null)
-    }
-  }, [invoice])
+  // Reset the sub-forms whenever a new invoice is opened (adjust-state-while-rendering).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (invoice && seededId !== invoice.id) {
+    setSeededId(invoice.id)
+    setIssuingNotes('')
+    setIssueError(null)
+    setPayAmount('')
+    setPayNotes('')
+    setPayError(null)
+  }
 
   const handleIssue = async () => {
     if (!invoice) return

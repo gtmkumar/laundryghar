@@ -21,7 +21,8 @@ import {
   DetailRow,
 } from '@/components/shared/FormDrawer'
 import { FieldError } from '@/components/ui/FieldError'
-import { ConfirmDialog, useConfirm } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { useConfirm } from '@/components/shared/useConfirm'
 import { nonNegativeMoney } from '@/lib/validation'
 import { apiErrorMessage } from '@/lib/apiError'
 import type {
@@ -509,9 +510,12 @@ export function PlatformPlanDetailDrawer({
   const [error, setError] = useState<string | null>(null)
   const gate = useConfirm()
 
-  useEffect(() => {
-    if (plan) setError(null)
-  }, [plan])
+  // Clear the error whenever a new plan is opened (adjust-state-while-rendering).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (plan && seededId !== plan.id) {
+    setSeededId(plan.id)
+    setError(null)
+  }
 
   if (!plan) return null
 
@@ -682,7 +686,10 @@ export function AssignFranchisePlanDrawer({
   const [autoRenew, setAutoRenew] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Reset the form each time the drawer transitions to open (adjust-state-while-rendering).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setFranchiseId('')
       setPlatformPlanId('')
@@ -690,7 +697,7 @@ export function AssignFranchisePlanDrawer({
       setAutoRenew(true)
       setError(null)
     }
-  }, [open])
+  }
 
   if (!open) return null
 
@@ -789,13 +796,14 @@ export function FranchiseSubscriptionDetailDrawer({
   const [error, setError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
 
-  useEffect(() => {
-    if (subscription) {
-      setReason('')
-      setError(null)
-      setConfirming(false)
-    }
-  }, [subscription])
+  // Reset the form whenever a new subscription is opened (adjust-state-while-rendering).
+  const [seededId, setSeededId] = useState<string | null>(null)
+  if (subscription && seededId !== subscription.id) {
+    setSeededId(subscription.id)
+    setReason('')
+    setError(null)
+    setConfirming(false)
+  }
 
   if (!subscription) return null
   const s = subscription
@@ -920,6 +928,8 @@ export function FranchiseSubscriptionStatusBadge({ status }: { status: string })
   )
 }
 
+// Small co-located status constant used alongside this drawer's badge; not worth its own module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const FRANCHISE_SUB_STATUSES = [
   'pending',
   'trialing',

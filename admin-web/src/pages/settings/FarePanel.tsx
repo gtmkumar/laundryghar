@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Loader2, Save, Gauge, Plus, Trash2 } from 'lucide-react'
 import { useFareSettings, useUpdateFareSettings } from '@/hooks/useSettings'
 import { useCanManageSettings } from '@/hooks/usePermissions'
@@ -61,9 +61,14 @@ export function FarePanel() {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-seed when the loaded settings change. React's "adjust state while
+  // rendering" pattern (prev-value tracked in state), so there's no extra
+  // render commit. Initial seed happens here too, since form starts null.
+  const [seededData, setSeededData] = useState(query.data)
+  if (seededData !== query.data) {
+    setSeededData(query.data)
     if (query.data) setForm(toForm(query.data))
-  }, [query.data])
+  }
 
   if (query.isLoading || !form) {
     return (

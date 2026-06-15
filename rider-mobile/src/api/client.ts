@@ -8,13 +8,11 @@
  */
 import axios, {
   AxiosInstance,
-  AxiosRequestConfig,
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from 'axios';
 import { CONFIG } from '@/constants/config';
 import type {
-  BaseResponse,
   ListResponse,
   PaginatedListResponse,
   SingleResponse,

@@ -3,7 +3,7 @@ import { AlertTriangle, Loader2, X } from 'lucide-react'
 
 export type ConfirmTone = 'danger' | 'warning' | 'default'
 
-interface ConfirmDialogProps {
+export interface ConfirmDialogProps {
   open: boolean
   onCancel: () => void
   /**
@@ -81,10 +81,14 @@ export function ConfirmDialog({
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const showReason = requireReason || reasonOptional
 
-  // Reset the captured reason whenever the dialog (re)opens.
-  useEffect(() => {
-    if (open) setReason('')
-  }, [open])
+  // Reset the captured reason on each open transition. Uses React's documented
+  // "adjust state while rendering" pattern (prev-value tracked in state) rather
+  // than an effect, so there's no extra render commit on open.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open && reason !== '') setReason('')
+  }
 
   // Focus management + scroll lock + Escape, active only while open.
   useEffect(() => {
@@ -95,7 +99,8 @@ export function ConfirmDialog({
 
     // Focus the confirm button (or the panel) on the next frame.
     const id = requestAnimationFrame(() => {
-      confirmRef.current?.focus() ?? panelRef.current?.focus()
+      const target = confirmRef.current ?? panelRef.current
+      target?.focus()
     })
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -212,66 +217,4 @@ export function ConfirmDialog({
   )
 }
 
-/**
- * Ergonomic hook for the common case: a single confirm gate driven by local
- * state. Returns `confirm(opts)` to open + a `<dialogProps>` object to spread
- * onto <ConfirmDialog/>. The action runs when the user confirms; the dialog
- * tracks its own busy state for async actions.
- *
- * Usage:
- *   const gate = useConfirm()
- *   <button onClick={() => gate.confirm({ title: 'Delete?', onConfirm: () => del() })}>…
- *   <ConfirmDialog {...gate.dialogProps} />
- */
-interface ConfirmOptions {
-  title: ReactNode
-  description?: ReactNode
-  confirmLabel?: string
-  cancelLabel?: string
-  tone?: ConfirmTone
-  requireReason?: boolean
-  reasonOptional?: boolean
-  reasonLabel?: string
-  reasonPlaceholder?: string
-  onConfirm: (reason?: string) => void | Promise<void>
-}
-
-export function useConfirm() {
-  const [opts, setOpts] = useState<ConfirmOptions | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  const confirm = (o: ConfirmOptions) => setOpts(o)
-  const close = () => {
-    if (!busy) setOpts(null)
-  }
-
-  const handleConfirm = async (reason?: string) => {
-    if (!opts) return
-    try {
-      setBusy(true)
-      await opts.onConfirm(reason)
-      setOpts(null)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return {
-    confirm,
-    dialogProps: {
-      open: opts !== null,
-      busy,
-      onCancel: close,
-      onConfirm: handleConfirm,
-      title: opts?.title ?? '',
-      description: opts?.description,
-      confirmLabel: opts?.confirmLabel,
-      cancelLabel: opts?.cancelLabel,
-      tone: opts?.tone,
-      requireReason: opts?.requireReason,
-      reasonOptional: opts?.reasonOptional,
-      reasonLabel: opts?.reasonLabel,
-      reasonPlaceholder: opts?.reasonPlaceholder,
-    } satisfies ConfirmDialogProps,
-  }
-}
+/** `useConfirm` lives in ./useConfirm so this module exports only components (Fast Refresh). */

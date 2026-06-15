@@ -7,6 +7,9 @@ import type {
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
+// Small label maps + derived option arrays co-located with the support badge
+// components. Disabled individually for react-refresh rather than split out.
+// eslint-disable-next-line react-refresh/only-export-components
 export const STATUS_LABEL: Record<SupportTicketStatus, string> = {
   open: 'Open',
   in_progress: 'In progress',
@@ -14,6 +17,7 @@ export const STATUS_LABEL: Record<SupportTicketStatus, string> = {
   closed: 'Closed',
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const STATUS_OPTIONS: { value: SupportTicketStatus; label: string }[] = (
   Object.keys(STATUS_LABEL) as SupportTicketStatus[]
 ).map((value) => ({ value, label: STATUS_LABEL[value] }))
@@ -32,12 +36,14 @@ export function StatusBadge({ status }: { status: SupportTicketStatus }) {
 
 // ── Priority ────────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const PRIORITY_LABEL: Record<SupportTicketPriority, string> = {
   low: 'Low',
   normal: 'Normal',
   high: 'High',
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const PRIORITY_OPTIONS: { value: SupportTicketPriority; label: string }[] = (
   Object.keys(PRIORITY_LABEL) as SupportTicketPriority[]
 ).map((value) => ({ value, label: PRIORITY_LABEL[value] }))
