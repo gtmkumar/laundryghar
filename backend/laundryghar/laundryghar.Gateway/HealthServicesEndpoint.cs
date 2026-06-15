@@ -64,7 +64,7 @@ public static class HealthServicesEndpoint
                         ? ExtractBase(s.Path)   // fall back to the hard-coded dev default
                         : configuredBase.TrimEnd('/');
 
-                    return (s.Name, Url: $"{baseUrl}/health/ready");
+                    return (s.Name, Url: $"{baseUrl}/health");
                 })
                 .ToArray();
 

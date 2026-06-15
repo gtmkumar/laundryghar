@@ -1,0 +1,122 @@
+using core.Application.Common.Interfaces;
+using core.Application.Identity.Users.Dtos;
+using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.SharedDataModel.Entities.IdentityAccess;
+using laundryghar.Utilities.Services;
+using Microsoft.EntityFrameworkCore;
+
+namespace core.Application.Identity.AccessControl.Commands.GrantMembership;
+
+/// <summary>ActorId carries the calling user's identity for privilege-escalation checks.</summary>
+public sealed record GrantMembershipCommand(GrantMembershipRequest Request, Guid? ActorId) : ICommand<MembershipDto>;
+
+public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipCommand, MembershipDto>
+{
+    private readonly ICoreDbContext _db;
+    private readonly ICurrentUser _actor;
+    public GrantMembershipCommandHandler(ICoreDbContext db, ICurrentUser actor) { _db = db; _actor = actor; }
+
+    public async Task<MembershipDto> HandleAsync(GrantMembershipCommand cmd, CancellationToken ct)
+    {
+        var actor = _actor;
+
+        // ── H2a: granting platform_admin role requires the actor to BE platform_admin ──
+        var targetRole = await _db.Roles.FindAsync([cmd.Request.RoleId], ct)
+            ?? throw new laundryghar.Utilities.Exceptions.ValidationException(
+                new Dictionary<string, string[]> { ["roleId"] = ["Role not found."] });
+
+        if (targetRole.Code == "platform_admin" &&
+            actor.UserType != laundryghar.SharedDataModel.Enums.UserType.PlatformAdmin)
+        {
+            throw new UnauthorizedAccessException(
+                "Only a platform_admin may grant the platform_admin role.");
+        }
+
+        // ── H2b: actor's scope must cover the target ScopeId ──
+        // Platform admins bypass scope checks (they manage all brands).
+        if (!actor.IsPlatformAdmin && cmd.Request.ScopeId.HasValue)
+        {
+            // Resolve the brand of the target scope
+            Guid? targetBrandId = cmd.Request.ScopeType switch
+            {
+                laundryghar.SharedDataModel.Enums.ScopeType.Brand =>
+                    cmd.Request.ScopeId,
+                laundryghar.SharedDataModel.Enums.ScopeType.Franchise =>
+                    await _db.Franchises.AsNoTracking()
+                        .Where(f => f.Id == cmd.Request.ScopeId)
+                        .Select(f => (Guid?)f.BrandId)
+                        .FirstOrDefaultAsync(ct),
+                laundryghar.SharedDataModel.Enums.ScopeType.Store =>
+                    await _db.Stores.AsNoTracking()
+                        .Where(s => s.Id == cmd.Request.ScopeId)
+                        .Select(s => (Guid?)s.BrandId)
+                        .FirstOrDefaultAsync(ct),
+                laundryghar.SharedDataModel.Enums.ScopeType.Warehouse =>
+                    await _db.Warehouses.AsNoTracking()
+                        .Where(w => w.Id == cmd.Request.ScopeId)
+                        .Select(w => (Guid?)w.BrandId)
+                        .FirstOrDefaultAsync(ct),
+                _ => null
+            };
+
+            // Actor's brand_id (from JWT active scope) must match the target scope's brand
+            if (targetBrandId.HasValue && actor.BrandId != targetBrandId)
+            {
+                throw new UnauthorizedAccessException(
+                    "You may only grant memberships within your own brand's scope.");
+            }
+        }
+
+        // ── H2c: actor's role priority must be <= role being granted (lower number = higher rank) ──
+        // Fetch actor's highest-privilege role (lowest priority number)
+        if (!actor.IsPlatformAdmin)
+        {
+            var actorMinPriority = await _db.UserScopeMemberships
+                .AsNoTracking()
+                .Where(m => m.UserId == cmd.ActorId
+                         && m.RevokedAt == null
+                         && (m.ExpiresAt == null || m.ExpiresAt > DateTimeOffset.UtcNow))
+                .Join(_db.Roles.IgnoreQueryFilters(),
+                      m => m.RoleId,
+                      r => r.Id,
+                      (m, r) => r.Priority)
+                .MinAsync(ct);   // lower priority number = higher rank
+
+            if (targetRole.Priority < actorMinPriority)
+            {
+                throw new UnauthorizedAccessException(
+                    "You cannot grant a role with higher privileges than your own.");
+            }
+        }
+
+        // ── Apply primary flag ─────────────────────────────────────────────────
+        if (cmd.Request.IsPrimary)
+        {
+            var existingPrimary = await _db.UserScopeMemberships
+                .Where(m => m.UserId == cmd.Request.UserId && m.IsPrimary && m.RevokedAt == null)
+                .ToListAsync(ct);
+            existingPrimary.ForEach(m => m.IsPrimary = false);
+        }
+
+        var membership = new UserScopeMembership
+        {
+            Id        = Guid.NewGuid(),
+            UserId    = cmd.Request.UserId,
+            ScopeType = cmd.Request.ScopeType,
+            ScopeId   = cmd.Request.ScopeId,
+            RoleId    = cmd.Request.RoleId,
+            IsPrimary = cmd.Request.IsPrimary,
+            GrantedAt = DateTimeOffset.UtcNow,
+            GrantedBy = cmd.ActorId,
+            Metadata  = "{}",
+            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedBy = cmd.ActorId
+        };
+        _db.UserScopeMemberships.Add(membership);
+        await _db.SaveChangesAsync(ct);
+
+        return new MembershipDto(
+            membership.Id, membership.UserId, membership.ScopeType, membership.ScopeId,
+            membership.RoleId, targetRole.Code, membership.IsPrimary, membership.GrantedAt);
+    }
+}

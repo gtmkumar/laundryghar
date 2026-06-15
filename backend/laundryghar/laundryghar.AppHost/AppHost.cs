@@ -47,12 +47,16 @@ builder
     .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64);
 
 // operations = Catalog + Orders + Warehouse + Logistics.
+// Jwt__Authority overrides appsettings (which targets the standalone core port 5056) so that
+// under the AppHost, JWKS validation points at core's fixed AppHost port 5050. Without this,
+// operations fetches JWKS from the dead :5056 and rejects every token with 401.
 builder
     .AddProject<Projects.operations_WebApi>("operations")
     .WithHttpEndpoint(port: 5002, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("ConnectionStrings__Default", connStr)
     .WithEnvironment("ConnectionStrings__Admin", adminConnStr)
+    .WithEnvironment("Jwt__Authority", "http://localhost:5050")
     .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64);
 
 // commerce = Commerce + Finance + Analytics + Worker.
@@ -67,6 +71,7 @@ builder
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
     .WithEnvironment("ConnectionStrings__Default", connStr)
     .WithEnvironment("ConnectionStrings__Admin", adminConnStr)
+    .WithEnvironment("Jwt__Authority", "http://localhost:5050")
     .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64);
 
 // ── API Gateway — single entry-point for all clients at :8080 ───────────────────────

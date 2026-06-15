@@ -1,3 +1,4 @@
+using laundryghar.SharedDataModel.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace laundryghar.Utilities.Services;
@@ -9,6 +10,18 @@ public static class CurrentUserServiceCollectionExtensions
     {
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+        return services;
+    }
+
+    /// <summary>
+    /// Registers <see cref="ICurrentTenant"/> backed by HttpContext JWT claims — the tenant
+    /// context the shared RLS connection interceptor reads at runtime. Cross-cutting: every
+    /// bounded-context host calls this (mirror of <see cref="AddCurrentUser"/>).
+    /// </summary>
+    public static IServiceCollection AddCurrentTenant(this IServiceCollection services)
+    {
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentTenant, HttpContextCurrentTenant>();
         return services;
     }
 }

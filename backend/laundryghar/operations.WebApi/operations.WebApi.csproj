@@ -10,7 +10,18 @@
 
     <ItemGroup>
         <ProjectReference Include="..\laundryghar.ServiceDefaults\laundryghar.ServiceDefaults.csproj" />
+        <ProjectReference Include="..\laundryghar.Utilities\laundryghar.Utilities.csproj" />
+        <ProjectReference Include="..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
+        <ProjectReference Include="..\operations.Application\operations.Application.csproj" />
         <ProjectReference Include="..\operations.Infrastructure\operations.Infrastructure.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- OpenAPI document (+ Scalar UI) — Development-only API reference -->
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.4" />
+        <PackageReference Include="Scalar.AspNetCore" Version="2.16.3" />
+        <!-- JWT bearer authentication scheme (validate-only via Identity JWKS) -->
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     </ItemGroup>
 
 </Project>

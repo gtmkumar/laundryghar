@@ -73,9 +73,9 @@ echo "=== Health checks ==="
 # Consolidated topology: Core (Identity+Engagement+Mcp) :5050,
 # Operations (Catalog+Orders+Warehouse+Logistics) :5002,
 # Commerce (Commerce+Finance+Analytics+Worker jobs) :5005, Gateway :8080
-health_check "Health:Core:5050"       "http://${HOST}:5050/health/live"
-health_check "Health:Operations:5002" "http://${HOST}:5002/health/live"
-health_check "Health:Commerce:5005"   "http://${HOST}:5005/health/live"
+health_check "Health:Core:5050"       "http://${HOST}:5050/health"
+health_check "Health:Operations:5002" "http://${HOST}:5002/health"
+health_check "Health:Commerce:5005"   "http://${HOST}:5005/health"
 health_check "Health:Gateway:8080"    "http://${HOST}:8080/health/services"
 
 # ── 2. Worker jobs check (hosted inside Commerce) ────────────────────────────
@@ -83,7 +83,7 @@ health_check "Health:Gateway:8080"    "http://${HOST}:8080/health/services"
 echo ""
 echo "=== Worker host process ==="
 
-if pgrep -f "laundryghar.Commerce" >/dev/null 2>&1; then
+if pgrep -f "commerce.WebApi" >/dev/null 2>&1; then
   pass "Worker:hosted-in-Commerce"
 else
   fail "Worker:hosted-in-Commerce (Commerce process not found)"

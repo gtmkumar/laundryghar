@@ -1,18 +1,24 @@
+using System.Reflection;
+using FluentValidation;
+using LaundryGhar.Utilities.CQRS.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace operations.Application;
 
 /// <summary>
-/// DI registration for the operations Application layer.
-/// Call from the host: <c>builder.Services.AddOperationsApplication();</c>
-/// Repository abstractions live here (interfaces); implementations are registered in
-/// operations.Infrastructure. No mediator — handlers/services are invoked directly.
+/// DI registration for the operations Application layer. Registers the custom CQRS dispatcher +
+/// all ICommandHandler/IQueryHandler implementations (via AddCustomCQRS) and FluentValidation validators.
+/// Mirrors core.Application. No mediator — handlers are dispatched directly.
 /// </summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddOperationsApplication(this IServiceCollection services)
     {
-        // Register operations application services here as they are added.
+        var assembly = Assembly.GetExecutingAssembly();
+
+        services.AddCustomCQRS(assembly);
+        services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
+
         return services;
     }
 }

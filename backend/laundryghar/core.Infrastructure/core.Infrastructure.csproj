@@ -9,6 +9,13 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.4" />
+        <!-- F6: SMTP transport for Admin Settings test-email / provisioning mailer -->
+        <PackageReference Include="MailKit" Version="4.17.0" />
+        <!-- F4: Argon2id password hashing -->
+        <PackageReference Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
+        <!-- F3: RS256 JWT issuance + key material (versions aligned with JwtBearer 10.0.0's transitive set) -->
+        <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.16.0" />
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
     </ItemGroup>
 
     <ItemGroup>
