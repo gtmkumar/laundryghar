@@ -15,10 +15,10 @@ module.exports = function (api) {
           },
         },
       ],
-      // NOTE: react-native-reanimated/plugin intentionally omitted — the app uses
-      // only GestureHandlerRootView (no Reanimated worklets), and SDK 52 has no
-      // react-native-worklets the 3.16 plugin can resolve. Re-add (last) with a
-      // proper worklets setup when building animated screens.
+      // Reanimated 4 (SDK 54) moved its Babel plugin to react-native-worklets.
+      // Must be listed LAST. Required because react-native-reanimated now depends
+      // on react-native-worklets even when the app uses only GestureHandlerRootView.
+      'react-native-worklets/plugin',
     ],
   };
 };

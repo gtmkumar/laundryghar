@@ -98,6 +98,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-secure-store',
     'expo-localization',
+    'expo-asset',
+    'expo-font',
     // Sentry config plugin — injects native crash-reporter init.
     // organization/project enable build-time source-map upload (also needs
     // SENTRY_AUTH_TOKEN — EAS secret only); when unset the upload is skipped

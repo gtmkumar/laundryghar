@@ -61,9 +61,11 @@ export interface PushNotificationData {
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge:  false,
+    // SDK 54 (expo-notifications): shouldShowAlert split into shouldShowBanner + shouldShowList.
+    shouldShowBanner: true,
+    shouldShowList:   true,
+    shouldPlaySound:  true,
+    shouldSetBadge:   false,
   }),
 });
 

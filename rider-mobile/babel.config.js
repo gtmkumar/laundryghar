@@ -15,7 +15,10 @@ module.exports = function (api) {
           },
         },
       ],
-      // react-native-reanimated/plugin intentionally omitted (see customer-mobile note).
+      // Reanimated 4 (SDK 54) moved its Babel plugin to react-native-worklets.
+      // Must be listed LAST. Required because react-native-reanimated now depends
+      // on react-native-worklets even when the app uses only GestureHandlerRootView.
+      'react-native-worklets/plugin',
     ],
   };
 };
