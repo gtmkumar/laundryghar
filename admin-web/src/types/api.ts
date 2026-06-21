@@ -2000,6 +2000,30 @@ export interface AccessRoles {
   modules: MatrixModule[]
   actions: string[]
   groups: AccessRoleGroup[]
+  /** cellKey ("module:action") → permission codes that cell grants (fan-out disclosure). */
+  cells: Record<string, string[]>
+}
+
+export interface RoleCellChange {
+  cellKey: string
+  enabled: boolean
+}
+
+// Role CRUD payloads (UI-managed custom roles)
+export interface CreateRolePayload {
+  code: string
+  name: string
+  description?: string | null
+  scopeType: string // 'brand' | 'franchise' | 'store' | 'warehouse'
+}
+export interface UpdateRolePayload {
+  name: string
+  description?: string | null
+}
+export interface CloneRolePayload {
+  code: string
+  name: string
+  description?: string | null
 }
 
 export interface AccessFranchise {

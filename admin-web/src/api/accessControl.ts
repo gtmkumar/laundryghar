@@ -5,9 +5,14 @@ import type {
   PaginationParams,
   AccessPeoplePage,
   AccessRoles,
+  AccessRoleSummary,
   AccessFranchise,
   InviteUserPayload,
   SetPersonStatusResult,
+  CreateRolePayload,
+  UpdateRolePayload,
+  CloneRolePayload,
+  RoleCellChange,
 } from '@/types/api'
 
 export type PersonStatusAction = 'activate' | 'suspend' | 'reactivate'
@@ -44,6 +49,27 @@ export async function inviteUser(payload: InviteUserPayload): Promise<void> {
 
 export async function setRoleCell(roleId: string, cellKey: string, enabled: boolean): Promise<void> {
   await identityClient.post(`${BASE}/role-cell`, { roleId, cellKey, enabled })
+}
+
+/** Apply many cell changes to a role in a single atomic request. */
+export async function setRoleCells(roleId: string, changes: RoleCellChange[]): Promise<void> {
+  await identityClient.post(`${BASE}/roles/${roleId}/cells`, { changes })
+}
+
+// ── Role CRUD (UI-managed custom roles) ──────────────────────────────────────
+export async function createRole(payload: CreateRolePayload): Promise<AccessRoleSummary> {
+  const { data } = await identityClient.post<ApiResponse<AccessRoleSummary>>(`${BASE}/roles`, payload)
+  return unwrap(data)
+}
+export async function updateRole(roleId: string, payload: UpdateRolePayload): Promise<void> {
+  await identityClient.put(`${BASE}/roles/${roleId}`, payload)
+}
+export async function deleteRole(roleId: string): Promise<void> {
+  await identityClient.delete(`${BASE}/roles/${roleId}`)
+}
+export async function cloneRole(roleId: string, payload: CloneRolePayload): Promise<AccessRoleSummary> {
+  const { data } = await identityClient.post<ApiResponse<AccessRoleSummary>>(`${BASE}/roles/${roleId}/clone`, payload)
+  return unwrap(data)
 }
 
 export async function setPersonStatus(

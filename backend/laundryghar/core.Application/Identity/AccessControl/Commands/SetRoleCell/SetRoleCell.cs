@@ -2,6 +2,8 @@ using core.Application.Common.Interfaces;
 using core.Application.Identity.AccessControl.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
+using laundryghar.Utilities.Exceptions;
+using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace core.Application.Identity.AccessControl.Commands.SetRoleCell;
@@ -11,7 +13,8 @@ public sealed record SetRoleCellCommand(SetRoleCellRequest Request, Guid? ActorI
 public class SetRoleCellCommandHandler : ICommandHandler<SetRoleCellCommand, bool>
 {
     private readonly ICoreDbContext _db;
-    public SetRoleCellCommandHandler(ICoreDbContext db) => _db = db;
+    private readonly ICurrentUser _user;
+    public SetRoleCellCommandHandler(ICoreDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
     public async Task<bool> HandleAsync(SetRoleCellCommand cmd, CancellationToken ct)
     {
@@ -28,6 +31,22 @@ public class SetRoleCellCommandHandler : ICommandHandler<SetRoleCellCommand, boo
             .Select(p => p.Id)
             .ToHashSet();
         if (targetIds.Count == 0) return true; // nothing maps here — no-op
+
+        // Self-lockout guard: a non-platform admin can't strip their OWN role of the ability
+        // to manage roles/permissions — that would lock them out of this very screen.
+        if (!cmd.Request.Enabled && !_user.IsPlatformAdmin && cmd.ActorId is { } actorId)
+        {
+            var mgmtIds = perms
+                .Where(p => p.Code is "permissions.assign" or "roles.manage")
+                .Select(p => p.Id).ToHashSet();
+            if (targetIds.Overlaps(mgmtIds)
+                && await _db.UserScopeMemberships.AnyAsync(
+                    m => m.RoleId == roleId && m.UserId == actorId && m.RevokedAt == null, ct))
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                    { ["cellKey"] = ["You can't remove your own permission to manage roles — ask another admin."] });
+            }
+        }
 
         var existing = await _db.RolePermissions
             .Where(rp => rp.RoleId == roleId && targetIds.Contains(rp.PermissionId))

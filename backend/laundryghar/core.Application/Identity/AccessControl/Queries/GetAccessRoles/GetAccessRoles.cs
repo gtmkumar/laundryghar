@@ -56,9 +56,19 @@ public class GetAccessRolesQueryHandler : IQueryHandler<GetAccessRolesQuery, Acc
 
         var groups = new List<RoleGroupDto> { Group("enterprise", "Enterprise · HQ"), Group("franchise", "Franchise") };
 
+        // Build cellKey → permission codes (the fan-out), so the UI can show what a checkbox grants.
+        var allCodes = await _db.Permissions.AsNoTracking().Select(p => p.Code).ToListAsync(ct);
+        var cells = new Dictionary<string, List<string>>();
+        foreach (var code in allCodes)
+            foreach (var cell in matrix.CellsFor(PermissionMatrix.Module(code), PermissionMatrix.Action(code)))
+                (cells.TryGetValue(cell, out var l) ? l : cells[cell] = []).Add(code);
+        var cellMap = cells.ToDictionary(
+            kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value.OrderBy(c => c).ToList());
+
         return new AccessRolesDto(
             matrix.Rows.Select(m => new MatrixModuleDto(m.Key, m.Label)).ToList(),
             PermissionMatrix.Actions.ToList(),
-            groups);
+            groups,
+            cellMap);
     }
 }

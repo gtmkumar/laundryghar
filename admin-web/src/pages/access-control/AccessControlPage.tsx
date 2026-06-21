@@ -16,7 +16,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'people', label: 'People' },
   { key: 'roles', label: 'Roles & Permissions' },
   { key: 'franchises', label: 'Franchises' },
-  { key: 'modules', label: 'Modules' },
+  { key: 'modules', label: 'Licensing' },
 ]
 
 export function AccessControlPage() {

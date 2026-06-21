@@ -338,7 +338,9 @@ public sealed class IdentitySeeder
     [
         ("platform_admin",       "Platform Administrator",  ScopeType.Platform,  10),
         ("brand_admin",          "Brand Administrator",     ScopeType.Brand,     20),
-        ("regional_manager",     "Regional Manager",        ScopeType.Brand,     30),
+        // Priority 24: brand-level oversight that outranks the focused brand managers
+        // (operations_manager=25, finance=26, …) but stays below brand_admin (20).
+        ("regional_manager",     "Regional Manager",        ScopeType.Brand,     24),
         ("franchise_owner",      "Franchise Owner",         ScopeType.Franchise, 40),
         ("store_admin",          "Store Administrator",     ScopeType.Store,     50),
         ("store_staff",          "Store Staff",             ScopeType.Store,     60),
@@ -433,7 +435,7 @@ public sealed class IdentitySeeder
             "stores.list","stores.read","stores.create","stores.update","stores.delete",
             "warehouses.list","warehouses.create","warehouses.update","warehouses.delete",
             "users.list","users.read","users.read_financial","users.create","users.update","users.deactivate","users.set_type",
-            "roles.list","permissions.list","memberships.grant","memberships.revoke",
+            "roles.list","roles.manage","permissions.list","permissions.assign","memberships.grant","memberships.revoke",
             "operating_hours.manage","holidays.manage","store_warehouse.manage",
             "orders.list","orders.update","orders.cancel","orders.refund",
             // BC-3: catalog + pricing (full) + customer admin

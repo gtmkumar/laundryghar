@@ -153,7 +153,7 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 
 -- Helper: support_lead permissions
--- Covers: customer.*, orders.read, orders.list, orders.refund, payment.refund
+-- Covers: customer.read/update (NOT delete), orders.read, orders.list, orders.refund, payment.refund
 INSERT INTO identity_access.role_permissions (id, role_id, permission_id)
 SELECT
     md5('seed_rp_suplead_' || p.code)::uuid,
@@ -162,7 +162,7 @@ SELECT
     p.id
 FROM identity_access.permissions p
 WHERE p.code IN (
-    'customer.delete','customer.read','customer.update',
+    'customer.read','customer.update',
     'orders.read','orders.list','orders.refund',
     'payment.refund'
 )

@@ -35,9 +35,15 @@ export function ProtectedRoute() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const location = useLocation()
 
-  // 'checking' only while an initial cookie-refresh is in flight for a stale token.
+  // (Re)establish a session before rendering when the access token is missing OR near
+  // expiry. "Missing" matters: a privacy browser (or cleared localStorage) can drop the
+  // access token while the HttpOnly refresh cookie survives — a cookie-backed refresh then
+  // silently recovers the session instead of bouncing the user to /login.
+  const needsRecovery = !accessToken || isExpiringSoon(accessToken)
+
+  // 'checking' while an initial/recovery refresh is in flight.
   const [phase, setPhase] = useState<'checking' | 'ready' | 'failed'>(() =>
-    accessToken && isExpiringSoon(accessToken) ? 'checking' : 'ready',
+    needsRecovery ? 'checking' : 'ready',
   )
   const ranBootstrap = useRef(false)
 
@@ -45,27 +51,24 @@ export function ProtectedRoute() {
     if (ranBootstrap.current) return
     ranBootstrap.current = true
 
-    // When there's no token or it's fresh, `phase` was already initialized to
-    // 'ready' (see useState initializer) — nothing to sync, just bail. (Avoids a
-    // redundant synchronous setState in the effect body.)
-    if (!accessToken || !isExpiringSoon(accessToken)) return
+    // Fresh, present token → nothing to do (phase already 'ready').
+    if (!needsRecovery) return
 
-    // No `cancelled` guard here: under React StrictMode (dev) the effect's
-    // cleanup runs between the double-invoked mount, while `ranBootstrap`
-    // blocks the second invocation from starting a fresh refresh. A cancelled
-    // flag would make the in-flight refresh's handlers no-op, leaving phase
-    // stuck on 'checking' forever (hung spinner on any stale/dead session).
-    // Setting state after a genuine unmount is a harmless no-op in React 18.
+    // No `cancelled` guard here: under React StrictMode (dev) the effect's cleanup runs
+    // between the double-invoked mount, while `ranBootstrap` blocks the second invocation
+    // from starting a fresh refresh. A cancelled flag would strand phase on 'checking'
+    // forever. setState after a genuine unmount is a harmless no-op in React 18.
     refreshAccessToken()
       .then(() => setPhase('ready'))
       .catch(() => {
         clearAuth()
         setPhase('failed')
       })
-  }, [accessToken, clearAuth])
+  }, [needsRecovery, clearAuth])
 
-  // No session at all → straight to login (preserve intended destination).
-  if (!accessToken || phase === 'failed') {
+  // Give up only after a recovery attempt has actually failed — not merely because the
+  // access token is absent (the cookie refresh above may still rescue the session).
+  if (phase === 'failed') {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 

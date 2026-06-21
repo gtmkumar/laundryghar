@@ -5,10 +5,15 @@ import {
   getAccessFranchises,
   inviteUser,
   setRoleCell,
+  setRoleCells,
   setPersonStatus,
+  createRole,
+  updateRole,
+  deleteRole,
+  cloneRole,
   type PersonStatusAction,
 } from '@/api/accessControl'
-import type { InviteUserPayload } from '@/types/api'
+import type { InviteUserPayload, CreateRolePayload, UpdateRolePayload, CloneRolePayload, RoleCellChange } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
 
 const PEOPLE_PAGE_SIZE = 100
@@ -64,11 +69,49 @@ export function useSetRoleCell() {
   })
 }
 
+export function useSetRoleCells() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { roleId: string; changes: RoleCellChange[] }) => setRoleCells(v.roleId, v.changes),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'roles'] }),
+  })
+}
+
 export function useSetPersonStatus() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (v: { userId: string; action: PersonStatusAction; password?: string }) =>
       setPersonStatus(v.userId, v.action, v.password),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'people'] }),
+  })
+}
+
+// ── Role CRUD ────────────────────────────────────────────────────────────────
+export function useCreateRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateRolePayload) => createRole(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'roles'] }),
+  })
+}
+export function useUpdateRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { roleId: string; payload: UpdateRolePayload }) => updateRole(v.roleId, v.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'roles'] }),
+  })
+}
+export function useDeleteRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (roleId: string) => deleteRole(roleId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'roles'] }),
+  })
+}
+export function useCloneRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { roleId: string; payload: CloneRolePayload }) => cloneRole(v.roleId, v.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'roles'] }),
   })
 }

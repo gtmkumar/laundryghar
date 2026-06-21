@@ -28,7 +28,9 @@ public sealed record RoleGroupDto(string Tier, string TierLabel, IReadOnlyList<R
 public sealed record AccessRolesDto(
     IReadOnlyList<MatrixModuleDto> Modules,
     IReadOnlyList<string> Actions,
-    IReadOnlyList<RoleGroupDto> Groups);
+    IReadOnlyList<RoleGroupDto> Groups,
+    // cellKey ("module:action") → the permission codes that cell grants (for the UI fan-out tooltip).
+    IReadOnlyDictionary<string, IReadOnlyList<string>> Cells);
 
 // ── Franchises tab ──────────────────────────────────────────────────────────
 public sealed record FranchiseCardDto(
@@ -54,6 +56,11 @@ public sealed record InviteRiderRequest(
 
 /// <summary>Toggle a whole matrix cell (assigns/removes all permissions it maps to).</summary>
 public sealed record SetRoleCellRequest(Guid RoleId, string CellKey, bool Enabled);
+
+/// <summary>One cell change in a batch save.</summary>
+public sealed record RoleCellChange(string CellKey, bool Enabled);
+/// <summary>Apply many cell changes to one role atomically (single transaction).</summary>
+public sealed record SetRoleCellsRequest(IReadOnlyList<RoleCellChange> Changes);
 
 /// <summary>
 /// Change a person's account status. <c>Action</c> is one of

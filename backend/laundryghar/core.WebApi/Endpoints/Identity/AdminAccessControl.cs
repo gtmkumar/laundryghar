@@ -1,7 +1,9 @@
 using core.Application.Identity.AccessControl.Commands.InviteRider;
 using core.Application.Identity.AccessControl.Commands.InviteUser;
+using core.Application.Identity.AccessControl.Commands.ManageRoles;
 using core.Application.Identity.AccessControl.Commands.SetPersonStatus;
 using core.Application.Identity.AccessControl.Commands.SetRoleCell;
+using core.Application.Identity.AccessControl.Commands.SetRoleCells;
 using core.Application.Identity.AccessControl.Commands.SetUserPermissionOverride;
 using core.Application.Identity.AccessControl.Dtos;
 using core.Application.Identity.AccessControl.Queries.GetAccessFranchises;
@@ -34,6 +36,12 @@ public class AdminAccessControl : IEndpointGroup
         // Narrow rider-invite: franchise-scoped actors can onboard their own riders.
         group.MapPost(InviteRider, "riders/invite").RequireAuthorization("permission:rider.manage");
         group.MapPost(SetRoleCell, "role-cell").RequireAuthorization("permission:permissions.assign");
+        group.MapPost(SetRoleCells, "roles/{id:guid}/cells").RequireAuthorization("permission:permissions.assign");
+        // Role CRUD (UI-managed custom roles). Gated by roles.manage.
+        group.MapPost(CreateRole, "roles").RequireAuthorization("permission:roles.manage");
+        group.MapPut(UpdateRole, "roles/{id:guid}").RequireAuthorization("permission:roles.manage");
+        group.MapDelete(DeleteRole, "roles/{id:guid}").RequireAuthorization("permission:roles.manage");
+        group.MapPost(CloneRole, "roles/{id:guid}/clone").RequireAuthorization("permission:roles.manage");
         group.MapPost(SetUserPermissionOverride, "people/{id:guid}/permission-override").RequireAuthorization("permission:permissions.assign");
         group.MapPost(SetPersonStatus, "people/{id:guid}/status").RequireAuthorization("permission:users.update");
     }
@@ -75,6 +83,36 @@ public class AdminAccessControl : IEndpointGroup
     {
         var ok = await dispatcher.SendAsync(new SetRoleCellCommand(req, user.UserId), ct);
         return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> SetRoleCells(Guid id, SetRoleCellsRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new SetRoleCellsCommand(id, req, user.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> CreateRole(CreateRoleRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var data = await dispatcher.SendAsync(new CreateRoleCommand(req, user.UserId), ct);
+        return Results.Ok(new SingleResponse<RoleSummaryDto> { Status = true, Data = data });
+    }
+
+    public static async Task<IResult> UpdateRole(Guid id, UpdateRoleRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new UpdateRoleCommand(id, req, user.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> DeleteRole(Guid id, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new DeleteRoleCommand(id, user.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> CloneRole(Guid id, CloneRoleRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var data = await dispatcher.SendAsync(new CloneRoleCommand(id, req, user.UserId), ct);
+        return Results.Ok(new SingleResponse<RoleSummaryDto> { Status = true, Data = data });
     }
 
     public static async Task<IResult> SetUserPermissionOverride(Guid id, SetUserPermissionOverrideRequest req,

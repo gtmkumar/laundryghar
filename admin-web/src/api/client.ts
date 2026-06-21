@@ -68,16 +68,28 @@ function rejectQueue(err: unknown) {
 export async function refreshAccessToken(): Promise<string> {
   const { refreshToken, setTokens } = getAuthState()
 
-  const { data } = await axios.post<ApiResponse<TokenResponse>>(
-    `${IDENTITY_URL}/api/v1/auth/refresh`,
-    refreshToken ? { refreshToken } : {},
-    { withCredentials: true },
-  )
-
-  if (!data.status || !data.data) throw new Error('Token refresh failed')
-
-  setTokens(data.data.accessToken, data.data.refreshToken)
-  return data.data.accessToken
+  // Retry transient failures (network blips / 5xx) once before giving up, so a single
+  // flaky request doesn't hard-logout the user. A 401/403 is definitive (no valid
+  // refresh token) — don't retry that, fail fast so the caller redirects to login.
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { data } = await axios.post<ApiResponse<TokenResponse>>(
+        `${IDENTITY_URL}/api/v1/auth/refresh`,
+        refreshToken ? { refreshToken } : {},
+        { withCredentials: true },
+      )
+      if (!data.status || !data.data) throw new Error('Token refresh failed')
+      setTokens(data.data.accessToken, data.data.refreshToken)
+      return data.data.accessToken
+    } catch (err) {
+      lastErr = err
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 401 || status === 403) break // definitive — stop retrying
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 400)) // transient — brief backoff
+    }
+  }
+  throw lastErr
 }
 
 // ── Store accessors (called at request-time, not module-init time) ────────────
