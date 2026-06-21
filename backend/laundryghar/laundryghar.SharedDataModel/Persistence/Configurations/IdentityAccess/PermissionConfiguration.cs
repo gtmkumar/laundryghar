@@ -15,6 +15,7 @@ public sealed class PermissionConfiguration : IEntityTypeConfiguration<Permissio
 
         b.Property(e => e.Code).HasColumnName("code").HasMaxLength(100).IsRequired();
         b.Property(e => e.Module).HasColumnName("module").HasMaxLength(50).IsRequired();
+        b.Property(e => e.ModuleKey).HasColumnName("module_key").HasMaxLength(64);
         b.Property(e => e.Action).HasColumnName("action").HasMaxLength(50).IsRequired();
         b.Property(e => e.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
         b.Property(e => e.Description).HasColumnName("description");

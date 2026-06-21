@@ -7,14 +7,16 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { PeopleTab } from './PeopleTab'
 import { RolesTab } from './RolesTab'
 import { FranchisesTab } from './FranchisesTab'
+import { EntitlementsTab } from './EntitlementsTab'
 import { InviteUserModal } from './InviteUserModal'
 
-type TabKey = 'people' | 'roles' | 'franchises'
+type TabKey = 'people' | 'roles' | 'franchises' | 'modules'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'people', label: 'People' },
   { key: 'roles', label: 'Roles & Permissions' },
   { key: 'franchises', label: 'Franchises' },
+  { key: 'modules', label: 'Modules' },
 ]
 
 export function AccessControlPage() {
@@ -24,6 +26,8 @@ export function AccessControlPage() {
 
   const { hasPermission } = usePermissions()
   const canInvite = hasPermission('users.create')
+  const canEntitlements = hasPermission('saas.read')
+  const visibleTabs = TABS.filter((t) => t.key !== 'modules' || canEntitlements)
 
   const [search, setSearch] = useState('')
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -56,6 +60,7 @@ export function AccessControlPage() {
     people: people.data?.pages[0]?.counts.all,
     roles: rolesCount,
     franchises: franchises.data ? franchiseTotal : undefined,
+    modules: undefined,
   }
 
   return (
@@ -90,7 +95,7 @@ export function AccessControlPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-gray-200">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.key}
             type="button"
@@ -122,6 +127,7 @@ export function AccessControlPage() {
       {tab === 'people' && <PeopleTab query={people} sort={peopleSort} onSort={toggleSort} />}
       {tab === 'roles' && <RolesTab query={roles} search={term} />}
       {tab === 'franchises' && <FranchisesTab query={franchises} />}
+      {tab === 'modules' && canEntitlements && <EntitlementsTab />}
 
       <InviteUserModal
         open={inviteOpen}

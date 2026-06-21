@@ -37,7 +37,15 @@ public class Auth : IEndpointGroup
 
     // Path the cookie is scoped to. The browser only sends `lg_refresh` to the
     // refresh endpoint, never to any other route — minimizing exposure surface.
-    private const string RefreshCookiePath = "/api/v1/auth/refresh";
+    //
+    // IMPORTANT: admin-web reaches Identity through the gateway, which serves it
+    // under the "/identity" prefix (VITE_IDENTITY_URL = http://host:8080/identity)
+    // and strips that prefix before forwarding here. A cookie Path is matched by
+    // the browser against the *outgoing request URL*, which still carries the
+    // "/identity" prefix — so the Path MUST include it, otherwise the browser
+    // never sends the cookie back and cookie-backed silent refresh (after a hard
+    // reload, when the in-memory refresh token is gone) always 401s.
+    private const string RefreshCookiePath = "/identity/api/v1/auth/refresh";
 
     public static void Map(RouteGroupBuilder group)
     {

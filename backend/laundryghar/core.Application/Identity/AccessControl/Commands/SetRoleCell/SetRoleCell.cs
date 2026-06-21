@@ -50,6 +50,9 @@ public class SetRoleCellCommandHandler : ICommandHandler<SetRoleCellCommand, boo
         }
 
         await _db.SaveChangesAsync(ct);
+
+        // Invalidate tokens of everyone holding this role (live revocation).
+        await core.Application.Identity.Common.PermVersionBumper.BumpRoleHoldersAsync(_db, roleId, ct);
         return true;
     }
 }

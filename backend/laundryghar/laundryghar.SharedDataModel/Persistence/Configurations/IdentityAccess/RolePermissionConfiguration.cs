@@ -15,6 +15,7 @@ public sealed class RolePermissionConfiguration : IEntityTypeConfiguration<RoleP
 
         b.Property(e => e.RoleId).HasColumnName("role_id").IsRequired();
         b.Property(e => e.PermissionId).HasColumnName("permission_id").IsRequired();
+        b.Property(e => e.Effect).HasColumnName("effect").HasMaxLength(16).IsRequired();
         b.Property(e => e.GrantedAt).HasColumnName("granted_at").IsRequired();
         b.Property(e => e.GrantedBy).HasColumnName("granted_by");
         b.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();

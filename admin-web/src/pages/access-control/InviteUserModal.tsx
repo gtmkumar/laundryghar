@@ -3,6 +3,7 @@ import { UserPlus, MailCheck, ShieldCheck } from 'lucide-react'
 import { useInviteUser } from '@/hooks/useAccessControl'
 import { useSettings } from '@/hooks/useSettings'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useEffectiveBrandId } from '@/hooks/useBrandContext'
 import { FormDrawer, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import type { AccessRoles, AccessFranchise, InviteUserPayload } from '@/types/api'
 
@@ -26,6 +27,7 @@ function userTypeForRole(code: string, scopeType: string): string {
 export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
   const invite = useInviteUser()
   const { hasPermission } = usePermissions()
+  const effectiveBrandId = useEffectiveBrandId()
   const canInvite = hasPermission('users.create')
   const settings = useSettings()
   const selfService = settings.data?.provisioning.mode === 'self_service'
@@ -63,14 +65,28 @@ export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
       setError('Pick a franchise for this role.')
       return
     }
+
+    // Bind the membership to the right scope id, otherwise the invited user's
+    // token carries no brand_id and tenant-scoped services reject them with 401:
+    //  - platform roles → no tenant id;
+    //  - brand roles    → the active brand;
+    //  - franchise/store/warehouse roles → the picked franchise.
+    const scopeType = role.scopeType === 'platform' ? 'platform' : isFranchiseScoped ? 'franchise' : 'brand'
+    let scopeId: string | null = null
+    if (scopeType === 'brand') {
+      if (!effectiveBrandId) { setError('No active brand selected — pick a brand from the switcher first.'); return }
+      scopeId = effectiveBrandId
+    } else if (isFranchiseScoped) {
+      scopeId = franchiseId
+    }
     const payload: InviteUserPayload = {
       email: email.trim(),
       firstName: firstName.trim() || undefined,
       lastName: lastName.trim() || undefined,
       userType: userTypeForRole(role.code, role.scopeType),
       roleId: role.id,
-      scopeType: isFranchiseScoped ? 'franchise' : 'brand',
-      scopeId: isFranchiseScoped ? franchiseId : null,
+      scopeType,
+      scopeId,
     }
     try {
       await invite.mutateAsync(payload)

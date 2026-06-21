@@ -344,6 +344,11 @@ if (runSeed)
         var seeder = ActivatorUtilities.CreateInstance<core.Infrastructure.Seeders.IdentitySeeder>(
             scope.ServiceProvider, seedDb);
         await seeder.SeedAsync();
+
+        // Read-only invariants check over the permission registry (logs drift/overlaps).
+        var regLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("PermissionRegistry");
+        await core.Infrastructure.Seeders.PermissionRegistryValidator.ValidateAndLogAsync(seedDb, regLogger);
     }
 }
 

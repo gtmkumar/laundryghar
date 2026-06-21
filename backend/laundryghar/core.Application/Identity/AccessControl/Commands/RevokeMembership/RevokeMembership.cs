@@ -17,6 +17,9 @@ public class RevokeMembershipCommandHandler : ICommandHandler<RevokeMembershipCo
         if (m is null || m.RevokedAt.HasValue) return false;
         m.RevokedAt = DateTimeOffset.UtcNow; m.RevokedBy = cmd.ActorId; m.RevokedReason = cmd.Request.Reason;
         await _db.SaveChangesAsync(ct);
+
+        // Invalidate the user's existing tokens (live revocation).
+        await core.Application.Identity.Common.PermVersionBumper.BumpUserAsync(_db, m.UserId, ct);
         return true;
     }
 }

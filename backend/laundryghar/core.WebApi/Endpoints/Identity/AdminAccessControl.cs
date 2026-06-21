@@ -2,6 +2,7 @@ using core.Application.Identity.AccessControl.Commands.InviteRider;
 using core.Application.Identity.AccessControl.Commands.InviteUser;
 using core.Application.Identity.AccessControl.Commands.SetPersonStatus;
 using core.Application.Identity.AccessControl.Commands.SetRoleCell;
+using core.Application.Identity.AccessControl.Commands.SetUserPermissionOverride;
 using core.Application.Identity.AccessControl.Dtos;
 using core.Application.Identity.AccessControl.Queries.GetAccessFranchises;
 using core.Application.Identity.AccessControl.Queries.GetAccessPeople;
@@ -33,6 +34,7 @@ public class AdminAccessControl : IEndpointGroup
         // Narrow rider-invite: franchise-scoped actors can onboard their own riders.
         group.MapPost(InviteRider, "riders/invite").RequireAuthorization("permission:rider.manage");
         group.MapPost(SetRoleCell, "role-cell").RequireAuthorization("permission:permissions.assign");
+        group.MapPost(SetUserPermissionOverride, "people/{id:guid}/permission-override").RequireAuthorization("permission:permissions.assign");
         group.MapPost(SetPersonStatus, "people/{id:guid}/status").RequireAuthorization("permission:users.update");
     }
 
@@ -72,6 +74,13 @@ public class AdminAccessControl : IEndpointGroup
     public static async Task<IResult> SetRoleCell(SetRoleCellRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
     {
         var ok = await dispatcher.SendAsync(new SetRoleCellCommand(req, user.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> SetUserPermissionOverride(Guid id, SetUserPermissionOverrideRequest req,
+        ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new SetUserPermissionOverrideCommand(id, req, user.UserId), ct);
         return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
     }
 

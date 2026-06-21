@@ -33,6 +33,9 @@ public class User : IAuditableEntity, ISoftDeletable
     public Guid? CreatedBy { get; set; }
     public Guid? UpdatedBy { get; set; }
     public int Version { get; set; }
+    /// <summary>Bumped whenever the user's effective permissions change (role/entitlement).
+    /// Stamped into the JWT; a token with a stale value is rejected to force a refresh.</summary>
+    public int PermVersion { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
 
     // Navigations

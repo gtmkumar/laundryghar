@@ -56,6 +56,7 @@ public sealed class JwtTokenService : IJwtTokenService
             claimsList.Add(new Claim("store_id", claims.StoreId.Value.ToString()));
         if (!string.IsNullOrEmpty(claims.Permissions))
             claimsList.Add(new Claim("permissions", claims.Permissions));
+        claimsList.Add(new Claim(TokenClaims.PermVersionClaim, claims.PermVersion.ToString()));
 
         return WriteToken(claimsList, creds);
     }

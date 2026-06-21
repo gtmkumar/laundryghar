@@ -40,6 +40,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(e => e.CreatedBy).HasColumnName("created_by");
         b.Property(e => e.UpdatedBy).HasColumnName("updated_by");
         b.Property(e => e.Version).HasColumnName("version").IsRequired();
+        b.Property(e => e.PermVersion).HasColumnName("perm_version").IsRequired();
         b.Property(e => e.DeletedAt).HasColumnName("deleted_at");
 
         b.HasIndex(e => e.Email).IsUnique().HasDatabaseName("users_email_key");

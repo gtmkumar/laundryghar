@@ -63,6 +63,12 @@ public static class DependencyInjection
         // any SQL executes. No leakage across pooled connections.
         services.AddScoped<RlsConnectionInterceptor>();
 
+        // Live-revocation token-version guard (used by TenantResolutionMiddleware when
+        // Auth:EnforceTokenVersion is on). Scoped: reads through the per-request DbContext.
+        services.AddMemoryCache();
+        services.AddScoped<laundryghar.SharedDataModel.Contracts.ITokenVersionStore,
+            laundryghar.SharedDataModel.Persistence.TokenVersionStore>();
+
         services.AddDbContext<LaundryGharDbContext>((sp, options) =>
         {
             options.UseNpgsql(connectionString, npgsql =>

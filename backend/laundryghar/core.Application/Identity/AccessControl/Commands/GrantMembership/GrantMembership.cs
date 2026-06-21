@@ -32,28 +32,42 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
                 "Only a platform_admin may grant the platform_admin role.");
         }
 
+        // ── Defense-in-depth: a brand-scoped role MUST bind to a concrete brand ──
+        // The UI sends it, but if it's missing fall back to the actor's own brand and
+        // reject if neither is available. Persisting a brand membership with a null
+        // scope issues a token with no brand_id, which locks the user out of every
+        // tenant-scoped service (orders/warehouse/…) with a 401.
+        var effectiveScopeId = cmd.Request.ScopeId;
+        if (cmd.Request.ScopeType == laundryghar.SharedDataModel.Enums.ScopeType.Brand
+            && effectiveScopeId is null)
+        {
+            effectiveScopeId = actor.BrandId
+                ?? throw new laundryghar.Utilities.Exceptions.ValidationException(
+                    new Dictionary<string, string[]> { ["scopeId"] = ["Brand-scoped roles require a brand id."] });
+        }
+
         // ── H2b: actor's scope must cover the target ScopeId ──
         // Platform admins bypass scope checks (they manage all brands).
-        if (!actor.IsPlatformAdmin && cmd.Request.ScopeId.HasValue)
+        if (!actor.IsPlatformAdmin && effectiveScopeId.HasValue)
         {
             // Resolve the brand of the target scope
             Guid? targetBrandId = cmd.Request.ScopeType switch
             {
                 laundryghar.SharedDataModel.Enums.ScopeType.Brand =>
-                    cmd.Request.ScopeId,
+                    effectiveScopeId,
                 laundryghar.SharedDataModel.Enums.ScopeType.Franchise =>
                     await _db.Franchises.AsNoTracking()
-                        .Where(f => f.Id == cmd.Request.ScopeId)
+                        .Where(f => f.Id == effectiveScopeId)
                         .Select(f => (Guid?)f.BrandId)
                         .FirstOrDefaultAsync(ct),
                 laundryghar.SharedDataModel.Enums.ScopeType.Store =>
                     await _db.Stores.AsNoTracking()
-                        .Where(s => s.Id == cmd.Request.ScopeId)
+                        .Where(s => s.Id == effectiveScopeId)
                         .Select(s => (Guid?)s.BrandId)
                         .FirstOrDefaultAsync(ct),
                 laundryghar.SharedDataModel.Enums.ScopeType.Warehouse =>
                     await _db.Warehouses.AsNoTracking()
-                        .Where(w => w.Id == cmd.Request.ScopeId)
+                        .Where(w => w.Id == effectiveScopeId)
                         .Select(w => (Guid?)w.BrandId)
                         .FirstOrDefaultAsync(ct),
                 _ => null
@@ -103,7 +117,7 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
             Id        = Guid.NewGuid(),
             UserId    = cmd.Request.UserId,
             ScopeType = cmd.Request.ScopeType,
-            ScopeId   = cmd.Request.ScopeId,
+            ScopeId   = effectiveScopeId,
             RoleId    = cmd.Request.RoleId,
             IsPrimary = cmd.Request.IsPrimary,
             GrantedAt = DateTimeOffset.UtcNow,
@@ -114,6 +128,9 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
         };
         _db.UserScopeMemberships.Add(membership);
         await _db.SaveChangesAsync(ct);
+
+        // Invalidate the target user's existing tokens (live revocation).
+        await Common.PermVersionBumper.BumpUserAsync(_db, cmd.Request.UserId, ct);
 
         return new MembershipDto(
             membership.Id, membership.UserId, membership.ScopeType, membership.ScopeId,

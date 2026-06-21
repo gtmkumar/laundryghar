@@ -8,6 +8,8 @@ public class RolePermission
     public Guid Id { get; set; }
     public Guid RoleId { get; set; }
     public Guid PermissionId { get; set; }
+    /// <summary>'allow' (default) or 'deny'. Deny wins, enabling broad roles with precise exceptions.</summary>
+    public string Effect { get; set; } = "allow";
     public DateTimeOffset GrantedAt { get; set; }
     public Guid? GrantedBy { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

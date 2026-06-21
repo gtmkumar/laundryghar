@@ -42,7 +42,11 @@ public interface ICoreDbContext
     DbSet<UserScopeMembership> UserScopeMemberships { get; }
     DbSet<Permission> Permissions { get; }
     DbSet<RolePermission> RolePermissions { get; }
+    DbSet<UserPermissionOverride> UserPermissionOverrides { get; }
     DbSet<AppModule> Modules { get; }
+    DbSet<BrandModule> BrandModules { get; }
+    DbSet<ModuleBundle> ModuleBundles { get; }
+    DbSet<ModuleBundleItem> ModuleBundleItems { get; }
 
     // ─── Identity access (system auth: login / OTP / refresh / password reset) ─
     DbSet<RefreshToken> RefreshTokens { get; }

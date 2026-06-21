@@ -7,6 +7,7 @@ using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
 using laundryghar.SharedDataModel.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RefreshTokenEntity = laundryghar.SharedDataModel.Entities.IdentityAccess.RefreshToken;
@@ -28,6 +29,7 @@ public sealed class PasswordLoginHandler : ICommandHandler<PasswordLoginCommand,
     private readonly IJwtTokenService        _jwt;
     private readonly IRefreshTokenRepository _refreshTokens;
     private readonly JwtSettings             _jwtSettings;
+    private readonly IConfiguration          _config;
     private readonly ILogger<PasswordLoginHandler> _logger;
 
     public PasswordLoginHandler(
@@ -36,6 +38,7 @@ public sealed class PasswordLoginHandler : ICommandHandler<PasswordLoginCommand,
         IJwtTokenService jwt,
         IRefreshTokenRepository refreshTokens,
         IOptions<JwtSettings> jwtOptions,
+        IConfiguration config,
         ILogger<PasswordLoginHandler> logger)
     {
         _db            = db;
@@ -43,6 +46,7 @@ public sealed class PasswordLoginHandler : ICommandHandler<PasswordLoginCommand,
         _jwt           = jwt;
         _refreshTokens = refreshTokens;
         _jwtSettings   = jwtOptions.Value;
+        _config        = config;
         _logger        = logger;
     }
 
@@ -104,7 +108,8 @@ public sealed class PasswordLoginHandler : ICommandHandler<PasswordLoginCommand,
         user.UpdatedAt      = DateTimeOffset.UtcNow;
 
         // Build token claims
-        var claims = await ScopeResolver.BuildTokenClaimsAsync(_db, user, ct: ct);
+        var claims = await ScopeResolver.BuildTokenClaimsAsync(
+            _db, user, enforceEntitlement: _config.GetValue<bool>("Entitlement:Enforced"), ct: ct);
         var accessToken = _jwt.CreateAccessToken(claims);
 
         // Refresh token

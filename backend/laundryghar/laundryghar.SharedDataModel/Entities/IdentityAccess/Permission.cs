@@ -7,6 +7,9 @@ public class Permission
     public Guid Id { get; set; }
     public string Code { get; set; } = null!;
     public string Module { get; set; } = null!;
+    /// <summary>Canonical owning navigator module (identity_access.modules.key) for entitlement.
+    /// Null = unowned (orphan) → entitlement never filters it out. See permission_canonical_module.sql.</summary>
+    public string? ModuleKey { get; set; }
     public string Action { get; set; } = null!;
     public string Name { get; set; } = null!;
     public string? Description { get; set; }

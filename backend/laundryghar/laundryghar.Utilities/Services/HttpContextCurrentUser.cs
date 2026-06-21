@@ -37,19 +37,19 @@ public sealed class HttpContextCurrentUser : ICurrentUser
                     .Contains(permissionCode, StringComparer.OrdinalIgnoreCase);
     }
 
-    public Guid RequireBrandId()
+    public Guid? TryGetBrandId()
     {
         if (_accessor.HttpContext?.Items.TryGetValue("brand_id_override", out var overrideVal) == true
             && overrideVal is Guid overrideGuid && overrideGuid != Guid.Empty)
             return overrideGuid;
 
-        var claimBrand = BrandId;
-        if (claimBrand.HasValue && claimBrand.Value != Guid.Empty)
-            return claimBrand.Value;
-
-        throw new UnauthorizedAccessException(
-            "Brand context required. For platform admins, pass the X-Brand-Id header.");
+        return BrandId is { } b && b != Guid.Empty ? b : null;
     }
+
+    public Guid RequireBrandId()
+        => TryGetBrandId()
+           ?? throw new UnauthorizedAccessException(
+               "Brand context required. For platform admins, pass the X-Brand-Id header.");
 
     private string? Claim(string type) => Principal?.FindFirstValue(type);
     private Guid? ParseGuid(string type) => Guid.TryParse(Claim(type), out var g) ? g : null;

@@ -5,6 +5,8 @@ import { FormDrawer, DetailSection, DetailRow, Field } from '@/components/shared
 import { useUser, useUpdateUser, useChangeUserRole } from '@/hooks/useUsers'
 import { useAccessRoles, useAccessFranchises } from '@/hooks/useAccessControl'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useEffectiveBrandId } from '@/hooks/useBrandContext'
+import { useAuthStore } from '@/stores/authStore'
 import { statusTone } from './FranchiseTeamShared'
 import type { UserEmploymentType, UserKycStatus } from '@/types/api'
 
@@ -58,11 +60,18 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
   const update = useUpdateUser()
   const changeRole = useChangeUserRole()
   const { hasPermission } = usePermissions()
+  // The brand a brand-scoped membership must bind to: the JWT brand_id for
+  // brand-scoped admins, or the platform-admin's active brand selection.
+  const effectiveBrandId = useEffectiveBrandId()
+  const currentUserId = useAuthStore((s) => s.user?.sub)
   const rolesQ = useAccessRoles()
   const franchisesQ = useAccessFranchises()
   const allRoles = rolesQ.data?.groups.flatMap((g) => g.roles) ?? []
   const franchises = franchisesQ.data?.pages.flatMap((p) => p.list) ?? []
-  const canChangeRole = hasPermission('memberships.grant')
+  // No one may change their OWN role — a self-lockout / self-escalation guard that
+  // applies to everyone with grant rights, platform admins included.
+  const isSelf = !!currentUserId && currentUserId === person?.id
+  const canChangeRole = hasPermission('memberships.grant') && !isSelf
 
   const [roleEditing, setRoleEditing] = useState(false)
   const [newRoleId, setNewRoleId] = useState('')
@@ -121,14 +130,24 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
     if (!role) { setRoleErr('Pick a role.'); return }
     const franchiseScoped = role.scopeType !== 'platform' && role.scopeType !== 'brand'
     if (franchiseScoped && !newFranchiseId) { setRoleErr('Pick a franchise for this role.'); return }
+
+    // Bind the membership to the right scope id, otherwise the issued JWT carries
+    // no brand_id and tenant-scoped services (orders, etc.) reject the user with 401:
+    //  - platform roles → no tenant id;
+    //  - brand roles    → the active brand;
+    //  - franchise/store/warehouse roles → the picked franchise.
+    const scopeType = role.scopeType === 'platform' ? 'platform' : franchiseScoped ? 'franchise' : 'brand'
+    let scopeId: string | null = null
+    if (scopeType === 'brand') {
+      if (!effectiveBrandId) { setRoleErr('No active brand selected — pick a brand from the switcher first.'); return }
+      scopeId = effectiveBrandId
+    } else if (franchiseScoped) {
+      scopeId = newFranchiseId
+    }
     try {
       await changeRole.mutateAsync({
         id: person.id,
-        payload: {
-          roleId: role.id,
-          scopeType: franchiseScoped ? 'franchise' : 'brand',
-          scopeId: franchiseScoped ? newFranchiseId : null,
-        },
+        payload: { roleId: role.id, scopeType, scopeId },
       })
       setRoleOverride({ name: role.name, scope: franchiseScoped ? (franchises.find((f) => f.id === newFranchiseId)?.name ?? 'Franchise') : 'All / brand' })
       setRoleEditing(false); setNewRoleId(''); setNewFranchiseId('')
@@ -306,6 +325,9 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                       >
                         <Pencil className="h-3.5 w-3.5" /> Change role
                       </button>
+                    )}
+                    {isSelf && hasPermission('memberships.grant') && (
+                      <p className="mt-2 text-xs text-gray-400">You can’t change your own role.</p>
                     )}
                   </>
                 )}

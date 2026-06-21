@@ -23,6 +23,12 @@ public class ChangePrimaryRoleCommandHandler : ICommandHandler<ChangePrimaryRole
 
     public async Task<MembershipDto> HandleAsync(ChangePrimaryRoleCommand cmd, CancellationToken ct)
     {
+        // No one may change their OWN primary role — a self-lockout / self-escalation
+        // guard enforced server-side so it holds regardless of the UI (the drawer also
+        // hides the control). Applies to everyone, platform admins included.
+        if (cmd.ActorId.HasValue && cmd.ActorId.Value == cmd.UserId)
+            throw new UnauthorizedAccessException("You cannot change your own role.");
+
         // Snapshot the current primary membership(s) before changing anything.
         var oldPrimaryIds = await _db.UserScopeMemberships
             .Where(m => m.UserId == cmd.UserId && m.IsPrimary && m.RevokedAt == null)

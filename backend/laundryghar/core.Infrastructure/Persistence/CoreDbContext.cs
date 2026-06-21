@@ -45,7 +45,11 @@ public sealed class CoreDbContext : ICoreDbContext
     public DbSet<UserScopeMembership> UserScopeMemberships => _db.UserScopeMemberships;
     public DbSet<Permission> Permissions => _db.Permissions;
     public DbSet<RolePermission> RolePermissions => _db.RolePermissions;
+    public DbSet<UserPermissionOverride> UserPermissionOverrides => _db.UserPermissionOverrides;
     public DbSet<AppModule> Modules => _db.Modules;
+    public DbSet<BrandModule> BrandModules => _db.BrandModules;
+    public DbSet<ModuleBundle> ModuleBundles => _db.ModuleBundles;
+    public DbSet<ModuleBundleItem> ModuleBundleItems => _db.ModuleBundleItems;
 
     public DbSet<RefreshToken> RefreshTokens => _db.RefreshTokens;
     public DbSet<LoginHistory> LoginHistories => _db.LoginHistories;

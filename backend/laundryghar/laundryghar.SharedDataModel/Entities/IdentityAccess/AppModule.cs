@@ -17,6 +17,9 @@ public class AppModule
     public bool ShowInMatrix { get; set; }
     public string? RequiredPermission { get; set; }
     public string[] PermissionModules { get; set; } = [];
+    /// <summary>Always-on module that bypasses brand entitlement (e.g. dashboard,
+    /// settings, users) so a brand can never lock its own admins out.</summary>
+    public bool IsCore { get; set; }
     public string Status { get; set; } = null!;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

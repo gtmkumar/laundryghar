@@ -17,6 +17,12 @@ public interface ICurrentUser
     bool IsPlatformAdmin { get; }
     bool HasPermission(string permissionCode);
 
+    /// <summary>Effective brand without throwing: the X-Brand-Id override (HttpContext
+    /// item "brand_id_override") if present, else JWT brand_id, else null. Use for read
+    /// paths (e.g. navigation/entitlement) that should degrade gracefully when no brand
+    /// context is set rather than 401.</summary>
+    Guid? TryGetBrandId();
+
     /// <summary>Effective brand for write operations. Platform admins: X-Brand-Id override
     /// (HttpContext item "brand_id_override") if present, else JWT brand_id.
     /// Throws <see cref="UnauthorizedAccessException"/> if no brand can be resolved.</summary>

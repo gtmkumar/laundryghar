@@ -63,6 +63,7 @@ public sealed class IdentitySeeder
         _logger.LogInformation("Running identity seeders...");
 
         var permissions = await SeedPermissionsAsync(ct);
+        await AssignPermissionModuleKeysAsync(ct);
         var roles = await SeedRolesAsync(ct);
         await SeedRolePermissionsAsync(permissions, roles, ct);
         var (platform, brand) = await SeedOrgHierarchyAsync(ct);
@@ -284,6 +285,51 @@ public sealed class IdentitySeeder
         }
 
         return existing;
+    }
+
+    // ─── 1b. Canonical owning module for each permission (entitlement) ───────
+    // Assigns permissions.module_key for any permission still missing it (newly seeded,
+    // or pre-patch rows). Mirrors db/patches/permission_canonical_module.sql so a fresh
+    // permission added in code is owned without re-running the patch. Requires the modules
+    // catalogue to exist (seeded via SQL); a no-op otherwise (validator surfaces orphans).
+    private async Task AssignPermissionModuleKeysAsync(CancellationToken ct)
+    {
+        var unowned = await _db.Permissions.Where(p => p.ModuleKey == null).ToListAsync(ct);
+        if (unowned.Count == 0) return;
+
+        var modules = await _db.Modules.AsNoTracking()
+            .Select(m => new { m.Key, m.NavOrder, m.PermissionModules })
+            .ToListAsync(ct);
+        if (modules.Count == 0) return;
+
+        static bool IsAggregator(string key) => key is "settings" or "dashboard";
+
+        string? OwnerFor(string tag)
+        {
+            // (a) exact key match wins
+            var exact = modules.FirstOrDefault(m => string.Equals(m.Key, tag, StringComparison.OrdinalIgnoreCase));
+            if (exact is not null) return exact.Key;
+            // (b) module listing the tag — prefer a dedicated module, then lowest nav_order
+            return modules
+                .Where(m => m.PermissionModules.Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)))
+                .OrderBy(m => IsAggregator(m.Key) ? 1 : 0)
+                .ThenBy(m => m.NavOrder)
+                .Select(m => (string?)m.Key)
+                .FirstOrDefault();
+        }
+
+        int assigned = 0;
+        foreach (var p in unowned)
+        {
+            var owner = OwnerFor(p.Module);
+            if (owner is not null) { p.ModuleKey = owner; assigned++; }
+        }
+
+        if (assigned > 0)
+        {
+            await _db.SaveChangesAsync(ct);
+            _logger.LogInformation("Assigned canonical module_key to {Count} permission(s).", assigned);
+        }
     }
 
     // ─── 2. Roles ──────────────────────────────────────────────────────────
@@ -523,6 +569,36 @@ public sealed class IdentitySeeder
         // by RiderOnly + these codes (least privilege: no orders.* grants).
         Grant("rider", [
             "rider.tasks.read","rider.tasks.update",
+        ]);
+
+        // regional_manager — brand-scoped operational oversight across the brand's
+        // stores: full order/logistics/warehouse management, read-only finance &
+        // analytics, and team visibility. No destructive admin (no user/role grants,
+        // no pricing edits, no finance writes). Previously shipped with ZERO
+        // permissions, leaving anyone assigned the role able to see only the
+        // ungated Dashboard + CMS.
+        Grant("regional_manager", [
+            // Org visibility
+            "stores.list","stores.read","warehouses.list","franchises.list","franchises.read",
+            // Orders — full lifecycle
+            "orders.list","orders.read","orders.update","orders.cancel",
+            "orders.status.update","orders.notes.manage",
+            // Pickup / delivery
+            "pickup.read","pickup.create","pickup.assign",
+            "delivery.slot.read","delivery.slot.manage","delivery.assign",
+            // Warehouse / garments
+            "garment.read","garment.tag","garment.inspect",
+            "warehouse.batch.manage","warehouse.process.scan","qc.perform","stockrecon.manage",
+            // Riders / logistics
+            "rider.read","rider.manage","rider.assignment.read","rider.assignment.manage","rider.capacity.manage",
+            // Customers + catalog/pricing read
+            "customer.read","customer.update","catalog.read","pricing.read",
+            // POS read
+            "pos.order.read",
+            // Finance + analytics — read only
+            "cashbook.read","expense.read","royalty.read","analytics.read",
+            // Team visibility
+            "users.list","roles.list",
         ]);
 
         // auditor

@@ -6,6 +6,7 @@ using core.Application.Identity.Auth.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using RefreshTokenEntity = laundryghar.SharedDataModel.Entities.IdentityAccess.RefreshToken;
 using LoginHistory = laundryghar.SharedDataModel.Entities.IdentityAccess.LoginHistory;
@@ -21,15 +22,18 @@ public sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand, T
     private readonly ICoreDbContext   _db;
     private readonly IJwtTokenService _jwt;
     private readonly JwtSettings      _jwtSettings;
+    private readonly Microsoft.Extensions.Configuration.IConfiguration _config;
 
     public RefreshTokenHandler(
         ICoreDbContext db,
         IJwtTokenService jwt,
-        IOptions<JwtSettings> jwtOptions)
+        IOptions<JwtSettings> jwtOptions,
+        Microsoft.Extensions.Configuration.IConfiguration config)
     {
         _db          = db;
         _jwt         = jwt;
         _jwtSettings = jwtOptions.Value;
+        _config      = config;
     }
 
     public async Task<TokenResponse> HandleAsync(RefreshTokenCommand cmd, CancellationToken ct)
@@ -72,7 +76,8 @@ public sealed class RefreshTokenHandler : ICommandHandler<RefreshTokenCommand, T
         existing.RevokedReason = "rotated";
 
         // Issue new tokens
-        var claims       = await ScopeResolver.BuildTokenClaimsAsync(_db, user, ct: ct);
+        var claims       = await ScopeResolver.BuildTokenClaimsAsync(
+            _db, user, enforceEntitlement: _config.GetValue<bool>("Entitlement:Enforced"), ct: ct);
         var accessToken  = _jwt.CreateAccessToken(claims);
         var rawRefresh   = _jwt.GenerateRefreshTokenRaw();
         var newTokenHash = _jwt.HashRefreshToken(rawRefresh);

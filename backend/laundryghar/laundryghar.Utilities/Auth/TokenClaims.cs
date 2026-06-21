@@ -16,11 +16,16 @@ public sealed record TokenClaims(
     Guid? FranchiseId,
     Guid? StoreId,
     // Space-separated permission codes
-    string Permissions
+    string Permissions,
+    // Snapshot of the user's perm_version at issuance (for live revocation). Default 0.
+    int PermVersion = 0
 )
 {
     /// <summary>Fixed token_use value for system users. Pinned for Catalog service contract.</summary>
     public const string TokenUseValue = "user";
+
+    /// <summary>JWT claim name carrying <see cref="PermVersion"/>.</summary>
+    public const string PermVersionClaim = "perm_ver";
 }
 
 /// <summary>

@@ -2021,6 +2021,35 @@ export interface AccessFranchises {
   franchises: AccessFranchise[]
 }
 
+// ── Entitlements (PaaS per-brand module licensing) ──────────────────────────
+export interface BrandModuleEntitlement {
+  key: string
+  label: string
+  section: string | null
+  isCore: boolean
+  entitled: boolean
+  source: string | null // 'bundle' | 'manual' | 'core' | null
+  validUntil: string | null
+}
+
+export interface BrandEntitlements {
+  brandId: string
+  brandName: string
+  modules: BrandModuleEntitlement[]
+}
+
+export interface ModuleBundleItem {
+  key: string
+  label: string
+}
+
+export interface ModuleBundle {
+  code: string
+  name: string
+  description: string | null
+  items: ModuleBundleItem[]
+}
+
 export interface InviteUserPayload {
   email: string
   phone?: string

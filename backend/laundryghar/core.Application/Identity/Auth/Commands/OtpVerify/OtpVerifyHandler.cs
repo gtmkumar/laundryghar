@@ -8,6 +8,7 @@ using laundryghar.SharedDataModel.Entities.IdentityAccess;
 using laundryghar.SharedDataModel.Enums;
 using laundryghar.Utilities.Exceptions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using RefreshTokenEntity = laundryghar.SharedDataModel.Entities.IdentityAccess.RefreshToken;
@@ -31,6 +32,7 @@ public sealed class OtpVerifyHandler : ICommandHandler<OtpVerifyCommand, OtpVeri
     private readonly JwtSettings             _jwtSettings;
     private readonly OtpSettings             _otpSettings;
     private readonly IHostEnvironment        _env;
+    private readonly Microsoft.Extensions.Configuration.IConfiguration _config;
 
     public OtpVerifyHandler(
         ICoreDbContext db,
@@ -38,7 +40,8 @@ public sealed class OtpVerifyHandler : ICommandHandler<OtpVerifyCommand, OtpVeri
         IRefreshTokenRepository refreshTokens,
         IOptions<JwtSettings> jwtOptions,
         IOptions<OtpSettings> otpOptions,
-        IHostEnvironment env)
+        IHostEnvironment env,
+        Microsoft.Extensions.Configuration.IConfiguration config)
     {
         _db            = db;
         _jwt           = jwt;
@@ -46,6 +49,7 @@ public sealed class OtpVerifyHandler : ICommandHandler<OtpVerifyCommand, OtpVeri
         _jwtSettings   = jwtOptions.Value;
         _otpSettings   = otpOptions.Value;
         _env           = env;
+        _config        = config;
     }
 
     /// <summary>
@@ -153,7 +157,8 @@ public sealed class OtpVerifyHandler : ICommandHandler<OtpVerifyCommand, OtpVeri
             : IPAddress.TryParse(cmd.IpAddress, out var ip) ? ip : null;
 
         // Issue tokens
-        var claims       = await ScopeResolver.BuildTokenClaimsAsync(_db, user, ct: ct);
+        var claims       = await ScopeResolver.BuildTokenClaimsAsync(
+            _db, user, enforceEntitlement: _config.GetValue<bool>("Entitlement:Enforced"), ct: ct);
         var accessToken  = _jwt.CreateAccessToken(claims);
         var rawRefresh   = _jwt.GenerateRefreshTokenRaw();
         var tokenHash    = _jwt.HashRefreshToken(rawRefresh);
