@@ -104,6 +104,10 @@ public sealed class UpdatePriceListItemHandler : ICommandHandler<UpdatePriceList
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.PriceListId == cmd.PriceListId && x.BrandId == brandId, ct);
         if (e is null) return null;
 
+        var before = Snapshot(e);
+        var oldBase = e.BasePrice;
+        var label = string.IsNullOrWhiteSpace(e.DisplayLabel) ? "Price row" : e.DisplayLabel!;
+
         var req = cmd.Request;
         e.BasePrice       = req.BasePrice;
         e.ExpressPrice    = req.ExpressPrice;
@@ -116,9 +120,21 @@ public sealed class UpdatePriceListItemHandler : ICommandHandler<UpdatePriceList
         e.UpdatedAt       = DateTimeOffset.UtcNow;
         e.UpdatedBy       = cmd.ActorId;
 
+        var summary = oldBase != e.BasePrice
+            ? $"{label}: base ₹{oldBase:0.##} → ₹{e.BasePrice:0.##}"
+            : $"Updated price row “{label}”";
+        operations.Application.Catalog.Pricing.Common.PricingChangeLogger.Add(
+            _db, brandId, "price_list_item", e.Id, summary, before, Snapshot(e), cmd.ActorId, _user.Email);
+
         await _db.SaveChangesAsync(ct);
         return CreatePriceListItemHandler.ToDto(e);
     }
+
+    internal static object Snapshot(laundryghar.SharedDataModel.Entities.CustomerCatalog.PriceListItem e) => new
+    {
+        e.BasePrice, e.ExpressPrice, e.MinimumQuantity, e.TaxRatePercent,
+        e.IsTaxable, e.DisplayLabel, e.Notes, e.IsActive,
+    };
 }
 
 public sealed class CreatePriceListItemValidator : AbstractValidator<CreatePriceListItemRequest>

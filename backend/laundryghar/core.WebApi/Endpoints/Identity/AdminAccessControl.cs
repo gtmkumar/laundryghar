@@ -2,7 +2,6 @@ using core.Application.Identity.AccessControl.Commands.InviteRider;
 using core.Application.Identity.AccessControl.Commands.InviteUser;
 using core.Application.Identity.AccessControl.Commands.ManageRoles;
 using core.Application.Identity.AccessControl.Commands.SetPersonStatus;
-using core.Application.Identity.AccessControl.Commands.SetRoleCell;
 using core.Application.Identity.AccessControl.Commands.SetRoleCells;
 using core.Application.Identity.AccessControl.Commands.SetUserPermissionOverride;
 using core.Application.Identity.AccessControl.Dtos;
@@ -35,7 +34,6 @@ public class AdminAccessControl : IEndpointGroup
         group.MapPost(InviteUser, "invite").RequireAuthorization("permission:users.create");
         // Narrow rider-invite: franchise-scoped actors can onboard their own riders.
         group.MapPost(InviteRider, "riders/invite").RequireAuthorization("permission:rider.manage");
-        group.MapPost(SetRoleCell, "role-cell").RequireAuthorization("permission:permissions.assign");
         group.MapPost(SetRoleCells, "roles/{id:guid}/cells").RequireAuthorization("permission:permissions.assign");
         // Role CRUD (UI-managed custom roles). Gated by roles.manage.
         group.MapPost(CreateRole, "roles").RequireAuthorization("permission:roles.manage");
@@ -77,12 +75,6 @@ public class AdminAccessControl : IEndpointGroup
     {
         var data = await dispatcher.SendAsync(new InviteRiderCommand(req), ct);
         return Results.Ok(new SingleResponse<UserDto> { Status = true, Data = data });
-    }
-
-    public static async Task<IResult> SetRoleCell(SetRoleCellRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
-    {
-        var ok = await dispatcher.SendAsync(new SetRoleCellCommand(req, user.UserId), ct);
-        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
     }
 
     public static async Task<IResult> SetRoleCells(Guid id, SetRoleCellsRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)

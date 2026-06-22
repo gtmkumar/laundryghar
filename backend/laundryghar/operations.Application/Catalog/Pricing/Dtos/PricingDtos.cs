@@ -119,3 +119,27 @@ public sealed record PriceResolutionDto(
     bool IsTaxable,
     string? DisplayLabel
 );
+
+// ── Price matrix (items × fabric columns) ─────────────────────────────────────
+public sealed record PricingMatrixFabricDto(string Code, string Name, decimal Multiplier);
+public sealed record PricingMatrixRowDto(string Label, decimal BasePrice);
+public sealed record PricingMatrixStoreDto(Guid Id, string Name);
+
+public sealed record PricingMatrixDto(
+    string? PriceListName,
+    string? ScopeType,
+    IReadOnlyList<PricingMatrixFabricDto> Fabrics,
+    IReadOnlyList<PricingMatrixRowDto> Rows,
+    IReadOnlyList<PricingMatrixStoreDto> Stores
+);
+
+// ── Change history ────────────────────────────────────────────────────────────
+public sealed record PricingHistoryEntryDto(
+    Guid Id,
+    string TargetKind,
+    Guid TargetId,
+    string Summary,
+    string? ActorName,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? RevertedAt
+);

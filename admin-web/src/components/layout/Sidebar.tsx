@@ -23,6 +23,7 @@ import {
   LayoutGrid,
   LifeBuoy,
   Megaphone,
+  Shirt,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -34,7 +35,7 @@ import { useOnboardingUi } from '@/stores/onboardingStore'
 const ICONS: Record<string, React.ElementType> = {
   LayoutDashboard, Building2, ShoppingCart, Users, Bike, Tag, Package, Bell,
   BarChart2, BookOpen, Receipt, Warehouse, ShieldCheck, Network, Coins, CreditCard, Layers, Monitor, Settings, LifeBuoy,
-  Megaphone,
+  Megaphone, Shirt,
 }
 
 type NavItem = { key: string; label: string; icon: string | null; route: string | null }

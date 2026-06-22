@@ -6,6 +6,13 @@ import type {
   ServiceDto,
   ItemDto,
   FabricTypeDto,
+  CreateFabricTypePayload,
+  UpdateFabricTypePayload,
+  AddOnDto,
+  CreateAddOnPayload,
+  UpdateAddOnPayload,
+  PricingMatrix,
+  PricingHistoryEntry,
   ItemGroupDto,
   PriceListDto,
   PriceListItemDto,
@@ -19,6 +26,12 @@ import type {
   UpdateServicePayload,
   CreateItemPayload,
   UpdateItemPayload,
+  ManagedItemDto,
+  ItemStatsDto,
+  SaveItemPricingPayload,
+  ImportItemsPayload,
+  ImportItemsResult,
+  CreateItemGroupPayload,
   CreatePriceListPayload,
   UpdatePriceListPayload,
   CreatePriceListItemPayload,
@@ -126,6 +139,32 @@ export async function deleteItem(id: string): Promise<void> {
   await catalogClient.delete(`${ADMIN}/items/${id}`)
 }
 
+// ── Managed items (Items page: item + per-service prices + fabric variants) ─────
+
+export async function getManagedItems(
+  params: PaginationParams & { itemGroupId?: string; search?: string } = {},
+): Promise<PaginatedList<ManagedItemDto>> {
+  const { data } = await catalogClient.get<ApiResponse<PaginatedList<ManagedItemDto>>>(
+    `${ADMIN}/items/managed`,
+    { params: { page: 1, pageSize: 100, ...params } },
+  )
+  return unwrapPaginated(data)
+}
+
+export async function getItemStats(): Promise<ItemStatsDto> {
+  const { data } = await catalogClient.get<ApiResponse<ItemStatsDto>>(`${ADMIN}/items/stats`)
+  return unwrap(data)
+}
+
+export async function saveItemPricing(id: string, payload: SaveItemPricingPayload): Promise<void> {
+  await catalogClient.put<ApiResponse<unknown>>(`${ADMIN}/items/${id}/pricing`, payload)
+}
+
+export async function importItems(payload: ImportItemsPayload): Promise<ImportItemsResult> {
+  const { data } = await catalogClient.post<ApiResponse<ImportItemsResult>>(`${ADMIN}/items/import`, payload)
+  return unwrap(data)
+}
+
 // ── Item image ────────────────────────────────────────────────────────────────
 // imageUrl on ItemDto holds an opaque storage key — the image itself is always
 // fetched through the streaming endpoint (auth header required, hence the blob).
@@ -167,6 +206,56 @@ export async function getFabricTypes(
   return unwrapPaginated(data)
 }
 
+export async function createFabricType(payload: CreateFabricTypePayload): Promise<FabricTypeDto> {
+  const { data } = await catalogClient.post<ApiResponse<FabricTypeDto>>(`${ADMIN}/fabric-types`, payload)
+  return unwrap(data)
+}
+export async function updateFabricType(id: string, payload: UpdateFabricTypePayload): Promise<FabricTypeDto> {
+  const { data } = await catalogClient.put<ApiResponse<FabricTypeDto>>(`${ADMIN}/fabric-types/${id}`, payload)
+  return unwrap(data)
+}
+
+// ── Add-ons / surcharges ──────────────────────────────────────────────────────
+export async function getAddOns(params: PaginationParams = {}): Promise<PaginatedList<AddOnDto>> {
+  const { data } = await catalogClient.get<ApiResponse<PaginatedList<AddOnDto>>>(
+    `${ADMIN}/add-ons`,
+    { params: { page: 1, pageSize: 100, ...params } },
+  )
+  return unwrapPaginated(data)
+}
+export async function createAddOn(payload: CreateAddOnPayload): Promise<AddOnDto> {
+  const { data } = await catalogClient.post<ApiResponse<AddOnDto>>(`${ADMIN}/add-ons`, payload)
+  return unwrap(data)
+}
+export async function updateAddOn(id: string, payload: UpdateAddOnPayload): Promise<AddOnDto> {
+  const { data } = await catalogClient.put<ApiResponse<AddOnDto>>(`${ADMIN}/add-ons/${id}`, payload)
+  return unwrap(data)
+}
+export async function deleteAddOn(id: string): Promise<void> {
+  await catalogClient.delete(`${ADMIN}/add-ons/${id}`)
+}
+
+// ── Price matrix ──────────────────────────────────────────────────────────────
+export async function getPricingMatrix(storeId?: string): Promise<PricingMatrix> {
+  const { data } = await catalogClient.get<ApiResponse<PricingMatrix>>(
+    `${ADMIN}/pricing/matrix`,
+    { params: storeId ? { storeId } : {} },
+  )
+  return unwrap(data)
+}
+
+// ── Pricing change history ────────────────────────────────────────────────────
+export async function getPricingHistory(params: PaginationParams = {}): Promise<PaginatedList<PricingHistoryEntry>> {
+  const { data } = await catalogClient.get<ApiResponse<PaginatedList<PricingHistoryEntry>>>(
+    `${ADMIN}/pricing/history`,
+    { params: { page: 1, pageSize: 30, ...params } },
+  )
+  return unwrapPaginated(data)
+}
+export async function revertPricingChange(id: string): Promise<void> {
+  await catalogClient.post(`${ADMIN}/pricing/history/${id}/revert`, {})
+}
+
 export async function getItemGroups(
   params: PaginationParams = {},
 ): Promise<PaginatedList<ItemGroupDto>> {
@@ -175,6 +264,11 @@ export async function getItemGroups(
     { params: { page: 1, pageSize: 100, ...params } },
   )
   return unwrapPaginated(data)
+}
+
+export async function createItemGroup(payload: CreateItemGroupPayload): Promise<ItemGroupDto> {
+  const { data } = await catalogClient.post<ApiResponse<ItemGroupDto>>(`${ADMIN}/item-groups`, payload)
+  return unwrap(data)
 }
 
 // ── Price Lists ───────────────────────────────────────────────────────────────

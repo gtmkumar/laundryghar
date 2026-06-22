@@ -83,6 +83,7 @@ public class LaundryGharDbContext : DbContext
     public DbSet<ItemVariant> ItemVariants => Set<ItemVariant>();
     public DbSet<PriceList> PriceLists => Set<PriceList>();
     public DbSet<PriceListItem> PriceListItems => Set<PriceListItem>();
+    public DbSet<PricingChangeLog> PricingChangeLogs => Set<PricingChangeLog>();
     public DbSet<AddOn> AddOns => Set<AddOn>();
 
     // order_lifecycle

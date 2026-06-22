@@ -54,9 +54,6 @@ public sealed record InviteUserRequest(
 public sealed record InviteRiderRequest(
     string Email, string? Phone, string? FirstName, string? LastName, Guid FranchiseId);
 
-/// <summary>Toggle a whole matrix cell (assigns/removes all permissions it maps to).</summary>
-public sealed record SetRoleCellRequest(Guid RoleId, string CellKey, bool Enabled);
-
 /// <summary>One cell change in a batch save.</summary>
 public sealed record RoleCellChange(string CellKey, bool Enabled);
 /// <summary>Apply many cell changes to one role atomically (single transaction).</summary>

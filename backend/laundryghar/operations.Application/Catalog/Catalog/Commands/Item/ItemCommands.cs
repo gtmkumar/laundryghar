@@ -40,6 +40,9 @@ public sealed class CreateItemHandler : ICommandHandler<CreateItemCommand, ItemD
             ImageUrl              = req.ImageUrl,
             TypicalWeightGrams    = req.TypicalWeightGrams,
             RequiresPerSidePrice  = req.RequiresPerSidePrice,
+            TatHours              = req.TatHours,
+            ExpressEligible       = req.ExpressEligible,
+            ExpressSurcharge      = req.ExpressSurcharge,
             // SearchTokens is DB-managed (tsvector) — do NOT write it
             Aliases               = req.Aliases ?? [],
             DisplayOrder          = req.DisplayOrder,
@@ -59,7 +62,8 @@ public sealed class CreateItemHandler : ICommandHandler<CreateItemCommand, ItemD
     internal static ItemDto ToDto(laundryghar.SharedDataModel.Entities.CustomerCatalog.Item e) => new(
         e.Id, e.BrandId, e.ItemGroupId, e.Code, e.Name, e.NameLocalized,
         e.Description, e.IconUrl, e.ImageUrl, e.TypicalWeightGrams,
-        e.RequiresPerSidePrice, e.Aliases, e.DisplayOrder, e.Status, e.CreatedAt, e.UpdatedAt);
+        e.RequiresPerSidePrice, e.Aliases, e.DisplayOrder, e.Status, e.CreatedAt, e.UpdatedAt,
+        e.TatHours, e.ExpressEligible, e.ExpressSurcharge);
 }
 
 public sealed record UpdateItemCommand(Guid Id, UpdateItemRequest Request, Guid? ActorId) : ICommand<ItemDto?>;
@@ -89,6 +93,9 @@ public sealed class UpdateItemHandler : ICommandHandler<UpdateItemCommand, ItemD
         e.ImageUrl            = req.ImageUrl ?? e.ImageUrl;
         e.TypicalWeightGrams  = req.TypicalWeightGrams;
         e.RequiresPerSidePrice = req.RequiresPerSidePrice;
+        e.TatHours            = req.TatHours;
+        e.ExpressEligible     = req.ExpressEligible;
+        e.ExpressSurcharge    = req.ExpressSurcharge;
         e.Aliases             = req.Aliases ?? [];
         e.DisplayOrder        = req.DisplayOrder;
         e.Status              = req.Status;

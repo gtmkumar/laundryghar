@@ -23,6 +23,9 @@ public sealed class ItemConfiguration : IEntityTypeConfiguration<Item>
         b.Property(e => e.ImageUrl).HasColumnName("image_url");
         b.Property(e => e.TypicalWeightGrams).HasColumnName("typical_weight_grams");
         b.Property(e => e.RequiresPerSidePrice).HasColumnName("requires_per_side_price").IsRequired();
+        b.Property(e => e.TatHours).HasColumnName("tat_hours");
+        b.Property(e => e.ExpressEligible).HasColumnName("express_eligible").IsRequired();
+        b.Property(e => e.ExpressSurcharge).HasColumnName("express_surcharge").HasColumnType("numeric(10,2)");
         // search_tokens is a DB-managed tsvector column (updated by trigger).
         // Npgsql EF 10 does not support mapping string → tsvector directly.
         // Ignoring it from the EF model is safe: we never write it and it is not needed in queries.

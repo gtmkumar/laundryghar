@@ -215,6 +215,69 @@ export interface ItemDto {
   status: string
   createdAt: string
   updatedAt: string
+  tatHours: number | null
+  expressEligible: boolean
+  expressSurcharge: number | null
+}
+
+// ── Managed items (Items page aggregate) ──────────────────────────────────────
+
+export interface ItemServicePrice {
+  serviceId: string
+  basePrice: number
+}
+
+export interface ManagedItemDto {
+  id: string
+  itemGroupId: string | null
+  itemGroupName: string | null
+  code: string
+  name: string
+  nameLocalized: string
+  description: string | null
+  typicalWeightGrams: number | null
+  tatHours: number | null
+  expressEligible: boolean
+  expressSurcharge: number | null
+  aliases: string[]
+  displayOrder: number
+  status: string
+  updatedAt: string
+  fabricTypeIds: string[]
+  servicePrices: ItemServicePrice[]
+}
+
+export interface ItemStatsDto {
+  totalItems: number
+  categoryCount: number
+  activeItems: number
+  draftItems: number
+  avgTatHours: number
+}
+
+export interface SaveItemPricingPayload {
+  servicePrices: { serviceId: string; basePrice: number | null }[]
+  fabricTypeIds: string[]
+}
+
+export interface ImportItemRowPayload {
+  code: string
+  name: string
+  category: string | null
+  status: string | null
+  tatHours: number | null
+  servicePrices: { serviceName: string; basePrice: number | null }[]
+}
+
+export interface ImportItemsPayload {
+  rows: ImportItemRowPayload[]
+}
+
+export interface ImportItemsResult {
+  created: number
+  updated: number
+  pricesSet: number
+  errors: string[]
 }
 
 // ── Pricing ─────────────────────────────────────────────────────────────────
@@ -280,6 +343,112 @@ export interface FabricTypeDto {
   updatedAt: string
 }
 
+// Full-replace request (backend UpdateFabricTypeRequest sets every field).
+export interface UpdateFabricTypePayload {
+  name: string
+  nameLocalized: string
+  description?: string | null
+  careInstructions?: string | null
+  priceMultiplier: number
+  requiresSpecialCare: boolean
+  displayOrder: number
+  status: string
+}
+
+export interface CreateFabricTypePayload {
+  code: string
+  name: string
+  nameLocalized: string
+  description?: string | null
+  careInstructions?: string | null
+  priceMultiplier: number
+  requiresSpecialCare: boolean
+  displayOrder: number
+}
+
+// ── Add-ons / surcharges ─────────────────────────────────────────────────────
+export interface AddOnDto {
+  id: string
+  brandId: string
+  code: string
+  name: string
+  nameLocalized: string | null
+  description: string | null
+  pricingType: string // 'flat' | 'percent' | 'per_kg'
+  priceValue: number
+  minCharge: number | null
+  maxCharge: number | null
+  applicableServices: string[]
+  applicableCategories: string[]
+  isTaxable: boolean
+  taxRatePercent: number
+  requiresApproval: boolean
+  iconUrl: string | null
+  displayOrder: number
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Full-replace requests (backend Create/UpdateAddOnRequest set every field).
+export interface CreateAddOnPayload {
+  code: string
+  name: string
+  nameLocalized: string
+  description?: string | null
+  pricingType: string
+  priceValue: number
+  minCharge?: number | null
+  maxCharge?: number | null
+  applicableServices?: string[]
+  applicableCategories?: string[]
+  isTaxable: boolean
+  taxRatePercent: number
+  requiresApproval: boolean
+  iconUrl?: string | null
+  displayOrder: number
+}
+
+export interface UpdateAddOnPayload {
+  name: string
+  nameLocalized: string
+  description?: string | null
+  pricingType: string
+  priceValue: number
+  minCharge?: number | null
+  maxCharge?: number | null
+  applicableServices?: string[]
+  applicableCategories?: string[]
+  isTaxable: boolean
+  taxRatePercent: number
+  requiresApproval: boolean
+  iconUrl?: string | null
+  displayOrder: number
+  status: string
+}
+
+// ── Price matrix ─────────────────────────────────────────────────────────────
+export interface PricingMatrixFabric { code: string; name: string; multiplier: number }
+export interface PricingMatrixRow { label: string; basePrice: number }
+export interface PricingMatrixStore { id: string; name: string }
+export interface PricingMatrix {
+  priceListName: string | null
+  scopeType: string | null
+  fabrics: PricingMatrixFabric[]
+  rows: PricingMatrixRow[]
+  stores: PricingMatrixStore[]
+}
+
+export interface PricingHistoryEntry {
+  id: string
+  targetKind: string
+  targetId: string
+  summary: string
+  actorName: string | null
+  createdAt: string
+  revertedAt: string | null
+}
+
 export interface ItemGroupDto {
   id: string
   brandId: string
@@ -292,6 +461,15 @@ export interface ItemGroupDto {
   status: string
   createdAt: string
   updatedAt: string
+}
+
+export interface CreateItemGroupPayload {
+  code: string
+  name: string
+  nameLocalized: string
+  iconUrl: string | null
+  displayOrder: number
+  isVisibleMobile: boolean
 }
 
 // ── Catalog write payloads ────────────────────────────────────────────────────
@@ -370,6 +548,9 @@ export interface CreateItemPayload {
   requiresPerSidePrice: boolean
   aliases: string[] | null
   displayOrder: number
+  tatHours?: number | null
+  expressEligible?: boolean
+  expressSurcharge?: number | null
 }
 
 export interface UpdateItemPayload {
@@ -384,6 +565,9 @@ export interface UpdateItemPayload {
   aliases: string[] | null
   displayOrder: number
   status: string
+  tatHours?: number | null
+  expressEligible?: boolean
+  expressSurcharge?: number | null
 }
 
 // ── Pricing write payloads ────────────────────────────────────────────────────

@@ -196,7 +196,10 @@ public sealed record ItemDto(
     short DisplayOrder,
     string Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt
+    DateTimeOffset UpdatedAt,
+    int? TatHours = null,
+    bool ExpressEligible = false,
+    decimal? ExpressSurcharge = null
 );
 
 public sealed record CreateItemRequest(
@@ -210,7 +213,10 @@ public sealed record CreateItemRequest(
     int? TypicalWeightGrams,
     bool RequiresPerSidePrice,
     string[]? Aliases,
-    short DisplayOrder
+    short DisplayOrder,
+    int? TatHours = null,
+    bool ExpressEligible = false,
+    decimal? ExpressSurcharge = null
 );
 
 public sealed record UpdateItemRequest(
@@ -224,8 +230,65 @@ public sealed record UpdateItemRequest(
     bool RequiresPerSidePrice,
     string[]? Aliases,
     short DisplayOrder,
-    string Status
+    string Status,
+    int? TatHours = null,
+    bool ExpressEligible = false,
+    decimal? ExpressSurcharge = null
 );
+
+// ── Managed item (Items page aggregate: item + per-service base prices + fabrics) ─
+public sealed record ItemServicePriceDto(Guid ServiceId, decimal BasePrice);
+
+public sealed record ManagedItemDto(
+    Guid Id,
+    Guid? ItemGroupId,
+    string? ItemGroupName,
+    string Code,
+    string Name,
+    string NameLocalized,
+    string? Description,
+    int? TypicalWeightGrams,
+    int? TatHours,
+    bool ExpressEligible,
+    decimal? ExpressSurcharge,
+    string[] Aliases,
+    short DisplayOrder,
+    string Status,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<Guid> FabricTypeIds,
+    IReadOnlyList<ItemServicePriceDto> ServicePrices
+);
+
+public sealed record ItemStatsDto(
+    int TotalItems,
+    int CategoryCount,
+    int ActiveItems,
+    int DraftItems,
+    int AvgTatHours
+);
+
+// Inline pricing + fabric save from the Items drawer/table. A null price for a
+// service removes that service's row; fabric ids replace the item's fabric set.
+public sealed record SaveItemServicePrice(Guid ServiceId, decimal? BasePrice);
+public sealed record SaveItemPricingRequest(
+    IReadOnlyList<SaveItemServicePrice> ServicePrices,
+    IReadOnlyList<Guid> FabricTypeIds
+);
+
+// ── CSV import (round-trips the Items Export format) ───────────────────────────
+// Services are matched by name; category by item-group name or code. Existing
+// codes are updated, new codes created. Prices upsert into the working list.
+public sealed record ImportItemServicePrice(string ServiceName, decimal? BasePrice);
+public sealed record ImportItemRow(
+    string Code,
+    string Name,
+    string? Category,
+    string? Status,
+    int? TatHours,
+    IReadOnlyList<ImportItemServicePrice> ServicePrices
+);
+public sealed record ImportItemsRequest(IReadOnlyList<ImportItemRow> Rows);
+public sealed record ImportItemsResult(int Created, int Updated, int PricesSet, IReadOnlyList<string> Errors);
 
 // ── ItemVariant ───────────────────────────────────────────────────────────────
 

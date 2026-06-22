@@ -32,6 +32,7 @@ export const ROUTE_PERMISSIONS: Record<string, string | null> = {
   '/riders/verification': 'rider.read',
   '/riders/payouts': 'rider.read',
   '/riders/incentives': 'rider.read',
+  '/items': 'catalog.read',
   '/catalog': 'pricing.read',
   '/packages': 'packages.manage',
   '/coupons': 'coupons.manage',

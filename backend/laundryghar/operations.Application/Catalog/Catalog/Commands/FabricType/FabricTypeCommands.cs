@@ -73,6 +73,10 @@ public sealed class UpdateFabricTypeHandler : ICommandHandler<UpdateFabricTypeCo
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return null;
 
+        // Snapshot the revertable fields before mutating, for the pricing change log.
+        var before = Snapshot(e);
+        var oldMult = e.PriceMultiplier;
+
         var req = cmd.Request;
         e.Name               = req.Name;
         e.NameLocalized      = req.NameLocalized;
@@ -85,9 +89,21 @@ public sealed class UpdateFabricTypeHandler : ICommandHandler<UpdateFabricTypeCo
         e.UpdatedAt          = DateTimeOffset.UtcNow;
         e.UpdatedBy          = cmd.ActorId;
 
+        var summary = oldMult != e.PriceMultiplier
+            ? $"{e.Name} multiplier {oldMult:0.##}× → {e.PriceMultiplier:0.##}×"
+            : $"Updated fabric “{e.Name}”";
+        operations.Application.Catalog.Pricing.Common.PricingChangeLogger.Add(
+            _db, brandId, "fabric_type", e.Id, summary, before, Snapshot(e), cmd.ActorId, _user.Email);
+
         await _db.SaveChangesAsync(ct);
         return CreateFabricTypeHandler.ToDto(e);
     }
+
+    internal static object Snapshot(laundryghar.SharedDataModel.Entities.CustomerCatalog.FabricType e) => new
+    {
+        e.Name, e.NameLocalized, e.Description, e.CareInstructions,
+        e.PriceMultiplier, e.RequiresSpecialCare, e.DisplayOrder, e.Status,
+    };
 }
 
 public sealed record DeleteFabricTypeCommand(Guid Id, Guid? ActorId) : ICommand<bool>;

@@ -82,6 +82,7 @@ const router = createBrowserRouter([
             children: [
               { index: true,            lazy: lazyPage(() => import('@/pages/DashboardPage'), 'DashboardPage') },
               { path: 'tenancy',        lazy: lazyPage(() => import('@/pages/tenancy/TenancyPage'), 'TenancyPage') },
+              { path: 'items',          lazy: lazyPage(() => import('@/pages/items/ItemsPage'), 'ItemsPage') },
               { path: 'catalog',        lazy: lazyPage(() => import('@/pages/catalog/CatalogPage'), 'CatalogPage') },
               { path: 'orders',         lazy: lazyPage(() => import('@/pages/orders/OrdersPage'), 'OrdersPage') },
               { path: 'cms',            lazy: lazyPage(() => import('@/pages/cms/CmsPage'), 'CmsPage') },

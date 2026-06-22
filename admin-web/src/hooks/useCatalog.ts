@@ -29,9 +29,27 @@ import {
   deletePriceList,
   createPriceListItem,
   updatePriceListItem,
+  createFabricType,
+  updateFabricType,
+  getAddOns,
+  createAddOn,
+  updateAddOn,
+  deleteAddOn,
+  getPricingMatrix,
+  getPricingHistory,
+  revertPricingChange,
+  getManagedItems,
+  getItemStats,
+  saveItemPricing,
+  importItems,
+  createItemGroup,
 } from '@/api/catalog'
 import type {
   PaginationParams,
+  CreateFabricTypePayload,
+  UpdateFabricTypePayload,
+  CreateAddOnPayload,
+  UpdateAddOnPayload,
   AdminCustomerListParams,
   AdminUpdateCustomerPayload,
   CreateServiceCategoryPayload,
@@ -40,6 +58,9 @@ import type {
   UpdateServicePayload,
   CreateItemPayload,
   UpdateItemPayload,
+  SaveItemPricingPayload,
+  ImportItemsPayload,
+  CreateItemGroupPayload,
   CreatePriceListPayload,
   UpdatePriceListPayload,
   CreatePriceListItemPayload,
@@ -59,6 +80,7 @@ export const catalogKeys = {
   priceLists: (params?: object) => ['catalog', 'priceLists', params] as const,
   priceListsInfinite: (params?: object) => ['catalog', 'priceLists', 'infinite', params] as const,
   priceListItems: (priceListId: string) => ['catalog', 'priceListItems', priceListId] as const,
+  addOns: (params?: object) => ['catalog', 'addOns', params] as const,
   adminCustomers: (params?: object) => ['catalog', 'adminCustomers', params] as const,
 }
 
@@ -117,12 +139,132 @@ export function useItemsInfinite() {
   })
 }
 
+/** Managed items (item + per-service prices + fabric variants) for the Items page. */
+export function useManagedItems(params: { itemGroupId?: string; search?: string } = {}) {
+  return useQuery({
+    queryKey: ['catalog', 'managedItems', params],
+    queryFn: () => getManagedItems(params),
+    staleTime: 30_000,
+  })
+}
+
+export function useItemStats() {
+  return useQuery({
+    queryKey: ['catalog', 'itemStats'],
+    queryFn: () => getItemStats(),
+    staleTime: 30_000,
+  })
+}
+
+export function useSaveItemPricing() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { id: string; payload: SaveItemPricingPayload }) => saveItemPricing(v.id, v.payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['catalog', 'managedItems'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'itemStats'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'pricingMatrix'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'pricingHistory'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'priceListItems'] })
+    },
+  })
+}
+
+export function useImportItems() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: ImportItemsPayload) => importItems(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['catalog', 'managedItems'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'itemStats'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'items'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'pricingMatrix'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'pricingHistory'] })
+    },
+  })
+}
+
 /** Flat fabric-type lookup (first 100) — feeds the price-list item editor. */
 export function useFabricTypes() {
   return useQuery({
     queryKey: catalogKeys.fabricTypes(),
     queryFn: () => getFabricTypes(),
     staleTime: 5 * 60_000,
+  })
+}
+
+export function useCreateFabricType() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateFabricTypePayload) => createFabricType(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'fabricTypes'] }),
+  })
+}
+export function useUpdateFabricType() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { id: string; payload: UpdateFabricTypePayload }) => updateFabricType(v.id, v.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'fabricTypes'] }),
+  })
+}
+
+export function usePricingMatrix(storeId?: string) {
+  return useQuery({
+    queryKey: ['catalog', 'pricingMatrix', storeId ?? 'all'],
+    queryFn: () => getPricingMatrix(storeId),
+    staleTime: 60_000,
+  })
+}
+
+export function usePricingHistory() {
+  return useQuery({ queryKey: ['catalog', 'pricingHistory'], queryFn: () => getPricingHistory(), staleTime: 30_000 })
+}
+export function useRevertPricingChange() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => revertPricingChange(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['catalog', 'pricingHistory'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'fabricTypes'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'pricingMatrix'] })
+    },
+  })
+}
+
+// ── Add-ons / surcharges ──────────────────────────────────────────────────────
+export function useAddOns() {
+  return useQuery({ queryKey: catalogKeys.addOns(), queryFn: () => getAddOns(), staleTime: 60_000 })
+}
+export function useCreateAddOn() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateAddOnPayload) => createAddOn(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'addOns'] }),
+  })
+}
+export function useUpdateAddOn() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { id: string; payload: UpdateAddOnPayload }) => updateAddOn(v.id, v.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'addOns'] }),
+  })
+}
+export function useDeleteAddOn() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteAddOn(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'addOns'] }),
+  })
+}
+
+export function useCreateItemGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateItemGroupPayload) => createItemGroup(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['catalog', 'itemGroups'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 'itemStats'] })
+    },
   })
 }
 
@@ -222,7 +364,7 @@ export function useCreateItem() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateItemPayload) => createItem(payload),
-    onSuccess: () => invalidate(qc, ['catalog', 'items']),
+    onSuccess: () => invalidate(qc, ['catalog', 'items'], ['catalog', 'managedItems'], ['catalog', 'itemStats']),
   })
 }
 
@@ -231,7 +373,7 @@ export function useUpdateItem() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateItemPayload }) =>
       updateItem(id, payload),
-    onSuccess: () => invalidate(qc, ['catalog', 'items']),
+    onSuccess: () => invalidate(qc, ['catalog', 'items'], ['catalog', 'managedItems'], ['catalog', 'itemStats']),
   })
 }
 
@@ -239,7 +381,7 @@ export function useDeleteItem() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteItem(id),
-    onSuccess: () => invalidate(qc, ['catalog', 'items']),
+    onSuccess: () => invalidate(qc, ['catalog', 'items'], ['catalog', 'managedItems'], ['catalog', 'itemStats']),
   })
 }
 

@@ -47,10 +47,6 @@ export async function inviteUser(payload: InviteUserPayload): Promise<void> {
   await identityClient.post(`${BASE}/invite`, payload)
 }
 
-export async function setRoleCell(roleId: string, cellKey: string, enabled: boolean): Promise<void> {
-  await identityClient.post(`${BASE}/role-cell`, { roleId, cellKey, enabled })
-}
-
 /** Apply many cell changes to a role in a single atomic request. */
 export async function setRoleCells(roleId: string, changes: RoleCellChange[]): Promise<void> {
   await identityClient.post(`${BASE}/roles/${roleId}/cells`, { changes })

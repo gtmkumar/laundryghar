@@ -126,6 +126,7 @@ public interface IOperationsDbContext
     DbSet<AddOn> AddOns { get; }
     DbSet<PriceList> PriceLists { get; }
     DbSet<PriceListItem> PriceListItems { get; }
+    DbSet<PricingChangeLog> PricingChangeLogs { get; }
 
     // ─── Tenancy: territories (serviceability pincode lookup) ────────────────
     DbSet<Territory> Territories { get; }

@@ -19,6 +19,11 @@ public class Item : IAuditableEntity, ISoftDeletable
     public int? TypicalWeightGrams { get; set; }
     public bool RequiresPerSidePrice { get; set; }
 
+    // Operational fields surfaced by the "Manage laundry items" drawer.
+    public int? TatHours { get; set; }
+    public bool ExpressEligible { get; set; }
+    public decimal? ExpressSurcharge { get; set; }
+
     /// <summary>tsvector column — mapped as string, read-only (DB-managed full-text index).</summary>
     public string? SearchTokens { get; set; }
 

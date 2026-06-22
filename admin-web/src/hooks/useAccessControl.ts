@@ -4,7 +4,6 @@ import {
   getAccessRoles,
   getAccessFranchises,
   inviteUser,
-  setRoleCell,
   setRoleCells,
   setPersonStatus,
   createRole,
@@ -57,15 +56,6 @@ export function useInviteUser() {
   return useMutation({
     mutationFn: (payload: InviteUserPayload) => inviteUser(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'people'] }),
-  })
-}
-
-export function useSetRoleCell() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (v: { roleId: string; cellKey: string; enabled: boolean }) =>
-      setRoleCell(v.roleId, v.cellKey, v.enabled),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'roles'] }),
   })
 }
 

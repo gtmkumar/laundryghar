@@ -23,7 +23,11 @@ public class ItemsAdmin : IEndpointGroup
         group.WithTags("Admin - Catalog - Items");
 
         group.MapGet(GetAll, "/").RequireAuthorization("permission:catalog.read");
+        group.MapGet(GetManaged, "/managed").RequireAuthorization("permission:catalog.read");
+        group.MapGet(GetStats, "/stats").RequireAuthorization("permission:catalog.read");
         group.MapGet(GetById, "/{id:guid}").RequireAuthorization("permission:catalog.read");
+        group.MapPut(SavePricing, "/{id:guid}/pricing").RequireAuthorization("permission:pricing.item.manage");
+        group.MapPost(Import, "/import").RequireAuthorization("permission:catalog.item.create");
         group.MapPost(Create, "/")
             .AddEndpointFilter<ValidationFilter<CreateItemRequest>>()
             .RequireAuthorization("permission:catalog.item.create");
@@ -44,6 +48,32 @@ public class ItemsAdmin : IEndpointGroup
     {
         var r = await dispatcher.QueryAsync(new GetItemsQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, itemGroupId), ct);
         return Results.Ok(new PaginatedListResponse<ItemDto> { Status = true, Data = r });
+    }
+
+    public static async Task<IResult> GetManaged(IDispatcher dispatcher, CancellationToken ct,
+        int page = 1, int pageSize = 100, Guid? itemGroupId = null, string? search = null)
+    {
+        var r = await dispatcher.QueryAsync(
+            new GetManagedItemsQuery(page < 1 ? 1 : page, pageSize < 1 ? 100 : pageSize, itemGroupId, search), ct);
+        return Results.Ok(new PaginatedListResponse<ManagedItemDto> { Status = true, Data = r });
+    }
+
+    public static async Task<IResult> GetStats(IDispatcher dispatcher, CancellationToken ct)
+    {
+        var r = await dispatcher.QueryAsync(new GetItemStatsQuery(), ct);
+        return Results.Ok(new SingleResponse<ItemStatsDto> { Status = true, Data = r });
+    }
+
+    public static async Task<IResult> SavePricing(Guid id, SaveItemPricingRequest req, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new SaveItemPricingCommand(id, req, u.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> Import(ImportItemsRequest req, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var r = await dispatcher.SendAsync(new ImportItemsCommand(req, u.UserId), ct);
+        return Results.Ok(new SingleResponse<ImportItemsResult> { Status = true, Data = r });
     }
 
     public static async Task<IResult> GetById(Guid id, IDispatcher dispatcher, CancellationToken ct)
