@@ -64,9 +64,12 @@ public sealed class GarmentConfiguration : IEntityTypeConfiguration<Garment>
         b.HasOne(e => e.Warehouse).WithMany().HasForeignKey(e => e.WarehouseId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("garments_warehouse_id_fkey");
 
-        // Composite FK to partitioned orders table
+        // Composite FK to partitioned orders table. No inverse navigation: the Order aggregate
+        // is deliberately decoupled from the laundry-fulfilment Garment tree (multi-vertical
+        // Phase 1 / Slice C). The FK column + constraint are unchanged; garments are reached via
+        // the _db.Garments DbSet keyed by OrderId, never through Order.Garments.
         b.HasOne(e => e.Order)
-            .WithMany(o => o.Garments)
+            .WithMany()
             .HasForeignKey(e => new { e.OrderId, e.OrderCreatedAt })
             .HasPrincipalKey(o => new { o.Id, o.CreatedAt })
             .OnDelete(DeleteBehavior.Restrict)

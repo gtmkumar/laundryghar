@@ -145,5 +145,8 @@ public class Order : IAuditableEntity, ISoftDeletable
     public ICollection<OrderAddon> OrderAddons { get; set; } = [];
     public ICollection<OrderStatusHistory> StatusHistories { get; set; } = [];
     public ICollection<OrderNote> Notes { get; set; } = [];
-    public ICollection<Garment> Garments { get; set; } = [];
+    // NOTE: no Garments navigation — the Order aggregate is decoupled from the laundry-fulfilment
+    // Garment tree (multi-vertical Phase 1 / Slice C). Garments are queried via _db.Garments by
+    // OrderId. Physical relocation of the laundry-fulfilment tables to their own schema is a later,
+    // separate (destructive) migration.
 }
