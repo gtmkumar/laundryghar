@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Loader2, Check, Plus } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, slugifyCode } from '@/lib/utils'
 import { useFabricTypes, useUpdateFabricType, useCreateFabricType } from '@/hooks/useCatalog'
 import { usePermissions } from '@/hooks/usePermissions'
 import { showToast } from '@/stores/toastStore'
@@ -22,6 +22,7 @@ export function FabricMultipliersTab() {
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState({ code: '', name: '', multiplier: '1.00' })
+  const [codeTouched, setCodeTouched] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   if (isLoading) {
@@ -56,7 +57,7 @@ export function FabricMultipliersTab() {
         code: draft.code.trim().toLowerCase(), name, nameLocalized: `{"en":${JSON.stringify(name)}}`,
         priceMultiplier: mult, requiresSpecialCare: false, displayOrder: (fabrics.at(-1)?.displayOrder ?? 0) + 1,
       })
-      setAdding(false); setDraft({ code: '', name: '', multiplier: '1.00' })
+      setAdding(false); setDraft({ code: '', name: '', multiplier: '1.00' }); setCodeTouched(false)
       showToast('success', 'Fabric type added.')
     } catch (e) { setErr(e instanceof Error ? e.message : 'Could not add fabric.') }
   }
@@ -116,15 +117,15 @@ export function FabricMultipliersTab() {
 
         {canManage && (adding ? (
           <div className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-            <label className="text-xs text-gray-500">Code<input value={draft.code} onChange={(e) => setDraft((d) => ({ ...d, code: e.target.value }))} className="mt-1 block w-28 rounded-lg border border-gray-200 px-2 py-1 text-sm" placeholder="silk" /></label>
-            <label className="text-xs text-gray-500">Name<input value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} className="mt-1 block w-36 rounded-lg border border-gray-200 px-2 py-1 text-sm" placeholder="Silk" /></label>
+            <label className="text-xs text-gray-500">Name<input value={draft.name} onChange={(e) => { const v = e.target.value; setDraft((d) => ({ ...d, name: v, code: codeTouched ? d.code : slugifyCode(v).toLowerCase() })) }} className="mt-1 block w-36 rounded-lg border border-gray-200 px-2 py-1 text-sm" placeholder="Silk" /></label>
+            <label className="text-xs text-gray-500">Code<input value={draft.code} onChange={(e) => { setCodeTouched(true); setDraft((d) => ({ ...d, code: e.target.value })) }} className="mt-1 block w-28 rounded-lg border border-gray-200 px-2 py-1 text-sm" placeholder="silk" /></label>
             <label className="text-xs text-gray-500">Multiplier<input value={draft.multiplier} onChange={(e) => setDraft((d) => ({ ...d, multiplier: e.target.value }))} className="mt-1 block w-24 rounded-lg border border-gray-200 px-2 py-1 text-sm" /></label>
             <button type="button" onClick={addFabric} disabled={create.isPending} className="rounded-lg bg-lg-green px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60">Add</button>
-            <button type="button" onClick={() => { setAdding(false); setErr(null) }} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600">Cancel</button>
+            <button type="button" onClick={() => { setAdding(false); setErr(null); setCodeTouched(false) }} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600">Cancel</button>
             {err && <p className="w-full text-xs text-red-600">{err}</p>}
           </div>
         ) : (
-          <button type="button" onClick={() => setAdding(true)} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs font-medium text-lg-green hover:bg-lg-green/5">
+          <button type="button" onClick={() => { setAdding(true); setCodeTouched(false) }} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs font-medium text-lg-green hover:bg-lg-green/5">
             <Plus className="h-3.5 w-3.5" /> Add fabric type
           </button>
         ))}

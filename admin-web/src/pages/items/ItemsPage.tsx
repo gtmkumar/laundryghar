@@ -25,6 +25,7 @@ import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
 import { FormDrawer, DrawerSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import { cn } from '@/lib/utils'
 import { apiErrorMessage } from '@/lib/apiError'
+import { useAutoCode } from '@/hooks/useAutoCode'
 import { buildNameLocalized, displayLocalized } from '../catalog/localized'
 import {
   ServiceEditDrawer,
@@ -73,24 +74,24 @@ function StatCards() {
 
 function NewCategoryDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const create = useCreateItemGroup()
-  const [code, setCode] = useState('')
+  const codeF = useAutoCode()
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (open) { setCode(''); setName(''); setError(null) }
+    if (open) { codeF.seed('', false); setName(''); setError(null) }
   }
   if (!open) return null
 
   const submit = async () => {
     setError(null)
-    if (!code.trim()) return setError('Code is required.')
+    if (!codeF.code.trim()) return setError('Code is required.')
     if (!name.trim()) return setError('Name is required.')
     try {
       await create.mutateAsync({
-        code: code.trim(),
+        code: codeF.code.trim(),
         name: name.trim(),
         nameLocalized: buildNameLocalized(name.trim(), ''),
         iconUrl: null,
@@ -119,11 +120,11 @@ function NewCategoryDrawer({ open, onClose }: { open: boolean; onClose: () => vo
       submitting={create.isPending}
     >
       <DrawerSection title="Identity">
-        <Field label="Code *">
-          <input value={code} onChange={(e) => setCode(e.target.value)} className={`${drawerInputCls} font-mono`} placeholder="MENS-WEAR" />
-        </Field>
         <Field label="Name *">
-          <input value={name} onChange={(e) => setName(e.target.value)} className={drawerInputCls} placeholder="Men's wear" />
+          <input value={name} onChange={(e) => { setName(e.target.value); codeF.syncFromName(e.target.value) }} className={drawerInputCls} placeholder="Men's wear" />
+        </Field>
+        <Field label="Code *" hint="Auto-filled from the name; edit to override.">
+          <input value={codeF.code} onChange={(e) => codeF.setCode(e.target.value)} className={`${drawerInputCls} font-mono`} placeholder="MENS-WEAR" />
         </Field>
       </DrawerSection>
     </FormDrawer>

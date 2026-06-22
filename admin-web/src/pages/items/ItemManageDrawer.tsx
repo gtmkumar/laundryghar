@@ -16,6 +16,7 @@ import {
 } from '@/components/shared/FormDrawer'
 import { apiErrorMessage } from '@/lib/apiError'
 import { cn } from '@/lib/utils'
+import { useAutoCode } from '@/hooks/useAutoCode'
 import type { ManagedItemDto } from '@/types/api'
 import { buildNameLocalized, parseNameLocalized } from '../catalog/localized'
 
@@ -58,7 +59,7 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
   )
 
   const [itemGroupId, setItemGroupId] = useState('')
-  const [code, setCode] = useState('')
+  const codeF = useAutoCode()
   const [name, setName] = useState('')
   const [nameHi, setNameHi] = useState('')
   const [description, setDescription] = useState('')
@@ -80,7 +81,7 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
     if (item) {
       const loc = parseNameLocalized(item.nameLocalized)
       setItemGroupId(item.itemGroupId ?? '')
-      setCode(item.code)
+      codeF.seed(item.code, true)
       setName(item.name)
       setNameHi(loc.hi)
       setDescription(item.description ?? '')
@@ -94,7 +95,7 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
       setPrices(Object.fromEntries(item.servicePrices.map((p) => [p.serviceId, String(p.basePrice)])))
     } else {
       setItemGroupId('')
-      setCode('')
+      codeF.seed('', false)
       setName('')
       setNameHi('')
       setDescription('')
@@ -124,7 +125,7 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
 
   const submit = async () => {
     setError(null)
-    if (!isEdit && !code.trim()) return setError('SKU code is required.')
+    if (!isEdit && !codeF.code.trim()) return setError('SKU code is required.')
     if (!name.trim()) return setError('Item name is required.')
 
     const aliasList = aliases.split(',').map((a) => a.trim()).filter(Boolean)
@@ -148,7 +149,7 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
       const saved =
         isEdit && item
           ? await update.mutateAsync({ id: item.id, payload: { ...common, status } })
-          : await create.mutateAsync({ ...common, code: code.trim() })
+          : await create.mutateAsync({ ...common, code: codeF.code.trim() })
 
       await savePricing.mutateAsync({
         id: saved.id,
@@ -183,11 +184,11 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
     >
       <DrawerSection title="Identity">
         <Field label="Item name *">
-          <input value={name} onChange={(e) => setName(e.target.value)} className={drawerInputCls} placeholder="e.g. Shirt" />
+          <input value={name} onChange={(e) => { setName(e.target.value); codeF.syncFromName(e.target.value) }} className={drawerInputCls} placeholder="e.g. Shirt" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="SKU code *" hint={isEdit ? 'Code cannot be changed.' : undefined}>
-            <input value={code} onChange={(e) => setCode(e.target.value)} disabled={isEdit} className={`${drawerInputCls} font-mono`} placeholder="LG-SHRT" />
+          <Field label="SKU code *" hint={isEdit ? 'Code cannot be changed.' : 'Auto-filled from the name; edit to override.'}>
+            <input value={codeF.code} onChange={(e) => codeF.setCode(e.target.value)} disabled={isEdit} className={`${drawerInputCls} font-mono`} placeholder="LG-SHRT" />
           </Field>
           <Field label="Category">
             <select value={itemGroupId} onChange={(e) => setItemGroupId(e.target.value)} className={drawerInputCls}>

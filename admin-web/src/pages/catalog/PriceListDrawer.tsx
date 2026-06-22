@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { useConfirm } from '@/components/shared/useConfirm'
 import { apiErrorMessage } from '@/lib/apiError'
+import { useAutoCode } from '@/hooks/useAutoCode'
 import type {
   PriceListDto,
   PriceListItemDto,
@@ -57,7 +58,7 @@ export function CreatePriceListDrawer({ open, onClose }: { open: boolean; onClos
   const { data: storeData } = useStores({ pageSize: 100 })
   const stores = storeData?.list ?? []
 
-  const [code, setCode] = useState('')
+  const codeF = useAutoCode()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [currencyCode, setCurrencyCode] = useState('INR')
@@ -76,7 +77,7 @@ export function CreatePriceListDrawer({ open, onClose }: { open: boolean; onClos
     setWasOpen(open)
     if (open) {
       setError(null)
-      setCode('')
+      codeF.seed('', false)
       setName('')
       setDescription('')
       setCurrencyCode('INR')
@@ -100,7 +101,7 @@ export function CreatePriceListDrawer({ open, onClose }: { open: boolean; onClos
 
   const submit = async () => {
     setError(null)
-    if (!code.trim()) return setError('Code is required.')
+    if (!codeF.code.trim()) return setError('Code is required.')
     if (!name.trim()) return setError('Name is required.')
     if (currencyCode.trim().length !== 3) return setError('Currency must be a 3-letter code, e.g. INR.')
     if (scopeType === 'franchise' && !franchiseId) return setError('Pick a franchise for a franchise-scoped list.')
@@ -109,7 +110,7 @@ export function CreatePriceListDrawer({ open, onClose }: { open: boolean; onClos
 
     try {
       await create.mutateAsync({
-        code: code.trim(),
+        code: codeF.code.trim(),
         name: name.trim(),
         description: description.trim() || null,
         currencyCode: currencyCode.trim().toUpperCase(),
@@ -153,15 +154,15 @@ export function CreatePriceListDrawer({ open, onClose }: { open: boolean; onClos
 
       <DrawerSection title="Identity">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Code *">
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={`${drawerInputCls} font-mono`} placeholder="MAIN-2026" />
+          <Field label="Code *" hint="Auto-filled from the name; edit to override.">
+            <input value={codeF.code} onChange={(e) => codeF.setCode(e.target.value)} className={`${drawerInputCls} font-mono`} placeholder="MAIN-2026" />
           </Field>
           <Field label="Currency *">
             <input value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} maxLength={3} className={`${drawerInputCls} font-mono uppercase`} placeholder="INR" />
           </Field>
         </div>
         <Field label="Name *">
-          <input value={name} onChange={(e) => setName(e.target.value)} className={drawerInputCls} placeholder="Main Brand Price List" />
+          <input value={name} onChange={(e) => { setName(e.target.value); codeF.syncFromName(e.target.value) }} className={drawerInputCls} placeholder="Main Brand Price List" />
         </Field>
         <Field label="Description">
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={drawerInputCls} placeholder="Optional" />
