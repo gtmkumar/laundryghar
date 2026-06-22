@@ -9,7 +9,7 @@ using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
-using operations.Application.Logistics.Common;
+using operations.Application.Fulfillment;
 using operations.Application.Orders.Common;
 using operations.Application.Orders.Orders.Dtos;
 
@@ -22,11 +22,13 @@ public sealed class CancelOrderHandler : ICommandHandler<CancelOrderCommand, Ord
 {
     private readonly IOperationsDbContext _db;
     private readonly ICurrentUser _user;
+    private readonly IFulfillmentStrategyResolver _strategies;
 
-    public CancelOrderHandler(IOperationsDbContext db, ICurrentUser user)
+    public CancelOrderHandler(IOperationsDbContext db, ICurrentUser user, IFulfillmentStrategyResolver strategies)
     {
         _db   = db;
         _user = user;
+        _strategies = strategies;
     }
 
     public async Task<OrderDto?> HandleAsync(CancelOrderCommand cmd, CancellationToken ct)
@@ -38,15 +40,17 @@ public sealed class CancelOrderHandler : ICommandHandler<CancelOrderCommand, Ord
             .FirstOrDefaultAsync(o => o.Id == cmd.OrderId && o.BrandId == brandId, ct);
         if (order is null || order.DeletedAt != null) return null;
 
+        var strategy = _strategies.ResolveForOrder(order);
+
         // Customer can only cancel if placed or pickup_scheduled
-        if (cmd.IsCustomer && !OrderStateMachine.CanCustomerCancel(order.Status))
+        if (cmd.IsCustomer && !strategy.CanCustomerCancel(order.Status))
             throw new BusinessRuleException(
                 $"Customers may not cancel an order in status '{order.Status}'. " +
                 $"Contact support for orders already picked up.");
 
-        // Admin cancel uses state machine
+        // Admin cancel uses the fulfilment-mode state machine
         if (!cmd.IsCustomer)
-            OrderStateMachine.ValidateTransition(order.Status, OrderStatus.Cancelled, order.JobType);
+            strategy.EnsureTransition(order.Status, OrderStatus.Cancelled);
 
         var fromStatus = order.Status;
         order.Status           = OrderStatus.Cancelled;

@@ -4,6 +4,7 @@ using LaundryGhar.Utilities.CQRS.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using operations.Application.Fulfillment;
 using operations.Application.Fulfillment.Laundry;
+using operations.Application.Fulfillment.Logistics;
 
 namespace operations.Application;
 
@@ -21,10 +22,12 @@ public static class DependencyInjection
         services.AddCustomCQRS(assembly);
         services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
 
-        // Multi-vertical fulfilment seam (Phase 0). Registered for resolution but not yet
-        // wired into the live order path — Phase 1 routes callers through the resolver.
-        // Add one IFulfillmentStrategy per vertical here as packs land (salon, logistics).
+        // Multi-vertical fulfilment seam (Phase 1). The order state machine now lives in
+        // these strategies (keyed by FulfillmentMode); all OrderStateMachine call sites are
+        // routed through IFulfillmentStrategyResolver. Add one IFulfillmentStrategy per mode
+        // here as packs land (e.g. salon → SalonAppointmentStrategy for "appointment").
         services.AddSingleton<IFulfillmentStrategy, LaundryProcessStrategy>();
+        services.AddSingleton<IFulfillmentStrategy, LogisticsPointToPointStrategy>();
         services.AddSingleton<IFulfillmentStrategyResolver, FulfillmentStrategyResolver>();
 
         return services;

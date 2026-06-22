@@ -7,6 +7,7 @@ using laundryghar.SharedDataModel.Entities.OrderLifecycle;
 using laundryghar.SharedDataModel.Enums;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
+using operations.Application.Fulfillment;
 using operations.Application.Logistics.Common;
 using operations.Application.Logistics.RiderSelf.Dtos;
 
@@ -23,7 +24,12 @@ public sealed record UpdateMyTaskStatusCommand(
 public sealed class UpdateMyTaskStatusHandler : ICommandHandler<UpdateMyTaskStatusCommand, RiderTaskResult>
 {
     private readonly IOperationsDbContext _db;
-    public UpdateMyTaskStatusHandler(IOperationsDbContext db) => _db = db;
+    private readonly IFulfillmentStrategyResolver _strategies;
+    public UpdateMyTaskStatusHandler(IOperationsDbContext db, IFulfillmentStrategyResolver strategies)
+    {
+        _db = db;
+        _strategies = strategies;
+    }
 
     private static readonly string[] Allowed =
         ["started", "arrived", "collected", "completed", "failed"];
@@ -348,7 +354,7 @@ public sealed class UpdateMyTaskStatusHandler : ICommandHandler<UpdateMyTaskStat
             //    history row per hop. Off-path / already-advanced orders → no-op.
             if (order is not null)
             {
-                var hops = OrderStateMachine.ForwardPath(order.Status, orderTarget, order.JobType);
+                var hops = _strategies.ResolveForOrder(order).ForwardPath(order.Status, orderTarget);
                 foreach (var next in hops)
                 {
                     var from = order.Status;

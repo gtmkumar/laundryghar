@@ -7,7 +7,7 @@ using laundryghar.SharedDataModel.Enums;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
-using operations.Application.Logistics.Common;
+using operations.Application.Fulfillment;
 using operations.Application.Orders.Common;
 using operations.Application.Orders.Orders.Dtos;
 
@@ -23,11 +23,13 @@ public sealed class UpdateOrderStatusHandler : ICommandHandler<UpdateOrderStatus
 {
     private readonly IOperationsDbContext _db;
     private readonly ICurrentUser _user;
+    private readonly IFulfillmentStrategyResolver _strategies;
 
-    public UpdateOrderStatusHandler(IOperationsDbContext db, ICurrentUser user)
+    public UpdateOrderStatusHandler(IOperationsDbContext db, ICurrentUser user, IFulfillmentStrategyResolver strategies)
     {
         _db   = db;
         _user = user;
+        _strategies = strategies;
     }
 
     public async Task<OrderDto?> HandleAsync(UpdateOrderStatusCommand cmd, CancellationToken ct)
@@ -41,8 +43,8 @@ public sealed class UpdateOrderStatusHandler : ICommandHandler<UpdateOrderStatus
             .FirstOrDefaultAsync(o => o.Id == cmd.OrderId && o.BrandId == brandId, ct);
         if (order is null || order.DeletedAt != null) return null;
 
-        // Enforce state machine (parcel jobs use a shorter point-to-point path)
-        OrderStateMachine.ValidateTransition(order.Status, req.ToStatus, order.JobType);
+        // Enforce the fulfilment-mode state machine (point_to_point uses a shorter path)
+        _strategies.ResolveForOrder(order).EnsureTransition(order.Status, req.ToStatus);
 
         var fromStatus = order.Status;
         order.Status    = req.ToStatus;

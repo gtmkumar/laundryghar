@@ -12,7 +12,7 @@ using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using operations.Application.Common.Interfaces;
-using operations.Application.Logistics.Common;
+using operations.Application.Fulfillment;
 using operations.Application.Orders.Common;
 using operations.Application.Orders.Orders.Dtos;
 
@@ -587,6 +587,13 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             DeliveryAddressId = req.DeliveryAddressId,
             Channel          = req.Channel,
             JobType          = req.JobType,
+            // FulfillmentMode is the per-order leg topology that drives the state machine
+            // (parcel → point_to_point, else laundry's process_deliver). VerticalKey defaults
+            // to the brand's vertical (laundry) via the entity initializer; Phase 2 sets it
+            // explicitly from Brand.VerticalKey once multiple verticals coexist.
+            FulfillmentMode  = isParcel
+                ? laundryghar.SharedDataModel.Enums.FulfillmentMode.PointToPoint
+                : laundryghar.SharedDataModel.Enums.FulfillmentMode.ProcessDeliver,
             RequestedVehicleTier = req.RequestedVehicleTier,
             OrderType        = req.IsExpress ? "express" : "standard",
             IsExpress        = req.IsExpress,
@@ -771,7 +778,8 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
         IEnumerable<OrderAddon>? addons = null,
         IEnumerable<OrderStatusHistory>? history = null,
         bool includeDeliveryOtp = false,
-        bool includeAllowedTransitions = false)
+        bool includeAllowedTransitions = false,
+        IFulfillmentStrategy? statusStrategy = null)
     {
         // Derive promotion discount as the residual after named discount components.
         // For historical orders placed before this feature PromotionDiscount evaluates to 0.
@@ -789,8 +797,10 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
         // machine, so it can only be populated on detail responses (the list projection
         // is translated to SQL where the state machine cannot be evaluated). Empty array
         // for terminal statuses; null when not requested.
+        // allowedTransitions comes from the order's fulfilment-mode strategy. Callers that set
+        // includeAllowedTransitions pass the resolved strategy; without one we degrade to empty.
         var allowedTransitions = includeAllowedTransitions
-            ? OrderStateMachine.AllowedNext(o.Status, o.JobType).ToList()
+            ? (statusStrategy?.AllowedNext(o.Status).ToList() ?? [])
             : null;
 
         return new(

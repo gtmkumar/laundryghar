@@ -1,31 +1,44 @@
+using laundryghar.SharedDataModel.Entities.OrderLifecycle;
 using EnumsNs = laundryghar.SharedDataModel.Enums;
 
 namespace operations.Application.Fulfillment;
 
 /// <summary>
-/// Default resolver — indexes the registered strategies by <see cref="IFulfillmentStrategy.VerticalKey"/>
-/// and falls back to the laundry strategy for unknown/null verticals (preserving existing rows).
+/// Default resolver — indexes the registered strategies by <see cref="IFulfillmentStrategy.FulfillmentMode"/>
+/// and falls back to laundry's <c>process_deliver</c> for unknown/null modes (preserving existing rows).
 /// </summary>
 public sealed class FulfillmentStrategyResolver : IFulfillmentStrategyResolver
 {
-    private readonly IReadOnlyDictionary<string, IFulfillmentStrategy> _byVertical;
+    private readonly IReadOnlyDictionary<string, IFulfillmentStrategy> _byMode;
     private readonly IFulfillmentStrategy _fallback;
 
     public FulfillmentStrategyResolver(IEnumerable<IFulfillmentStrategy> strategies)
     {
-        _byVertical = strategies.ToDictionary(s => s.VerticalKey, StringComparer.OrdinalIgnoreCase);
+        _byMode = strategies.ToDictionary(s => s.FulfillmentMode, StringComparer.OrdinalIgnoreCase);
 
-        if (_byVertical.Count == 0)
+        if (_byMode.Count == 0)
             throw new InvalidOperationException("No IFulfillmentStrategy implementations registered.");
 
-        // Unknown vertical → laundry (the reference implementation / pre-migration default).
-        _fallback = _byVertical.TryGetValue(EnumsNs.VerticalKey.Laundry, out var laundry)
+        _fallback = _byMode.TryGetValue(EnumsNs.FulfillmentMode.ProcessDeliver, out var laundry)
             ? laundry
-            : _byVertical.Values.First();
+            : _byMode.Values.First();
     }
 
-    public IFulfillmentStrategy Resolve(string? verticalKey)
-        => verticalKey is not null && _byVertical.TryGetValue(verticalKey, out var strategy)
+    public IFulfillmentStrategy Resolve(string? fulfillmentMode)
+        => fulfillmentMode is not null && _byMode.TryGetValue(fulfillmentMode, out var strategy)
             ? strategy
             : _fallback;
+
+    public IFulfillmentStrategy ResolveForOrder(Order order)
+    {
+        // Prefer the stored mode; fall back to the legacy JobType for any not-yet-backfilled row,
+        // exactly reproducing the former OrderStateMachine.MapFor(jobType) selection.
+        var mode = !string.IsNullOrEmpty(order.FulfillmentMode)
+            ? order.FulfillmentMode
+            : (order.JobType == EnumsNs.JobType.Parcel
+                ? EnumsNs.FulfillmentMode.PointToPoint
+                : EnumsNs.FulfillmentMode.ProcessDeliver);
+
+        return Resolve(mode);
+    }
 }

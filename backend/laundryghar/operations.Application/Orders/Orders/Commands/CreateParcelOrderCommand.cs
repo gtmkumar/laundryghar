@@ -96,6 +96,7 @@ public sealed class CreateParcelOrderHandler : ICommandHandler<CreateParcelOrder
             DeliveryAddressId    = req.DeliveryAddressId,
             Channel              = "app",
             JobType              = JobType.Parcel,
+            FulfillmentMode      = laundryghar.SharedDataModel.Enums.FulfillmentMode.PointToPoint,
             RequestedVehicleTier = req.VehicleTier,
             OrderType            = "standard",
             IsExpress            = false,

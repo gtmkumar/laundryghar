@@ -4,6 +4,7 @@ using laundryghar.Utilities.Common;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
+using operations.Application.Fulfillment;
 using operations.Application.Logistics.Common;
 using operations.Application.Orders.Common;
 using operations.Application.Orders.Orders.Commands;
@@ -104,8 +105,10 @@ public sealed class GetOrderByIdHandler : IQueryHandler<GetOrderByIdQuery, Order
 {
     private readonly IOperationsDbContext _db;
     private readonly ICurrentUser _user;
+    private readonly IFulfillmentStrategyResolver _strategies;
 
-    public GetOrderByIdHandler(IOperationsDbContext db, ICurrentUser user) { _db = db; _user = user; }
+    public GetOrderByIdHandler(IOperationsDbContext db, ICurrentUser user, IFulfillmentStrategyResolver strategies)
+    { _db = db; _user = user; _strategies = strategies; }
 
     public async Task<OrderDto?> HandleAsync(GetOrderByIdQuery q, CancellationToken ct)
     {
@@ -122,7 +125,8 @@ public sealed class GetOrderByIdHandler : IQueryHandler<GetOrderByIdQuery, Order
         // H4: expose DeliveryOtp to owning customer only, only while out_for_delivery.
         // DEF: surface allowedTransitions (next legal statuses) on the admin detail view.
         return CreateOrderHandler.ToDto(order, items, addons, history,
-            includeDeliveryOtp: true, includeAllowedTransitions: true);
+            includeDeliveryOtp: true, includeAllowedTransitions: true,
+            statusStrategy: _strategies.ResolveForOrder(order));
     }
 }
 
@@ -175,8 +179,10 @@ public sealed record GetMyOrderByIdQuery(Guid OrderId, Guid CustomerId) : IQuery
 public sealed class GetMyOrderByIdHandler : IQueryHandler<GetMyOrderByIdQuery, OrderDto?>
 {
     private readonly IOperationsDbContext _db;
+    private readonly IFulfillmentStrategyResolver _strategies;
 
-    public GetMyOrderByIdHandler(IOperationsDbContext db) => _db = db;
+    public GetMyOrderByIdHandler(IOperationsDbContext db, IFulfillmentStrategyResolver strategies)
+    { _db = db; _strategies = strategies; }
 
     public async Task<OrderDto?> HandleAsync(GetMyOrderByIdQuery q, CancellationToken ct)
     {
@@ -193,7 +199,8 @@ public sealed class GetMyOrderByIdHandler : IQueryHandler<GetMyOrderByIdQuery, O
         // allowedTransitions is derived purely from order status, so it is safe to share
         // with the customer detail view (no admin-only data leaks through it).
         return CreateOrderHandler.ToDto(order, items, addons, history,
-            includeAllowedTransitions: true);
+            includeAllowedTransitions: true,
+            statusStrategy: _strategies.ResolveForOrder(order));
     }
 }
 
