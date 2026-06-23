@@ -2,7 +2,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>Warehouse process definition (order_lifecycle.warehouse_processes).
+/// <summary>Warehouse process definition (laundry_fulfillment.warehouse_processes).
 /// Has created_at, created_by only — no updated_at, no version, no deleted_at.</summary>
 public class WarehouseProcess
 {

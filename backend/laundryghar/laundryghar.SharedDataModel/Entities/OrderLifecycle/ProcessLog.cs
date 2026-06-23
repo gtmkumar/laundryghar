@@ -2,7 +2,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>Immutable garment process scan log (order_lifecycle.process_logs).
+/// <summary>Immutable garment process scan log (laundry_fulfillment.process_logs).
 /// PARTITIONED table — composite PK (Id, OccurredAt) required by PG range partitioning.
 /// Has created_at, created_by only.</summary>
 public class ProcessLog

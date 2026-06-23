@@ -8,7 +8,7 @@ public sealed class StockReconciliationConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<StockReconciliation> b)
     {
-        b.ToTable("stock_reconciliations", "order_lifecycle");
+        b.ToTable("stock_reconciliations", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();

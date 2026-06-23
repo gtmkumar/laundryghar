@@ -2,7 +2,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>QC record for a garment (order_lifecycle.quality_checks).
+/// <summary>QC record for a garment (laundry_fulfillment.quality_checks).
 /// FK to orders uses composite key — scalar only.
 /// Has created_at, updated_at, created_by, updated_by, status. No version, no deleted_at.</summary>
 public class QualityCheck

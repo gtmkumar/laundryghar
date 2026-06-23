@@ -3,7 +3,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>Photo taken during garment inspection (order_lifecycle.garment_inspection_photos).
+/// <summary>Photo taken during garment inspection (laundry_fulfillment.garment_inspection_photos).
 /// Has created_at, created_by, deleted_at. No updated_at, no version.</summary>
 public class GarmentInspectionPhoto : ISoftDeletable
 {

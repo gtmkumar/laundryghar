@@ -3,7 +3,7 @@ using NetTopologySuite.Geometries;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>Inspection record for a garment at a stage (order_lifecycle.garment_inspections).
+/// <summary>Inspection record for a garment at a stage (laundry_fulfillment.garment_inspections).
 /// FK to orders uses composite key — scalar columns only (no composite nav).
 /// Has created_at, created_by only.</summary>
 public class GarmentInspection

@@ -8,7 +8,7 @@ public sealed class GarmentInspectionPhotoConfiguration : IEntityTypeConfigurati
 {
     public void Configure(EntityTypeBuilder<GarmentInspectionPhoto> b)
     {
-        b.ToTable("garment_inspection_photos", "order_lifecycle");
+        b.ToTable("garment_inspection_photos", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();

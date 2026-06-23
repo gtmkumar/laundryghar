@@ -8,7 +8,7 @@ public sealed class ProcessLogConfiguration : IEntityTypeConfiguration<ProcessLo
 {
     public void Configure(EntityTypeBuilder<ProcessLog> b)
     {
-        b.ToTable("process_logs", "order_lifecycle");
+        b.ToTable("process_logs", "laundry_fulfillment");
 
         // Composite PK required by PG range partitioning on occurred_at
         b.HasKey(e => new { e.Id, e.OccurredAt });

@@ -8,7 +8,7 @@ public sealed class GarmentInspectionConfiguration : IEntityTypeConfiguration<Ga
 {
     public void Configure(EntityTypeBuilder<GarmentInspection> b)
     {
-        b.ToTable("garment_inspections", "order_lifecycle");
+        b.ToTable("garment_inspections", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();

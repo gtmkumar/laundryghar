@@ -2,7 +2,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>Reference lookup for garment condition types (order_lifecycle.garment_conditions).
+/// <summary>Reference lookup for garment condition types (laundry_fulfillment.garment_conditions).
 /// Has created_at, updated_at, created_by, updated_by, status. No version, no deleted_at.</summary>
 public class GarmentCondition
 {

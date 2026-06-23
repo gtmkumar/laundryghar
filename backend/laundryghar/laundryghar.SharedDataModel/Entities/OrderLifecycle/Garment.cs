@@ -3,7 +3,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>Individual garment tracked through the laundry lifecycle (order_lifecycle.garments).
+/// <summary>Individual garment tracked through the laundry lifecycle (laundry_fulfillment.garments).
 /// FK to orders uses composite key (order_id, order_created_at).
 /// Has created_at, updated_at, created_by, updated_by, version, status. No deleted_at.</summary>
 public class Garment

@@ -2,7 +2,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>Physical QR/barcode/RFID tag inventory (order_lifecycle.garment_tags).
+/// <summary>Physical QR/barcode/RFID tag inventory (laundry_fulfillment.garment_tags).
 /// Has created_at, updated_at, created_by. No updated_by, no version, no deleted_at.</summary>
 public class GarmentTag
 {

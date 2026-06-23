@@ -2,7 +2,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>Garment stock reconciliation session (order_lifecycle.stock_reconciliations).
+/// <summary>Garment stock reconciliation session (laundry_fulfillment.stock_reconciliations).
 /// Has created_at, updated_at, created_by, updated_by. No version, no deleted_at.</summary>
 public class StockReconciliation
 {

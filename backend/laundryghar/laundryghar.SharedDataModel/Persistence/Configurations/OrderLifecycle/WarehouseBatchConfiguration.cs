@@ -8,7 +8,7 @@ public sealed class WarehouseBatchConfiguration : IEntityTypeConfiguration<Wareh
 {
     public void Configure(EntityTypeBuilder<WarehouseBatch> b)
     {
-        b.ToTable("warehouse_batches", "order_lifecycle");
+        b.ToTable("warehouse_batches", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();

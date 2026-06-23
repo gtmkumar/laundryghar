@@ -2,7 +2,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
-/// <summary>Individual garment line within a stock reconciliation (order_lifecycle.stock_reconciliation_items).
+/// <summary>Individual garment line within a stock reconciliation (laundry_fulfillment.stock_reconciliation_items).
 /// Has created_at, created_by, flagged_at only — immutable per-row.</summary>
 public class StockReconciliationItem
 {

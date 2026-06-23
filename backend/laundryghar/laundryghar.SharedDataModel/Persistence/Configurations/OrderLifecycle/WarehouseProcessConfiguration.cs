@@ -8,7 +8,7 @@ public sealed class WarehouseProcessConfiguration : IEntityTypeConfiguration<War
 {
     public void Configure(EntityTypeBuilder<WarehouseProcess> b)
     {
-        b.ToTable("warehouse_processes", "order_lifecycle");
+        b.ToTable("warehouse_processes", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
