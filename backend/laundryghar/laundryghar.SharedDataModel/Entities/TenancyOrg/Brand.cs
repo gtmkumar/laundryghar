@@ -9,6 +9,12 @@ public class Brand : IAuditableEntity, ISoftDeletable
     public Guid PlatformId { get; set; }
     public string Code { get; set; } = null!;
     public string Name { get; set; } = null!;
+
+    /// <summary>The industry vertical this brand operates — see <see cref="Enums.VerticalKey"/>.
+    /// A brand operates exactly one vertical (single source of truth, denormalized onto orders).
+    /// NOT NULL; existing rows backfill to 'laundry'. Immutable once orders exist (DB trigger).</summary>
+    public string VerticalKey { get; set; } = Enums.VerticalKey.Laundry;
+
     public string? LegalName { get; set; }
     public string? Tagline { get; set; }
     public string? Description { get; set; }

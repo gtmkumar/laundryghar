@@ -16,6 +16,7 @@ public sealed class BrandConfiguration : IEntityTypeConfiguration<Brand>
         b.Property(e => e.PlatformId).HasColumnName("platform_id").IsRequired();
         b.Property(e => e.Code).HasColumnName("code").HasMaxLength(50).IsRequired();
         b.Property(e => e.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+        b.Property(e => e.VerticalKey).HasColumnName("vertical_key").HasMaxLength(20).IsRequired();
         b.Property(e => e.LegalName).HasColumnName("legal_name").HasMaxLength(200);
         b.Property(e => e.Tagline).HasColumnName("tagline").HasMaxLength(300);
         b.Property(e => e.Description).HasColumnName("description");

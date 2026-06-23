@@ -38,6 +38,15 @@ public class Order : IAuditableEntity, ISoftDeletable
     /// 'parcel' is a point-to-point delivery riding the same order spine.</summary>
     public string JobType { get; set; } = "laundry";
 
+    /// <summary>Vertical that owns this order's fulfilment strategy — denormalized from
+    /// <c>Brand.VerticalKey</c>. See <see cref="Enums.VerticalKey"/>. Orthogonal to
+    /// <see cref="JobType"/>. Defaults to laundry so existing rows/callers are unaffected.</summary>
+    public string VerticalKey { get; set; } = Enums.VerticalKey.Laundry;
+
+    /// <summary>How this order is fulfilled — see <see cref="Enums.FulfillmentMode"/>.
+    /// Defaults to process_deliver (laundry).</summary>
+    public string FulfillmentMode { get; set; } = Enums.FulfillmentMode.ProcessDeliver;
+
     public string OrderType { get; set; } = null!;
     public bool IsExpress { get; set; }
 
@@ -136,5 +145,8 @@ public class Order : IAuditableEntity, ISoftDeletable
     public ICollection<OrderAddon> OrderAddons { get; set; } = [];
     public ICollection<OrderStatusHistory> StatusHistories { get; set; } = [];
     public ICollection<OrderNote> Notes { get; set; } = [];
-    public ICollection<Garment> Garments { get; set; } = [];
+    // NOTE: no Garments navigation — the Order aggregate is decoupled from the laundry-fulfilment
+    // Garment tree (multi-vertical Phase 1 / Slice C). Garments are queried via _db.Garments by
+    // OrderId. Physical relocation of the laundry-fulfilment tables to their own schema is a later,
+    // separate (destructive) migration.
 }

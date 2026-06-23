@@ -6,7 +6,7 @@ using laundryghar.SharedDataModel.Enums;
 using laundryghar.Utilities.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
-using operations.Application.Logistics.Common;
+using operations.Application.Fulfillment;
 using operations.Application.Orders.Common;
 using operations.Application.Orders.Orders.Dtos;
 
@@ -24,8 +24,13 @@ public sealed class CancelOrderByCustomerHandler
     : ICommandHandler<CancelOrderByCustomerCommand, OrderDto?>
 {
     private readonly IOperationsDbContext _db;
+    private readonly IFulfillmentStrategyResolver _strategies;
 
-    public CancelOrderByCustomerHandler(IOperationsDbContext db) => _db = db;
+    public CancelOrderByCustomerHandler(IOperationsDbContext db, IFulfillmentStrategyResolver strategies)
+    {
+        _db = db;
+        _strategies = strategies;
+    }
 
     public async Task<OrderDto?> HandleAsync(CancelOrderByCustomerCommand cmd, CancellationToken ct)
     {
@@ -38,7 +43,7 @@ public sealed class CancelOrderByCustomerHandler
                                    && o.BrandId    == cmd.BrandId, ct);
         if (order is null || order.DeletedAt != null) return null;
 
-        if (!OrderStateMachine.CanCustomerCancel(order.Status))
+        if (!_strategies.ResolveForOrder(order).CanCustomerCancel(order.Status))
             throw new BusinessRuleException(
                 $"You cannot cancel an order in status '{order.Status}'. " +
                 "Contact support for orders that have already been picked up.");

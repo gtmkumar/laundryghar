@@ -29,6 +29,8 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         b.Property(e => e.DeliveryRiderId).HasColumnName("delivery_rider_id");
         b.Property(e => e.Channel).HasColumnName("channel").HasMaxLength(20).IsRequired();
         b.Property(e => e.JobType).HasColumnName("job_type").HasMaxLength(20).IsRequired();
+        b.Property(e => e.VerticalKey).HasColumnName("vertical_key").HasMaxLength(20).IsRequired();
+        b.Property(e => e.FulfillmentMode).HasColumnName("fulfillment_mode").HasMaxLength(20).IsRequired();
         b.Property(e => e.OrderType).HasColumnName("order_type").HasMaxLength(20).IsRequired();
         b.Property(e => e.IsExpress).HasColumnName("is_express").IsRequired();
         b.Property(e => e.RequestedVehicleTier).HasColumnName("requested_vehicle_tier").HasMaxLength(20);
