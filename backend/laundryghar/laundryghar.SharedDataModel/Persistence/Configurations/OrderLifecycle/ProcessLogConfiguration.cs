@@ -18,7 +18,7 @@ public sealed class ProcessLogConfiguration : IEntityTypeConfiguration<ProcessLo
         b.Property(e => e.BrandId).HasColumnName("brand_id").IsRequired();
         b.Property(e => e.WarehouseId).HasColumnName("warehouse_id").IsRequired();
         b.Property(e => e.BatchId).HasColumnName("batch_id");
-        b.Property(e => e.GarmentId).HasColumnName("garment_id").IsRequired();
+        b.Property(e => e.FulfillmentUnitId).HasColumnName("fulfillment_unit_id").IsRequired();
         b.Property(e => e.TagCode).HasColumnName("tag_code").HasMaxLength(50).IsRequired();
         b.Property(e => e.ProcessId).HasColumnName("process_id");
         b.Property(e => e.ProcessCode).HasColumnName("process_code").HasMaxLength(50).IsRequired();
@@ -39,7 +39,7 @@ public sealed class ProcessLogConfiguration : IEntityTypeConfiguration<ProcessLo
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("process_logs_warehouse_id_fkey");
         b.HasOne(e => e.Batch).WithMany().HasForeignKey(e => e.BatchId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("process_logs_batch_id_fkey");
-        b.HasOne(e => e.Garment).WithMany().HasForeignKey(e => e.GarmentId)
+        b.HasOne(e => e.FulfillmentUnit).WithMany().HasForeignKey(e => e.FulfillmentUnitId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("process_logs_garment_id_fkey");
         b.HasOne(e => e.Process).WithMany().HasForeignKey(e => e.ProcessId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("process_logs_process_id_fkey");

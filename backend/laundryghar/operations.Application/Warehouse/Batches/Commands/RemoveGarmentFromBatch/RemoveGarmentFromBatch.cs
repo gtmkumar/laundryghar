@@ -7,7 +7,7 @@ namespace operations.Application.Warehouse.Batches.Commands.RemoveGarmentFromBat
 
 // ── Remove garment from batch ─────────────────────────────────────────────────
 
-public sealed record RemoveGarmentFromBatchCommand(Guid BatchId, Guid GarmentId, Guid? ActorId)
+public sealed record RemoveGarmentFromBatchCommand(Guid BatchId, Guid FulfillmentUnitId, Guid? ActorId)
     : ICommand<bool>;
 
 public sealed class RemoveGarmentFromBatchCommandHandler : ICommandHandler<RemoveGarmentFromBatchCommand, bool>
@@ -26,8 +26,8 @@ public sealed class RemoveGarmentFromBatchCommandHandler : ICommandHandler<Remov
         var brandId = _user.RequireBrandId();
         var now     = DateTimeOffset.UtcNow;
 
-        var garment = await _db.Garments
-            .FirstOrDefaultAsync(g => g.Id == command.GarmentId && g.BrandId == brandId
+        var garment = await _db.FulfillmentUnits
+            .FirstOrDefaultAsync(g => g.Id == command.FulfillmentUnitId && g.BrandId == brandId
                                    && g.CurrentBatchId == command.BatchId, cancellationToken);
         if (garment is null) return false;
 

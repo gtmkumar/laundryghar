@@ -36,7 +36,7 @@ public class GetWarehouseBoardQueryHandler : IQueryHandler<GetWarehouseBoardQuer
         var brandId = _user.RequireBrandId();
         var stages  = Lanes.Select(l => l.Stage).ToArray();
 
-        var rows = await _db.Garments
+        var rows = await _db.FulfillmentUnits
             .Where(g => g.BrandId == brandId && stages.Contains(g.CurrentStage))
             .OrderByDescending(g => g.LastScannedAt)
             .Select(g => new
@@ -57,7 +57,7 @@ public class GetWarehouseBoardQueryHandler : IQueryHandler<GetWarehouseBoardQuer
         var cards = rows.Select(r => new GarmentCardDto(
             r.Id,
             r.TagCode,
-            string.IsNullOrWhiteSpace(r.ItemName) ? "Garment" : r.ItemName!,
+            string.IsNullOrWhiteSpace(r.ItemName) ? "FulfillmentUnit" : r.ItemName!,
             string.IsNullOrWhiteSpace(r.FabricName) ? "—" : r.FabricName!,
             FormatCustomer(r.Display, r.First, r.Last),
             r.CurrentStage,
@@ -88,7 +88,7 @@ public class GetWarehouseBoardQueryHandler : IQueryHandler<GetWarehouseBoardQuer
         var nowIst = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromMinutes(330));
         var istMidnightUtc = new DateTimeOffset(nowIst.Year, nowIst.Month, nowIst.Day, 0, 0, 0, TimeSpan.FromMinutes(330))
             .ToUniversalTime();
-        var throughputToday = await _db.Garments
+        var throughputToday = await _db.FulfillmentUnits
             .CountAsync(g => g.BrandId == brandId
                           && g.ActualCompletionAt != null
                           && g.ActualCompletionAt >= istMidnightUtc, cancellationToken);

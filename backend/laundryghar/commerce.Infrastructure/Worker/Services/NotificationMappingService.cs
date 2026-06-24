@@ -363,7 +363,7 @@ public sealed class NotificationMappingService : BackgroundService
         {
             return await db.Customers.IgnoreQueryFilters()
                 .Where(c => c.BrandId == brandId
-                    && db.Garments.Any(g => g.Id == evt.AggregateId && g.CustomerId == c.Id))
+                    && db.FulfillmentUnits.Any(g => g.Id == evt.AggregateId && g.CustomerId == c.Id))
                 .FirstOrDefaultAsync(ct);
         }
 

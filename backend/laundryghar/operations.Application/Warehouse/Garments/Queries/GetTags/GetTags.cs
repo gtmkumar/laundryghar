@@ -25,14 +25,14 @@ public class GetTagsQueryHandler : IQueryHandler<GetTagsQuery, PaginatedList<Gar
     public Task<PaginatedList<GarmentTagDto>> HandleAsync(GetTagsQuery query, CancellationToken cancellationToken)
     {
         var brandId = _user.RequireBrandId();
-        var q       = _db.GarmentTags.Where(t => t.BrandId == brandId);
+        var q       = _db.FulfillmentUnitTags.Where(t => t.BrandId == brandId);
         if (!string.IsNullOrEmpty(query.Status)) q = q.Where(t => t.Status == query.Status);
 
         return PaginatedList<GarmentTagDto>.CreateAsync(
             q.OrderByDescending(t => t.CreatedAt)
                 .Select(t => new GarmentTagDto(
                     t.Id, t.BrandId, t.TagCode, t.TagFormat,
-                    t.BatchNumber, t.AssignedToGarmentId,
+                    t.BatchNumber, t.AssignedToFulfillmentUnitId,
                     t.AssignedAt, t.IsDamaged, t.Status, t.CreatedAt)),
             query.Page, query.PageSize, cancellationToken);
     }

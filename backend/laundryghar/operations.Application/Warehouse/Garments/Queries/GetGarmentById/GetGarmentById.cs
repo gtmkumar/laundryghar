@@ -23,7 +23,7 @@ public class GetGarmentByIdQueryHandler : IQueryHandler<GetGarmentByIdQuery, Gar
     public async Task<GarmentDto?> HandleAsync(GetGarmentByIdQuery query, CancellationToken cancellationToken)
     {
         var brandId = _user.RequireBrandId();
-        var g = await _db.Garments
+        var g = await _db.FulfillmentUnits
             .FirstOrDefaultAsync(x => x.Id == query.Id && x.BrandId == brandId, cancellationToken);
         return g is null ? null : CreateGarmentCommandHandler.ToDto(g);
     }

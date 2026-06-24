@@ -10,7 +10,7 @@ public class QualityCheck
     public Guid Id { get; set; }
     public Guid BrandId { get; set; }
     public Guid WarehouseId { get; set; }
-    public Guid GarmentId { get; set; }
+    public Guid FulfillmentUnitId { get; set; }
 
     /// <summary>Part of composite FK to orders(id, created_at) — scalar only.</summary>
     public Guid OrderId { get; set; }
@@ -47,8 +47,8 @@ public class QualityCheck
     // Navigations
     public Brand Brand { get; set; } = null!;
     public Warehouse Warehouse { get; set; } = null!;
-    public Garment Garment { get; set; } = null!;
+    public FulfillmentUnit FulfillmentUnit { get; set; } = null!;
     public WarehouseBatch? Batch { get; set; }
-    public GarmentInspection? PreWashInspection { get; set; }
-    public GarmentInspection? PostWashInspection { get; set; }
+    public FulfillmentUnitInspection? PreWashInspection { get; set; }
+    public FulfillmentUnitInspection? PostWashInspection { get; set; }
 }

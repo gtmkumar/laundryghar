@@ -21,7 +21,7 @@ public sealed class GetGarmentConditionsQueryHandler
     {
         var brandId = _user.RequireBrandId();
         return PaginatedList<GarmentConditionDto>.CreateAsync(
-            _db.GarmentConditions
+            _db.FulfillmentUnitConditions
                 .Where(c => c.BrandId == brandId)
                 .OrderBy(c => c.DisplayOrder)
                 .Select(c => CreateGarmentConditionCommandHandler.ToDto(c)),

@@ -14,7 +14,7 @@ public sealed class QualityCheckConfiguration : IEntityTypeConfiguration<Quality
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
         b.Property(e => e.BrandId).HasColumnName("brand_id").IsRequired();
         b.Property(e => e.WarehouseId).HasColumnName("warehouse_id").IsRequired();
-        b.Property(e => e.GarmentId).HasColumnName("garment_id").IsRequired();
+        b.Property(e => e.FulfillmentUnitId).HasColumnName("fulfillment_unit_id").IsRequired();
         // Scalar-only composite FK columns to orders
         b.Property(e => e.OrderId).HasColumnName("order_id").IsRequired();
         b.Property(e => e.OrderCreatedAt).HasColumnName("order_created_at").IsRequired();
@@ -45,8 +45,8 @@ public sealed class QualityCheckConfiguration : IEntityTypeConfiguration<Quality
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("quality_checks_brand_id_fkey");
         b.HasOne(e => e.Warehouse).WithMany().HasForeignKey(e => e.WarehouseId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("quality_checks_warehouse_id_fkey");
-        b.HasOne(e => e.Garment).WithMany(g => g.QualityChecks)
-            .HasForeignKey(e => e.GarmentId)
+        b.HasOne(e => e.FulfillmentUnit).WithMany(g => g.QualityChecks)
+            .HasForeignKey(e => e.FulfillmentUnitId)
             .OnDelete(DeleteBehavior.Cascade).HasConstraintName("quality_checks_garment_id_fkey");
         b.HasOne(e => e.Batch).WithMany(wb => wb.QualityChecks)
             .HasForeignKey(e => e.BatchId)

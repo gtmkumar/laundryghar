@@ -1,7 +1,7 @@
 namespace operations.Application.Warehouse.Inspections.Dtos;
 
 public sealed record GarmentInspectionDto(
-    Guid Id, Guid BrandId, Guid GarmentId,
+    Guid Id, Guid BrandId, Guid FulfillmentUnitId,
     string InspectionType, string InspectedByType,
     DateTimeOffset InspectedAt, string? OverallCondition,
     short IssuesCount, bool RequiresSpecialCare,
@@ -10,7 +10,7 @@ public sealed record GarmentInspectionDto(
 );
 
 public sealed record CreateInspectionRequest(
-    Guid GarmentId,
+    Guid FulfillmentUnitId,
     string InspectionType,
     string InspectedByType,
     string? OverallCondition,

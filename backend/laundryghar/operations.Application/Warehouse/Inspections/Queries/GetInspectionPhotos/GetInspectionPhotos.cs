@@ -27,7 +27,7 @@ public sealed class GetInspectionPhotosQueryHandler
     {
         var brandId = _user.RequireBrandId();
 
-        var photos = await _db.GarmentInspectionPhotos
+        var photos = await _db.FulfillmentUnitInspectionPhotos
             .Where(p => p.InspectionId == query.InspectionId && p.BrandId == brandId)
             .OrderByDescending(p => p.IsPrimary)
             .ThenBy(p => p.CreatedAt)

@@ -38,6 +38,6 @@ public class WarehouseBatch
     public Brand Brand { get; set; } = null!;
     public Warehouse Warehouse { get; set; } = null!;
     public Service? Service { get; set; }
-    public ICollection<Garment> Garments { get; set; } = [];
+    public ICollection<FulfillmentUnit> FulfillmentUnits { get; set; } = [];
     public ICollection<QualityCheck> QualityChecks { get; set; } = [];
 }

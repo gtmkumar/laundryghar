@@ -12,7 +12,7 @@ namespace operations.Application.Warehouse.Inspections.Commands.UploadInspection
 // ── Upload Inspection Photo ────────────────────────────────────────────────────
 
 /// <summary>
-/// Saves an uploaded photo to the file store and records a GarmentInspectionPhoto row.
+/// Saves an uploaded photo to the file store and records a FulfillmentUnitInspectionPhoto row.
 /// </summary>
 public sealed record UploadInspectionPhotoCommand(
     Guid        InspectionId,
@@ -42,7 +42,7 @@ public sealed class UploadInspectionPhotoCommandHandler
         var brandId = _user.RequireBrandId();
 
         // Verify the inspection belongs to this brand (RLS ensures brand isolation)
-        var inspection = await _db.GarmentInspections
+        var inspection = await _db.FulfillmentUnitInspections
             .FirstOrDefaultAsync(i => i.Id == command.InspectionId && i.BrandId == brandId, cancellationToken)
             ?? throw new KeyNotFoundException($"Inspection {command.InspectionId} not found.");
 
@@ -52,11 +52,11 @@ public sealed class UploadInspectionPhotoCommandHandler
         var key = await _storage.SaveAsync(
             stream, command.File.ContentType, "inspections", brandId, cancellationToken);
 
-        var photo = new GarmentInspectionPhoto
+        var photo = new FulfillmentUnitInspectionPhoto
         {
             Id           = Guid.NewGuid(),
             InspectionId = command.InspectionId,
-            GarmentId    = inspection.GarmentId,
+            FulfillmentUnitId    = inspection.FulfillmentUnitId,
             BrandId      = brandId,
             S3Key        = key,
             View         = command.View,
@@ -72,7 +72,7 @@ public sealed class UploadInspectionPhotoCommandHandler
             CreatedBy    = command.ActorId
         };
 
-        _db.GarmentInspectionPhotos.Add(photo);
+        _db.FulfillmentUnitInspectionPhotos.Add(photo);
         await _db.SaveChangesAsync(cancellationToken);
 
         return new InspectionPhotoDto(

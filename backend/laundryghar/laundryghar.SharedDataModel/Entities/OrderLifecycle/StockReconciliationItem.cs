@@ -9,7 +9,7 @@ public class StockReconciliationItem
     public Guid Id { get; set; }
     public Guid ReconciliationId { get; set; }
     public Guid BrandId { get; set; }
-    public Guid? GarmentId { get; set; }
+    public Guid? FulfillmentUnitId { get; set; }
     public string TagCode { get; set; } = null!;
     public string? ExpectedStage { get; set; }
     public string? ExpectedLocationType { get; set; }
@@ -32,5 +32,5 @@ public class StockReconciliationItem
     // Navigations
     public StockReconciliation Reconciliation { get; set; } = null!;
     public Brand Brand { get; set; } = null!;
-    public Garment? Garment { get; set; }
+    public FulfillmentUnit? FulfillmentUnit { get; set; }
 }

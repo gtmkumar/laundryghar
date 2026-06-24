@@ -14,7 +14,7 @@ using operations.Application.Warehouse.Inspections.Queries.GetInspectionPhotoStr
 namespace operations.WebApi.Endpoints.Warehouse;
 
 /// <summary>
-/// Admin — Garment inspections + inspection photos. Thin dispatch through <see cref="IDispatcher"/>.
+/// Admin — FulfillmentUnit inspections + inspection photos. Thin dispatch through <see cref="IDispatcher"/>.
 /// Photo upload is multipart (IFormFile) — requires <c>DisableAntiforgery()</c> in .NET minimal APIs
 /// and a request-size cap (10 MB + envelope overhead). Photo streaming is by photo id to avoid
 /// exposing raw storage keys in the API surface.

@@ -10,7 +10,7 @@ using operations.Application.Warehouse.Garments.Queries.GetTags;
 namespace operations.WebApi.Endpoints.Warehouse;
 
 /// <summary>
-/// Admin — Garment tags: paged list + bulk generation. Thin dispatch through <see cref="IDispatcher"/>.
+/// Admin — FulfillmentUnit tags: paged list + bulk generation. Thin dispatch through <see cref="IDispatcher"/>.
 /// </summary>
 public class WarehouseGarmentTags : IEndpointGroup
 {
@@ -18,7 +18,7 @@ public class WarehouseGarmentTags : IEndpointGroup
 
     public static void Map(RouteGroupBuilder group)
     {
-        group.WithTags("Admin - Garment Tags").RequireAuthorization();
+        group.WithTags("Admin - FulfillmentUnit Tags").RequireAuthorization();
 
         group.MapGet(GetAll, "/").RequireAuthorization("permission:fulfillment.tag");
         group.MapPost(Generate, "/generate")

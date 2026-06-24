@@ -31,9 +31,9 @@ public sealed class CreateProcessLogCommandHandler : ICommandHandler<CreateProce
         var now     = DateTimeOffset.UtcNow;
 
         // Validate garment belongs to brand
-        var garment = await _db.Garments
-            .FirstOrDefaultAsync(g => g.Id == req.GarmentId && g.BrandId == brandId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Garment {req.GarmentId} not found.");
+        var garment = await _db.FulfillmentUnits
+            .FirstOrDefaultAsync(g => g.Id == req.FulfillmentUnitId && g.BrandId == brandId, cancellationToken)
+            ?? throw new KeyNotFoundException($"FulfillmentUnit {req.FulfillmentUnitId} not found.");
 
         // OccurredAt = partition key — let DB/EF set it from now(); do NOT manually manage partition.
         var log = new ProcessLog
@@ -43,7 +43,7 @@ public sealed class CreateProcessLogCommandHandler : ICommandHandler<CreateProce
             BrandId         = brandId,
             WarehouseId     = req.WarehouseId,
             BatchId         = req.BatchId,
-            GarmentId       = req.GarmentId,
+            FulfillmentUnitId       = req.FulfillmentUnitId,
             TagCode         = garment.TagCode,
             ProcessId       = req.ProcessId,
             ProcessCode     = req.ProcessCode,
@@ -72,7 +72,7 @@ public sealed class CreateProcessLogCommandHandler : ICommandHandler<CreateProce
         await _db.SaveChangesAsync(cancellationToken);
 
         return new ProcessLogEntryDto(
-            log.Id, log.BrandId, log.WarehouseId, log.GarmentId,
+            log.Id, log.BrandId, log.WarehouseId, log.FulfillmentUnitId,
             log.TagCode, log.ProcessCode, log.Action,
             log.FromStage, log.ToStage, log.OccurredAt, log.CreatedAt);
     }
@@ -85,7 +85,7 @@ public sealed class CreateProcessLogValidator : AbstractValidator<CreateProcessL
 
     public CreateProcessLogValidator()
     {
-        RuleFor(x => x.GarmentId).NotEmpty();
+        RuleFor(x => x.FulfillmentUnitId).NotEmpty();
         RuleFor(x => x.WarehouseId).NotEmpty();
         RuleFor(x => x.ProcessCode).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Action)

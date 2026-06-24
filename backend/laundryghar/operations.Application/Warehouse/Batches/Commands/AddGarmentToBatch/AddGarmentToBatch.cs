@@ -7,7 +7,7 @@ namespace operations.Application.Warehouse.Batches.Commands.AddGarmentToBatch;
 
 // ── Add garment to batch ──────────────────────────────────────────────────────
 
-public sealed record AddGarmentToBatchCommand(Guid BatchId, Guid GarmentId, Guid? ActorId)
+public sealed record AddGarmentToBatchCommand(Guid BatchId, Guid FulfillmentUnitId, Guid? ActorId)
     : ICommand<bool>;
 
 public sealed class AddGarmentToBatchCommandHandler : ICommandHandler<AddGarmentToBatchCommand, bool>
@@ -30,8 +30,8 @@ public sealed class AddGarmentToBatchCommandHandler : ICommandHandler<AddGarment
             .FirstOrDefaultAsync(b => b.Id == command.BatchId && b.BrandId == brandId, cancellationToken);
         if (batch is null) return false;
 
-        var garment = await _db.Garments
-            .FirstOrDefaultAsync(g => g.Id == command.GarmentId && g.BrandId == brandId, cancellationToken);
+        var garment = await _db.FulfillmentUnits
+            .FirstOrDefaultAsync(g => g.Id == command.FulfillmentUnitId && g.BrandId == brandId, cancellationToken);
         if (garment is null) return false;
 
         garment.CurrentBatchId = command.BatchId;

@@ -27,7 +27,7 @@ public class GetGarmentsQueryHandler : IQueryHandler<GetGarmentsQuery, Paginated
     {
         var brandId = _user.RequireBrandId();
         // Defense-in-depth brand predicate (superuser bypasses RLS)
-        var q = _db.Garments.Where(g => g.BrandId == brandId);
+        var q = _db.FulfillmentUnits.Where(g => g.BrandId == brandId);
 
         if (!string.IsNullOrEmpty(query.Stage)) q = q.Where(g => g.CurrentStage == query.Stage);
         if (query.StoreId.HasValue)             q = q.Where(g => g.StoreId == query.StoreId.Value);

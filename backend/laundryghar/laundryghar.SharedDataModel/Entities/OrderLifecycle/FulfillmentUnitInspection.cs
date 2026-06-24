@@ -6,11 +6,11 @@ namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 /// <summary>Inspection record for a garment at a stage (laundry_fulfillment.garment_inspections).
 /// FK to orders uses composite key — scalar columns only (no composite nav).
 /// Has created_at, created_by only.</summary>
-public class GarmentInspection
+public class FulfillmentUnitInspection
 {
     public Guid Id { get; set; }
     public Guid BrandId { get; set; }
-    public Guid GarmentId { get; set; }
+    public Guid FulfillmentUnitId { get; set; }
 
     /// <summary>Part of composite FK to orders(id, created_at) — scalar only (no nav to avoid double-navigation via garment).</summary>
     public Guid OrderId { get; set; }
@@ -48,6 +48,6 @@ public class GarmentInspection
 
     // Navigations
     public Brand Brand { get; set; } = null!;
-    public Garment Garment { get; set; } = null!;
-    public ICollection<GarmentInspectionPhoto> Photos { get; set; } = [];
+    public FulfillmentUnit FulfillmentUnit { get; set; } = null!;
+    public ICollection<FulfillmentUnitInspectionPhoto> Photos { get; set; } = [];
 }

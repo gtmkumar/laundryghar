@@ -23,7 +23,7 @@ public class WarehouseGarments : IEndpointGroup
 
     public static void Map(RouteGroupBuilder group)
     {
-        group.WithTags("Admin - Garments").RequireAuthorization();
+        group.WithTags("Admin - FulfillmentUnits").RequireAuthorization();
 
         group.MapGet(GetBoard, "/board").RequireAuthorization("permission:fulfillment.read");
         group.MapGet(GetAll, "/").RequireAuthorization("permission:fulfillment.read");

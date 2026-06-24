@@ -15,14 +15,14 @@ public sealed record CreateWarehouseProcessRequest(
 );
 
 public sealed record ProcessLogEntryDto(
-    Guid Id, Guid BrandId, Guid WarehouseId, Guid GarmentId,
+    Guid Id, Guid BrandId, Guid WarehouseId, Guid FulfillmentUnitId,
     string TagCode, string ProcessCode, string Action,
     string? FromStage, string? ToStage,
     DateTimeOffset OccurredAt, DateTimeOffset CreatedAt
 );
 
 public sealed record CreateProcessLogRequest(
-    Guid GarmentId,
+    Guid FulfillmentUnitId,
     Guid WarehouseId,
     Guid? BatchId,
     Guid? ProcessId,

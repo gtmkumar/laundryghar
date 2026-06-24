@@ -7,7 +7,7 @@ using operations.Application.Warehouse.Inspections.Dtos;
 
 namespace operations.Application.Warehouse.Inspections.Commands.CreateGarmentCondition;
 
-// ── Garment Condition CRUD ─────────────────────────────────────────────────────
+// ── FulfillmentUnit Condition CRUD ─────────────────────────────────────────────────────
 
 public sealed record CreateGarmentConditionCommand(CreateGarmentConditionRequest Request, Guid? ActorId)
     : ICommand<GarmentConditionDto>;
@@ -30,7 +30,7 @@ public sealed class CreateGarmentConditionCommandHandler
         var req = command.Request;
         var now = DateTimeOffset.UtcNow;
 
-        var e = new GarmentCondition
+        var e = new FulfillmentUnitCondition
         {
             Id                 = Guid.NewGuid(),
             BrandId            = brandId,
@@ -50,12 +50,12 @@ public sealed class CreateGarmentConditionCommandHandler
             UpdatedBy          = command.ActorId
         };
 
-        _db.GarmentConditions.Add(e);
+        _db.FulfillmentUnitConditions.Add(e);
         await _db.SaveChangesAsync(cancellationToken);
         return ToDto(e);
     }
 
-    internal static GarmentConditionDto ToDto(GarmentCondition c) => new(
+    internal static GarmentConditionDto ToDto(FulfillmentUnitCondition c) => new(
         c.Id, c.BrandId, c.Code, c.Name, c.Category,
         c.RequiresDisclaimer, c.DisplayOrder, c.IsActive, c.Status);
 }

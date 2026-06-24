@@ -15,7 +15,7 @@ public class ProcessLog
     public Guid BrandId { get; set; }
     public Guid WarehouseId { get; set; }
     public Guid? BatchId { get; set; }
-    public Guid GarmentId { get; set; }
+    public Guid FulfillmentUnitId { get; set; }
     public string TagCode { get; set; } = null!;
     public Guid? ProcessId { get; set; }
     public string ProcessCode { get; set; } = null!;
@@ -34,6 +34,6 @@ public class ProcessLog
     public Brand Brand { get; set; } = null!;
     public Warehouse Warehouse { get; set; } = null!;
     public WarehouseBatch? Batch { get; set; }
-    public Garment Garment { get; set; } = null!;
+    public FulfillmentUnit FulfillmentUnit { get; set; } = null!;
     public WarehouseProcess? Process { get; set; }
 }

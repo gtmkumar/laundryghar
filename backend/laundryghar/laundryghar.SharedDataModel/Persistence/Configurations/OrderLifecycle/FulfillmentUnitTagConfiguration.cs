@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace laundryghar.SharedDataModel.Persistence.Configurations.OrderLifecycle;
 
-public sealed class GarmentTagConfiguration : IEntityTypeConfiguration<GarmentTag>
+public sealed class FulfillmentUnitTagConfiguration : IEntityTypeConfiguration<FulfillmentUnitTag>
 {
-    public void Configure(EntityTypeBuilder<GarmentTag> b)
+    public void Configure(EntityTypeBuilder<FulfillmentUnitTag> b)
     {
-        b.ToTable("garment_tags", "laundry_fulfillment");
+        b.ToTable("fulfillment_unit_tags", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
@@ -20,7 +20,7 @@ public sealed class GarmentTagConfiguration : IEntityTypeConfiguration<GarmentTa
         b.Property(e => e.PrintedAt).HasColumnName("printed_at");
         b.Property(e => e.PrintedBy).HasColumnName("printed_by");
         b.Property(e => e.PrinterId).HasColumnName("printer_id").HasMaxLength(100);
-        b.Property(e => e.AssignedToGarmentId).HasColumnName("assigned_to_garment_id");
+        b.Property(e => e.AssignedToFulfillmentUnitId).HasColumnName("assigned_to_fulfillment_unit_id");
         b.Property(e => e.AssignedAt).HasColumnName("assigned_at");
         b.Property(e => e.AssignedBy).HasColumnName("assigned_by");
         b.Property(e => e.IsDamaged).HasColumnName("is_damaged").IsRequired();
@@ -38,7 +38,7 @@ public sealed class GarmentTagConfiguration : IEntityTypeConfiguration<GarmentTa
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("garment_tags_brand_id_fkey");
         b.HasOne(e => e.Store).WithMany().HasForeignKey(e => e.StoreId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("garment_tags_store_id_fkey");
-        b.HasOne(e => e.AssignedToGarment).WithMany().HasForeignKey(e => e.AssignedToGarmentId)
+        b.HasOne(e => e.AssignedToFulfillmentUnit).WithMany().HasForeignKey(e => e.AssignedToFulfillmentUnitId)
             .OnDelete(DeleteBehavior.NoAction).HasConstraintName("garment_tags_assigned_to_garment_id_fkey");
     }
 }

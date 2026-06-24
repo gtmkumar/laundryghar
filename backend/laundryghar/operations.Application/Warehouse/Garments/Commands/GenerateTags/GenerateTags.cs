@@ -31,11 +31,11 @@ public class GenerateTagsCommandHandler : ICommandHandler<GenerateTagsCommand, I
         var now     = DateTimeOffset.UtcNow;
 
         // Base for sequential codes
-        var existing = await _db.GarmentTags
+        var existing = await _db.FulfillmentUnitTags
             .Where(t => t.BrandId == brandId)
             .CountAsync(cancellationToken);
 
-        var tags = Enumerable.Range(1, req.Count).Select(i => new GarmentTag
+        var tags = Enumerable.Range(1, req.Count).Select(i => new FulfillmentUnitTag
         {
             Id          = Guid.NewGuid(),
             BrandId     = brandId,
@@ -50,12 +50,12 @@ public class GenerateTagsCommandHandler : ICommandHandler<GenerateTagsCommand, I
             CreatedBy   = command.ActorId
         }).ToList();
 
-        _db.GarmentTags.AddRange(tags);
+        _db.FulfillmentUnitTags.AddRange(tags);
         await _db.SaveChangesAsync(cancellationToken);
 
         return tags.Select(t => new GarmentTagDto(
             t.Id, t.BrandId, t.TagCode, t.TagFormat,
-            t.BatchNumber, t.AssignedToGarmentId,
+            t.BatchNumber, t.AssignedToFulfillmentUnitId,
             t.AssignedAt, t.IsDamaged, t.Status, t.CreatedAt)).ToList();
     }
 }

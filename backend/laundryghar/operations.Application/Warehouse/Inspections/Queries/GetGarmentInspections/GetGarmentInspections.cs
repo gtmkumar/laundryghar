@@ -7,7 +7,7 @@ using operations.Application.Warehouse.Inspections.Dtos;
 
 namespace operations.Application.Warehouse.Inspections.Queries.GetGarmentInspections;
 
-public sealed record GetGarmentInspectionsQuery(Guid GarmentId, int Page, int PageSize)
+public sealed record GetGarmentInspectionsQuery(Guid FulfillmentUnitId, int Page, int PageSize)
     : IQuery<PaginatedList<GarmentInspectionDto>>;
 
 public sealed class GetGarmentInspectionsQueryHandler
@@ -21,8 +21,8 @@ public sealed class GetGarmentInspectionsQueryHandler
     {
         var brandId = _user.RequireBrandId();
         return PaginatedList<GarmentInspectionDto>.CreateAsync(
-            _db.GarmentInspections
-                .Where(i => i.GarmentId == query.GarmentId && i.BrandId == brandId)
+            _db.FulfillmentUnitInspections
+                .Where(i => i.FulfillmentUnitId == query.FulfillmentUnitId && i.BrandId == brandId)
                 .OrderByDescending(i => i.InspectedAt)
                 .Select(i => CreateInspectionCommandHandler.ToDto(i, null)),
             query.Page, query.PageSize, cancellationToken);

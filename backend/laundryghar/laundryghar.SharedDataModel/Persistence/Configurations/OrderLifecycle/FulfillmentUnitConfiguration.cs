@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace laundryghar.SharedDataModel.Persistence.Configurations.OrderLifecycle;
 
-public sealed class GarmentConfiguration : IEntityTypeConfiguration<Garment>
+public sealed class FulfillmentUnitConfiguration : IEntityTypeConfiguration<FulfillmentUnit>
 {
-    public void Configure(EntityTypeBuilder<Garment> b)
+    public void Configure(EntityTypeBuilder<FulfillmentUnit> b)
     {
-        b.ToTable("garments", "laundry_fulfillment");
+        b.ToTable("fulfillment_unit", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
@@ -65,9 +65,9 @@ public sealed class GarmentConfiguration : IEntityTypeConfiguration<Garment>
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("garments_warehouse_id_fkey");
 
         // Composite FK to partitioned orders table. No inverse navigation: the Order aggregate
-        // is deliberately decoupled from the laundry-fulfilment Garment tree (multi-vertical
+        // is deliberately decoupled from the laundry-fulfilment FulfillmentUnit tree (multi-vertical
         // Phase 1 / Slice C). The FK column + constraint are unchanged; garments are reached via
-        // the _db.Garments DbSet keyed by OrderId, never through Order.Garments.
+        // the _db.FulfillmentUnits DbSet keyed by OrderId, never through Order.FulfillmentUnits.
         b.HasOne(e => e.Order)
             .WithMany()
             .HasForeignKey(e => new { e.OrderId, e.OrderCreatedAt })
@@ -75,7 +75,7 @@ public sealed class GarmentConfiguration : IEntityTypeConfiguration<Garment>
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("garments_order_id_fkey");
 
-        b.HasOne(e => e.OrderItem).WithMany(oi => oi.Garments)
+        b.HasOne(e => e.OrderItem).WithMany(oi => oi.FulfillmentUnits)
             .HasForeignKey(e => e.OrderItemId)
             .OnDelete(DeleteBehavior.Cascade).HasConstraintName("garments_order_item_id_fkey");
         b.HasOne(e => e.Customer).WithMany().HasForeignKey(e => e.CustomerId)
@@ -88,7 +88,7 @@ public sealed class GarmentConfiguration : IEntityTypeConfiguration<Garment>
             .OnDelete(DeleteBehavior.NoAction).HasConstraintName("garments_item_group_id_fkey");
         b.HasOne(e => e.FabricType).WithMany().HasForeignKey(e => e.FabricTypeId)
             .OnDelete(DeleteBehavior.NoAction).HasConstraintName("garments_fabric_type_id_fkey");
-        b.HasOne(e => e.CurrentBatch).WithMany(wb => wb.Garments)
+        b.HasOne(e => e.CurrentBatch).WithMany(wb => wb.FulfillmentUnits)
             .HasForeignKey(e => e.CurrentBatchId)
             .OnDelete(DeleteBehavior.SetNull).HasConstraintName("garments_current_batch_id_fkey");
     }

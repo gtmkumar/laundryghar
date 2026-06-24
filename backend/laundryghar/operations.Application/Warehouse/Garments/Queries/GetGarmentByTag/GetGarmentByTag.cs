@@ -7,7 +7,7 @@ using operations.Application.Warehouse.Garments.Dtos;
 
 namespace operations.Application.Warehouse.Garments.Queries.GetGarmentByTag;
 
-// ── Garment by tag ─────────────────────────────────────────────────────────────
+// ── FulfillmentUnit by tag ─────────────────────────────────────────────────────────────
 
 public sealed record GetGarmentByTagQuery(string TagCode) : IQuery<GarmentJourneyDto?>;
 
@@ -26,13 +26,13 @@ public class GetGarmentByTagQueryHandler : IQueryHandler<GetGarmentByTagQuery, G
     {
         var brandId = _user.RequireBrandId();
 
-        var garment = await _db.Garments
+        var garment = await _db.FulfillmentUnits
             .FirstOrDefaultAsync(g => g.TagCode == query.TagCode && g.BrandId == brandId, cancellationToken);
         if (garment is null) return null;
 
         // Inspections
-        var inspections = await _db.GarmentInspections
-            .Where(i => i.GarmentId == garment.Id && i.BrandId == brandId)
+        var inspections = await _db.FulfillmentUnitInspections
+            .Where(i => i.FulfillmentUnitId == garment.Id && i.BrandId == brandId)
             .OrderBy(i => i.InspectedAt)
             .Select(i => new InspectionSummaryDto(
                 i.Id, i.InspectionType, i.OverallCondition,
@@ -41,7 +41,7 @@ public class GetGarmentByTagQueryHandler : IQueryHandler<GetGarmentByTagQuery, G
 
         // Process logs (partitioned — brand-scoped via brand_id column)
         var logs = await _db.ProcessLogs
-            .Where(pl => pl.GarmentId == garment.Id && pl.BrandId == brandId)
+            .Where(pl => pl.FulfillmentUnitId == garment.Id && pl.BrandId == brandId)
             .OrderBy(pl => pl.OccurredAt)
             .Select(pl => new ProcessLogDto(
                 pl.Id, pl.ProcessCode, pl.Action, pl.FromStage, pl.ToStage, pl.OccurredAt))
@@ -49,7 +49,7 @@ public class GetGarmentByTagQueryHandler : IQueryHandler<GetGarmentByTagQuery, G
 
         // QC history
         var qcs = await _db.QualityChecks
-            .Where(qc => qc.GarmentId == garment.Id && qc.BrandId == brandId)
+            .Where(qc => qc.FulfillmentUnitId == garment.Id && qc.BrandId == brandId)
             .OrderBy(qc => qc.InspectedAt)
             .Select(qc => new QcSummaryDto(
                 qc.Id, qc.Result, qc.RequiresRewash, qc.QcRound, qc.InspectedAt))

@@ -52,5 +52,5 @@ public class OrderItem
     public FabricType? FabricType { get; set; }
     public PriceListItem? PriceListItem { get; set; }
     public ICollection<OrderAddon> OrderAddons { get; set; } = [];
-    public ICollection<Garment> Garments { get; set; } = [];
+    public ICollection<FulfillmentUnit> FulfillmentUnits { get; set; } = [];
 }

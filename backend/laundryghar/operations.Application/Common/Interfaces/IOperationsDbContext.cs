@@ -20,13 +20,13 @@ namespace operations.Application.Common.Interfaces;
 public interface IOperationsDbContext
 {
     // ─── Warehouse: garments + tags ──────────────────────────────────────────
-    DbSet<Garment> Garments { get; }
-    DbSet<GarmentTag> GarmentTags { get; }
+    DbSet<FulfillmentUnit> FulfillmentUnits { get; }
+    DbSet<FulfillmentUnitTag> FulfillmentUnitTags { get; }
 
     // ─── Warehouse: inspections + conditions ─────────────────────────────────
-    DbSet<GarmentInspection> GarmentInspections { get; }
-    DbSet<GarmentInspectionPhoto> GarmentInspectionPhotos { get; }
-    DbSet<GarmentCondition> GarmentConditions { get; }
+    DbSet<FulfillmentUnitInspection> FulfillmentUnitInspections { get; }
+    DbSet<FulfillmentUnitInspectionPhoto> FulfillmentUnitInspectionPhotos { get; }
+    DbSet<FulfillmentUnitCondition> FulfillmentUnitConditions { get; }
 
     // ─── Warehouse: processes + process logs ─────────────────────────────────
     DbSet<WarehouseProcess> WarehouseProcesses { get; }

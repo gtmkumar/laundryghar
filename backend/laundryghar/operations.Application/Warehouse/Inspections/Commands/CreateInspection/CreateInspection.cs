@@ -30,15 +30,15 @@ public sealed class CreateInspectionCommandHandler : ICommandHandler<CreateInspe
         var req     = command.Request;
         var now     = DateTimeOffset.UtcNow;
 
-        var garment = await _db.Garments
-            .FirstOrDefaultAsync(g => g.Id == req.GarmentId && g.BrandId == brandId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Garment {req.GarmentId} not found.");
+        var garment = await _db.FulfillmentUnits
+            .FirstOrDefaultAsync(g => g.Id == req.FulfillmentUnitId && g.BrandId == brandId, cancellationToken)
+            ?? throw new KeyNotFoundException($"FulfillmentUnit {req.FulfillmentUnitId} not found.");
 
-        var inspection = new GarmentInspection
+        var inspection = new FulfillmentUnitInspection
         {
             Id                    = Guid.NewGuid(),
             BrandId               = brandId,
-            GarmentId             = req.GarmentId,
+            FulfillmentUnitId             = req.FulfillmentUnitId,
             OrderId               = garment.OrderId,
             OrderCreatedAt        = garment.OrderCreatedAt,
             InspectedByUserId     = command.ActorId,
@@ -59,18 +59,18 @@ public sealed class CreateInspectionCommandHandler : ICommandHandler<CreateInspe
             CreatedBy             = command.ActorId
         };
 
-        _db.GarmentInspections.Add(inspection);
+        _db.FulfillmentUnitInspections.Add(inspection);
 
-        var photos = new List<GarmentInspectionPhoto>();
+        var photos = new List<FulfillmentUnitInspectionPhoto>();
         if (req.Photos is { Length: > 0 })
         {
             foreach (var p in req.Photos)
             {
-                var photo = new GarmentInspectionPhoto
+                var photo = new FulfillmentUnitInspectionPhoto
                 {
                     Id           = Guid.NewGuid(),
                     InspectionId = inspection.Id,
-                    GarmentId    = req.GarmentId,
+                    FulfillmentUnitId    = req.FulfillmentUnitId,
                     BrandId      = brandId,
                     S3Key        = p.S3Key,
                     ThumbnailS3Key = p.ThumbnailS3Key,
@@ -86,7 +86,7 @@ public sealed class CreateInspectionCommandHandler : ICommandHandler<CreateInspe
                     CreatedBy    = command.ActorId
                 };
                 photos.Add(photo);
-                _db.GarmentInspectionPhotos.Add(photo);
+                _db.FulfillmentUnitInspectionPhotos.Add(photo);
             }
             inspection.IssuesCount = (short)photos.Count;
         }
@@ -96,8 +96,8 @@ public sealed class CreateInspectionCommandHandler : ICommandHandler<CreateInspe
     }
 
     internal static GarmentInspectionDto ToDto(
-        GarmentInspection i, IEnumerable<GarmentInspectionPhoto>? photos = null) => new(
-        i.Id, i.BrandId, i.GarmentId,
+        FulfillmentUnitInspection i, IEnumerable<FulfillmentUnitInspectionPhoto>? photos = null) => new(
+        i.Id, i.BrandId, i.FulfillmentUnitId,
         i.InspectionType, i.InspectedByType,
         i.InspectedAt, i.OverallCondition,
         i.IssuesCount, i.RequiresSpecialCare,
@@ -115,7 +115,7 @@ public sealed class CreateInspectionValidator : AbstractValidator<CreateInspecti
 
     public CreateInspectionValidator()
     {
-        RuleFor(x => x.GarmentId).NotEmpty();
+        RuleFor(x => x.FulfillmentUnitId).NotEmpty();
         RuleFor(x => x.InspectionType)
             .Must(t => AllowedInspectionTypes.Contains(t))
             .WithMessage($"InspectionType must be one of: {string.Join(", ", AllowedInspectionTypes)}.");

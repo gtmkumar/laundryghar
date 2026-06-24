@@ -11,7 +11,7 @@ using operations.Application.Warehouse.Inspections.Queries.GetGarmentConditions;
 namespace operations.WebApi.Endpoints.Warehouse;
 
 /// <summary>
-/// Admin — Garment conditions lookup CRUD. Thin dispatch through <see cref="IDispatcher"/>.
+/// Admin — FulfillmentUnit conditions lookup CRUD. Thin dispatch through <see cref="IDispatcher"/>.
 /// </summary>
 public class WarehouseGarmentConditions : IEndpointGroup
 {
@@ -19,7 +19,7 @@ public class WarehouseGarmentConditions : IEndpointGroup
 
     public static void Map(RouteGroupBuilder group)
     {
-        group.WithTags("Admin - Garment Conditions").RequireAuthorization();
+        group.WithTags("Admin - FulfillmentUnit Conditions").RequireAuthorization();
 
         group.MapGet(GetAll, "/").RequireAuthorization("permission:fulfillment.inspect");
         group.MapPost(Create, "/")

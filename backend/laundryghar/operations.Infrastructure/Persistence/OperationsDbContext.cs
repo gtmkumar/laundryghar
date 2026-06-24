@@ -25,12 +25,12 @@ public sealed class OperationsDbContext : IOperationsDbContext
 
     public OperationsDbContext(LaundryGharDbContext db) => _db = db;
 
-    public DbSet<Garment> Garments => _db.Garments;
-    public DbSet<GarmentTag> GarmentTags => _db.GarmentTags;
+    public DbSet<FulfillmentUnit> FulfillmentUnits => _db.FulfillmentUnits;
+    public DbSet<FulfillmentUnitTag> FulfillmentUnitTags => _db.FulfillmentUnitTags;
 
-    public DbSet<GarmentInspection> GarmentInspections => _db.GarmentInspections;
-    public DbSet<GarmentInspectionPhoto> GarmentInspectionPhotos => _db.GarmentInspectionPhotos;
-    public DbSet<GarmentCondition> GarmentConditions => _db.GarmentConditions;
+    public DbSet<FulfillmentUnitInspection> FulfillmentUnitInspections => _db.FulfillmentUnitInspections;
+    public DbSet<FulfillmentUnitInspectionPhoto> FulfillmentUnitInspectionPhotos => _db.FulfillmentUnitInspectionPhotos;
+    public DbSet<FulfillmentUnitCondition> FulfillmentUnitConditions => _db.FulfillmentUnitConditions;
 
     public DbSet<WarehouseProcess> WarehouseProcesses => _db.WarehouseProcesses;
     public DbSet<ProcessLog> ProcessLogs => _db.ProcessLogs;

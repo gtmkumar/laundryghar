@@ -183,7 +183,7 @@ public sealed class DailyReconService : BackgroundService
         // 'in-flight' = stage is not terminal (not dispatched/delivered/returned/lost/damaged).
         var terminalStages = new[] { "dispatched", "delivered", "returned", "lost", "damaged" };
 
-        var staleGarments = await db.Garments
+        var staleGarments = await db.FulfillmentUnits
             .Where(g =>
                 g.WarehouseId == warehouseId &&
                 g.BrandId     == brandId     &&
@@ -237,7 +237,7 @@ public sealed class DailyReconService : BackgroundService
                 Id               = Guid.NewGuid(),
                 ReconciliationId = recon.Id,
                 BrandId          = brandId,
-                GarmentId        = g.Id,
+                FulfillmentUnitId        = g.Id,
                 TagCode          = g.TagCode,
                 ExpectedStage    = g.CurrentStage,
                 FoundStage       = null,

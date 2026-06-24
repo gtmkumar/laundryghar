@@ -33,7 +33,7 @@ public sealed class GetInspectionPhotoStreamQueryHandler
     {
         var brandId = _user.RequireBrandId();
 
-        var photo = await _db.GarmentInspectionPhotos
+        var photo = await _db.FulfillmentUnitInspectionPhotos
             .Where(p => p.Id == query.PhotoId && p.BrandId == brandId)
             .Select(p => new { p.S3Key, p.MimeType })
             .FirstOrDefaultAsync(cancellationToken);

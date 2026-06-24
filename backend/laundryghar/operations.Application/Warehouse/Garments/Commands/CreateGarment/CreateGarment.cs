@@ -8,7 +8,7 @@ using operations.Application.Warehouse.Garments.Dtos;
 
 namespace operations.Application.Warehouse.Garments.Commands.CreateGarment;
 
-// ── Create Garment from OrderItem ─────────────────────────────────────────────
+// ── Create FulfillmentUnit from OrderItem ─────────────────────────────────────────────
 
 public sealed record CreateGarmentCommand(CreateGarmentRequest Request, Guid? ActorId)
     : ICommand<GarmentDto>;
@@ -36,7 +36,7 @@ public class CreateGarmentCommandHandler : ICommandHandler<CreateGarmentCommand,
             ?? throw new KeyNotFoundException($"OrderItem {req.OrderItemId} not found.");
 
         // Fetch garment tag and mark it assigned
-        var tag = await _db.GarmentTags
+        var tag = await _db.FulfillmentUnitTags
             .FirstOrDefaultAsync(t => t.TagCode == req.TagCode && t.BrandId == brandId
                                    && t.Status == "available", cancellationToken)
             ?? throw new KeyNotFoundException(
@@ -47,7 +47,7 @@ public class CreateGarmentCommandHandler : ICommandHandler<CreateGarmentCommand,
             .FirstOrDefaultAsync(o => o.Id == oi.OrderId && o.BrandId == brandId, cancellationToken)
             ?? throw new KeyNotFoundException("Order not found.");
 
-        var garment = new Garment
+        var garment = new FulfillmentUnit
         {
             Id             = Guid.NewGuid(),
             BrandId        = brandId,
@@ -78,18 +78,18 @@ public class CreateGarmentCommandHandler : ICommandHandler<CreateGarmentCommand,
             UpdatedBy      = command.ActorId
         };
 
-        tag.AssignedToGarmentId = garment.Id;
+        tag.AssignedToFulfillmentUnitId = garment.Id;
         tag.AssignedAt          = now;
         tag.AssignedBy          = command.ActorId;
         tag.Status              = "assigned";
         tag.UpdatedAt           = now;
 
-        _db.Garments.Add(garment);
+        _db.FulfillmentUnits.Add(garment);
         await _db.SaveChangesAsync(cancellationToken);
         return ToDto(garment);
     }
 
-    internal static GarmentDto ToDto(Garment g) => new(
+    internal static GarmentDto ToDto(FulfillmentUnit g) => new(
         g.Id, g.BrandId, g.StoreId, g.WarehouseId,
         g.OrderId, g.OrderItemId, g.CustomerId,
         g.TagCode, g.SecondaryTagCode,

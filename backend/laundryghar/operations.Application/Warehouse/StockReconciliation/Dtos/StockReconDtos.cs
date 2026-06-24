@@ -19,13 +19,13 @@ public sealed record CreateStockReconciliationRequest(
 
 public sealed record StockReconciliationItemDto(
     Guid Id, Guid ReconciliationId, Guid BrandId,
-    Guid? GarmentId, string TagCode,
+    Guid? FulfillmentUnitId, string TagCode,
     string? ExpectedStage, string? FoundStage,
     string Status, DateTimeOffset FlaggedAt
 );
 
 public sealed record AddReconItemRequest(
-    Guid? GarmentId,
+    Guid? FulfillmentUnitId,
     string TagCode,
     string? ExpectedStage,
     string? ExpectedLocationType,

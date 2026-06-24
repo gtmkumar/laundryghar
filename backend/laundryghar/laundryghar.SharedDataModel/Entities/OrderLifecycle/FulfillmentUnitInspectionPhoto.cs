@@ -5,11 +5,11 @@ namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
 /// <summary>Photo taken during garment inspection (laundry_fulfillment.garment_inspection_photos).
 /// Has created_at, created_by, deleted_at. No updated_at, no version.</summary>
-public class GarmentInspectionPhoto : ISoftDeletable
+public class FulfillmentUnitInspectionPhoto : ISoftDeletable
 {
     public Guid Id { get; set; }
     public Guid InspectionId { get; set; }
-    public Guid GarmentId { get; set; }
+    public Guid FulfillmentUnitId { get; set; }
     public Guid BrandId { get; set; }
     public string S3Key { get; set; } = null!;
     public string? ThumbnailS3Key { get; set; }
@@ -33,7 +33,7 @@ public class GarmentInspectionPhoto : ISoftDeletable
     public Guid? CreatedBy { get; set; }
 
     // Navigations
-    public GarmentInspection Inspection { get; set; } = null!;
-    public Garment Garment { get; set; } = null!;
+    public FulfillmentUnitInspection Inspection { get; set; } = null!;
+    public FulfillmentUnit FulfillmentUnit { get; set; } = null!;
     public Brand Brand { get; set; } = null!;
 }

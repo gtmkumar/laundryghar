@@ -4,16 +4,16 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace laundryghar.SharedDataModel.Persistence.Configurations.OrderLifecycle;
 
-public sealed class GarmentInspectionPhotoConfiguration : IEntityTypeConfiguration<GarmentInspectionPhoto>
+public sealed class FulfillmentUnitInspectionPhotoConfiguration : IEntityTypeConfiguration<FulfillmentUnitInspectionPhoto>
 {
-    public void Configure(EntityTypeBuilder<GarmentInspectionPhoto> b)
+    public void Configure(EntityTypeBuilder<FulfillmentUnitInspectionPhoto> b)
     {
-        b.ToTable("garment_inspection_photos", "laundry_fulfillment");
+        b.ToTable("fulfillment_unit_inspection_photos", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
         b.Property(e => e.InspectionId).HasColumnName("inspection_id").IsRequired();
-        b.Property(e => e.GarmentId).HasColumnName("garment_id").IsRequired();
+        b.Property(e => e.FulfillmentUnitId).HasColumnName("fulfillment_unit_id").IsRequired();
         b.Property(e => e.BrandId).HasColumnName("brand_id").IsRequired();
         b.Property(e => e.S3Key).HasColumnName("s3_key").IsRequired();
         b.Property(e => e.ThumbnailS3Key).HasColumnName("thumbnail_s3_key");
@@ -39,8 +39,8 @@ public sealed class GarmentInspectionPhotoConfiguration : IEntityTypeConfigurati
         b.HasOne(e => e.Inspection).WithMany(i => i.Photos)
             .HasForeignKey(e => e.InspectionId)
             .OnDelete(DeleteBehavior.Cascade).HasConstraintName("garment_inspection_photos_inspection_id_fkey");
-        b.HasOne(e => e.Garment).WithMany(g => g.InspectionPhotos)
-            .HasForeignKey(e => e.GarmentId)
+        b.HasOne(e => e.FulfillmentUnit).WithMany(g => g.InspectionPhotos)
+            .HasForeignKey(e => e.FulfillmentUnitId)
             .OnDelete(DeleteBehavior.Cascade).HasConstraintName("garment_inspection_photos_garment_id_fkey");
         b.HasOne(e => e.Brand).WithMany().HasForeignKey(e => e.BrandId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("garment_inspection_photos_brand_id_fkey");

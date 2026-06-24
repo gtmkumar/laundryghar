@@ -4,16 +4,16 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace laundryghar.SharedDataModel.Persistence.Configurations.OrderLifecycle;
 
-public sealed class GarmentInspectionConfiguration : IEntityTypeConfiguration<GarmentInspection>
+public sealed class FulfillmentUnitInspectionConfiguration : IEntityTypeConfiguration<FulfillmentUnitInspection>
 {
-    public void Configure(EntityTypeBuilder<GarmentInspection> b)
+    public void Configure(EntityTypeBuilder<FulfillmentUnitInspection> b)
     {
-        b.ToTable("garment_inspections", "laundry_fulfillment");
+        b.ToTable("fulfillment_unit_inspections", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
         b.Property(e => e.BrandId).HasColumnName("brand_id").IsRequired();
-        b.Property(e => e.GarmentId).HasColumnName("garment_id").IsRequired();
+        b.Property(e => e.FulfillmentUnitId).HasColumnName("fulfillment_unit_id").IsRequired();
         // Scalar-only composite FK columns — nav skipped to avoid conflict with garment→order nav
         b.Property(e => e.OrderId).HasColumnName("order_id").IsRequired();
         b.Property(e => e.OrderCreatedAt).HasColumnName("order_created_at").IsRequired();
@@ -42,8 +42,8 @@ public sealed class GarmentInspectionConfiguration : IEntityTypeConfiguration<Ga
 
         b.HasOne(e => e.Brand).WithMany().HasForeignKey(e => e.BrandId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("garment_inspections_brand_id_fkey");
-        b.HasOne(e => e.Garment).WithMany(g => g.Inspections)
-            .HasForeignKey(e => e.GarmentId)
+        b.HasOne(e => e.FulfillmentUnit).WithMany(g => g.Inspections)
+            .HasForeignKey(e => e.FulfillmentUnitId)
             .OnDelete(DeleteBehavior.Cascade).HasConstraintName("garment_inspections_garment_id_fkey");
     }
 }

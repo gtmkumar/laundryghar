@@ -59,7 +59,7 @@ public sealed class CloseStockReconCommandHandler : ICommandHandler<CloseStockRe
 
         // ── Lost garment flow ─────────────────────────────────────────────────
         // Any items still in 'missing' status when the recon is closed are confirmed lost.
-        // Garments are flagged (status='lost', stage='lost') and a fulfillment.lost outbox
+        // FulfillmentUnits are flagged (status='lost', stage='lost') and a fulfillment.lost outbox
         // event is emitted inside this SaveChangesAsync for atomic consistency.
         await LostGarmentProcessor.MarkMissingAsLostAsync(_db, cmd.ReconId, brandId, _logger, ct);
 

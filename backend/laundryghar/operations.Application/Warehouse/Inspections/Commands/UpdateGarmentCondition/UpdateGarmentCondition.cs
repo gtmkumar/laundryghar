@@ -26,7 +26,7 @@ public sealed class UpdateGarmentConditionCommandHandler
     public async Task<GarmentConditionDto?> HandleAsync(UpdateGarmentConditionCommand command, CancellationToken cancellationToken)
     {
         var brandId = _user.RequireBrandId();
-        var e = await _db.GarmentConditions
+        var e = await _db.FulfillmentUnitConditions
             .FirstOrDefaultAsync(c => c.Id == command.Id && c.BrandId == brandId, cancellationToken);
         if (e is null) return null;
 

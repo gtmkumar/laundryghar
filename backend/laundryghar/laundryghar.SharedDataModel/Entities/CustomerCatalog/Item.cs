@@ -3,7 +3,7 @@ using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.CustomerCatalog;
 
-/// <summary>Garment/article that can be laundered (customer_catalog.items).
+/// <summary>FulfillmentUnit/article that can be laundered (customer_catalog.items).
 /// Has created_at, updated_at, created_by, updated_by, version, deleted_at.</summary>
 public class Item : IAuditableEntity, ISoftDeletable
 {

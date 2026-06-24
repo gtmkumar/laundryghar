@@ -6,7 +6,7 @@ namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 /// <summary>Individual garment tracked through the laundry lifecycle (laundry_fulfillment.garments).
 /// FK to orders uses composite key (order_id, order_created_at).
 /// Has created_at, updated_at, created_by, updated_by, version, status. No deleted_at.</summary>
-public class Garment
+public class FulfillmentUnit
 {
     public Guid Id { get; set; }
     public Guid BrandId { get; set; }
@@ -68,7 +68,7 @@ public class Garment
     public ItemGroup? ItemGroup { get; set; }
     public FabricType? FabricType { get; set; }
     public WarehouseBatch? CurrentBatch { get; set; }
-    public ICollection<GarmentInspection> Inspections { get; set; } = [];
-    public ICollection<GarmentInspectionPhoto> InspectionPhotos { get; set; } = [];
+    public ICollection<FulfillmentUnitInspection> Inspections { get; set; } = [];
+    public ICollection<FulfillmentUnitInspectionPhoto> InspectionPhotos { get; set; } = [];
     public ICollection<QualityCheck> QualityChecks { get; set; } = [];
 }

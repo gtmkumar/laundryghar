@@ -1,7 +1,7 @@
 namespace operations.Application.Warehouse.QualityChecks.Dtos;
 
 public sealed record QualityCheckDto(
-    Guid Id, Guid BrandId, Guid WarehouseId, Guid GarmentId,
+    Guid Id, Guid BrandId, Guid WarehouseId, Guid FulfillmentUnitId,
     Guid? BatchId, short QcRound, Guid InspectorUserId,
     DateTimeOffset InspectedAt, string Result, bool RequiresRewash,
     string? RewashPriority, string? Notes, string Status,
@@ -9,7 +9,7 @@ public sealed record QualityCheckDto(
 );
 
 public sealed record CreateQualityCheckRequest(
-    Guid GarmentId,
+    Guid FulfillmentUnitId,
     Guid WarehouseId,
     Guid? BatchId,
     Guid InspectorUserId,

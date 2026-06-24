@@ -99,7 +99,7 @@ public sealed class WorkerOptions
     public int DailyReconHourLocal { get; set; } = 21;
 
     /// <summary>
-    /// Garments whose last scan is older than this many hours are auto-added to the
+    /// FulfillmentUnits whose last scan is older than this many hours are auto-added to the
     /// daily recon as 'missing' candidates. Default: 12 hours.
     /// </summary>
     public int ReconStaleHours { get; set; } = 12;

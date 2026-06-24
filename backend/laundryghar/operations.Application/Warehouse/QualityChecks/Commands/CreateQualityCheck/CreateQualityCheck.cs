@@ -31,19 +31,19 @@ public sealed class CreateQualityCheckCommandHandler
         var req     = command.Request;
         var now     = DateTimeOffset.UtcNow;
 
-        var garment = await _db.Garments
-            .FirstOrDefaultAsync(g => g.Id == req.GarmentId && g.BrandId == brandId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Garment {req.GarmentId} not found.");
+        var garment = await _db.FulfillmentUnits
+            .FirstOrDefaultAsync(g => g.Id == req.FulfillmentUnitId && g.BrandId == brandId, cancellationToken)
+            ?? throw new KeyNotFoundException($"FulfillmentUnit {req.FulfillmentUnitId} not found.");
 
         var qcRound = (short)(await _db.QualityChecks
-            .CountAsync(q => q.GarmentId == req.GarmentId, cancellationToken) + 1);
+            .CountAsync(q => q.FulfillmentUnitId == req.FulfillmentUnitId, cancellationToken) + 1);
 
         var qc = new QualityCheck
         {
             Id                  = Guid.NewGuid(),
             BrandId             = brandId,
             WarehouseId         = req.WarehouseId,
-            GarmentId           = req.GarmentId,
+            FulfillmentUnitId           = req.FulfillmentUnitId,
             OrderId             = garment.OrderId,
             OrderCreatedAt      = garment.OrderCreatedAt,
             BatchId             = req.BatchId,
@@ -131,7 +131,7 @@ public sealed class CreateQualityCheckCommandHandler
     }
 
     internal static QualityCheckDto ToDto(QualityCheck q) => new(
-        q.Id, q.BrandId, q.WarehouseId, q.GarmentId,
+        q.Id, q.BrandId, q.WarehouseId, q.FulfillmentUnitId,
         q.BatchId, q.QcRound, q.InspectorUserId,
         q.InspectedAt, q.Result, q.RequiresRewash,
         q.RewashPriority, q.Notes, q.Status, q.CreatedAt);
@@ -144,7 +144,7 @@ public sealed class CreateQualityCheckValidator : AbstractValidator<CreateQualit
 
     public CreateQualityCheckValidator()
     {
-        RuleFor(x => x.GarmentId).NotEmpty();
+        RuleFor(x => x.FulfillmentUnitId).NotEmpty();
         RuleFor(x => x.WarehouseId).NotEmpty();
         RuleFor(x => x.InspectorUserId).NotEmpty();
         RuleFor(x => x.Issues).NotEmpty().WithMessage("Issues JSON array is required.");

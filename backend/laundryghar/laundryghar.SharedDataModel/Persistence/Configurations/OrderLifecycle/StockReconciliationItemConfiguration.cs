@@ -14,7 +14,7 @@ public sealed class StockReconciliationItemConfiguration : IEntityTypeConfigurat
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
         b.Property(e => e.ReconciliationId).HasColumnName("reconciliation_id").IsRequired();
         b.Property(e => e.BrandId).HasColumnName("brand_id").IsRequired();
-        b.Property(e => e.GarmentId).HasColumnName("garment_id");
+        b.Property(e => e.FulfillmentUnitId).HasColumnName("fulfillment_unit_id");
         b.Property(e => e.TagCode).HasColumnName("tag_code").HasMaxLength(50).IsRequired();
         b.Property(e => e.ExpectedStage).HasColumnName("expected_stage").HasMaxLength(30);
         b.Property(e => e.ExpectedLocationType).HasColumnName("expected_location_type").HasMaxLength(20);
@@ -41,7 +41,7 @@ public sealed class StockReconciliationItemConfiguration : IEntityTypeConfigurat
         b.HasOne(e => e.Brand).WithMany().HasForeignKey(e => e.BrandId)
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("stock_reconciliation_items_brand_id_fkey");
-        b.HasOne(e => e.Garment).WithMany().HasForeignKey(e => e.GarmentId)
+        b.HasOne(e => e.FulfillmentUnit).WithMany().HasForeignKey(e => e.FulfillmentUnitId)
             .OnDelete(DeleteBehavior.NoAction)
             .HasConstraintName("stock_reconciliation_items_garment_id_fkey");
     }

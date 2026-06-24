@@ -30,7 +30,7 @@ public sealed record UpdateGarmentRequest(
 
 public sealed record GarmentTagDto(
     Guid Id, Guid BrandId, string TagCode, string TagFormat,
-    string? BatchNumber, Guid? AssignedToGarmentId,
+    string? BatchNumber, Guid? AssignedToFulfillmentUnitId,
     DateTimeOffset? AssignedAt, bool IsDamaged, string Status,
     DateTimeOffset CreatedAt
 );
@@ -38,7 +38,7 @@ public sealed record GarmentTagDto(
 public sealed record GenerateTagsRequest(int Count, string TagFormat, string? BatchNumber);
 
 public sealed record GarmentJourneyDto(
-    GarmentDto Garment,
+    GarmentDto FulfillmentUnit,
     IReadOnlyList<InspectionSummaryDto> Inspections,
     IReadOnlyList<ProcessLogDto> ProcessLogs,
     IReadOnlyList<QcSummaryDto> QualityChecks

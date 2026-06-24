@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace laundryghar.SharedDataModel.Persistence.Configurations.OrderLifecycle;
 
-public sealed class GarmentConditionConfiguration : IEntityTypeConfiguration<GarmentCondition>
+public sealed class FulfillmentUnitConditionConfiguration : IEntityTypeConfiguration<FulfillmentUnitCondition>
 {
-    public void Configure(EntityTypeBuilder<GarmentCondition> b)
+    public void Configure(EntityTypeBuilder<FulfillmentUnitCondition> b)
     {
-        b.ToTable("garment_conditions", "laundry_fulfillment");
+        b.ToTable("fulfillment_unit_conditions", "laundry_fulfillment");
 
         b.HasKey(e => e.Id);
         b.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();

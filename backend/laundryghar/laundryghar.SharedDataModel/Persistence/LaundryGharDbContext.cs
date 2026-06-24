@@ -24,7 +24,7 @@ namespace laundryghar.SharedDataModel.Persistence;
 ///   kernel: FileAttachment
 ///   customer_catalog: Customer, CustomerAddress, ServiceCategory, Service, FabricType,
 ///                     ItemGroup, Item, ItemVariant, PriceList, AddOn
-///   order_lifecycle: Order, OrderNote, GarmentInspectionPhoto
+///   order_lifecycle: Order, OrderNote, FulfillmentUnitInspectionPhoto
 ///   commerce: Package, Coupon
 ///   finance_royalty: Expense, ExpenseAttachment
 /// engagement_cms entities do not have deleted_at and have no global filter.
@@ -96,11 +96,11 @@ public class LaundryGharDbContext : DbContext
     public DbSet<DeliveryAssignment> DeliveryAssignments => Set<DeliveryAssignment>();
     public DbSet<DeliverySlot> DeliverySlots => Set<DeliverySlot>();
     public DbSet<DeliverySlotBooking> DeliverySlotBookings => Set<DeliverySlotBooking>();
-    public DbSet<Garment> Garments => Set<Garment>();
-    public DbSet<GarmentTag> GarmentTags => Set<GarmentTag>();
-    public DbSet<GarmentInspection> GarmentInspections => Set<GarmentInspection>();
-    public DbSet<GarmentInspectionPhoto> GarmentInspectionPhotos => Set<GarmentInspectionPhoto>();
-    public DbSet<GarmentCondition> GarmentConditions => Set<GarmentCondition>();
+    public DbSet<FulfillmentUnit> FulfillmentUnits => Set<FulfillmentUnit>();
+    public DbSet<FulfillmentUnitTag> FulfillmentUnitTags => Set<FulfillmentUnitTag>();
+    public DbSet<FulfillmentUnitInspection> FulfillmentUnitInspections => Set<FulfillmentUnitInspection>();
+    public DbSet<FulfillmentUnitInspectionPhoto> FulfillmentUnitInspectionPhotos => Set<FulfillmentUnitInspectionPhoto>();
+    public DbSet<FulfillmentUnitCondition> FulfillmentUnitConditions => Set<FulfillmentUnitCondition>();
     public DbSet<WarehouseBatch> WarehouseBatches => Set<WarehouseBatch>();
     public DbSet<WarehouseProcess> WarehouseProcesses => Set<WarehouseProcess>();
     public DbSet<ProcessLog> ProcessLogs => Set<ProcessLog>();

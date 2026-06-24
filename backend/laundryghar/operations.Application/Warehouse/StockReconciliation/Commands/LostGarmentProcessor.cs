@@ -46,8 +46,8 @@ public static class LostGarmentProcessor
             return;
 
         var garmentIds = missingItems
-            .Where(i => i.GarmentId.HasValue)
-            .Select(i => i.GarmentId!.Value)
+            .Where(i => i.FulfillmentUnitId.HasValue)
+            .Select(i => i.FulfillmentUnitId!.Value)
             .Distinct()
             .ToList();
 
@@ -55,7 +55,7 @@ public static class LostGarmentProcessor
             return;
 
         // Load garments with customer/order context for the event payload.
-        var garments = await db.Garments
+        var garments = await db.FulfillmentUnits
             .Where(g => garmentIds.Contains(g.Id) && g.BrandId == brandId)
             .ToListAsync(ct);
 
@@ -87,7 +87,7 @@ public static class LostGarmentProcessor
                 EventVersion  = 1,
                 Payload       = JsonSerializer.Serialize(new
                 {
-                    GarmentId       = garment.Id,
+                    FulfillmentUnitId       = garment.Id,
                     BrandId         = brandId,
                     TagCode         = garment.TagCode,
                     CustomerId      = garment.CustomerId,
@@ -104,7 +104,7 @@ public static class LostGarmentProcessor
             });
 
             logger.LogInformation(
-                "LostGarmentProcessor: garment {GarmentId} tag={TagCode} marked lost " +
+                "LostGarmentProcessor: garment {FulfillmentUnitId} tag={TagCode} marked lost " +
                 "(reconId={ReconId}).",
                 garment.Id, garment.TagCode, reconId);
         }

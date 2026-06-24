@@ -37,7 +37,7 @@ public sealed class AddReconItemCommandHandler : ICommandHandler<AddReconItemCom
             Id               = Guid.NewGuid(),
             ReconciliationId = command.ReconId,
             BrandId          = brandId,
-            GarmentId        = req.GarmentId,
+            FulfillmentUnitId        = req.FulfillmentUnitId,
             TagCode          = req.TagCode,
             ExpectedStage    = req.ExpectedStage,
             ExpectedLocationType = req.ExpectedLocationType,
@@ -62,7 +62,7 @@ public sealed class AddReconItemCommandHandler : ICommandHandler<AddReconItemCom
 
         return new StockReconciliationItemDto(
             item.Id, item.ReconciliationId, item.BrandId,
-            item.GarmentId, item.TagCode,
+            item.FulfillmentUnitId, item.TagCode,
             item.ExpectedStage, item.FoundStage,
             item.Status, item.FlaggedAt);
     }
