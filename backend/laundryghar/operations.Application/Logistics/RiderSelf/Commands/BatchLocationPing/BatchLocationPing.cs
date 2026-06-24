@@ -23,10 +23,15 @@ public sealed record BatchLocationPingCommand(
 public sealed class BatchLocationPingHandler : ICommandHandler<BatchLocationPingCommand, PingBatchResponse>
 {
     private readonly IOperationsDbContext _db;
+    private readonly Fulfillment.IFulfillmentStrategyResolver _strategies;
     private static readonly GeometryFactory GeoFactory =
         NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
 
-    public BatchLocationPingHandler(IOperationsDbContext db) => _db = db;
+    public BatchLocationPingHandler(IOperationsDbContext db, Fulfillment.IFulfillmentStrategyResolver strategies)
+    {
+        _db = db;
+        _strategies = strategies;
+    }
 
     public async Task<PingBatchResponse> HandleAsync(BatchLocationPingCommand command, CancellationToken cancellationToken)
     {
@@ -87,7 +92,7 @@ public sealed class BatchLocationPingHandler : ICommandHandler<BatchLocationPing
             // Geofence auto-status: reaching the customer flips started→arrived, and a
             // collected pickup reaching the store gets dropped_at stamped.
             await GeofenceEvaluator.EvaluateAsync(
-                _db, riderId.Value, cmd.BrandId, latest.Latitude, latest.Longitude, now, ct);
+                _db, _strategies, riderId.Value, cmd.BrandId, latest.Latitude, latest.Longitude, now, ct);
         }
 
         return new PingBatchResponse(pings.Count);

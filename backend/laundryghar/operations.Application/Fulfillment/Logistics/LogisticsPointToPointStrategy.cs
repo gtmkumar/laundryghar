@@ -18,6 +18,13 @@ public sealed class LogisticsPointToPointStrategy : StateMachineStrategyBase
     protected override IReadOnlyDictionary<string, IReadOnlySet<string>> Transitions => Map;
     protected override IReadOnlyList<string> HappyPath => Path;
 
+    // A direct A→B trip: no store drop, pickup completion goes straight to out_for_delivery
+    // (skipping laundry intake/processing). Both legs are always required.
+    public override string PostPickupStatus => OrderStatus.OutForDelivery;
+    public override bool RequiresStoreDrop => false;
+    public override FulfilmentLegs ResolveLegs(bool requestedPickup, bool requestedDelivery)
+        => new(RequiresPickup: true, RequiresDelivery: true);
+
     private static readonly IReadOnlySet<string> Terminals = new HashSet<string>
     {
         OrderStatus.Delivered, OrderStatus.Cancelled, OrderStatus.Closed, OrderStatus.Returned,

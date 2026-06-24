@@ -18,6 +18,10 @@ public sealed class LaundryProcessStrategy : StateMachineStrategyBase
     protected override IReadOnlyDictionary<string, IReadOnlySet<string>> Transitions => Map;
     protected override IReadOnlyList<string> HappyPath => Path;
 
+    // Laundry collects → drops at the store/warehouse → intake/processing.
+    public override string PostPickupStatus => OrderStatus.Received;
+    public override bool RequiresStoreDrop => true;
+
     private static readonly IReadOnlySet<string> Terminals = new HashSet<string>
     {
         OrderStatus.Delivered, OrderStatus.Cancelled, OrderStatus.Closed, OrderStatus.Returned,

@@ -66,4 +66,38 @@ public interface IFulfillmentStrategy
     /// for the default (shared <c>OrderStatus</c> vocabulary) mapping.
     /// </summary>
     string LifecycleStateFor(string status);
+
+    // ── Behavioural hooks (Phase 1 delegation) ───────────────────────────────────────────
+
+    /// <summary>
+    /// The pickup/delivery legs a new order in this mode requires, given the caller's requested
+    /// flags. <c>process_deliver</c> honours the request; <c>point_to_point</c> forces both
+    /// (it is, by definition, an origin→destination trip). Used by order creation.
+    /// </summary>
+    FulfilmentLegs ResolveLegs(bool requestedPickup, bool requestedDelivery);
+
+    /// <summary>
+    /// The detailed status an order advances to once its pickup leg physically completes.
+    /// <c>process_deliver</c> routes into intake (<c>received</c>); <c>point_to_point</c> skips
+    /// intake and goes straight to <c>out_for_delivery</c>. Used by the rider pickup-leg flow.
+    /// </summary>
+    string PostPickupStatus { get; }
+
+    /// <summary>
+    /// Whether a pickup leg in this mode involves a store/warehouse drop (collect from customer →
+    /// drop for processing). <c>process_deliver</c>: true; <c>point_to_point</c>: false (direct
+    /// trip). Gates the geofence store-drop stamp.
+    /// </summary>
+    bool RequiresStoreDrop { get; }
+
+    /// <summary>
+    /// Stamp the lifecycle timestamp(s) for entering <paramref name="toStatus"/> on
+    /// <paramref name="order"/> (e.g. <c>picked_up</c>→PickedUpAt, <c>ready</c>→Ready/QcCompleted).
+    /// Centralizes the per-status side-effects so shared handlers don't hardcode laundry statuses.
+    /// No-op for statuses with no associated timestamp.
+    /// </summary>
+    void ApplyTransitionEffects(laundryghar.SharedDataModel.Entities.OrderLifecycle.Order order, string toStatus, DateTimeOffset now);
 }
+
+/// <summary>The pickup/delivery legs a new order requires — see <see cref="IFulfillmentStrategy.ResolveLegs"/>.</summary>
+public readonly record struct FulfilmentLegs(bool RequiresPickup, bool RequiresDelivery);

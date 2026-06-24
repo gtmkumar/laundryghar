@@ -70,4 +70,34 @@ public abstract class StateMachineStrategyBase : IFulfillmentStrategy
     /// </summary>
     public virtual string LifecycleStateFor(string status)
         => OrderLifecycleState.ForOrderStatus(status);
+
+    // ── Behavioural hooks ────────────────────────────────────────────────────────────────
+
+    public abstract string PostPickupStatus { get; }
+    public abstract bool RequiresStoreDrop { get; }
+
+    /// <summary>Default: honour the caller's requested legs. Modes that mandate legs override.</summary>
+    public virtual FulfilmentLegs ResolveLegs(bool requestedPickup, bool requestedDelivery)
+        => new(requestedPickup, requestedDelivery);
+
+    /// <summary>
+    /// Shared status→timestamp side-effects for the <see cref="OrderStatus"/> vocabulary
+    /// (extracted verbatim from the former inline switch in UpdateOrderStatus). Statuses with no
+    /// timestamp (e.g. <c>qc</c>, <c>disputed</c>) are a no-op. Cancellation timestamps are owned
+    /// by the cancel handlers. A mode with its own vocabulary overrides this.
+    /// </summary>
+    public virtual void ApplyTransitionEffects(
+        laundryghar.SharedDataModel.Entities.OrderLifecycle.Order order, string toStatus, DateTimeOffset now)
+    {
+        switch (toStatus)
+        {
+            case OrderStatus.PickupScheduled: order.PickupScheduledAt = now; break;
+            case OrderStatus.PickedUp:        order.PickedUpAt        = now; break;
+            case OrderStatus.Received:        order.ReceivedAt        = now; break;
+            case OrderStatus.Ready:           order.ReadyAt           = now;
+                                              order.QcCompletedAt     = now; break;
+            case OrderStatus.OutForDelivery:  order.OutForDeliveryAt  = now; break;
+            case OrderStatus.Delivered:       order.DeliveredAt       = now; break;
+        }
+    }
 }

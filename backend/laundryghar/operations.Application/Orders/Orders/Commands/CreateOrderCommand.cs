@@ -8,6 +8,7 @@ using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
 using laundryghar.SharedDataModel.Enums;
 using laundryghar.Utilities.Exceptions;
+using operations.Application.Fulfillment;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -36,14 +37,16 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
     private readonly ICurrentUser _user;
     private readonly OrdersSettings _settings;
     private readonly IFieldCipher _cipher;
+    private readonly IFulfillmentStrategyResolver _strategies;
 
     public CreateOrderHandler(IOperationsDbContext db, ICurrentUser user, IOptions<OrdersSettings> opts,
-        IFieldCipher cipher)
+        IFieldCipher cipher, IFulfillmentStrategyResolver strategies)
     {
-        _db       = db;
-        _user     = user;
-        _settings = opts.Value;
-        _cipher   = cipher;
+        _db         = db;
+        _user       = user;
+        _settings   = opts.Value;
+        _cipher     = cipher;
+        _strategies = strategies;
     }
 
     public async Task<OrderDto> HandleAsync(CreateOrderCommand cmd, CancellationToken ct)
@@ -573,6 +576,13 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
         // Atomic per-(brand,store,year) allocator — race-free under concurrency.
         var orderNumber = await GenerateOrderNumberAsync(brandId, req.StoreId, store.Code, now.Year, ct);
 
+        // Fulfilment mode + leg requirements are owned by the strategy: point_to_point forces
+        // both legs (an A→B trip), process_deliver honours the request.
+        var fulfillmentMode = isParcel
+            ? laundryghar.SharedDataModel.Enums.FulfillmentMode.PointToPoint
+            : laundryghar.SharedDataModel.Enums.FulfillmentMode.ProcessDeliver;
+        var legs = _strategies.Resolve(fulfillmentMode).ResolveLegs(req.RequiresPickup, req.RequiresDelivery);
+
         // ── Insert Order ────────────────────────────────────────────────────
         var order = new Order
         {
@@ -591,15 +601,12 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             // (parcel → point_to_point, else laundry's process_deliver). VerticalKey defaults
             // to the brand's vertical (laundry) via the entity initializer; Phase 2 sets it
             // explicitly from Brand.VerticalKey once multiple verticals coexist.
-            FulfillmentMode  = isParcel
-                ? laundryghar.SharedDataModel.Enums.FulfillmentMode.PointToPoint
-                : laundryghar.SharedDataModel.Enums.FulfillmentMode.ProcessDeliver,
+            FulfillmentMode  = fulfillmentMode,
             RequestedVehicleTier = req.RequestedVehicleTier,
             OrderType        = req.IsExpress ? "express" : "standard",
             IsExpress        = req.IsExpress,
-            // A parcel is always a physical A→B trip — both legs are mandatory.
-            RequiresPickup   = isParcel || req.RequiresPickup,
-            RequiresDelivery = isParcel || req.RequiresDelivery,
+            RequiresPickup   = legs.RequiresPickup,
+            RequiresDelivery = legs.RequiresDelivery,
             Subtotal         = subtotal,
             AddonTotal       = addonTotal,
             ExpressSurcharge = expressSurcharge,

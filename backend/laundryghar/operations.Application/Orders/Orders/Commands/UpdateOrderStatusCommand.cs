@@ -54,23 +54,17 @@ public sealed class UpdateOrderStatusHandler : ICommandHandler<UpdateOrderStatus
         order.UpdatedBy = cmd.ActorId;
         order.Version++;
 
-        // Update relevant timestamp columns
-        switch (req.ToStatus)
+        // Update relevant timestamp columns — the per-status side-effects are owned by the
+        // fulfilment strategy (vertical-neutral; no-op for statuses without a timestamp).
+        strategy.ApplyTransitionEffects(order, req.ToStatus, now);
+
+        // Cancellation carries command-specific metadata beyond the timestamp.
+        if (req.ToStatus == OrderStatus.Cancelled)
         {
-            case OrderStatus.PickupScheduled:   order.PickupScheduledAt  = now; break;
-            case OrderStatus.PickedUp:          order.PickedUpAt         = now; break;
-            case OrderStatus.Received:          order.ReceivedAt         = now; break;
-            case OrderStatus.Qc:                /* qc_completed_at set when leaving Qc */ break;
-            case OrderStatus.Ready:             order.ReadyAt            = now;
-                                                order.QcCompletedAt      = now; break;
-            case OrderStatus.OutForDelivery:    order.OutForDeliveryAt   = now; break;
-            case OrderStatus.Delivered:         order.DeliveredAt        = now; break;
-            case OrderStatus.Cancelled:
-                order.CancelledAt        = now;
-                order.CancellationReason = req.Reason;
-                order.CancelledByType    = "user";
-                order.CancelledById      = cmd.ActorId;
-                break;
+            order.CancelledAt        = now;
+            order.CancellationReason = req.Reason;
+            order.CancelledByType    = "user";
+            order.CancelledById      = cmd.ActorId;
         }
 
         // Status history (immutable audit row)

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
+using operations.Application.Fulfillment;
 
 namespace operations.Application.Logistics.Common;
 
@@ -40,7 +41,8 @@ public static class GeofenceEvaluator
     /// geofence transitions. Returns the number of legs changed (0 if none).
     /// </summary>
     public static async Task<int> EvaluateAsync(
-        IOperationsDbContext db, Guid riderId, Guid brandId, double lat, double lng,
+        IOperationsDbContext db, IFulfillmentStrategyResolver strategies,
+        Guid riderId, Guid brandId, double lat, double lng,
         DateTimeOffset now, CancellationToken ct)
     {
         // The rider's currently in-progress legs (cheap; a rider has very few).
@@ -52,6 +54,20 @@ public static class GeofenceEvaluator
 
         // Store points for the drop geofence (pickup legs only) — one lookup.
         var storeIds = legs.Where(l => l.LegType == "pickup").Select(l => l.StoreId).Distinct().ToList();
+
+        // The store-drop is a process_deliver concept (collect → drop for processing). A
+        // point_to_point trip has no store drop. Look up the fulfilment mode of each pickup
+        // leg's linked order so we can gate the drop stamp on the strategy. Legs without an
+        // order link default to the store-drop behaviour (laundry).
+        var orderIds = legs.Where(l => l.LegType == "pickup" && l.OrderId.HasValue)
+                           .Select(l => l.OrderId!.Value).Distinct().ToList();
+        var orderModes = orderIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : (await db.Orders.AsNoTracking()
+                    .Where(o => orderIds.Contains(o.Id))
+                    .Select(o => new { o.Id, o.FulfillmentMode })
+                    .ToListAsync(ct))
+                .ToDictionary(o => o.Id, o => o.FulfillmentMode);
         var storePts = storeIds.Count == 0
             ? new Dictionary<Guid, (double lat, double lng)>()
             : (await db.Stores.AsNoTracking()
@@ -75,7 +91,11 @@ public static class GeofenceEvaluator
             }
 
             // 2. pickup that's collected but not yet dropped → stamp dropped_at at the store.
+            //    Only for modes that actually drop at a store (process_deliver); a point_to_point
+            //    trip has no store drop, so it never stamps dropped_at.
+            var mode = leg.OrderId.HasValue && orderModes.TryGetValue(leg.OrderId.Value, out var m) ? m : null;
             if (leg.LegType == "pickup" && leg.Status == "arrived"
+                && strategies.Resolve(mode).RequiresStoreDrop
                 && leg.CollectedAt is not null && leg.DroppedAt is null
                 && storePts.TryGetValue(leg.StoreId, out var store)
                 && DistanceMeters(lat, lng, store.lat, store.lng) <= RadiusMeters)

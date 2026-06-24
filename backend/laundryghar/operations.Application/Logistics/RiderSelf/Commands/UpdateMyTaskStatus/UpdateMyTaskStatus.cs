@@ -134,7 +134,9 @@ public sealed class UpdateMyTaskStatusHandler : ICommandHandler<UpdateMyTaskStat
         // ── DEFECT 6: pickup-leg completion advances the pickup request + order ────
         if (cmd.Status == "completed" && da.LegType == "pickup")
         {
-            await AdvancePickupLegAsync(da, pickupTarget: "completed", orderTarget: OrderStatus.Received,
+            // orderTarget=null → the order's fulfilment strategy decides the post-pickup status
+            // (laundry → received/intake; point_to_point → out_for_delivery).
+            await AdvancePickupLegAsync(da, pickupTarget: "completed", orderTarget: null,
                                         now: now, userId: cmd.UserId, ct: ct);
         }
 
@@ -314,7 +316,7 @@ public sealed class UpdateMyTaskStatusHandler : ICommandHandler<UpdateMyTaskStat
     /// retry-capable transaction.
     /// </summary>
     private async Task AdvancePickupLegAsync(
-        DeliveryAssignment da, string? pickupTarget, string orderTarget,
+        DeliveryAssignment da, string? pickupTarget, string? orderTarget,
         DateTimeOffset now, Guid userId, CancellationToken ct)
     {
         // Resolve the pickup request (the canonical link for a pickup leg).
@@ -356,7 +358,10 @@ public sealed class UpdateMyTaskStatusHandler : ICommandHandler<UpdateMyTaskStat
             if (order is not null)
             {
                 var orderStrategy = _strategies.ResolveForOrder(order);
-                var hops = orderStrategy.ForwardPath(order.Status, orderTarget);
+                // A null orderTarget means "advance to wherever this mode goes after pickup"
+                // (laundry → received; point_to_point → out_for_delivery).
+                var target = orderTarget ?? orderStrategy.PostPickupStatus;
+                var hops = orderStrategy.ForwardPath(order.Status, target);
                 foreach (var next in hops)
                 {
                     var from = order.Status;
@@ -366,8 +371,7 @@ public sealed class UpdateMyTaskStatusHandler : ICommandHandler<UpdateMyTaskStat
                     order.UpdatedAt = now;
                     order.UpdatedBy = userId;
 
-                    if (next == OrderStatus.PickedUp) order.PickedUpAt ??= now;
-                    if (next == OrderStatus.Received) order.ReceivedAt ??= now;
+                    orderStrategy.ApplyTransitionEffects(order, next, now);
 
                     _db.OrderStatusHistories.Add(new OrderStatusHistory
                     {

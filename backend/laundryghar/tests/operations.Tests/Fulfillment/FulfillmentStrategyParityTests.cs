@@ -241,6 +241,60 @@ public class FulfillmentStrategyParityTests
         Assert.Equal(OrderLifecycleState.Created, Logistics.LifecycleStateFor(Logistics.InitialStatus));
     }
 
+    // ── Behavioural hooks (Phase 1 delegation slice) ─────────────────────────────────────────
+
+    [Fact]
+    public void PostPickupStatus_and_StoreDrop_are_mode_specific()
+    {
+        Assert.Equal(OrderStatus.Received, Laundry.PostPickupStatus);
+        Assert.True(Laundry.RequiresStoreDrop);
+
+        Assert.Equal(OrderStatus.OutForDelivery, Logistics.PostPickupStatus);
+        Assert.False(Logistics.RequiresStoreDrop);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public void Laundry_ResolveLegs_honours_request(bool pickup, bool delivery)
+    {
+        var legs = Laundry.ResolveLegs(pickup, delivery);
+        Assert.Equal(pickup, legs.RequiresPickup);
+        Assert.Equal(delivery, legs.RequiresDelivery);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    public void Logistics_ResolveLegs_forces_both_legs(bool pickup, bool delivery)
+    {
+        var legs = Logistics.ResolveLegs(pickup, delivery);
+        Assert.True(legs.RequiresPickup);
+        Assert.True(legs.RequiresDelivery);
+    }
+
+    [Fact]
+    public void ApplyTransitionEffects_stamps_the_right_timestamps()
+    {
+        var now = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
+
+        var o1 = new Order(); Laundry.ApplyTransitionEffects(o1, OrderStatus.PickedUp, now);
+        Assert.Equal(now, o1.PickedUpAt);
+
+        var o2 = new Order(); Laundry.ApplyTransitionEffects(o2, OrderStatus.Ready, now);
+        Assert.Equal(now, o2.ReadyAt);
+        Assert.Equal(now, o2.QcCompletedAt);
+
+        var o3 = new Order(); Logistics.ApplyTransitionEffects(o3, OrderStatus.OutForDelivery, now);
+        Assert.Equal(now, o3.OutForDeliveryAt);
+
+        // A status with no associated timestamp is a no-op (does not throw, stamps nothing).
+        var o4 = new Order(); Laundry.ApplyTransitionEffects(o4, OrderStatus.Qc, now);
+        Assert.Null(o4.PickedUpAt);
+        Assert.Null(o4.DeliveredAt);
+    }
+
     [Fact]
     public void Terminal_statuses_agree_with_terminal_lifecycle_states()
     {
