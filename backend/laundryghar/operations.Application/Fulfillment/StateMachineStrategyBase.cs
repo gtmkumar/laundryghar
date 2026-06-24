@@ -61,4 +61,13 @@ public abstract class StateMachineStrategyBase : IFulfillmentStrategy
     /// <summary>Generic across current modes (placed / pickup_scheduled); a mode may override.</summary>
     public virtual bool CanCustomerCancel(string status)
         => status is OrderStatus.Placed or OrderStatus.PickupScheduled;
+
+    /// <summary>
+    /// Default super-state mapping for strategies on the shared <see cref="OrderStatus"/>
+    /// vocabulary (laundry <c>process_deliver</c> + logistics <c>point_to_point</c>): delegates
+    /// to <see cref="OrderLifecycleState.ForOrderStatus"/>. A strategy with its own status
+    /// vocabulary (e.g. a future salon appointment flow) overrides this.
+    /// </summary>
+    public virtual string LifecycleStateFor(string status)
+        => OrderLifecycleState.ForOrderStatus(status);
 }

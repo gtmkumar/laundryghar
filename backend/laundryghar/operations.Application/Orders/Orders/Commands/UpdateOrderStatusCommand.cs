@@ -44,10 +44,12 @@ public sealed class UpdateOrderStatusHandler : ICommandHandler<UpdateOrderStatus
         if (order is null || order.DeletedAt != null) return null;
 
         // Enforce the fulfilment-mode state machine (point_to_point uses a shorter path)
-        _strategies.ResolveForOrder(order).EnsureTransition(order.Status, req.ToStatus);
+        var strategy = _strategies.ResolveForOrder(order);
+        strategy.EnsureTransition(order.Status, req.ToStatus);
 
         var fromStatus = order.Status;
-        order.Status    = req.ToStatus;
+        order.Status         = req.ToStatus;
+        order.LifecycleState = strategy.LifecycleStateFor(req.ToStatus);
         order.UpdatedAt = now;
         order.UpdatedBy = cmd.ActorId;
         order.Version++;

@@ -114,6 +114,9 @@ public sealed record OrderDto(
     string CurrencyCode,
     int TotalItems,
     string Status,
+    /// <summary>Generic vertical-neutral lifecycle super-state — see <c>OrderLifecycleState</c>.
+    /// Lets clients/reports group orders without knowing each vertical's detailed <see cref="Status"/>.</summary>
+    string LifecycleState,
     string PaymentStatus,
     DateTimeOffset PlacedAt,
     DateTimeOffset UpdatedAt,

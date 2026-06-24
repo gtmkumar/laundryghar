@@ -43,13 +43,15 @@ public sealed class CancelOrderByCustomerHandler
                                    && o.BrandId    == cmd.BrandId, ct);
         if (order is null || order.DeletedAt != null) return null;
 
-        if (!_strategies.ResolveForOrder(order).CanCustomerCancel(order.Status))
+        var strategy = _strategies.ResolveForOrder(order);
+        if (!strategy.CanCustomerCancel(order.Status))
             throw new BusinessRuleException(
                 $"You cannot cancel an order in status '{order.Status}'. " +
                 "Contact support for orders that have already been picked up.");
 
         var fromStatus = order.Status;
         order.Status           = OrderStatus.Cancelled;
+        order.LifecycleState   = strategy.LifecycleStateFor(OrderStatus.Cancelled);
         order.CancelledAt      = now;
         order.CancellationReason = cmd.Reason;
         order.CancelledByType  = "customer";

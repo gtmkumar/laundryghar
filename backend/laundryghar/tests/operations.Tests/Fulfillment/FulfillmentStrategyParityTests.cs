@@ -203,4 +203,41 @@ public class FulfillmentStrategyParityTests
         Assert.Same(Logistics, r.ResolveForOrder(new Order { FulfillmentMode = "", JobType = JobType.Parcel }));
         Assert.Same(Laundry,   r.ResolveForOrder(new Order { FulfillmentMode = "", JobType = JobType.Laundry }));
     }
+
+    // ── Lifecycle super-state mapping (Slice B) ──────────────────────────────────────────────
+    // Guards the strategy mapping AND the SQL backfill CASE in
+    // phase1_slice_b_order_lifecycle_state.sql, which must stay identical.
+
+    [Theory]
+    [InlineData(OrderStatus.Placed,            OrderLifecycleState.Created)]
+    [InlineData(OrderStatus.Cancelled,         OrderLifecycleState.Cancelled)]
+    [InlineData(OrderStatus.Closed,            OrderLifecycleState.Closed)]
+    [InlineData(OrderStatus.Delivered,         OrderLifecycleState.Completed)]
+    [InlineData(OrderStatus.Returned,          OrderLifecycleState.Completed)]
+    [InlineData(OrderStatus.PickupScheduled,   OrderLifecycleState.Active)]
+    [InlineData(OrderStatus.InProcess,         OrderLifecycleState.Active)]
+    [InlineData(OrderStatus.OutForDelivery,    OrderLifecycleState.Active)]
+    [InlineData(OrderStatus.Rewash,            OrderLifecycleState.Active)]
+    [InlineData(OrderStatus.Disputed,          OrderLifecycleState.Active)]
+    public void LifecycleStateFor_maps_status_to_super_state(string status, string expected)
+    {
+        Assert.Equal(expected, Laundry.LifecycleStateFor(status));
+        Assert.Equal(expected, Logistics.LifecycleStateFor(status));
+    }
+
+    [Fact]
+    public void Every_known_status_maps_to_a_valid_super_state()
+    {
+        foreach (var status in Laundry.GetTransitions().Keys)
+            Assert.Contains(Laundry.LifecycleStateFor(status), OrderLifecycleState.All);
+        foreach (var status in Logistics.GetTransitions().Keys)
+            Assert.Contains(Logistics.LifecycleStateFor(status), OrderLifecycleState.All);
+    }
+
+    [Fact]
+    public void Initial_status_maps_to_created_for_both_modes()
+    {
+        Assert.Equal(OrderLifecycleState.Created, Laundry.LifecycleStateFor(Laundry.InitialStatus));
+        Assert.Equal(OrderLifecycleState.Created, Logistics.LifecycleStateFor(Logistics.InitialStatus));
+    }
 }

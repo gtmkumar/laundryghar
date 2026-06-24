@@ -155,6 +155,7 @@ public sealed class UpdateMyTaskStatusHandler : ICommandHandler<UpdateMyTaskStat
             {
                 // 1. Order status transition
                 o.Status = "delivered";
+                o.LifecycleState = _strategies.ResolveForOrder(o).LifecycleStateFor(o.Status);
                 o.DeliveredAt = now;
                 o.Version += 1;
                 o.UpdatedAt = now;
@@ -354,11 +355,13 @@ public sealed class UpdateMyTaskStatusHandler : ICommandHandler<UpdateMyTaskStat
             //    history row per hop. Off-path / already-advanced orders → no-op.
             if (order is not null)
             {
-                var hops = _strategies.ResolveForOrder(order).ForwardPath(order.Status, orderTarget);
+                var orderStrategy = _strategies.ResolveForOrder(order);
+                var hops = orderStrategy.ForwardPath(order.Status, orderTarget);
                 foreach (var next in hops)
                 {
                     var from = order.Status;
                     order.Status = next;
+                    order.LifecycleState = orderStrategy.LifecycleStateFor(next);
                     order.Version += 1;
                     order.UpdatedAt = now;
                     order.UpdatedBy = userId;

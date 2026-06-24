@@ -627,6 +627,7 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             TotalItems       = req.Items.Length,
             TotalGarments    = 0,
             Status              = OrderStatus.Placed,
+            LifecycleState      = OrderLifecycleState.ForOrderStatus(OrderStatus.Placed),
             PaymentStatus       = "pending",
             PlacedAt            = now,
             PromisedDeliveryAt  = promisedDeliveryAt,
@@ -810,7 +811,7 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             o.DiscountTotal,
             derivedPromotionDiscount,
             o.GrandTotal, o.AmountPaid, o.AmountDue, o.CurrencyCode,
-            o.TotalItems, o.Status, o.PaymentStatus, o.PlacedAt, o.UpdatedAt,
+            o.TotalItems, o.Status, o.LifecycleState, o.PaymentStatus, o.PlacedAt, o.UpdatedAt,
             o.PromisedDeliveryAt,
             items?.Select(i => new OrderItemDto(
                 i.Id, i.ServiceId, i.ItemId, i.ItemVariantId,

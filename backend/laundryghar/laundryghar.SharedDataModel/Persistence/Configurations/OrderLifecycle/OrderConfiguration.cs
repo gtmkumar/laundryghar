@@ -70,6 +70,7 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         b.Property(e => e.TotalGarments).HasColumnName("total_garments").IsRequired();
         b.Property(e => e.TotalWeightGrams).HasColumnName("total_weight_grams");
         b.Property(e => e.Status).HasColumnName("status").HasMaxLength(30).IsRequired();
+        b.Property(e => e.LifecycleState).HasColumnName("lifecycle_state").HasMaxLength(20).IsRequired();
         b.Property(e => e.SubStatus).HasColumnName("sub_status").HasMaxLength(50);
         b.Property(e => e.PaymentStatus).HasColumnName("payment_status").HasMaxLength(20).IsRequired();
         b.Property(e => e.PlacedAt).HasColumnName("placed_at").IsRequired();

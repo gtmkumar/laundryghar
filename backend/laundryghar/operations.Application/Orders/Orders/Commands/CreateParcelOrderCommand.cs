@@ -118,6 +118,7 @@ public sealed class CreateParcelOrderHandler : ICommandHandler<CreateParcelOrder
             TotalItems           = 0,
             TotalGarments        = 0,
             Status               = OrderStatus.Placed,
+            LifecycleState       = OrderLifecycleState.ForOrderStatus(OrderStatus.Placed),
             PaymentStatus        = "pending",
             PlacedAt             = now,
             NotesCustomer        = req.NotesCustomer,

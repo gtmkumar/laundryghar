@@ -54,6 +54,7 @@ public sealed class CancelOrderHandler : ICommandHandler<CancelOrderCommand, Ord
 
         var fromStatus = order.Status;
         order.Status           = OrderStatus.Cancelled;
+        order.LifecycleState   = strategy.LifecycleStateFor(OrderStatus.Cancelled);
         order.CancelledAt      = now;
         order.CancellationReason = cmd.Reason;
         order.CancelledByType  = cmd.IsCustomer ? "customer" : "user";

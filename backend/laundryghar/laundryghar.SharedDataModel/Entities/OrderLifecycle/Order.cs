@@ -99,6 +99,13 @@ public class Order : IAuditableEntity, ISoftDeletable
     public int TotalGarments { get; set; }
     public int? TotalWeightGrams { get; set; }
     public string Status { get; set; } = null!;
+
+    /// <summary>Generic, vertical-neutral lifecycle super-state — see
+    /// <see cref="Enums.OrderLifecycleState"/>. Derived from <see cref="Status"/> via the order's
+    /// <c>IFulfillmentStrategy</c> on every status write; lets the shared spine reason over orders
+    /// without knowing any vertical's detailed sub-status. Defaults to <c>created</c>.</summary>
+    public string LifecycleState { get; set; } = Enums.OrderLifecycleState.Created;
+
     public string? SubStatus { get; set; }
     public string PaymentStatus { get; set; } = null!;
     public DateTimeOffset PlacedAt { get; set; }

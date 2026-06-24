@@ -57,4 +57,13 @@ public interface IFulfillmentStrategy
 
     /// <summary>True if the order can be customer-cancelled from <paramref name="status"/>.</summary>
     bool CanCustomerCancel(string status);
+
+    /// <summary>
+    /// The generic, vertical-neutral lifecycle super-state (<c>OrderLifecycleState.*</c>) that
+    /// the given detailed sub-status maps to. The shared order spine persists this on
+    /// <c>orders.lifecycle_state</c> so platform code reasons over a closed neutral vocabulary
+    /// while each strategy owns its detailed <c>status</c>. See <see cref="StateMachineStrategyBase"/>
+    /// for the default (shared <c>OrderStatus</c> vocabulary) mapping.
+    /// </summary>
+    string LifecycleStateFor(string status);
 }
