@@ -21,11 +21,11 @@ public class WarehouseGarmentConditions : IEndpointGroup
     {
         group.WithTags("Admin - Garment Conditions").RequireAuthorization();
 
-        group.MapGet(GetAll, "/").RequireAuthorization("permission:garment.inspect");
+        group.MapGet(GetAll, "/").RequireAuthorization("permission:fulfillment.inspect");
         group.MapPost(Create, "/")
             .AddEndpointFilter<ValidationFilter<CreateGarmentConditionRequest>>()
-            .RequireAuthorization("permission:garment.inspect");
-        group.MapPut(Update, "/{id:guid}").RequireAuthorization("permission:garment.inspect");
+            .RequireAuthorization("permission:fulfillment.inspect");
+        group.MapPut(Update, "/{id:guid}").RequireAuthorization("permission:fulfillment.inspect");
     }
 
     public static async Task<IResult> GetAll(IDispatcher dispatcher, CancellationToken ct,

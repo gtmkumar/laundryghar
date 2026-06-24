@@ -33,8 +33,12 @@ public sealed class PermissionHandler : AuthorizationHandler<PermissionRequireme
         var permsClaim = context.User.FindFirstValue("permissions");
         if (!string.IsNullOrEmpty(permsClaim))
         {
-            var perms = permsClaim.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (perms.Contains(requirement.PermissionCode, StringComparer.OrdinalIgnoreCase))
+            // Canonicalize both sides so renamed permissions resolve across the rename
+            // (legacy claims in already-issued JWTs still satisfy the new code). See PermissionAlias.
+            var required = PermissionAlias.Canonical(requirement.PermissionCode);
+            var perms = permsClaim.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                                  .Select(PermissionAlias.Canonical);
+            if (perms.Contains(required, StringComparer.OrdinalIgnoreCase))
                 context.Succeed(requirement);
         }
 

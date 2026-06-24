@@ -25,13 +25,13 @@ public class WarehouseGarments : IEndpointGroup
     {
         group.WithTags("Admin - Garments").RequireAuthorization();
 
-        group.MapGet(GetBoard, "/board").RequireAuthorization("permission:garment.read");
-        group.MapGet(GetAll, "/").RequireAuthorization("permission:garment.read");
-        group.MapGet(GetById, "/{id:guid}").RequireAuthorization("permission:garment.read");
-        group.MapGet(GetByTag, "/by-tag/{tagCode}").RequireAuthorization("permission:garment.read");
+        group.MapGet(GetBoard, "/board").RequireAuthorization("permission:fulfillment.read");
+        group.MapGet(GetAll, "/").RequireAuthorization("permission:fulfillment.read");
+        group.MapGet(GetById, "/{id:guid}").RequireAuthorization("permission:fulfillment.read");
+        group.MapGet(GetByTag, "/by-tag/{tagCode}").RequireAuthorization("permission:fulfillment.read");
         group.MapPost(Create, "/")
             .AddEndpointFilter<ValidationFilter<CreateGarmentRequest>>()
-            .RequireAuthorization("permission:garment.tag");
+            .RequireAuthorization("permission:fulfillment.tag");
     }
 
     public static async Task<IResult> GetBoard(IDispatcher dispatcher, CancellationToken ct)

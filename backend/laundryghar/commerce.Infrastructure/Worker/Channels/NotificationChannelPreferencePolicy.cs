@@ -55,7 +55,7 @@ public static class NotificationChannelPreferencePolicy
             ("payment.captured",     _)                     => ("PAYMENT_CAPTURED",        "_SMS"),
             ("refund.initiated",     _)                     => ("REFUND_INITIATED",        "_SMS"),
             // ── Warehouse lifecycle ─────────────────────────────────────────────
-            ("garment.lost",         _)                     => ("GARMENT_LOST",            "_SMS"),
+            ("fulfillment.lost",         _)                     => ("GARMENT_LOST",            "_SMS"),
             // ── Pickup lifecycle ────────────────────────────────────────────────
             ("pickup.rejected",      _)                     => ("PICKUP_REJECTED",          "_SMS"),
             _                                               => null

@@ -181,10 +181,10 @@ public sealed class IdentitySeeder
         ("delivery.slot.read",           "delivery","slot.read",      "Read delivery slots",           "low"),
         ("delivery.slot.manage",         "delivery","slot.manage",    "Manage delivery slots",         "normal"),
         ("delivery.assign",              "delivery","assign",         "Assign rider to delivery",      "high"),
-        // warehouse / garments
-        ("garment.read",                 "garment","read",            "Read garment records",          "low"),
-        ("garment.tag",                  "garment","tag",             "Tag/label garments",            "normal"),
-        ("garment.inspect",              "garment","inspect",         "Inspect garments",              "normal"),
+        // warehouse / fulfilment units (was garment.* — renamed multi-vertical Phase 1; bridged via PermissionAlias)
+        ("fulfillment.read",             "fulfillment","read",        "Read fulfilment records",       "low"),
+        ("fulfillment.tag",              "fulfillment","tag",         "Tag/label fulfilment units",    "normal"),
+        ("fulfillment.inspect",          "fulfillment","inspect",     "Inspect fulfilment units",      "normal"),
         ("warehouse.batch.manage",       "warehouse","batch.manage",  "Manage warehouse batches",      "normal"),
         ("warehouse.process.scan",       "warehouse","process.scan",  "Scan process log entries",      "normal"),
         ("qc.perform",                   "qc","perform",              "Perform quality checks",        "normal"),
@@ -451,7 +451,7 @@ public sealed class IdentitySeeder
             "orders.read","orders.status.update","orders.notes.manage",
             "pickup.read","pickup.create","pickup.assign",
             "delivery.slot.read","delivery.slot.manage","delivery.assign",
-            "garment.read","garment.tag","garment.inspect",
+            "fulfillment.read","fulfillment.tag","fulfillment.inspect",
             "warehouse.batch.manage","warehouse.process.scan","qc.perform","stockrecon.manage",
             // BC-5: logistics — brand_admin gets all rider permissions (R3-SEC-1: verify + settle folded in)
             "rider.read","rider.manage","rider.assignment.read","rider.assignment.manage","rider.capacity.manage",
@@ -489,7 +489,7 @@ public sealed class IdentitySeeder
             // BC-3: read-only catalog + pricing + customer
             "catalog.read","pricing.read","customer.read",
             // BC-4: read-only visibility across order lifecycle
-            "orders.read","pickup.read","delivery.slot.read","garment.read",
+            "orders.read","pickup.read","delivery.slot.read","fulfillment.read",
             // BC-5: logistics — franchise_owner gets *.read (R3-SEC-1: verify + settle + manage added per sql patches)
             "rider.read","rider.assignment.read","rider.manage","rider.verify","rider.settle",
             // BC-6: commerce — franchise_owner gets *.read (R3-SEC-1: payment.record + customer.create added per sql patches)
@@ -516,7 +516,7 @@ public sealed class IdentitySeeder
             "orders.read","orders.status.update","orders.notes.manage",
             "pickup.read","pickup.create","pickup.assign",
             "delivery.slot.read","delivery.slot.manage",
-            "garment.read","garment.tag","garment.inspect",
+            "fulfillment.read","fulfillment.tag","fulfillment.inspect",
             // BC-5: logistics — store_admin gets rider.read + assignment read/manage
             "rider.read","rider.assignment.read","rider.assignment.manage",
             // BC-6: commerce — store_admin gets payment.read/record, wallet.read, coupons.manage
@@ -539,7 +539,7 @@ public sealed class IdentitySeeder
             "orders.read","orders.status.update","orders.notes.manage",
             "pickup.read","pickup.create",
             "delivery.slot.read",
-            "garment.read","garment.tag","garment.inspect",
+            "fulfillment.read","fulfillment.tag","fulfillment.inspect",
             // R3-SEC-2: POS — store_staff is the primary counter user; grant POS family
             "pos.order.create","pos.order.read",
             // R3-SEC-1: payment.record + customer.create for POS counter workflow
@@ -549,9 +549,9 @@ public sealed class IdentitySeeder
         // warehouse_supervisor
         Grant("warehouse_supervisor", [
             "warehouses.list","orders.list","orders.update",
-            // BC-4: garment.*, warehouse.*, qc, stockrecon, orders.read
+            // BC-4: fulfillment.*, warehouse.*, qc, stockrecon, orders.read
             "orders.read",
-            "garment.read","garment.tag","garment.inspect",
+            "fulfillment.read","fulfillment.tag","fulfillment.inspect",
             "warehouse.batch.manage","warehouse.process.scan",
             "qc.perform","stockrecon.manage",
             // BC-5: logistics — warehouse_supervisor gets rider.read + assignment.manage + capacity.manage
@@ -562,7 +562,7 @@ public sealed class IdentitySeeder
         Grant("warehouse_staff", [
             "orders.list",
             // BC-4: garment ops + process scan + orders.read
-            "orders.read","garment.read","garment.tag","garment.inspect",
+            "orders.read","fulfillment.read","fulfillment.tag","fulfillment.inspect",
             "warehouse.process.scan",
         ]);
 
@@ -589,7 +589,7 @@ public sealed class IdentitySeeder
             "pickup.read","pickup.create","pickup.assign",
             "delivery.slot.read","delivery.slot.manage","delivery.assign",
             // Warehouse / garments
-            "garment.read","garment.tag","garment.inspect",
+            "fulfillment.read","fulfillment.tag","fulfillment.inspect",
             "warehouse.batch.manage","warehouse.process.scan","qc.perform","stockrecon.manage",
             // Riders / logistics
             "rider.read","rider.manage","rider.assignment.read","rider.assignment.manage","rider.capacity.manage",
@@ -611,7 +611,7 @@ public sealed class IdentitySeeder
             // BC-3: read-only catalog + pricing + customer
             "catalog.read","pricing.read","customer.read",
             // BC-4: all *.read across order lifecycle
-            "orders.read","pickup.read","delivery.slot.read","garment.read",
+            "orders.read","pickup.read","delivery.slot.read","fulfillment.read",
             // BC-5: logistics — auditor gets *.read
             "rider.read","rider.assignment.read",
             // BC-6: commerce — auditor gets *.read

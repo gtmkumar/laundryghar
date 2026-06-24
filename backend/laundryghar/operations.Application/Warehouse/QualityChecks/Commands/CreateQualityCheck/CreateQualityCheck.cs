@@ -72,18 +72,18 @@ public sealed class CreateQualityCheckCommandHandler
         if (req.Result == "pass" || req.Result == "accept_with_note")
         {
             newStage  = "packing";
-            eventType = "garment.qc_passed";
+            eventType = "fulfillment.qc_passed";
         }
         else if (req.Result is "rewash" || req.RequiresRewash)
         {
             newStage  = "rewash";
-            eventType = "garment.rewash";
+            eventType = "fulfillment.rewash";
             garment.RewashCount++;
         }
         else
         {
             newStage  = "qc";     // fail/escalate — stays in QC pending review
-            eventType = "garment.qc_failed";
+            eventType = "fulfillment.qc_failed";
         }
 
         garment.CurrentStage = newStage;
@@ -96,7 +96,7 @@ public sealed class CreateQualityCheckCommandHandler
         {
             Id            = Guid.NewGuid(),
             BrandId       = brandId,
-            AggregateType = "garment",
+            AggregateType = "fulfillment",
             AggregateId   = garment.Id,
             EventType     = eventType,
             EventVersion  = 1,

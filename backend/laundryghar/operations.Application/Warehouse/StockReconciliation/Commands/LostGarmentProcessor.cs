@@ -11,12 +11,12 @@ namespace operations.Application.Warehouse.StockReconciliation.Commands;
 /// When a stock reconciliation is closed and still has items in 'missing' status,
 /// this command marks each associated garment as lost:
 ///   - Sets garment.Status = 'lost' and garment.CurrentStage = 'lost'.
-///   - Emits a <c>garment.lost</c> outbox event with customer/order context so that
+///   - Emits a <c>fulfillment.lost</c> outbox event with customer/order context so that
 ///     downstream consumers (notifications, analytics, future wallet-compensation handler)
 ///     can react.
 ///
 /// Wallet compensation is OUT OF SCOPE this round — needs policy (credit amount, caps,
-/// approval workflow). The garment.lost event carries the data a future handler will need.
+/// approval workflow). The fulfillment.lost event carries the data a future handler will need.
 ///
 /// Called from within <see cref="CloseStockRecon.CloseStockReconCommandHandler"/> after the recon is stamped
 /// as 'completed', within the same SaveChangesAsync call — atomically.
@@ -74,16 +74,16 @@ public static class LostGarmentProcessor
             garment.UpdatedAt     = now;
             garment.Version++;
 
-            // Emit garment.lost outbox event.
+            // Emit fulfillment.lost outbox event.
             // A future GARMENT_LOST_* notification template + NotificationMappingService case
             // can consume this; for now it is available for analytics / compensation handlers.
             db.OutboxEvents.Add(new OutboxEvent
             {
                 Id            = Guid.NewGuid(),
                 BrandId       = brandId,
-                AggregateType = "garment",
+                AggregateType = "fulfillment",
                 AggregateId   = garment.Id,
-                EventType     = "garment.lost",
+                EventType     = "fulfillment.lost",
                 EventVersion  = 1,
                 Payload       = JsonSerializer.Serialize(new
                 {

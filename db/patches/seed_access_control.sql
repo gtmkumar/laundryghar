@@ -70,7 +70,7 @@ ON CONFLICT (brand_id, code) DO NOTHING;
 -- =============================================================================
 
 -- Helper: operations_manager permissions
--- Covers: all orders.*, garment.*, qc.*, warehouse.*, stockrecon.*, rider.*,
+-- Covers: all orders.*, fulfillment.*, qc.*, warehouse.*, stockrecon.*, rider.*,
 --         delivery.*, pickup.*, analytics.read
 INSERT INTO identity_access.role_permissions (id, role_id, permission_id)
 SELECT
@@ -83,8 +83,8 @@ WHERE p.code IN (
     -- orders.*
     'orders.cancel','orders.create','orders.list','orders.notes.manage',
     'orders.read','orders.refund','orders.status.update','orders.update',
-    -- garment.*
-    'garment.inspect','garment.read','garment.tag',
+    -- fulfillment.* (was garment.*)
+    'fulfillment.inspect','fulfillment.read','fulfillment.tag',
     -- qc.*
     'qc.perform',
     -- warehouse.*

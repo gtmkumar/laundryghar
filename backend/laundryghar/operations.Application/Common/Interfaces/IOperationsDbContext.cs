@@ -50,7 +50,7 @@ public interface IOperationsDbContext
     // Fully-qualified: the simple name 'Warehouse' clashes with the operations.Application.Warehouse namespace.
     DbSet<laundryghar.SharedDataModel.Entities.TenancyOrg.Warehouse> Warehouses { get; }
 
-    // ─── Kernel (outbox events: garment.lost / garment.qc_* / garment.rewash) ─
+    // ─── Kernel (outbox events: fulfillment.lost / fulfillment.qc_* / fulfillment.rewash) ─
     DbSet<OutboxEvent> OutboxEvents { get; }
 
     // ─── Logistics: riders + lifecycle ───────────────────────────────────────

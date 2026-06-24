@@ -20,10 +20,10 @@ public class WarehouseGarmentTags : IEndpointGroup
     {
         group.WithTags("Admin - Garment Tags").RequireAuthorization();
 
-        group.MapGet(GetAll, "/").RequireAuthorization("permission:garment.tag");
+        group.MapGet(GetAll, "/").RequireAuthorization("permission:fulfillment.tag");
         group.MapPost(Generate, "/generate")
             .AddEndpointFilter<ValidationFilter<GenerateTagsRequest>>()
-            .RequireAuthorization("permission:garment.tag");
+            .RequireAuthorization("permission:fulfillment.tag");
     }
 
     public static async Task<IResult> GetAll(IDispatcher dispatcher, CancellationToken ct,

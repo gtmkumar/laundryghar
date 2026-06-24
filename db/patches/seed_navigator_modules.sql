@@ -5,7 +5,7 @@
 --     required_permission against the signed-in user's permissions), and
 --   • the Roles & Permissions matrix rows (show_in_matrix rows, ordered by
 --     matrix_order). permission_modules[] maps the raw permissions.module values
---     (analytics, garment, qc, …) onto each UI module row.
+--     (analytics, fulfillment, qc, …) onto each UI module row.
 -- Replaces the previously hardcoded module list in PermissionMatrix.cs.
 -- ============================================================================
 
@@ -39,7 +39,7 @@ VALUES
     ('stores',     'Stores',        'Building2',       '/tenancy',                  'Operations',     11, 999, true,  false, 'stores.list',    '{stores}'),
     ('orders',     'Orders',        'ShoppingCart',    '/orders',                   'Operations',     12,  20, true,  true,  'orders.list',    '{orders}'),
     ('pos',        'POS',           'Monitor',         NULL,                        NULL,             999, 30, false, true,  NULL,             '{orders}'),
-    ('warehouse',  'Warehouse',     'Warehouse',       '/warehouse/board',          'Operations',     13,  80, true,  true,  'garment.read',   '{warehouse,garment,qc,stockrecon,store_warehouse}'),
+    ('warehouse',  'Warehouse',     'Warehouse',       '/warehouse/board',          'Operations',     13,  80, true,  true,  'fulfillment.read',   '{warehouse,fulfillment,qc,stockrecon,store_warehouse}'),
     ('customers',  'Customers',     'Users',           '/customers',                'Operations',     14,  40, true,  true,  'customer.read',  '{customer}'),
     ('riders',     'Riders',        'Bike',            '/riders',                   'Operations',     15,  90, true,  true,  'rider.read',     '{rider,delivery,pickup}'),
     -- Catalogue

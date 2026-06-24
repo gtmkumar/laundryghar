@@ -112,7 +112,7 @@ public sealed class NotificationMappingService : BackgroundService
             "order.cancelled",
             "payment.captured",
             "refund.initiated",
-            "garment.lost",
+            "fulfillment.lost",
             "pickup.rejected"
         };
 
@@ -358,8 +358,8 @@ public sealed class NotificationMappingService : BackgroundService
                 .FirstOrDefaultAsync(ct);
         }
 
-        // Tertiary: look up via the garment aggregate (e.g. garment.lost events).
-        if (evt.AggregateType.Equals("garment", StringComparison.OrdinalIgnoreCase))
+        // Tertiary: look up via the fulfillment aggregate (e.g. fulfillment.lost events).
+        if (evt.AggregateType.Equals("fulfillment", StringComparison.OrdinalIgnoreCase))
         {
             return await db.Customers.IgnoreQueryFilters()
                 .Where(c => c.BrandId == brandId
@@ -424,7 +424,7 @@ public sealed class NotificationMappingService : BackgroundService
             "order.cancelled"      => $"Your Laundry Ghar order {payload?.OrderNumber ?? ""} has been cancelled.",
             "payment.captured"     => $"Payment of ₹{payload?.Amount?.ToString("F2") ?? ""} received for your Laundry Ghar order.",
             "refund.initiated"     => $"A refund of ₹{payload?.Amount?.ToString("F2") ?? ""} has been initiated for your Laundry Ghar order.",
-            "garment.lost"         => $"We're sorry — one of your garments from order {payload?.OrderNumber ?? ""} could not be located during our warehouse reconciliation. Our team will contact you shortly.",
+            "fulfillment.lost"         => $"We're sorry — one of your garments from order {payload?.OrderNumber ?? ""} could not be located during our warehouse reconciliation. Our team will contact you shortly.",
             "pickup.rejected"      => $"Your Laundry Ghar pickup request {payload?.RequestNumber ?? ""} could not be fulfilled. Reason: {payload?.Reason ?? ""}. Please book a new slot.",
             _                      => "Update from Laundry Ghar."
         };

@@ -34,7 +34,7 @@ namespace commerce.Infrastructure.Worker.Services;
 ///   - Worker bypasses RLS (BypassRls = true inside a worker scope) — all brands visible.
 ///
 /// Wallet compensation for confirmed-lost garments is OUT OF SCOPE this round (needs
-/// policy — credit amount, caps, approval workflow). The garment.lost event carries
+/// policy — credit amount, caps, approval workflow). The fulfillment.lost event carries
 /// enough context for a future compensation handler.
 /// </summary>
 public sealed class DailyReconService : BackgroundService

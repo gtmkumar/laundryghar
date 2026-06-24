@@ -27,22 +27,22 @@ public class WarehouseInspections : IEndpointGroup
     {
         group.WithTags("Admin - Inspections").RequireAuthorization();
 
-        group.MapGet(GetAll, "/").RequireAuthorization("permission:garment.inspect");
+        group.MapGet(GetAll, "/").RequireAuthorization("permission:fulfillment.inspect");
 
         group.MapPost(Create, "/")
             .AddEndpointFilter<ValidationFilter<CreateInspectionRequest>>()
-            .RequireAuthorization("permission:garment.inspect");
+            .RequireAuthorization("permission:fulfillment.inspect");
 
         // POST /api/v1/admin/garment-inspections/{id}/photos — multipart upload.
         group.MapPost(UploadPhoto, "/{id:guid}/photos")
-            .RequireAuthorization("permission:garment.inspect")
+            .RequireAuthorization("permission:fulfillment.inspect")
             .DisableAntiforgery()
             .WithMetadata(new RequestSizeLimitAttribute(11 * 1024 * 1024)); // 10 MB + overhead
 
-        group.MapGet(GetPhotos, "/{id:guid}/photos").RequireAuthorization("permission:garment.inspect");
+        group.MapGet(GetPhotos, "/{id:guid}/photos").RequireAuthorization("permission:fulfillment.inspect");
 
         // GET /api/v1/admin/garment-inspections/photos/{photoId} — streams the image.
-        group.MapGet(StreamPhoto, "/photos/{photoId:guid}").RequireAuthorization("permission:garment.inspect");
+        group.MapGet(StreamPhoto, "/photos/{photoId:guid}").RequireAuthorization("permission:fulfillment.inspect");
     }
 
     public static async Task<IResult> GetAll(IDispatcher dispatcher, CancellationToken ct,

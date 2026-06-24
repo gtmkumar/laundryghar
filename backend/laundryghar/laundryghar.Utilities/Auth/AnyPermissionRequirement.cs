@@ -48,9 +48,12 @@ public sealed class AnyPermissionHandler : AuthorizationHandler<AnyPermissionReq
         var permsClaim = context.User.FindFirstValue("permissions");
         if (!string.IsNullOrEmpty(permsClaim))
         {
-            var perms = permsClaim.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            // Canonicalize both sides so renamed permissions resolve across the rename. See PermissionAlias.
+            var perms = permsClaim.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                                  .Select(PermissionAlias.Canonical)
+                                  .ToList();
             if (requirement.PermissionCodes.Any(code =>
-                    perms.Contains(code, StringComparer.OrdinalIgnoreCase)))
+                    perms.Contains(PermissionAlias.Canonical(code), StringComparer.OrdinalIgnoreCase)))
             {
                 context.Succeed(requirement);
             }
