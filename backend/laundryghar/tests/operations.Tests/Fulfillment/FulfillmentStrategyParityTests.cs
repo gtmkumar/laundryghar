@@ -240,4 +240,17 @@ public class FulfillmentStrategyParityTests
         Assert.Equal(OrderLifecycleState.Created, Laundry.LifecycleStateFor(Laundry.InitialStatus));
         Assert.Equal(OrderLifecycleState.Created, Logistics.LifecycleStateFor(Logistics.InitialStatus));
     }
+
+    [Fact]
+    public void Terminal_statuses_agree_with_terminal_lifecycle_states()
+    {
+        // The OpsQueues "open orders" filter delegates terminal detection to the generic
+        // lifecycle super-state. This guards the exact equivalence it relies on:
+        //   status ∈ strategy.TerminalStatuses  ⟺  LifecycleStateFor(status) ∈ OrderLifecycleState.Terminal
+        foreach (var strategy in new IFulfillmentStrategy[] { Laundry, Logistics })
+            foreach (var status in strategy.GetTransitions().Keys)
+                Assert.Equal(
+                    strategy.TerminalStatuses.Contains(status),
+                    OrderLifecycleState.Terminal.Contains(strategy.LifecycleStateFor(status)));
+    }
 }

@@ -31,14 +31,6 @@ public sealed class OpsQueuesHandler : IQueryHandler<OpsQueuesQuery, OpsQueuesRe
     private readonly ICurrentUser _user;
     private readonly OrdersSettings _settings;
 
-    private static readonly HashSet<string> TerminalStatuses = new(StringComparer.OrdinalIgnoreCase)
-    {
-        OrderStatus.Delivered,
-        OrderStatus.Cancelled,
-        OrderStatus.Closed,
-        OrderStatus.Returned,
-    };
-
     public OpsQueuesHandler(
         IOperationsDbContext db,
         ICurrentUser user,
@@ -56,9 +48,11 @@ public sealed class OpsQueuesHandler : IQueryHandler<OpsQueuesQuery, OpsQueuesRe
         var page     = q.Page < 1 ? 1 : q.Page;
         var pageSize = q.PageSize is < 1 or > 100 ? 20 : q.PageSize;
 
-        // Shared base: non-terminal orders for this brand.
+        // Shared base: open (non-terminal) orders for this brand. Filtered on the generic
+        // lifecycle super-state (vertical-neutral) rather than a hardcoded laundry-status list —
+        // terminal ⟺ lifecycle_state ∈ {completed, cancelled, closed}.
         var baseQuery = _db.Orders
-            .Where(o => o.BrandId == brandId && !TerminalStatuses.Contains(o.Status));
+            .Where(o => o.BrandId == brandId && !OrderLifecycleState.Terminal.Contains(o.LifecycleState));
 
         if (q.StoreId.HasValue)
             baseQuery = baseQuery.Where(o => o.StoreId == q.StoreId.Value);
@@ -113,10 +107,12 @@ public sealed class OpsQueuesHandler : IQueryHandler<OpsQueuesQuery, OpsQueuesRe
             .ToListAsync(ct);
 
         // ── Unactioned ("needs action") ──────────────────────────────────────
-        // Orders still sitting in 'placed' — nobody has scheduled a pickup yet.
+        // Freshly created orders nobody has actioned yet (laundry: still 'placed', pickup
+        // not scheduled). Generic lifecycle super-state 'created' is the vertical-neutral
+        // equivalent (created ⟺ the mode's initial status).
         // Oldest first so the most-aged (most urgent) bubble to the top.
         var unactionedQuery = baseQuery
-            .Where(o => o.Status == OrderStatus.Placed)
+            .Where(o => o.LifecycleState == OrderLifecycleState.Created)
             .OrderBy(o => o.CreatedAt);
 
         var unactionedTotal = await unactionedQuery.CountAsync(ct);

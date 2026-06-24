@@ -32,6 +32,12 @@ public static class OrderLifecycleState
     public static readonly IReadOnlySet<string> All =
         new HashSet<string> { Created, Active, Completed, Cancelled, Closed };
 
+    /// <summary>Terminal super-states — no further fulfilment progress is expected. The
+    /// complement (<see cref="Created"/> + <see cref="Active"/>) is the "open / in-flight"
+    /// set ops queues work over. Vertical-neutral: replaces per-vertical terminal-status lists.</summary>
+    public static readonly IReadOnlySet<string> Terminal =
+        new HashSet<string> { Completed, Cancelled, Closed };
+
     public static bool IsValid(string? value) => value is not null && All.Contains(value);
 
     /// <summary>
