@@ -10,6 +10,15 @@ public class Item : IAuditableEntity, ISoftDeletable
     public Guid Id { get; set; }
     public Guid BrandId { get; set; }
     public Guid? ItemGroupId { get; set; }
+
+    /// <summary>Vertical-neutral item-shape discriminator — see <see cref="Enums.CatalogKind"/>.
+    /// Defaults to laundry; kind-specific data lives in <see cref="Attributes"/>. (Phase 2 slice 2A.)</summary>
+    public string CatalogKind { get; set; } = Enums.CatalogKind.LaundryGarment;
+
+    /// <summary>Kind-specific attribute bag (jsonb). Empty for the generic spine; populated as
+    /// laundry/salon/parcel-specific attributes are demoted off first-class columns.</summary>
+    public string Attributes { get; set; } = "{}";
+
     public string Code { get; set; } = null!;
     public string Name { get; set; } = null!;
     public string NameLocalized { get; set; } = null!;

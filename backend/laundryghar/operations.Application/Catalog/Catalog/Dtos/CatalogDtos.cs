@@ -199,7 +199,8 @@ public sealed record ItemDto(
     DateTimeOffset UpdatedAt,
     int? TatHours = null,
     bool ExpressEligible = false,
-    decimal? ExpressSurcharge = null
+    decimal? ExpressSurcharge = null,
+    string CatalogKind = "laundry_garment"
 );
 
 public sealed record CreateItemRequest(
@@ -216,7 +217,9 @@ public sealed record CreateItemRequest(
     short DisplayOrder,
     int? TatHours = null,
     bool ExpressEligible = false,
-    decimal? ExpressSurcharge = null
+    decimal? ExpressSurcharge = null,
+    // Vertical-neutral item-shape discriminator; null → defaults to laundry_garment.
+    string? CatalogKind = null
 );
 
 public sealed record UpdateItemRequest(

@@ -24,5 +24,6 @@
   <Project Path="laundryghar.Gateway/laundryghar.Gateway.csproj" />
   <Folder Name="/tests/">
     <Project Path="tests/operations.Tests/operations.Tests.csproj" />
+    <Project Path="tests/operations.IntegrationTests/operations.IntegrationTests.csproj" />
   </Folder>
 </Solution>

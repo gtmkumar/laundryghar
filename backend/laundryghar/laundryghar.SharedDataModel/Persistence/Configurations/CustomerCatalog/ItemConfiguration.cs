@@ -15,6 +15,8 @@ public sealed class ItemConfiguration : IEntityTypeConfiguration<Item>
 
         b.Property(e => e.BrandId).HasColumnName("brand_id").IsRequired();
         b.Property(e => e.ItemGroupId).HasColumnName("item_group_id");
+        b.Property(e => e.CatalogKind).HasColumnName("catalog_kind").HasMaxLength(20).IsRequired();
+        b.Property(e => e.Attributes).HasColumnName("attributes").HasColumnType("jsonb").IsRequired();
         b.Property(e => e.Code).HasColumnName("code").HasMaxLength(50).IsRequired();
         b.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
         b.Property(e => e.NameLocalized).HasColumnName("name_localized").HasColumnType("jsonb").IsRequired();

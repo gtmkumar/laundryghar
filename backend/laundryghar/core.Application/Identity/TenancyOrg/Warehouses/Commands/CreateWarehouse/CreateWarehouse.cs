@@ -23,7 +23,10 @@ public class CreateWarehouseCommandHandler : ICommandHandler<CreateWarehouseComm
             AddressLine1 = command.Request.AddressLine1, City = command.Request.City,
             State = command.Request.State, Pincode = command.Request.Pincode, CountryCode = "IN",
             Timezone = "Asia/Kolkata", DailyThroughputTarget = 1000, CurrentLoadCount = 0,
-            HasDryClean = true, HasSteamIron = true,
+            ProcessingCapabilities = new laundryghar.SharedDataModel.Entities.TenancyOrg.WarehouseCapabilities
+            {
+                HasDryClean = true, HasSteamIron = true,
+            },
             Capabilities = [], OperatingHoursConfig = "{}", Config = "{}", Status = "active",
             CreatedAt = now, UpdatedAt = now, Version = 1, CreatedBy = command.ActorId
         };

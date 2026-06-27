@@ -30,10 +30,12 @@ public class Warehouse : IAuditableEntity, ISoftDeletable
 
     public int DailyThroughputTarget { get; set; }
     public int CurrentLoadCount { get; set; }
-    public bool HasDryClean { get; set; }
-    public bool HasSteamIron { get; set; }
-    public bool HasShoeCleaning { get; set; }
-    public bool HasCarpetCleaning { get; set; }
+
+    /// <summary>Laundry processing-capability flags (dry-clean/steam-iron/…), stored as the
+    /// <c>processing_capabilities</c> jsonb off the generic warehouse spine — a non-laundry hub
+    /// has its own capability shape. (Multi-vertical Phase 2 / slice 2H.)</summary>
+    public WarehouseCapabilities ProcessingCapabilities { get; set; } = new();
+
     public string[] Capabilities { get; set; } = [];
     public string OperatingHoursConfig { get; set; } = null!;
     public string Timezone { get; set; } = null!;
@@ -50,4 +52,15 @@ public class Warehouse : IAuditableEntity, ISoftDeletable
     public Brand Brand { get; set; } = null!;
     public Franchise Franchise { get; set; } = null!;
     public ICollection<StoreWarehouseMapping> StoreWarehouseMappings { get; set; } = [];
+}
+
+/// <summary>Laundry processing-capability flags for a <see cref="Warehouse"/>, stored as the
+/// <c>processing_capabilities</c> jsonb (owned type, ToJson). Demoted off the generic warehouse
+/// spine in multi-vertical Phase 2 (slice 2H).</summary>
+public class WarehouseCapabilities
+{
+    public bool HasDryClean { get; set; }
+    public bool HasSteamIron { get; set; }
+    public bool HasShoeCleaning { get; set; }
+    public bool HasCarpetCleaning { get; set; }
 }

@@ -17,9 +17,10 @@ BEGIN;
 
 -- Store/warehouse-scoped demo rows that hold FKs into the org tree.
 DELETE FROM order_lifecycle.delivery_slots;
-DELETE FROM order_lifecycle.stock_reconciliation_items;
-DELETE FROM order_lifecycle.stock_reconciliations;
-DELETE FROM order_lifecycle.warehouse_batches;
+-- Relocated to the laundry_fulfillment schema in multi-vertical Phase 1 (slice C).
+DELETE FROM laundry_fulfillment.stock_reconciliation_items;
+DELETE FROM laundry_fulfillment.stock_reconciliations;
+DELETE FROM laundry_fulfillment.warehouse_batches;
 DELETE FROM finance_royalty.royalty_invoices;
 DELETE FROM finance_royalty.royalty_calculations;
 DELETE FROM finance_royalty.cash_books;

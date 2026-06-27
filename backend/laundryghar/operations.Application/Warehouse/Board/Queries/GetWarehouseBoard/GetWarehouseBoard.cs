@@ -45,7 +45,7 @@ public class GetWarehouseBoardQueryHandler : IQueryHandler<GetWarehouseBoardQuer
                 g.TagCode,
                 g.CurrentStage,
                 g.LastScannedAt,
-                Flagged    = g.IsDesignerWear || g.RewashCount > 0,
+                Flagged    = g.Attributes.IsDesignerWear || g.Attributes.RewashCount > 0,
                 ItemName   = g.Item != null ? g.Item.Name : null,
                 FabricName = g.FabricType != null ? g.FabricType.Name : null,
                 Display    = g.Customer != null ? g.Customer.DisplayName : null,

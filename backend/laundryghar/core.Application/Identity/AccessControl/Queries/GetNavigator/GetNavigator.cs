@@ -1,6 +1,7 @@
 using core.Application.Common.Interfaces;
 using core.Application.Identity.AccessControl.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.SharedDataModel.Enums;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -24,8 +25,18 @@ public class GetNavigatorQueryHandler : IQueryHandler<GetNavigatorQuery, Navigat
         var mods = await _db.Modules.AsNoTracking()
             .Where(m => m.ShowInNav && m.Status == "active")
             .OrderBy(m => m.NavOrder)
-            .Select(m => new { m.Key, m.Label, m.Icon, m.Route, m.Section, m.RequiredPermission, m.IsCore })
+            .Select(m => new { m.Key, m.Label, m.Icon, m.Route, m.Section, m.RequiredPermission, m.IsCore, m.VerticalKey })
             .ToListAsync(ct);
+
+        var activeBrandId = _user.TryGetBrandId();
+
+        // Vertical gate: a module tagged with a vertical_key (e.g. laundry fabric management) is
+        // shown only to brands of that vertical. A neutral (null) module shows to all; with no
+        // brand context (platform admin) every module passes. (Multi-vertical Phase 2.)
+        string? brandVertical = null;
+        if (activeBrandId is { } vbId)
+            brandVertical = await _db.Brands.AsNoTracking()
+                .Where(x => x.Id == vbId).Select(x => x.VerticalKey).FirstOrDefaultAsync(ct);
 
         // PaaS entitlement gate (Phase 2, behind a flag): when enforced, a module is
         // visible only if it is core OR the active brand has licensed it. Resolved
@@ -34,7 +45,7 @@ public class GetNavigatorQueryHandler : IQueryHandler<GetNavigatorQuery, Navigat
         // applied — they see the full catalogue, still gated by permissions below.
         HashSet<string>? entitled = null;
         if (_config.GetValue<bool>("Entitlement:Enforced")
-            && _user.TryGetBrandId() is { } brandId)
+            && activeBrandId is { } brandId)
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             entitled = (await _db.BrandModules.AsNoTracking()
@@ -45,9 +56,10 @@ public class GetNavigatorQueryHandler : IQueryHandler<GetNavigatorQuery, Navigat
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
-        // Gate each item by entitlement (if enforced) then by the signed-in user's
-        // permissions (platform_admin sees all).
+        // Gate each item by vertical, then entitlement (if enforced), then the signed-in
+        // user's permissions (platform_admin sees all).
         var visible = mods
+            .Where(m => VerticalKey.IsAvailableTo(m.VerticalKey, brandVertical))
             .Where(m => entitled == null || m.IsCore || entitled.Contains(m.Key))
             .Where(m =>
                 string.IsNullOrEmpty(m.RequiredPermission)

@@ -1,3 +1,5 @@
+using laundryghar.SharedDataModel.Common;
+
 namespace laundryghar.SharedDataModel.Entities.OrderLifecycle;
 
 /// <summary>
@@ -52,12 +54,9 @@ public class Invoice
     public decimal Subtotal { get; set; }
     public decimal DiscountTotal { get; set; }
     public decimal TaxableTotal { get; set; }
-    public decimal CgstRate { get; set; }
-    public decimal CgstAmount { get; set; }
-    public decimal SgstRate { get; set; }
-    public decimal SgstAmount { get; set; }
-    public decimal IgstRate { get; set; }
-    public decimal IgstAmount { get; set; }
+    /// <summary>Shared GST breakdown (tax_breakdown jsonb), carries CGST/SGST/IGST rate+amount —
+    /// multi-vertical Phase 2 slice 2F.</summary>
+    public TaxBreakdown Tax { get; set; } = new();
     public decimal RoundOff { get; set; }
     public decimal GrandTotal { get; set; }
 

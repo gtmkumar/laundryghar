@@ -32,6 +32,8 @@ public sealed class CreateItemHandler : ICommandHandler<CreateItemCommand, ItemD
             Id                    = Guid.NewGuid(),
             BrandId               = brandId,
             ItemGroupId           = req.ItemGroupId,
+            // Vertical-neutral discriminator; defaults to laundry until brand-vertical resolution lands.
+            CatalogKind           = req.CatalogKind ?? laundryghar.SharedDataModel.Enums.CatalogKind.LaundryGarment,
             Code                  = req.Code,
             Name                  = req.Name,
             NameLocalized         = req.NameLocalized,
@@ -63,7 +65,7 @@ public sealed class CreateItemHandler : ICommandHandler<CreateItemCommand, ItemD
         e.Id, e.BrandId, e.ItemGroupId, e.Code, e.Name, e.NameLocalized,
         e.Description, e.IconUrl, e.ImageUrl, e.TypicalWeightGrams,
         e.RequiresPerSidePrice, e.Aliases, e.DisplayOrder, e.Status, e.CreatedAt, e.UpdatedAt,
-        e.TatHours, e.ExpressEligible, e.ExpressSurcharge);
+        e.TatHours, e.ExpressEligible, e.ExpressSurcharge, e.CatalogKind);
 }
 
 public sealed record UpdateItemCommand(Guid Id, UpdateItemRequest Request, Guid? ActorId) : ICommand<ItemDto?>;
@@ -143,5 +145,9 @@ public sealed class CreateItemValidator : AbstractValidator<CreateItemRequest>
         RuleFor(x => x.Code).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.NameLocalized).NotEmpty().MaximumLength(200).MustBeJsonObject();
+        RuleFor(x => x.CatalogKind!)
+            .Must(laundryghar.SharedDataModel.Enums.CatalogKind.IsValid)
+            .When(x => x.CatalogKind is not null)
+            .WithMessage($"CatalogKind must be one of: {string.Join(", ", laundryghar.SharedDataModel.Enums.CatalogKind.All)}.");
     }
 }

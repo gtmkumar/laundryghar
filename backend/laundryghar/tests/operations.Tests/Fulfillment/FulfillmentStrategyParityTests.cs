@@ -296,6 +296,50 @@ public class FulfillmentStrategyParityTests
     }
 
     [Fact]
+    public void ApplyTransitionEffects_stamps_remaining_timestamp_arms()
+    {
+        // Covers the three arms the original parity suite missed (audit gap):
+        // pickup_scheduled → PickupScheduledAt, received → ReceivedAt, delivered → DeliveredAt.
+        var now = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
+
+        var o1 = new Order(); Laundry.ApplyTransitionEffects(o1, OrderStatus.PickupScheduled, now);
+        Assert.Equal(now, o1.PickupScheduledAt);
+
+        var o2 = new Order(); Laundry.ApplyTransitionEffects(o2, OrderStatus.Received, now);
+        Assert.Equal(now, o2.ReceivedAt);
+
+        var o3 = new Order(); Logistics.ApplyTransitionEffects(o3, OrderStatus.Delivered, now);
+        Assert.Equal(now, o3.DeliveredAt);
+    }
+
+    // ── IsKnownStatus (guards the strategy-owned status vocabulary) ──────────────────────────
+    // UpdateOrderStatus no longer validates against a hardcoded laundry list; it rejects
+    // unknown statuses via strategy.IsKnownStatus. This guards that contract.
+
+    [Theory]
+    [InlineData(OrderStatus.Placed)]
+    [InlineData(OrderStatus.Qc)]
+    [InlineData(OrderStatus.Closed)]
+    public void Laundry_IsKnownStatus_true_for_its_vocabulary(string status)
+        => Assert.True(Laundry.IsKnownStatus(status));
+
+    [Theory]
+    [InlineData("not_a_status")]
+    [InlineData("booked")]      // a future salon sub-status — unknown to laundry
+    [InlineData("")]
+    public void Laundry_IsKnownStatus_false_for_unknown(string status)
+        => Assert.False(Laundry.IsKnownStatus(status));
+
+    [Fact]
+    public void Logistics_IsKnownStatus_excludes_laundry_intake_states()
+    {
+        // point_to_point has no wash/QC intake states in its vocabulary.
+        Assert.True(Logistics.IsKnownStatus(OrderStatus.OutForDelivery));
+        Assert.False(Logistics.IsKnownStatus(OrderStatus.Sorting));
+        Assert.False(Logistics.IsKnownStatus(OrderStatus.Qc));
+    }
+
+    [Fact]
     public void Terminal_statuses_agree_with_terminal_lifecycle_states()
     {
         // The OpsQueues "open orders" filter delegates terminal detection to the generic

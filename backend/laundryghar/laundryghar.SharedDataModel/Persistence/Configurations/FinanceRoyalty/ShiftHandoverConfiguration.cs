@@ -29,8 +29,15 @@ public sealed class ShiftHandoverConfiguration : IEntityTypeConfiguration<ShiftH
 
         b.Property(e => e.PendingOrdersCount).HasColumnName("pending_orders_count").IsRequired();
         b.Property(e => e.OpenComplaintsCount).HasColumnName("open_complaints_count").IsRequired();
-        b.Property(e => e.PickupsRemaining).HasColumnName("pickups_remaining").IsRequired();
-        b.Property(e => e.DeliveriesRemaining).HasColumnName("deliveries_remaining").IsRequired();
+        // Fulfilment-leg counters live in the operational_snapshot jsonb (owned type, ToJson) —
+        // demoted off the generic handover spine in multi-vertical Phase 2 (slice 2G).
+        b.OwnsOne(e => e.Operational, a =>
+        {
+            a.ToJson("operational_snapshot");
+            a.Property(x => x.PickupsRemaining).HasJsonPropertyName("pickups_remaining");
+            a.Property(x => x.DeliveriesRemaining).HasJsonPropertyName("deliveries_remaining");
+        });
+        b.Navigation(e => e.Operational).IsRequired();
         b.Property(e => e.NotesFrom).HasColumnName("notes_from");
         b.Property(e => e.NotesTo).HasColumnName("notes_to");
         b.Property(e => e.PendingItems).HasColumnName("pending_items").HasColumnType("jsonb").IsRequired();

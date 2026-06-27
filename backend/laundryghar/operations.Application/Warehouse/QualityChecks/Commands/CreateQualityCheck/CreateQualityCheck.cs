@@ -78,7 +78,7 @@ public sealed class CreateQualityCheckCommandHandler
         {
             newStage  = "rewash";
             eventType = "fulfillment.rewash";
-            garment.RewashCount++;
+            garment.Attributes.RewashCount++;
         }
         else
         {

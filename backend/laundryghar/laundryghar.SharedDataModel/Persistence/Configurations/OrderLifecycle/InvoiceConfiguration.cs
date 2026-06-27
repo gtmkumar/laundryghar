@@ -37,12 +37,8 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         b.Property(e => e.Subtotal).HasColumnName("subtotal").HasColumnType("numeric(14,2)").IsRequired();
         b.Property(e => e.DiscountTotal).HasColumnName("discount_total").HasColumnType("numeric(14,2)").IsRequired();
         b.Property(e => e.TaxableTotal).HasColumnName("taxable_total").HasColumnType("numeric(14,2)").IsRequired();
-        b.Property(e => e.CgstRate).HasColumnName("cgst_rate").HasColumnType("numeric(5,2)").IsRequired();
-        b.Property(e => e.CgstAmount).HasColumnName("cgst_amount").HasColumnType("numeric(14,2)").IsRequired();
-        b.Property(e => e.SgstRate).HasColumnName("sgst_rate").HasColumnType("numeric(5,2)").IsRequired();
-        b.Property(e => e.SgstAmount).HasColumnName("sgst_amount").HasColumnType("numeric(14,2)").IsRequired();
-        b.Property(e => e.IgstRate).HasColumnName("igst_rate").HasColumnType("numeric(5,2)").IsRequired();
-        b.Property(e => e.IgstAmount).HasColumnName("igst_amount").HasColumnType("numeric(14,2)").IsRequired();
+        b.OwnsOne(e => e.Tax, TaxBreakdownMapping.MapTax);
+        b.Navigation(e => e.Tax).IsRequired();
         b.Property(e => e.RoundOff).HasColumnName("round_off").HasColumnType("numeric(14,2)").IsRequired();
         b.Property(e => e.GrandTotal).HasColumnName("grand_total").HasColumnType("numeric(14,2)").IsRequired();
         b.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).IsRequired();

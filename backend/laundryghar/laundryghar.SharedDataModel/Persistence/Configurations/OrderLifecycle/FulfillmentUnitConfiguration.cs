@@ -29,10 +29,6 @@ public sealed class FulfillmentUnitConfiguration : IEntityTypeConfiguration<Fulf
         b.Property(e => e.Color).HasColumnName("color").HasMaxLength(50);
         b.Property(e => e.BrandName).HasColumnName("brand_name").HasMaxLength(100);
         b.Property(e => e.Size).HasColumnName("size").HasMaxLength(20);
-        b.Property(e => e.WeightGrams).HasColumnName("weight_grams");
-        b.Property(e => e.HasOrnaments).HasColumnName("has_ornaments").IsRequired();
-        b.Property(e => e.HasLining).HasColumnName("has_lining").IsRequired();
-        b.Property(e => e.IsDesignerWear).HasColumnName("is_designer_wear").IsRequired();
         b.Property(e => e.DeclaredValue).HasColumnName("declared_value").HasColumnType("numeric(14,2)");
         b.Property(e => e.CurrentStage).HasColumnName("current_stage").HasMaxLength(30).IsRequired();
         b.Property(e => e.CurrentLocationType).HasColumnName("current_location_type").HasMaxLength(20);
@@ -42,10 +38,23 @@ public sealed class FulfillmentUnitConfiguration : IEntityTypeConfiguration<Fulf
         b.Property(e => e.LastScannedBy).HasColumnName("last_scanned_by");
         b.Property(e => e.ExpectedCompletionAt).HasColumnName("expected_completion_at");
         b.Property(e => e.ActualCompletionAt).HasColumnName("actual_completion_at");
-        b.Property(e => e.RewashCount).HasColumnName("rewash_count").IsRequired();
         b.Property(e => e.Notes).HasColumnName("notes");
-        b.Property(e => e.CareInstructions).HasColumnName("care_instructions");
         b.Property(e => e.Metadata).HasColumnName("metadata").HasColumnType("jsonb").IsRequired();
+
+        // Laundry-private attributes live in the `attributes` jsonb column (owned type, ToJson).
+        // Extracted off the generic spine in multi-vertical Phase 1; EF Core translates member
+        // access (e.g. `g.Attributes.RewashCount > 0`) into jsonb path queries.
+        b.OwnsOne(e => e.Attributes, a =>
+        {
+            a.ToJson("attributes");
+            a.Property(x => x.WeightGrams).HasJsonPropertyName("weight_grams");
+            a.Property(x => x.HasOrnaments).HasJsonPropertyName("has_ornaments");
+            a.Property(x => x.HasLining).HasJsonPropertyName("has_lining");
+            a.Property(x => x.IsDesignerWear).HasJsonPropertyName("is_designer_wear");
+            a.Property(x => x.RewashCount).HasJsonPropertyName("rewash_count");
+            a.Property(x => x.CareInstructions).HasJsonPropertyName("care_instructions");
+        });
+        b.Navigation(e => e.Attributes).IsRequired();
         b.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(e => e.UpdatedAt).HasColumnName("updated_at").IsRequired();
         b.Property(e => e.Version).HasColumnName("version").IsRequired();

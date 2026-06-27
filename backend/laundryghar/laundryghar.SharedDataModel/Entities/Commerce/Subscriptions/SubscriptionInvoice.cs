@@ -1,3 +1,5 @@
+using laundryghar.SharedDataModel.Common;
+
 namespace laundryghar.SharedDataModel.Entities.Commerce.Subscriptions;
 
 /// <summary>One invoice per billing cycle for a customer subscription (commerce.subscription_invoices).
@@ -15,9 +17,8 @@ public class SubscriptionInvoice
     public decimal SetupFee { get; set; }
     public decimal DiscountTotal { get; set; }
     public decimal TaxableAmount { get; set; }
-    public decimal Cgst { get; set; }
-    public decimal Sgst { get; set; }
-    public decimal Igst { get; set; }
+    /// <summary>Shared GST breakdown (tax_breakdown jsonb) — multi-vertical Phase 2 slice 2F.</summary>
+    public TaxBreakdown Tax { get; set; } = new();
     public decimal TaxTotal { get; set; }
     public decimal GrandTotal { get; set; }
     public decimal AmountPaid { get; set; }

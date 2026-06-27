@@ -1,3 +1,4 @@
+using laundryghar.SharedDataModel.Common;
 using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
 namespace laundryghar.SharedDataModel.Entities.FinanceRoyalty;
@@ -27,9 +28,8 @@ public class RoyaltyInvoice
     public decimal OtherCharges { get; set; }
     public decimal Adjustments { get; set; }
     public decimal Subtotal { get; set; }
-    public decimal Cgst { get; set; }
-    public decimal Sgst { get; set; }
-    public decimal Igst { get; set; }
+    /// <summary>Shared GST breakdown (tax_breakdown jsonb) — multi-vertical Phase 2 slice 2F.</summary>
+    public TaxBreakdown Tax { get; set; } = new();
     public decimal TaxTotal { get; set; }
     public decimal GrandTotal { get; set; }
     public decimal AmountPaid { get; set; }

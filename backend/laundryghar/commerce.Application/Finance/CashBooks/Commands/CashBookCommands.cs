@@ -364,8 +364,11 @@ public sealed class CreateShiftHandoverHandler : ICommandHandler<CreateShiftHand
             CashHandedOver       = req.CashHandedOver,
             PendingOrdersCount   = req.PendingOrdersCount,
             OpenComplaintsCount  = req.OpenComplaintsCount,
-            PickupsRemaining     = req.PickupsRemaining,
-            DeliveriesRemaining  = req.DeliveriesRemaining,
+            Operational          = new laundryghar.SharedDataModel.Entities.FinanceRoyalty.OperationalSnapshot
+            {
+                PickupsRemaining    = req.PickupsRemaining,
+                DeliveriesRemaining = req.DeliveriesRemaining,
+            },
             NotesFrom            = req.NotesFrom,
             PendingItems         = "[]",
             Status               = "pending",

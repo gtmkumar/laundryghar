@@ -31,10 +31,6 @@ public class FulfillmentUnit
     public string? Color { get; set; }
     public string? BrandName { get; set; }
     public string? Size { get; set; }
-    public int? WeightGrams { get; set; }
-    public bool HasOrnaments { get; set; }
-    public bool HasLining { get; set; }
-    public bool IsDesignerWear { get; set; }
     public decimal? DeclaredValue { get; set; }
     public string CurrentStage { get; set; } = null!;
     public string? CurrentLocationType { get; set; }
@@ -44,9 +40,17 @@ public class FulfillmentUnit
     public Guid? LastScannedBy { get; set; }
     public DateTimeOffset? ExpectedCompletionAt { get; set; }
     public DateTimeOffset? ActualCompletionAt { get; set; }
-    public short RewashCount { get; set; }
     public string? Notes { get; set; }
-    public string? CareInstructions { get; set; }
+
+    /// <summary>
+    /// Strategy-private laundry attributes, persisted as the <c>attributes</c> jsonb column
+    /// (multi-vertical Phase 1 / slice F-2). These are laundry <c>process_deliver</c>-specific
+    /// and deliberately kept OFF the generic fulfilment-unit spine so other verticals' units
+    /// don't carry empty wash/QC columns. <c>fabric_type_id</c> stays a real FK column (it is a
+    /// referential link used by warehouse joins, not a free-form attribute).
+    /// </summary>
+    public LaundryUnitAttributes Attributes { get; set; } = new();
+
     public string Metadata { get; set; } = null!;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -71,4 +75,20 @@ public class FulfillmentUnit
     public ICollection<FulfillmentUnitInspection> Inspections { get; set; } = [];
     public ICollection<FulfillmentUnitInspectionPhoto> InspectionPhotos { get; set; } = [];
     public ICollection<QualityCheck> QualityChecks { get; set; } = [];
+}
+
+/// <summary>
+/// Laundry <c>process_deliver</c>-private attributes of a fulfilment unit, stored as the
+/// <c>laundry_fulfillment.fulfillment_unit.attributes</c> jsonb column (owned type, mapped via
+/// <c>ToJson</c>). Extracted off the generic spine in multi-vertical Phase 1 so the shared
+/// fulfilment-unit shape carries no wash/QC-specific columns.
+/// </summary>
+public class LaundryUnitAttributes
+{
+    public int? WeightGrams { get; set; }
+    public bool HasOrnaments { get; set; }
+    public bool HasLining { get; set; }
+    public bool IsDesignerWear { get; set; }
+    public short RewashCount { get; set; }
+    public string? CareInstructions { get; set; }
 }

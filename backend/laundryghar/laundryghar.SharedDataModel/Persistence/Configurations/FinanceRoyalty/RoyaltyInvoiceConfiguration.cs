@@ -29,9 +29,8 @@ public sealed class RoyaltyInvoiceConfiguration : IEntityTypeConfiguration<Royal
         b.Property(e => e.OtherCharges).HasColumnName("other_charges").HasColumnType("numeric(14,2)").IsRequired();
         b.Property(e => e.Adjustments).HasColumnName("adjustments").HasColumnType("numeric(14,2)").IsRequired();
         b.Property(e => e.Subtotal).HasColumnName("subtotal").HasColumnType("numeric(14,2)").IsRequired();
-        b.Property(e => e.Cgst).HasColumnName("cgst").HasColumnType("numeric(14,2)").IsRequired();
-        b.Property(e => e.Sgst).HasColumnName("sgst").HasColumnType("numeric(14,2)").IsRequired();
-        b.Property(e => e.Igst).HasColumnName("igst").HasColumnType("numeric(14,2)").IsRequired();
+        b.OwnsOne(e => e.Tax, TaxBreakdownMapping.MapTax);
+        b.Navigation(e => e.Tax).IsRequired();
         b.Property(e => e.TaxTotal).HasColumnName("tax_total").HasColumnType("numeric(14,2)").IsRequired();
         b.Property(e => e.GrandTotal).HasColumnName("grand_total").HasColumnType("numeric(14,2)").IsRequired();
         b.Property(e => e.AmountPaid).HasColumnName("amount_paid").HasColumnType("numeric(14,2)").IsRequired();

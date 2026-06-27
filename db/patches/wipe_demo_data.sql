@@ -7,7 +7,7 @@
 -- the upsert super-admin (admin@laundryghar.local).
 --
 -- TRUNCATE ... CASCADE on the three roots clears every transactional table that
--- FKs them (payments, wallets, assignments, pings, garments, invoices, pickups,
+-- FKs them (payments, wallets, assignments, pings, fulfilment units, invoices, pickups,
 -- login_history, otp_codes, refresh_tokens, notification logs, cash_book_entries,
 -- shift_handovers, etc.). Only user_profiles + user_scope_memberships have no
 -- customer FK, so they are cleared explicitly for non-admin users.

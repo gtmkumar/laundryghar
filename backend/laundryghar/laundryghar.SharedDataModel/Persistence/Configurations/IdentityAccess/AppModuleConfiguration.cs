@@ -24,6 +24,7 @@ public sealed class AppModuleConfiguration : IEntityTypeConfiguration<AppModule>
         b.Property(e => e.ShowInMatrix).HasColumnName("show_in_matrix").IsRequired();
         b.Property(e => e.RequiredPermission).HasColumnName("required_permission").HasMaxLength(128);
         b.Property(e => e.PermissionModules).HasColumnName("permission_modules").HasColumnType("text[]");
+        b.Property(e => e.VerticalKey).HasColumnName("vertical_key").HasMaxLength(20);
         b.Property(e => e.IsCore).HasColumnName("is_core").IsRequired();
         b.Property(e => e.Status).HasColumnName("status").HasMaxLength(32).IsRequired();
         b.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();

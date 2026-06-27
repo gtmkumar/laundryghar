@@ -53,7 +53,7 @@ public sealed class CreateInspectionCommandHandler : ICommandHandler<CreateInspe
             CustomerAcknowledged  = false,
             CustomerOtpVerified   = false,
             QcResult              = req.QcResult,
-            RewashCount           = garment.RewashCount,
+            RewashCount           = garment.Attributes.RewashCount,
             Metadata              = "{}",
             CreatedAt             = now,
             CreatedBy             = command.ActorId

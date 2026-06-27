@@ -138,9 +138,8 @@ public sealed class GenerateRoyaltyInvoiceHandler
             OtherCharges        = req.OtherCharges,
             Adjustments         = req.Adjustments,
             Subtotal            = subtotal,
-            Cgst                = 0,
-            Sgst                = 0,
-            Igst                = taxTotal,      // simplified: full GST as IGST
+            // simplified: full GST as IGST (tax_breakdown jsonb — Phase 2 slice 2F)
+            Tax                 = new laundryghar.SharedDataModel.Common.TaxBreakdown { IgstAmount = taxTotal },
             TaxTotal            = taxTotal,
             GrandTotal          = grandTotal,
             AmountPaid          = 0,

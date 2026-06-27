@@ -17,7 +17,7 @@ public sealed record BrandEntitlementsDto(
     IReadOnlyList<BrandModuleDto> Modules);
 
 public sealed record ModuleBundleItemDto(string Key, string Label);
-public sealed record ModuleBundleDto(string Code, string Name, string? Description, IReadOnlyList<ModuleBundleItemDto> Items);
+public sealed record ModuleBundleDto(string Code, string Name, string? Description, IReadOnlyList<ModuleBundleItemDto> Items, string? VerticalKey = null);
 
 /// <summary>Toggle a single module's licensing for a brand (a 'manual' override).</summary>
 public sealed record SetBrandModuleRequest(string ModuleKey, bool Enabled, DateOnly? ValidUntil = null);

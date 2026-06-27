@@ -38,7 +38,7 @@ public sealed class GetSubscriptionPlansHandler : IQueryHandler<GetSubscriptionP
         x.CurrencyCode, x.TrialDays, x.QuotaType, x.QuotaValue,
         x.RolloverUnused, x.MaxRollover, x.OverageDiscountPercent,
         x.ApplicableServices, x.ExcludedServices,
-        x.PickupIncluded, x.DeliveryIncluded, x.ExpressIncluded,
+        x.Inclusions.PickupIncluded, x.Inclusions.DeliveryIncluded, x.Inclusions.ExpressIncluded,
         x.MaxActiveSubscribers, x.CurrentSubscriberCount,
         x.Gateway, x.GatewayPlanId, x.TermsAndConditions,
         x.IconUrl, x.ColorHex, x.DisplayOrder, x.IsPublic, x.IsFeatured,
@@ -139,9 +139,12 @@ public sealed class CreateSubscriptionPlanHandler : ICommandHandler<CreateSubscr
             OverageDiscountPercent = req.OverageDiscountPercent,
             ApplicableServices = req.ApplicableServices ?? [],
             ExcludedServices = req.ExcludedServices ?? [],
-            PickupIncluded = req.PickupIncluded,
-            DeliveryIncluded = req.DeliveryIncluded,
-            ExpressIncluded = req.ExpressIncluded,
+            Inclusions = new FulfillmentInclusions
+            {
+                PickupIncluded = req.PickupIncluded,
+                DeliveryIncluded = req.DeliveryIncluded,
+                ExpressIncluded = req.ExpressIncluded,
+            },
             MaxActiveSubscribers = req.MaxActiveSubscribers,
             CurrentSubscriberCount = 0,
             Gateway = req.Gateway,
@@ -261,9 +264,12 @@ public sealed class UpdateSubscriptionPlanHandler : ICommandHandler<UpdateSubscr
         entity.OverageDiscountPercent = req.OverageDiscountPercent;
         entity.ApplicableServices = req.ApplicableServices ?? [];
         entity.ExcludedServices = req.ExcludedServices ?? [];
-        entity.PickupIncluded = req.PickupIncluded;
-        entity.DeliveryIncluded = req.DeliveryIncluded;
-        entity.ExpressIncluded = req.ExpressIncluded;
+        entity.Inclusions = new FulfillmentInclusions
+        {
+            PickupIncluded = req.PickupIncluded,
+            DeliveryIncluded = req.DeliveryIncluded,
+            ExpressIncluded = req.ExpressIncluded,
+        };
         entity.MaxActiveSubscribers = req.MaxActiveSubscribers;
         entity.Gateway = req.Gateway;
         entity.GatewayPlanId = req.GatewayPlanId;

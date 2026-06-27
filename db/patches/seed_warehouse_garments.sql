@@ -1,6 +1,6 @@
 -- ============================================================================
 -- seed_warehouse_garments.sql  (idempotent, deterministic)
--- Populates order_lifecycle.garments with ~154 garments "in flight" across the
+-- Populates laundry_fulfillment.fulfillment_unit with ~154 garments "in flight" across the
 -- six active processing stages (received → sorting → washing → drying → ironing
 -- → qc) so the Warehouse kanban board renders real data through real APIs.
 --
@@ -89,12 +89,12 @@ staged AS (
          END AS stage
   FROM src s
 )
-INSERT INTO order_lifecycle.garments
+INSERT INTO laundry_fulfillment.fulfillment_unit
   (id, brand_id, franchise_id, store_id, warehouse_id,
    order_id, order_created_at, order_item_id, customer_id,
    tag_code, item_id, fabric_type_id, color, brand_name, size,
    current_stage, current_location_type, current_location_id,
-   last_scanned_at, has_ornaments, has_lining, is_designer_wear, rewash_count,
+   last_scanned_at, attributes,
    metadata, created_at, updated_at, version, status)
 SELECT
   md5('whseed:' || st.rn)::uuid,
@@ -109,7 +109,11 @@ SELECT
   (ARRAY['S','M','L','XL','38','40'])[1 + (st.rn % 6)],
   st.stage, 'warehouse', (SELECT warehouse_id FROM anchor),
   now() - (((st.rn * 7) % 175 + 2) || ' minutes')::interval,
-  (st.rn % 11 = 0), (st.rn % 5 = 0), (st.rn % 17 = 0), 0,
+  -- laundry-private attributes now live in the `attributes` jsonb (Phase 1 slice F-2);
+  -- shape matches the EF owned-type ToJson mapping (all six keys present).
+  jsonb_build_object(
+    'weight_grams', NULL, 'has_ornaments', (st.rn % 11 = 0), 'has_lining', (st.rn % 5 = 0),
+    'is_designer_wear', (st.rn % 17 = 0), 'rewash_count', 0, 'care_instructions', NULL),
   '{}'::jsonb,
   now() - (((st.rn * 13) % 600 + 60) || ' minutes')::interval,
   now() - (((st.rn * 7)  % 175 + 2)  || ' minutes')::interval,
@@ -121,6 +125,6 @@ COMMIT;
 
 -- Report
 SELECT current_stage, count(*)
-FROM order_lifecycle.garments
+FROM laundry_fulfillment.fulfillment_unit
 GROUP BY current_stage
 ORDER BY count(*) DESC;

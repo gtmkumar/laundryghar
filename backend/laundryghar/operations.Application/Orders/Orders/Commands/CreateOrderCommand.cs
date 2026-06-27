@@ -8,7 +8,6 @@ using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
 using laundryghar.SharedDataModel.Enums;
 using laundryghar.Utilities.Exceptions;
-using operations.Application.Fulfillment;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -581,7 +580,11 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
         var fulfillmentMode = isParcel
             ? laundryghar.SharedDataModel.Enums.FulfillmentMode.PointToPoint
             : laundryghar.SharedDataModel.Enums.FulfillmentMode.ProcessDeliver;
-        var legs = _strategies.Resolve(fulfillmentMode).ResolveLegs(req.RequiresPickup, req.RequiresDelivery);
+        var strategy = _strategies.Resolve(fulfillmentMode);
+        var legs = strategy.ResolveLegs(req.RequiresPickup, req.RequiresDelivery);
+        // Initial status + its lifecycle super-state are owned by the strategy, not hardcoded —
+        // a mode with a different start state (e.g. salon 'booked') is created correctly.
+        var initialStatus = strategy.InitialStatus;
 
         // ── Insert Order ────────────────────────────────────────────────────
         var order = new Order
@@ -633,8 +636,8 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             CurrencyCode     = _settings.DefaultCurrencyCode,
             TotalItems       = req.Items.Length,
             TotalGarments    = 0,
-            Status              = OrderStatus.Placed,
-            LifecycleState      = OrderLifecycleState.ForOrderStatus(OrderStatus.Placed),
+            Status              = initialStatus,
+            LifecycleState      = strategy.LifecycleStateFor(initialStatus),
             PaymentStatus       = "pending",
             PlacedAt            = now,
             PromisedDeliveryAt  = promisedDeliveryAt,
@@ -670,7 +673,7 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             OrderCreatedAt  = order.CreatedAt,
             BrandId         = brandId,
             FromStatus      = null,
-            ToStatus        = OrderStatus.Placed,
+            ToStatus        = initialStatus,
             ChangedAt       = now,
             ChangedByType   = "user",
             ChangedById     = cmd.ActorId,

@@ -1,6 +1,7 @@
 using core.Application.Common.Interfaces;
 using core.Application.Identity.Entitlements.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.SharedDataModel.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace core.Application.Identity.Entitlements.Queries;
@@ -16,15 +17,19 @@ public class GetBrandEntitlementsQueryHandler : IQueryHandler<GetBrandEntitlemen
     {
         var brand = await _db.Brands.AsNoTracking()
             .Where(b => b.Id == q.BrandId)
-            .Select(b => new { b.Id, b.Name })
+            .Select(b => new { b.Id, b.Name, b.VerticalKey })
             .FirstOrDefaultAsync(ct);
         if (brand is null) return null;
 
-        var mods = await _db.Modules.AsNoTracking()
+        // Only modules available to the brand's vertical appear in its entitlement matrix —
+        // a salon brand never sees the laundry-only modules (e.g. fabrics). (Phase 2 slice 2C.)
+        var mods = (await _db.Modules.AsNoTracking()
             .Where(m => m.Status == "active")
             .OrderBy(m => m.NavOrder)
-            .Select(m => new { m.Key, m.Label, m.Section, m.IsCore })
-            .ToListAsync(ct);
+            .Select(m => new { m.Key, m.Label, m.Section, m.IsCore, m.VerticalKey })
+            .ToListAsync(ct))
+            .Where(m => VerticalKey.IsAvailableTo(m.VerticalKey, brand.VerticalKey))
+            .ToList();
 
         var rows = await _db.BrandModules.AsNoTracking()
             .Where(bm => bm.BrandId == q.BrandId)

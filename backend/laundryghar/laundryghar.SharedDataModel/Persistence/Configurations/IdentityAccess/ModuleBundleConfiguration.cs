@@ -13,6 +13,7 @@ public sealed class ModuleBundleConfiguration : IEntityTypeConfiguration<ModuleB
         b.Property(e => e.Code).HasColumnName("code").IsRequired();
         b.Property(e => e.Name).HasColumnName("name").IsRequired();
         b.Property(e => e.Description).HasColumnName("description");
+        b.Property(e => e.VerticalKey).HasColumnName("vertical_key").HasMaxLength(20);
         b.HasMany(e => e.Items).WithOne().HasForeignKey(i => i.BundleCode);
     }
 }

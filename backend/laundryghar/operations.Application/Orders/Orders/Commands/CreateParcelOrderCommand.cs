@@ -10,6 +10,7 @@ using laundryghar.Utilities.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using operations.Application.Common.Interfaces;
+using operations.Application.Fulfillment;
 using operations.Application.Orders.Common;
 using operations.Application.Orders.Orders.Dtos;
 
@@ -32,12 +33,16 @@ public sealed class CreateParcelOrderHandler : ICommandHandler<CreateParcelOrder
     private readonly IOperationsDbContext _db;
     private readonly OrdersSettings _settings;
     private readonly IFieldCipher _cipher;
+    private readonly IFulfillmentStrategyResolver _strategies;
 
-    public CreateParcelOrderHandler(IOperationsDbContext db, IOptions<OrdersSettings> opts, IFieldCipher cipher)
+    public CreateParcelOrderHandler(
+        IOperationsDbContext db, IOptions<OrdersSettings> opts, IFieldCipher cipher,
+        IFulfillmentStrategyResolver strategies)
     {
         _db = db;
         _settings = opts.Value;
         _cipher = cipher;
+        _strategies = strategies;
     }
 
     public async Task<OrderDto> HandleAsync(CreateParcelOrderCommand cmd, CancellationToken ct)
@@ -83,6 +88,12 @@ public sealed class CreateParcelOrderHandler : ICommandHandler<CreateParcelOrder
             $"SELECT order_lifecycle.next_order_number({brandId}, {store.Id}, {store.Code}, {now.Year}) AS \"Value\"",
             ct);
 
+        // A parcel is a point_to_point trip — leg topology, initial status and its lifecycle
+        // super-state are owned by the strategy, not hardcoded here (parity with CreateOrder).
+        var strategy = _strategies.Resolve(laundryghar.SharedDataModel.Enums.FulfillmentMode.PointToPoint);
+        var legs = strategy.ResolveLegs(requestedPickup: true, requestedDelivery: true);
+        var initialStatus = strategy.InitialStatus;
+
         var order = new Order
         {
             Id                   = Guid.NewGuid(),
@@ -96,12 +107,12 @@ public sealed class CreateParcelOrderHandler : ICommandHandler<CreateParcelOrder
             DeliveryAddressId    = req.DeliveryAddressId,
             Channel              = "app",
             JobType              = JobType.Parcel,
-            FulfillmentMode      = laundryghar.SharedDataModel.Enums.FulfillmentMode.PointToPoint,
+            FulfillmentMode      = strategy.FulfillmentMode,
             RequestedVehicleTier = req.VehicleTier,
             OrderType            = "standard",
             IsExpress            = false,
-            RequiresPickup       = true,
-            RequiresDelivery     = true,
+            RequiresPickup       = legs.RequiresPickup,
+            RequiresDelivery     = legs.RequiresDelivery,
             Subtotal             = 0,
             AddonTotal           = 0,
             ExpressSurcharge     = 0,
@@ -117,8 +128,8 @@ public sealed class CreateParcelOrderHandler : ICommandHandler<CreateParcelOrder
             CurrencyCode         = _settings.DefaultCurrencyCode,
             TotalItems           = 0,
             TotalGarments        = 0,
-            Status               = OrderStatus.Placed,
-            LifecycleState       = OrderLifecycleState.ForOrderStatus(OrderStatus.Placed),
+            Status               = initialStatus,
+            LifecycleState       = strategy.LifecycleStateFor(initialStatus),
             PaymentStatus        = "pending",
             PlacedAt             = now,
             NotesCustomer        = req.NotesCustomer,
@@ -136,7 +147,7 @@ public sealed class CreateParcelOrderHandler : ICommandHandler<CreateParcelOrder
             OrderCreatedAt   = order.CreatedAt,
             BrandId          = brandId,
             FromStatus       = null,
-            ToStatus         = OrderStatus.Placed,
+            ToStatus         = initialStatus,
             ChangedAt        = now,
             ChangedByType    = "customer",
             ChangedById      = cmd.CustomerId,

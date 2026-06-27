@@ -154,6 +154,6 @@ public class Order : IAuditableEntity, ISoftDeletable
     public ICollection<OrderNote> Notes { get; set; } = [];
     // NOTE: no FulfillmentUnits navigation — the Order aggregate is decoupled from the laundry-fulfilment
     // FulfillmentUnit tree (multi-vertical Phase 1 / Slice C). FulfillmentUnits are queried via _db.FulfillmentUnits by
-    // OrderId. Physical relocation of the laundry-fulfilment tables to their own schema is a later,
-    // separate (destructive) migration.
+    // OrderId. The laundry-fulfilment tables have been relocated to the laundry_fulfillment schema
+    // (slice C) and the laundry-private attributes moved to a jsonb slice (slice F-2).
 }

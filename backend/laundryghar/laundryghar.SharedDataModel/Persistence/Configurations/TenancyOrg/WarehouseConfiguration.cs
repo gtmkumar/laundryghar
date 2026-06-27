@@ -30,10 +30,17 @@ public sealed class WarehouseConfiguration : IEntityTypeConfiguration<Warehouse>
         b.Property(e => e.ManagerUserId).HasColumnName("manager_user_id");
         b.Property(e => e.DailyThroughputTarget).HasColumnName("daily_throughput_target").IsRequired();
         b.Property(e => e.CurrentLoadCount).HasColumnName("current_load_count").IsRequired();
-        b.Property(e => e.HasDryClean).HasColumnName("has_dry_clean").IsRequired();
-        b.Property(e => e.HasSteamIron).HasColumnName("has_steam_iron").IsRequired();
-        b.Property(e => e.HasShoeCleaning).HasColumnName("has_shoe_cleaning").IsRequired();
-        b.Property(e => e.HasCarpetCleaning).HasColumnName("has_carpet_cleaning").IsRequired();
+        // Laundry processing-capability flags live in the processing_capabilities jsonb (owned
+        // type, ToJson) — demoted off the generic warehouse spine in multi-vertical Phase 2 (2H).
+        b.OwnsOne(e => e.ProcessingCapabilities, a =>
+        {
+            a.ToJson("processing_capabilities");
+            a.Property(x => x.HasDryClean).HasJsonPropertyName("has_dry_clean");
+            a.Property(x => x.HasSteamIron).HasJsonPropertyName("has_steam_iron");
+            a.Property(x => x.HasShoeCleaning).HasJsonPropertyName("has_shoe_cleaning");
+            a.Property(x => x.HasCarpetCleaning).HasJsonPropertyName("has_carpet_cleaning");
+        });
+        b.Navigation(e => e.ProcessingCapabilities).IsRequired();
         b.Property(e => e.Capabilities).HasColumnName("capabilities").HasColumnType("text[]").IsRequired();
         b.Property(e => e.OperatingHoursConfig).HasColumnName("operating_hours_config").HasColumnType("jsonb").IsRequired();
         b.Property(e => e.Timezone).HasColumnName("timezone").HasMaxLength(50).IsRequired();

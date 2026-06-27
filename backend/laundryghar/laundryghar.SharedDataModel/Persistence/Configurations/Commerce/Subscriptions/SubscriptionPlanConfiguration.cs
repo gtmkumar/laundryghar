@@ -32,9 +32,16 @@ public sealed class SubscriptionPlanConfiguration : IEntityTypeConfiguration<Sub
         b.Property(e => e.OverageDiscountPercent).HasColumnName("overage_discount_percent").HasColumnType("numeric(5,2)").IsRequired();
         b.Property(e => e.ApplicableServices).HasColumnName("applicable_services").HasColumnType("uuid[]").IsRequired();
         b.Property(e => e.ExcludedServices).HasColumnName("excluded_services").HasColumnType("uuid[]").IsRequired();
-        b.Property(e => e.PickupIncluded).HasColumnName("pickup_included").IsRequired();
-        b.Property(e => e.DeliveryIncluded).HasColumnName("delivery_included").IsRequired();
-        b.Property(e => e.ExpressIncluded).HasColumnName("express_included").IsRequired();
+        // Fulfilment-leg inclusions live in the fulfillment_inclusions jsonb (owned type, ToJson) —
+        // demoted off the generic plan spine in multi-vertical Phase 2 (slice 2E).
+        b.OwnsOne(e => e.Inclusions, a =>
+        {
+            a.ToJson("fulfillment_inclusions");
+            a.Property(x => x.PickupIncluded).HasJsonPropertyName("pickup_included");
+            a.Property(x => x.DeliveryIncluded).HasJsonPropertyName("delivery_included");
+            a.Property(x => x.ExpressIncluded).HasJsonPropertyName("express_included");
+        });
+        b.Navigation(e => e.Inclusions).IsRequired();
         b.Property(e => e.MaxActiveSubscribers).HasColumnName("max_active_subscribers");
         b.Property(e => e.CurrentSubscriberCount).HasColumnName("current_subscriber_count").IsRequired();
         b.Property(e => e.Gateway).HasColumnName("gateway").HasMaxLength(30);

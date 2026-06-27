@@ -19,4 +19,15 @@ public static class VerticalKey
         new HashSet<string> { Laundry, Salon, Logistics };
 
     public static bool IsValid(string? value) => value is not null && All.Contains(value);
+
+    /// <summary>
+    /// True if a feature/module tagged with <paramref name="featureVerticalKey"/> is available to a
+    /// brand of <paramref name="brandVerticalKey"/>. A null feature key means vertical-neutral (every
+    /// brand); a null brand key (e.g. a platform admin with no brand selected) sees everything.
+    /// Used to gate vertical-specific modules (e.g. laundry fabric management) in the navigator.
+    /// </summary>
+    public static bool IsAvailableTo(string? featureVerticalKey, string? brandVerticalKey)
+        => featureVerticalKey is null
+           || brandVerticalKey is null
+           || string.Equals(featureVerticalKey, brandVerticalKey, StringComparison.OrdinalIgnoreCase);
 }

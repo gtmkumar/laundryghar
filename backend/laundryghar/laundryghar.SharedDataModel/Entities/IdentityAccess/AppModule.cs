@@ -17,6 +17,10 @@ public class AppModule
     public bool ShowInMatrix { get; set; }
     public string? RequiredPermission { get; set; }
     public string[] PermissionModules { get; set; } = [];
+    /// <summary>The vertical this module belongs to (<c>laundry</c>/<c>salon</c>/<c>logistics</c>),
+    /// or <c>null</c> for a vertical-neutral module shown to every brand. A brand only sees a
+    /// vertical-keyed module if it matches the brand's own vertical. (Multi-vertical Phase 2.)</summary>
+    public string? VerticalKey { get; set; }
     /// <summary>Always-on module that bypasses brand entitlement (e.g. dashboard,
     /// settings, users) so a brand can never lock its own admins out.</summary>
     public bool IsCore { get; set; }

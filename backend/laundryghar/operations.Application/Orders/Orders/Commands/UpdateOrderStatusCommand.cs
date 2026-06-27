@@ -4,6 +4,7 @@ using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -43,8 +44,13 @@ public sealed class UpdateOrderStatusHandler : ICommandHandler<UpdateOrderStatus
             .FirstOrDefaultAsync(o => o.Id == cmd.OrderId && o.BrandId == brandId, ct);
         if (order is null || order.DeletedAt != null) return null;
 
-        // Enforce the fulfilment-mode state machine (point_to_point uses a shorter path)
+        // Enforce the fulfilment-mode state machine (point_to_point uses a shorter path).
+        // The strategy owns its status vocabulary — there is no shared closed list to validate
+        // against (that would re-impose the laundry vocabulary the OrderStatus widening removed).
         var strategy = _strategies.ResolveForOrder(order);
+        if (!strategy.IsKnownStatus(req.ToStatus))
+            throw new BusinessRuleException(
+                $"'{req.ToStatus}' is not a recognised status for fulfilment mode '{strategy.FulfillmentMode}'.");
         strategy.EnsureTransition(order.Status, req.ToStatus);
 
         var fromStatus = order.Status;
@@ -142,25 +148,15 @@ public sealed class UpdateOrderStatusHandler : ICommandHandler<UpdateOrderStatus
 
 public sealed class UpdateOrderStatusValidator : AbstractValidator<UpdateOrderStatusCommand>
 {
-    // All valid order status values — mirrors OrderStatus constants and DB CHECK constraint.
-    // Case-sensitive: DB stores lowercase; upper-cased values are rejected by design.
-    private static readonly HashSet<string> ValidStatuses = new(StringComparer.Ordinal)
-    {
-        OrderStatus.Placed, OrderStatus.PickupScheduled, OrderStatus.PickupAssigned,
-        OrderStatus.PickupInProgress, OrderStatus.PickedUp, OrderStatus.Received,
-        OrderStatus.Sorting, OrderStatus.InProcess, OrderStatus.Qc, OrderStatus.Ready,
-        OrderStatus.DeliveryScheduled, OrderStatus.DeliveryAssigned, OrderStatus.OutForDelivery,
-        OrderStatus.Delivered, OrderStatus.Cancelled, OrderStatus.Returned,
-        OrderStatus.Rewash, OrderStatus.Disputed, OrderStatus.Closed
-    };
-
+    // Structural validation only. Whether ToStatus is a recognised status is owned by the
+    // order's fulfilment strategy (resolved per-order in the handler), NOT a shared closed list —
+    // a static vocabulary here would re-impose the laundry statuses the OrderStatus widening
+    // (Phase 1 slice B) deliberately removed from the DB CHECK.
     public UpdateOrderStatusValidator()
     {
         RuleFor(x => x.OrderId).NotEmpty();
         RuleFor(x => x.Request.ToStatus)
-            .NotEmpty()
-            .Must(s => ValidStatuses.Contains(s))
-            .WithMessage($"ToStatus is not a recognised order status value.");
+            .NotEmpty();
         RuleFor(x => x.Request.Reason)
             .MaximumLength(500)
             .When(x => x.Request.Reason is not null);

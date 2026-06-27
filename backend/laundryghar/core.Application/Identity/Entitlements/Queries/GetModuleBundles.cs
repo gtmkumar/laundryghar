@@ -15,7 +15,7 @@ public class GetModuleBundlesQueryHandler : IQueryHandler<GetModuleBundlesQuery,
     public async Task<IReadOnlyList<ModuleBundleDto>> HandleAsync(GetModuleBundlesQuery q, CancellationToken ct)
     {
         var bundles = await _db.ModuleBundles.AsNoTracking()
-            .Select(b => new { b.Code, b.Name, b.Description })
+            .Select(b => new { b.Code, b.Name, b.Description, b.VerticalKey })
             .ToListAsync(ct);
 
         var labels = await _db.Modules.AsNoTracking()
@@ -31,6 +31,7 @@ public class GetModuleBundlesQueryHandler : IQueryHandler<GetModuleBundlesQuery,
             b.Code, b.Name, b.Description,
             (byBundle.TryGetValue(b.Code, out var its) ? its : [])
                 .Select(i => new ModuleBundleItemDto(i.ModuleKey, labels.GetValueOrDefault(i.ModuleKey, i.ModuleKey)))
-                .ToList())).ToList();
+                .ToList(),
+            b.VerticalKey)).ToList();
     }
 }

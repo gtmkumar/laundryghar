@@ -2,6 +2,7 @@ using core.Application.Common.Interfaces;
 using core.Application.Identity.Entitlements.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
+using laundryghar.SharedDataModel.Enums;
 using laundryghar.Utilities.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,13 +21,27 @@ public class ApplyBundleToBrandCommandHandler : ICommandHandler<ApplyBundleToBra
     public async Task<bool> HandleAsync(ApplyBundleToBrandCommand cmd, CancellationToken ct)
     {
         var code = cmd.Request.BundleCode;
-        if (!await _db.ModuleBundles.AnyAsync(b => b.Code == code, ct))
+        var bundle = await _db.ModuleBundles.AsNoTracking().FirstOrDefaultAsync(b => b.Code == code, ct);
+        if (bundle is null)
             throw new ValidationException(new Dictionary<string, string[]> { ["bundleCode"] = ["Unknown bundle."] });
 
+        var brandVertical = await _db.Brands.AsNoTracking()
+            .Where(b => b.Id == cmd.BrandId).Select(b => b.VerticalKey).FirstOrDefaultAsync(ct);
+
+        // A vertical-specific bundle can only be applied to a brand of that vertical.
+        if (!VerticalKey.IsAvailableTo(bundle.VerticalKey, brandVertical))
+            throw new ValidationException(new Dictionary<string, string[]>
+                { ["bundleCode"] = ["This bundle is not available for the brand's vertical."] });
+
+        // Expand the bundle, skipping modules not available to the brand's vertical — so a shared
+        // tier bundle never licenses a laundry-only module (e.g. fabrics) to a salon brand.
         var bundleKeys = (await _db.ModuleBundleItems.AsNoTracking()
             .Where(i => i.BundleCode == code)
-            .Select(i => i.ModuleKey)
+            .Join(_db.Modules.AsNoTracking(), i => i.ModuleKey, m => m.Key,
+                  (i, m) => new { m.Key, m.VerticalKey })
             .ToListAsync(ct))
+            .Where(m => VerticalKey.IsAvailableTo(m.VerticalKey, brandVertical))
+            .Select(m => m.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var existing = await _db.BrandModules

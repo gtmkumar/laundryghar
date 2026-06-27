@@ -35,9 +35,11 @@ public class SubscriptionPlan : IAuditableEntity, ISoftDeletable
     /// <summary>uuid[] — service IDs excluded from the plan.</summary>
     public Guid[] ExcludedServices { get; set; } = [];
 
-    public bool PickupIncluded { get; set; }
-    public bool DeliveryIncluded { get; set; }
-    public bool ExpressIncluded { get; set; }
+    /// <summary>Which fulfilment legs the plan bundles in — a laundry/logistics-specific concept
+    /// (a salon appointment plan has no pickup leg), stored as the <c>fulfillment_inclusions</c>
+    /// jsonb off the generic plan spine. (Multi-vertical Phase 2 / slice 2E.)</summary>
+    public FulfillmentInclusions Inclusions { get; set; } = new();
+
     public int? MaxActiveSubscribers { get; set; }
     public int CurrentSubscriberCount { get; set; }
     public string? Gateway { get; set; }
@@ -61,4 +63,14 @@ public class SubscriptionPlan : IAuditableEntity, ISoftDeletable
     // Navigations
     public Brand Brand { get; set; } = null!;
     public ICollection<CustomerSubscription> CustomerSubscriptions { get; set; } = [];
+}
+
+/// <summary>The fulfilment legs a <see cref="SubscriptionPlan"/> bundles in, stored as the
+/// <c>fulfillment_inclusions</c> jsonb (owned type, ToJson). Demoted off the generic plan spine
+/// in multi-vertical Phase 2 — these are leg-topology concepts that don't apply to every vertical.</summary>
+public class FulfillmentInclusions
+{
+    public bool PickupIncluded { get; set; }
+    public bool DeliveryIncluded { get; set; }
+    public bool ExpressIncluded { get; set; }
 }

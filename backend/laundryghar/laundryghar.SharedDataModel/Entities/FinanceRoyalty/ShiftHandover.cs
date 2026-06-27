@@ -23,8 +23,12 @@ public class ShiftHandover
 
     public int PendingOrdersCount { get; set; }
     public int OpenComplaintsCount { get; set; }
-    public int PickupsRemaining { get; set; }
-    public int DeliveriesRemaining { get; set; }
+
+    /// <summary>Fulfilment-leg shift counters (pickups/deliveries remaining) — laundry/logistics
+    /// specific, stored as the <c>operational_snapshot</c> jsonb off the generic handover spine.
+    /// (Multi-vertical Phase 2 / slice 2G.)</summary>
+    public OperationalSnapshot Operational { get; set; } = new();
+
     public string? NotesFrom { get; set; }
     public string? NotesTo { get; set; }
 
@@ -49,4 +53,13 @@ public class ShiftHandover
     public User FromUser { get; set; } = null!;
     public User? ToUser { get; set; }
     public CashBook? CashBook { get; set; }
+}
+
+/// <summary>Fulfilment-leg operational counters captured at shift handover, stored as the
+/// <c>operational_snapshot</c> jsonb (owned type, ToJson). Demoted off the generic handover spine
+/// in multi-vertical Phase 2 — pickups/deliveries don't apply to a salon vertical.</summary>
+public class OperationalSnapshot
+{
+    public int PickupsRemaining { get; set; }
+    public int DeliveriesRemaining { get; set; }
 }
