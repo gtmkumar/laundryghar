@@ -298,6 +298,9 @@ export interface RiderTask {
   windowEnd?:    string;        // "14:00"
   scheduledTime?: string;       // "15:30" (single-point ETA)
   garmentCount:  number;
+  /** Marketplace job kind (laundry/parcel) — drives the fulfilment mode so the rider flow knows
+   *  e.g. whether a pickup has a store-drop leg. Optional until the task DTO carries it. */
+  jobType?:      string;
   amountDue:     number;        // 0 when prepaid
   isPaid:        boolean;
   /**
@@ -514,4 +517,30 @@ export interface CreateSupportTicketRequest {
   message: string;
   category?: string;
   orderId?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Fulfilment config — backend-driven phases (multi-vertical Phase 3)
+// GET /api/v1/fulfillment-config — one entry per fulfilment mode, built live from the
+// backend strategies. The rider uses requiresStoreDrop to know whether a pickup has a
+// store-drop leg (laundry) or goes straight to delivery (point_to_point parcel).
+// ---------------------------------------------------------------------------
+
+/** One stage in a fulfilment mode's happy path. Backend: FulfillmentStageDto. */
+export interface FulfillmentStageDto {
+  status: string;
+  label: string;
+  order: number;
+  lifecycleState: string;
+}
+
+/** The client-consumable configuration of one fulfilment mode. Backend: FulfillmentConfigDto. */
+export interface FulfillmentConfigDto {
+  fulfillmentMode: string;
+  initialStatus: string;
+  stages: FulfillmentStageDto[];
+  terminalStatuses: string[];
+  requiresStoreDrop: boolean;
+  requiresPickup: boolean;
+  requiresDelivery: boolean;
 }

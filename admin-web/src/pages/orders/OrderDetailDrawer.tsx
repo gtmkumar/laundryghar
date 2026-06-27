@@ -19,6 +19,7 @@ import {
 } from '@/components/shared/FormDrawer'
 import { Badge } from '@/components/ui/badge'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useStatusLabeler } from '@/hooks/useFulfillmentConfig'
 import {
   useOrder,
   useOrderNotes,
@@ -653,6 +654,9 @@ export function OrderDetailDrawer({
 }) {
   const { hasPermission } = usePermissions()
   const { data: order, isLoading, isError, error } = useOrder(orderId)
+  // Backend-driven status labels (multi-vertical Phase 3): label statuses per the order's
+  // fulfilment mode (vertical), falling back to the local i18n label until the config loads.
+  const labelStatus = useStatusLabeler(order?.jobType)
 
   const canRead = hasPermission(PERM.read)
   const canUpdateStatus = hasPermission(PERM.statusUpdate)
@@ -677,7 +681,7 @@ export function OrderDetailDrawer({
         order ? (
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={statusBadgeVariant(order.status)} className="capitalize">
-              {statusLabel(order.status)}
+              {labelStatus(order.status, statusLabel(order.status))}
             </Badge>
             {order.isExpress && <Badge variant="warning">Express</Badge>}
             <span className="text-sm font-medium text-gray-700">

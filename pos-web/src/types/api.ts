@@ -336,12 +336,41 @@ export interface OrderDto {
   items: OrderItemDto[] | null
   addons: OrderAddonDto[] | null
   statusHistory: OrderStatusHistoryDto[] | null
+  /** Marketplace job kind (laundry/parcel) — drives the fulfilment mode for backend-driven
+   *  status labels via the fulfilment-config endpoint. Optional until the DTO carries it. */
+  jobType?: string
   /**
    * Valid next statuses computed by the backend OrderStateMachine, returned on
    * GET /api/v1/admin/orders/{id}. Optional: older API builds omit it, in
    * which case the UI falls back to the local nextStatuses() mirror.
    */
   allowedTransitions?: string[] | null
+}
+
+// ---------------------------------------------------------------------------
+// Fulfilment config — backend-driven status labels (multi-vertical Phase 3)
+// GET /api/v1/fulfillment-config — one entry per fulfilment mode, built live from the
+// backend strategies, so the POS labels statuses per the order's vertical rather than a
+// hardcoded laundry ladder.
+// ---------------------------------------------------------------------------
+
+/** One stage in a fulfilment mode's happy path. Backend: FulfillmentStageDto. */
+export interface FulfillmentStageDto {
+  status: string
+  label: string
+  order: number
+  lifecycleState: string
+}
+
+/** The client-consumable configuration of one fulfilment mode. Backend: FulfillmentConfigDto. */
+export interface FulfillmentConfigDto {
+  fulfillmentMode: string
+  initialStatus: string
+  stages: FulfillmentStageDto[]
+  terminalStatuses: string[]
+  requiresStoreDrop: boolean
+  requiresPickup: boolean
+  requiresDelivery: boolean
 }
 
 export interface OrderListParams extends PaginationParams {

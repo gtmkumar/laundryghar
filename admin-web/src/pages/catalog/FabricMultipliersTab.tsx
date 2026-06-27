@@ -4,6 +4,7 @@ import { cn, slugifyCode } from '@/lib/utils'
 import { useFabricTypes, useUpdateFabricType, useCreateFabricType } from '@/hooks/useCatalog'
 import { usePermissions } from '@/hooks/usePermissions'
 import { showToast } from '@/stores/toastStore'
+import type { FabricTypeDto } from '@/types/api'
 
 const BASE_EXAMPLE = 170 // ₹ — "Shirt · base" reference used in the live-example column
 

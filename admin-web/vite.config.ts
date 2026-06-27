@@ -11,6 +11,16 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Dev-only proxy (multi-vertical local test): the backend hosts have no CORS (the gateway
+  // normally fronts them), so we keep the browser same-origin and proxy per-service prefixes to
+  // each host. Used with the relative VITE_*_URL values in .env.local.
+  server: {
+    proxy: {
+      '/core':     { target: 'http://localhost:5056', changeOrigin: true, rewrite: (p) => p.replace(/^\/core/, '') },
+      '/ops':      { target: 'http://localhost:5015', changeOrigin: true, rewrite: (p) => p.replace(/^\/ops/, '') },
+      '/commerce': { target: 'http://localhost:5242', changeOrigin: true, rewrite: (p) => p.replace(/^\/commerce/, '') },
+    },
+  },
   build: {
     rolldownOptions: {
       output: {

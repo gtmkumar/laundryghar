@@ -65,6 +65,9 @@ export interface BrandDto {
   tagline: string | null
   currencyCode: string
   timezone: string
+  /** The brand's industry vertical (laundry/salon/logistics) — drives client-side verticalKey
+   *  gating. Optional until the brand DTO carries it. (Multi-vertical Phase 3.) */
+  verticalKey?: string
   status: string
   createdAt: string
   updatedAt: string
@@ -680,6 +683,9 @@ export interface OrderDto {
   customerId: string
   channel: string
   orderType: string
+  /** Marketplace job kind (laundry/parcel) — drives the fulfilment mode for backend-driven
+   *  status labels. Optional until the DTO carries it. (Multi-vertical Phase 3.) */
+  jobType?: string
   isExpress: boolean
   subtotal: number
   addonTotal: number
@@ -3164,4 +3170,30 @@ export interface UpdateTicketPayload {
   status?: SupportTicketStatus
   priority?: SupportTicketPriority
   assignedTo?: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Fulfilment config — backend-driven status labels (multi-vertical Phase 3)
+// GET /api/v1/fulfillment-config — one entry per fulfilment mode, built live from the
+// backend strategies, so the admin labels statuses per the order's vertical rather than
+// a hardcoded laundry ladder.
+// ---------------------------------------------------------------------------
+
+/** One stage in a fulfilment mode's happy path. Backend: FulfillmentStageDto. */
+export interface FulfillmentStageDto {
+  status: string
+  label: string
+  order: number
+  lifecycleState: string
+}
+
+/** The client-consumable configuration of one fulfilment mode. Backend: FulfillmentConfigDto. */
+export interface FulfillmentConfigDto {
+  fulfillmentMode: string
+  initialStatus: string
+  stages: FulfillmentStageDto[]
+  terminalStatuses: string[]
+  requiresStoreDrop: boolean
+  requiresPickup: boolean
+  requiresDelivery: boolean
 }

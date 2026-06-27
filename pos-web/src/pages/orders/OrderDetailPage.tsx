@@ -5,6 +5,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2, Printer, FileText, Tag } from 'lucide-react'
 import { useOrder, useUpdateOrderStatus, useOpenInvoicePdf } from '@/hooks/useOrders'
+import { useStatusLabeler } from '@/hooks/useFulfillmentConfig'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,10 @@ export function OrderDetailPage() {
   const { mutate: updateStatus, isPending } = useUpdateOrderStatus()
   const { mutate: openInvoice, isPending: invoicePending, isError: invoiceError } =
     useOpenInvoicePdf()
+  // Backend-driven status labels (multi-vertical Phase 3): label statuses per the order's
+  // fulfilment mode (vertical) instead of formatting raw status strings. Falls back to the local
+  // formatting until the config loads, so behaviour is unchanged meanwhile.
+  const labelStatus = useStatusLabeler(order?.jobType)
 
   if (!id) return null
   if (isLoading) return <LoadingState message="Loading order…" />
@@ -90,7 +95,7 @@ export function OrderDetailPage() {
           <span
             className={`px-3 py-1 rounded-full text-sm font-semibold ${orderStatusColor(order.status)}`}
           >
-            {order.status.replace(/_/g, ' ')}
+            {labelStatus(order.status)}
           </span>
           {order.isExpress && (
             <Badge variant="warning">Express</Badge>
@@ -130,7 +135,7 @@ export function OrderDetailPage() {
                 }`}
               >
                 {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {status.replace(/_/g, ' ')}
+                {labelStatus(status)}
               </Button>
             ))}
           </CardContent>

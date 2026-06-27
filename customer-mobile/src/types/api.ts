@@ -242,6 +242,8 @@ export interface OrderDto {
   id: string;
   orderNumber: string;
   status: OrderStatus;
+  /** Marketplace job kind (laundry/parcel) — drives the fulfilment mode for backend-driven tracking. */
+  jobType?: string;
   channel: string;
   isExpress: boolean;
   subtotal: number;
@@ -344,6 +346,31 @@ export interface OrderStatusHistoryDto {
   changedByType: string;
   reason?: string;
   customerNotified: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Fulfilment config — backend-driven tracking (multi-vertical Phase 3)
+// GET /api/v1/fulfillment-config — one entry per fulfilment mode, built live from
+// the backend strategies so the client never hardcodes a status ladder.
+// ---------------------------------------------------------------------------
+
+/** One stage in a fulfilment mode's happy path. Backend: FulfillmentStageDto. */
+export interface FulfillmentStageDto {
+  status: string;        // strategy-owned detailed status (e.g. "received")
+  label: string;         // humanised label ("Received")
+  order: number;         // position in the happy path
+  lifecycleState: string; // neutral super-state (created/active/completed/…)
+}
+
+/** The client-consumable configuration of one fulfilment mode. Backend: FulfillmentConfigDto. */
+export interface FulfillmentConfigDto {
+  fulfillmentMode: string;
+  initialStatus: string;
+  stages: FulfillmentStageDto[];
+  terminalStatuses: string[];
+  requiresStoreDrop: boolean;
+  requiresPickup: boolean;
+  requiresDelivery: boolean;
 }
 
 export interface DeliverySlotDto {

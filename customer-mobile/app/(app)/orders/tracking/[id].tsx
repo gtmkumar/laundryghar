@@ -20,6 +20,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useOrderDetail, useOrderTracking, usePickupRequestDetail, useRateOrder } from '@/hooks/useOrders';
+import { useFulfillmentConfigForMode } from '@/hooks/useFulfillmentConfig';
+import { fulfillmentModeForJobType } from '@/lib/fulfillmentTracking';
 import { useBookingStore } from '@/store/bookingStore';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -468,6 +470,12 @@ function LiveOrderTracking({ id }: { id: string }) {
   const { t } = useTranslation();
   const { data: order, isLoading: orderLoading, isError, refetch } = useOrderDetail(id);
   const { data: history, isLoading: histLoading } = useOrderTracking(id, order?.status);
+  // Backend-driven tracking (multi-vertical Phase 3): the stage ORDER comes from the order's
+  // fulfilment strategy, so a new/reordered status ranks correctly without a client change. The
+  // curated display steps stay client-side; we only source their ranking from the backend, with a
+  // fallback to the hardcoded ladder until the config loads.
+  const fulfillmentMode = fulfillmentModeForJobType(order?.jobType);
+  const { data: fulfillmentConfig } = useFulfillmentConfigForMode(fulfillmentMode);
 
   if (orderLoading || histLoading) return <ScreenLoader />;
   if (isError || !order) return <ErrorState onRetry={() => void refetch()} />;
@@ -476,8 +484,12 @@ function LiveOrderTracking({ id }: { id: string }) {
   (history ?? []).forEach((e) => {
     times[e.toStatus as OrderStatus] = formatDateTime(e.changedAt);
   });
-  const currentRank = ORDER_RANK[order.status] ?? 0;
-  const timeline = buildTimeline(ORDER_STEPS, ORDER_RANK, currentRank, times);
+  // Merge backend stage ordering over the hardcoded fallback (keeps terminal-state ranks).
+  const orderRank: Record<string, number> = fulfillmentConfig
+    ? { ...ORDER_RANK, ...Object.fromEntries(fulfillmentConfig.stages.map((s) => [s.status, s.order])) }
+    : ORDER_RANK;
+  const currentRank = orderRank[order.status] ?? ORDER_RANK[order.status] ?? 0;
+  const timeline = buildTimeline(ORDER_STEPS, orderRank as Record<OrderStatus, number>, currentRank, times);
 
   const banner = order.readyAt
     ? t('tracking.bannerReadyBy', { date: formatDateTime(order.readyAt) })

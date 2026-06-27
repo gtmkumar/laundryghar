@@ -34,6 +34,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { useRiderTask, taskKeys } from '@/hooks/useRiderTasks';
+import { useTaskRequiresStoreDrop } from '@/hooks/useFulfillmentConfig';
+import { itemSummaryLabel } from '@/lib/fulfillmentTracking';
 import { useTaskOverrideStore } from '@/store/taskOverrideStore';
 import { useOfflineQueueStore } from '@/store/offlineQueueStore';
 import { useOfflineQueueFlush } from '@/hooks/useOfflineQueueFlush';
@@ -161,16 +163,22 @@ export default function TaskDetailScreen() {
   const [photoUploadState, setPhotoUploadState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [photoError, setPhotoError] = useState('');
 
+  // Backend-driven phase (multi-vertical Phase 3): whether this order's mode has a store-drop leg
+  // after pickup collection. Laundry (process_deliver) drops at the store; a point_to_point parcel
+  // goes straight to delivery. Defaults to true (laundry) until the config loads, so the flow is
+  // unchanged meanwhile and when the task DTO does not yet carry jobType.
+  const requiresStoreDrop = useTaskRequiresStoreDrop(task?.jobType);
+
   if (isLoading) return <ScreenLoader />;
   if (!task) return <ErrorState message="This task could not be found." />;
 
   const isDelivery  = task.legType === 'delivery' || task.legType === 'return';
   const isPickup    = task.legType === 'pickup';
   const isCompleted = task.status === 'completed';
-  // A pickup is a round-trip: collect at the customer, then drop at the store.
-  // `collected` flips the screen from the collection step to the drop step.
+  // A laundry pickup is a round-trip: collect at the customer, then drop at the store. A
+  // point_to_point pickup has no store drop, so `collected` does not open a drop step.
   const collected   = isPickup && (!!task.collectedAt || task.phase === 'to_store' || task.phase === 'dropped');
-  const isDropStep  = isPickup && collected && !isCompleted;   // step 2 — drop at laundry
+  const isDropStep  = isPickup && collected && requiresStoreDrop && !isCompleted;   // step 2 — drop at store
   // OTP applies to the customer handshake (delivery, or the pickup collection
   // step) — never the drop step. Real API tells us via requiresOtp.
   const needsOtp    = !isDropStep && (task.requiresOtp ?? (isDelivery && !!task.deliveryOtp)) && !isCompleted;
@@ -548,7 +556,7 @@ export default function TaskDetailScreen() {
           {/* Garments / payment row */}
           <View className="mt-4 flex-row items-center rounded-2xl bg-white px-4 py-3" style={{ elevation: 1 }}>
             <MaterialCommunityIcons name="hanger" size={18} color="#4A552A" />
-            <Text className="ml-2 text-sm font-semibold text-ink">{task.garmentCount} garments</Text>
+            <Text className="ml-2 text-sm font-semibold text-ink">{itemSummaryLabel(task.garmentCount, 'garments')}</Text>
             <View className="flex-1" />
             {task.isPaid ? (
               <View className="flex-row items-center gap-1">
