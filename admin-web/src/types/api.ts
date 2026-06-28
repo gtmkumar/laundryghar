@@ -2267,6 +2267,68 @@ export interface ModuleBundle {
   name: string
   description: string | null
   items: ModuleBundleItem[]
+  verticalKey?: string | null
+  /** Brand-tier pricing — what applying this bundle costs the tenant (null = unpriced/custom). */
+  price?: number | null
+  billingInterval?: string | null
+  currencyCode?: string | null
+  isPublic?: boolean
+}
+
+export interface BrandPlatformInvoice {
+  id: string
+  periodStart: string
+  periodEnd: string
+  amount: number
+  currencyCode: string
+  status: string
+  issuedAt: string
+  dueAt: string
+  /** Razorpay payment-link short URL, once a link has been generated for this invoice. */
+  paymentLinkUrl?: string | null
+}
+
+/** The brand's own platform subscription (the priced tier it pays for) + its invoices. */
+export interface BrandPlatformSubscription {
+  id: string
+  brandId: string
+  bundleCode: string
+  planName: string
+  price: number
+  billingInterval: string
+  currencyCode: string
+  status: string
+  currentPeriodStart: string
+  currentPeriodEnd: string
+  nextBillingAt: string
+  autoRenew: boolean
+  invoices: BrandPlatformInvoice[]
+}
+
+export interface TierMrr {
+  bundleCode: string
+  planName: string
+  activeCount: number
+  monthlyMrr: number
+}
+
+export interface InvoiceStatusTotal {
+  status: string
+  count: number
+  totalAmount: number
+}
+
+/** Platform-wide SaaS revenue summary (operator MRR view). */
+export interface PlatformBillingSummary {
+  currency: string
+  monthlyMrr: number
+  annualRunRate: number
+  activeTenants: number
+  cancelledTenants: number
+  outstandingAmount: number
+  collectedAmount: number
+  byTier: TierMrr[]
+  invoicesByStatus: InvoiceStatusTotal[]
 }
 
 export interface InviteUserPayload {

@@ -22,9 +22,15 @@ public class AdminEntitlements : IEndpointGroup
         group.WithTags("Admin - Entitlements").RequireAuthorization();
 
         group.MapGet(GetBundles, "bundles").RequireAuthorization("permission:saas.read");
+        group.MapGet(GetPlatformBilling, "platform-billing").RequireAuthorization("permission:saas.read");
         group.MapGet(GetBrandModules, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.read");
+        group.MapGet(GetPlatformSubscription, "brands/{brandId:guid}/platform-subscription").RequireAuthorization("permission:saas.read");
+        group.MapPost(CancelPlatformSubscription, "brands/{brandId:guid}/platform-subscription/cancel").RequireAuthorization("permission:saas.manage");
         group.MapPost(SetBrandModule, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.manage");
         group.MapPost(ApplyBundle, "brands/{brandId:guid}/apply-bundle").RequireAuthorization("permission:saas.manage");
+        group.MapPost(SetInvoiceStatus, "brand-platform-invoices/{invoiceId:guid}/status").RequireAuthorization("permission:saas.manage");
+        group.MapPost(CreateInvoicePaymentLink, "brand-platform-invoices/{invoiceId:guid}/payment-link").RequireAuthorization("permission:saas.manage");
+        group.MapPost(SyncInvoicePayment, "brand-platform-invoices/{invoiceId:guid}/sync-payment").RequireAuthorization("permission:saas.manage");
     }
 
     public static async Task<IResult> GetBundles(IDispatcher dispatcher, CancellationToken ct)
@@ -41,6 +47,19 @@ public class AdminEntitlements : IEndpointGroup
             : Results.Ok(new SingleResponse<BrandEntitlementsDto> { Status = true, Data = data });
     }
 
+    public static async Task<IResult> GetPlatformBilling(IDispatcher dispatcher, CancellationToken ct)
+    {
+        var data = await dispatcher.QueryAsync(new GetPlatformBillingSummaryQuery(), ct);
+        return Results.Ok(new SingleResponse<PlatformBillingSummaryDto> { Status = true, Data = data });
+    }
+
+    public static async Task<IResult> GetPlatformSubscription(Guid brandId, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var data = await dispatcher.QueryAsync(new GetBrandPlatformSubscriptionQuery(brandId), ct);
+        // 200 with null data = brand is not on a priced tier yet (UI shows "no plan").
+        return Results.Ok(new SingleResponse<BrandPlatformSubscriptionDto?> { Status = true, Data = data });
+    }
+
     public static async Task<IResult> SetBrandModule(Guid brandId, SetBrandModuleRequest req,
         ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
     {
@@ -53,5 +72,30 @@ public class AdminEntitlements : IEndpointGroup
     {
         await dispatcher.SendAsync(new ApplyBundleToBrandCommand(brandId, req, user.UserId), ct);
         return Results.Ok(new Response { Status = true });
+    }
+
+    public static async Task<IResult> SetInvoiceStatus(Guid invoiceId, SetInvoiceStatusRequest req,
+        ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new SetBrandPlatformInvoiceStatusCommand(invoiceId, req, user.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> CancelPlatformSubscription(Guid brandId, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new CancelBrandPlatformSubscriptionCommand(brandId, user.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> CreateInvoicePaymentLink(Guid invoiceId, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var url = await dispatcher.SendAsync(new CreateBrandPlatformInvoicePaymentLinkCommand(invoiceId), ct);
+        return url is null ? Results.NotFound() : Results.Ok(new SingleResponse<string> { Status = true, Data = url });
+    }
+
+    public static async Task<IResult> SyncInvoicePayment(Guid invoiceId, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var status = await dispatcher.SendAsync(new SyncBrandPlatformInvoicePaymentCommand(invoiceId), ct);
+        return status is null ? Results.NotFound() : Results.Ok(new SingleResponse<string> { Status = true, Data = status });
     }
 }

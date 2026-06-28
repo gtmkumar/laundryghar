@@ -76,10 +76,85 @@ public class ApplyBundleToBrandCommandHandler : ICommandHandler<ApplyBundleToBra
             }
         }
 
+        // Record the brand's platform subscription from this priced tier and issue the first
+        // invoice for the current period. Unpriced/custom bundles create no billable subscription.
+        if (bundle.Price is decimal price)
+        {
+            var interval = bundle.BillingInterval ?? "monthly";
+            var currency = bundle.CurrencyCode ?? "INR";
+            var sub = await _db.BrandPlatformSubscriptions.FirstOrDefaultAsync(s => s.BrandId == cmd.BrandId, ct);
+            if (sub is null)
+            {
+                sub = new BrandPlatformSubscription
+                {
+                    Id = Guid.NewGuid(), BrandId = cmd.BrandId,
+                    BundleCode = bundle.Code, PlanName = bundle.Name,
+                    Price = price, BillingInterval = interval, CurrencyCode = currency, Status = "active",
+                    CurrentPeriodStart = now, CurrentPeriodEnd = AddInterval(now, interval),
+                    NextBillingAt = AddInterval(now, interval), AutoRenew = true,
+                    CreatedAt = now, UpdatedAt = now, CreatedBy = cmd.ActorId, UpdatedBy = cmd.ActorId,
+                };
+                _db.BrandPlatformSubscriptions.Add(sub);
+            }
+            else
+            {
+                // Tier change: refresh the plan + price snapshot, keeping the running period.
+                var oldPrice = sub.Price;
+                var oldBundle = sub.BundleCode;
+                sub.BundleCode = bundle.Code; sub.PlanName = bundle.Name;
+                sub.Price = price; sub.BillingInterval = interval; sub.CurrencyCode = currency;
+                sub.Status = "active"; sub.UpdatedAt = now; sub.UpdatedBy = cmd.ActorId;
+
+                // Proration on a mid-cycle UPGRADE to a different tier: charge the price difference for
+                // the days remaining in the already-invoiced period. A downgrade keeps the lower price
+                // and simply takes effect at the next renewal (no immediate credit).
+                if (!string.Equals(oldBundle, bundle.Code, StringComparison.OrdinalIgnoreCase) && price > oldPrice)
+                {
+                    var periodSeconds = (sub.CurrentPeriodEnd - sub.CurrentPeriodStart).TotalSeconds;
+                    var remainingSeconds = (sub.CurrentPeriodEnd - now).TotalSeconds;
+                    if (periodSeconds > 0 && remainingSeconds > 0)
+                    {
+                        var fraction = (decimal)(remainingSeconds / periodSeconds);
+                        var proration = Math.Round((price - oldPrice) * fraction, 2);
+                        if (proration > 0)
+                            _db.BrandPlatformInvoices.Add(new BrandPlatformInvoice
+                            {
+                                Id = Guid.NewGuid(), SubscriptionId = sub.Id, BrandId = cmd.BrandId,
+                                BillingPeriodStart = now, BillingPeriodEnd = sub.CurrentPeriodEnd,
+                                Amount = proration, CurrencyCode = currency, Status = "issued",
+                                IssuedAt = now, DueAt = now.AddDays(7), CreatedAt = now,
+                            });
+                    }
+                }
+            }
+
+            var hasInvoice = await _db.BrandPlatformInvoices
+                .AnyAsync(i => i.SubscriptionId == sub.Id && i.BillingPeriodStart == sub.CurrentPeriodStart, ct);
+            if (!hasInvoice)
+            {
+                _db.BrandPlatformInvoices.Add(new BrandPlatformInvoice
+                {
+                    Id = Guid.NewGuid(), SubscriptionId = sub.Id, BrandId = cmd.BrandId,
+                    BillingPeriodStart = sub.CurrentPeriodStart, BillingPeriodEnd = sub.CurrentPeriodEnd,
+                    Amount = sub.Price, CurrencyCode = sub.CurrencyCode, Status = "issued",
+                    IssuedAt = now, DueAt = now.AddDays(7), CreatedAt = now,
+                });
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
 
         // Invalidate brand-scoped members' tokens so the plan change applies live.
         await Common.PermVersionBumper.BumpBrandMembersAsync(_db, cmd.BrandId, ct);
         return true;
     }
+
+    /// <summary>Advance a timestamp by one billing interval.</summary>
+    internal static DateTimeOffset AddInterval(DateTimeOffset from, string interval) => interval switch
+    {
+        "quarterly"   => from.AddMonths(3),
+        "half_yearly" => from.AddMonths(6),
+        "yearly"      => from.AddMonths(12),
+        _             => from.AddMonths(1), // monthly (default)
+    };
 }

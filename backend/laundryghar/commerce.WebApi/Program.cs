@@ -221,9 +221,11 @@ builder.Services.AddScoped<IChannelSender, RoutingChannelSender>();
 // ── Worker: event publisher (dev stub) ─────────────────────────────────────────
 builder.Services.AddScoped<IEventPublisher, LoggingEventPublisher>();
 
-// ── Worker: subscription charger (fail-closed seam; dev stub in Development) ────
+// ── Worker: subscription charger (dev stub in Development; real gateway otherwise) ────
 if (builder.Environment.IsDevelopment())
     builder.Services.AddSingleton<ISubscriptionCharger, DevSubscriptionCharger>();
+else
+    builder.Services.AddSingleton<ISubscriptionCharger, GatewaySubscriptionCharger>();
 
 // ── Worker: background hosted services — gated on a configured DB connection ────
 // CRITICAL no-DB gate: each hosted worker opens a DbContext per tick. With no
@@ -245,6 +247,7 @@ if (!string.IsNullOrWhiteSpace(connStr))
     builder.Services.AddHostedService<RoyaltyGenerationService>();    // opt-in: Worker:RoyaltyGenerationEnabled=true
     builder.Services.AddHostedService<DailyReconService>();           // opt-in: Worker:DailyReconEnabled=true
     builder.Services.AddHostedService<SubscriptionBillingService>();  // opt-in: Worker:SubscriptionBillingEnabled=true
+    builder.Services.AddHostedService<BrandPlatformBillingService>(); // opt-in: Worker:BrandPlatformBillingEnabled=true
     builder.Services.AddHostedService<LoyaltyEarnService>();          // mandatory
     builder.Services.AddHostedService<PartitionMaintenanceService>(); // on by default (Worker:PartitionMaintenanceEnabled=false to opt out)
 }

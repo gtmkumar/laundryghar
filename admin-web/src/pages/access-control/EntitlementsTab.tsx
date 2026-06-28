@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Loader2, Check, Lock, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useBrandEntitlements, useModuleBundles, useSetBrandModule, useApplyBundle } from '@/hooks/useEntitlements'
+import { useBrandEntitlements, useModuleBundles, useBrandPlatformSubscription, useSetBrandModule, useApplyBundle, useSetBrandPlatformInvoiceStatus, useCreateInvoicePaymentLink, useSyncInvoicePayment, useCancelBrandPlatformSubscription } from '@/hooks/useEntitlements'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Field } from '@/components/shared/FormDrawer'
+import type { ModuleBundle } from '@/types/api'
 
 const sourceLabel: Record<string, string> = {
   core: 'Always on',
@@ -11,13 +12,35 @@ const sourceLabel: Record<string, string> = {
   manual: 'Manual',
 }
 
+const INVOICE_TONE: Record<string, string> = {
+  issued: 'bg-blue-50 text-blue-600',
+  paid: 'bg-emerald-50 text-emerald-700',
+  void: 'bg-gray-100 text-gray-400 line-through',
+}
+
+const CURRENCY_SYMBOL: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£' }
+const INTERVAL_ABBR: Record<string, string> = { monthly: 'mo', quarterly: 'qtr', half_yearly: '6mo', yearly: 'yr' }
+
+/** "₹2,999/mo" for a priced tier, "Custom" when unpriced. */
+function priceLabel(b: Pick<ModuleBundle, 'price' | 'currencyCode' | 'billingInterval'>): string {
+  if (b.price == null) return 'Custom'
+  const sym = CURRENCY_SYMBOL[b.currencyCode ?? 'INR'] ?? `${b.currencyCode ?? ''} `
+  const per = b.billingInterval ? `/${INTERVAL_ABBR[b.billingInterval] ?? b.billingInterval}` : ''
+  return `${sym}${b.price.toLocaleString()}${per}`
+}
+
 export function EntitlementsTab() {
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('saas.manage')
   const ent = useBrandEntitlements()
   const bundles = useModuleBundles()
+  const platformSub = useBrandPlatformSubscription()
   const setModule = useSetBrandModule()
   const applyBundle = useApplyBundle()
+  const setInvoiceStatus = useSetBrandPlatformInvoiceStatus()
+  const createLink = useCreateInvoicePaymentLink()
+  const syncPay = useSyncInvoicePayment()
+  const cancelSub = useCancelBrandPlatformSubscription()
 
   const [bundleCode, setBundleCode] = useState('')
   const [err, setErr] = useState<string | null>(null)
@@ -47,6 +70,8 @@ export function EntitlementsTab() {
     applyBundle.mutate(bundleCode, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') })
   }
 
+  const selectedBundle = bundles.data?.find((b) => b.code === bundleCode)
+
   return (
     <div className="space-y-5">
       {/* Header: plan applier */}
@@ -67,7 +92,7 @@ export function EntitlementsTab() {
               >
                 <option value="">Select a plan…</option>
                 {bundles.data?.map((b) => (
-                  <option key={b.code} value={b.code}>{b.name}</option>
+                  <option key={b.code} value={b.code}>{b.name} — {priceLabel(b)}</option>
                 ))}
               </select>
             </Field>
@@ -83,6 +108,112 @@ export function EntitlementsTab() {
           </div>
         )}
       </div>
+
+      {/* Current platform tier: what this brand pays the platform + its latest invoice. */}
+      {platformSub.data && (
+        <div className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Platform tier</span>
+            <span className="font-semibold text-gray-900">{platformSub.data.planName}</span>
+            <span className="rounded-full bg-lg-green/10 px-2 py-0.5 text-xs font-semibold text-lg-green">
+              {priceLabel({ price: platformSub.data.price, currencyCode: platformSub.data.currencyCode, billingInterval: platformSub.data.billingInterval })}
+            </span>
+            <span className={cn(
+              'rounded-full px-2 py-0.5 text-xs font-medium capitalize',
+              platformSub.data.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500',
+            )}>{platformSub.data.status}</span>
+            <span className="text-xs text-gray-400">· renews {new Date(platformSub.data.nextBillingAt).toLocaleDateString()}</span>
+            {canManage && platformSub.data.status === 'active' && (
+              <button
+                type="button"
+                onClick={() => { setErr(null); cancelSub.mutate(undefined, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                disabled={cancelSub.isPending}
+                className="ml-auto text-xs font-medium text-gray-400 hover:text-red-600 hover:underline disabled:opacity-50"
+              >Cancel subscription</button>
+            )}
+          </div>
+          {platformSub.data.invoices.length > 0 && (
+            <div className="mt-3 overflow-hidden rounded-lg border border-gray-100">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/60 text-left text-gray-400">
+                    <th className="px-3 py-1.5 font-medium">Period</th>
+                    <th className="px-3 py-1.5 text-right font-medium">Amount</th>
+                    <th className="px-3 py-1.5 font-medium">Status</th>
+                    <th className="px-3 py-1.5 font-medium">Due</th>
+                    {canManage && <th className="px-3 py-1.5"><span className="sr-only">Actions</span></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {platformSub.data.invoices.map((inv) => (
+                    <tr key={inv.id} className="border-b border-gray-50 last:border-0">
+                      <td className="px-3 py-1.5 text-gray-600">
+                        {new Date(inv.periodStart).toLocaleDateString()} – {new Date(inv.periodEnd).toLocaleDateString()}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-medium tabular-nums text-gray-900">
+                        {priceLabel({ price: inv.amount, currencyCode: inv.currencyCode, billingInterval: null })}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <span className={cn('inline-block rounded-full px-2 py-0.5 capitalize', INVOICE_TONE[inv.status] ?? 'bg-gray-100 text-gray-500')}>{inv.status}</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-gray-500">{new Date(inv.dueAt).toLocaleDateString()}</td>
+                      {canManage && (
+                        <td className="px-3 py-1.5 text-right">
+                          {inv.status === 'issued' && (
+                            <span className="inline-flex items-center gap-2">
+                              {inv.paymentLinkUrl ? (
+                                <>
+                                  <a href={inv.paymentLinkUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">Pay link ↗</a>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setErr(null); syncPay.mutate(inv.id, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                                    disabled={syncPay.isPending}
+                                    className="font-medium text-gray-500 hover:underline disabled:opacity-50"
+                                  >Sync</button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => { setErr(null); createLink.mutate(inv.id, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                                  disabled={createLink.isPending}
+                                  className="font-medium text-blue-600 hover:underline disabled:opacity-50"
+                                >Get pay link</button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => { setErr(null); setInvoiceStatus.mutate({ invoiceId: inv.id, status: 'paid' }, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                                disabled={setInvoiceStatus.isPending}
+                                className="font-medium text-lg-green hover:underline disabled:opacity-50"
+                              >Mark paid</button>
+                              <button
+                                type="button"
+                                onClick={() => { setErr(null); setInvoiceStatus.mutate({ invoiceId: inv.id, status: 'void' }, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                                disabled={setInvoiceStatus.isPending}
+                                className="font-medium text-gray-400 hover:text-red-600 hover:underline disabled:opacity-50"
+                              >Void</button>
+                            </span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Selected-tier summary: ties price ↔ features so the operator sees what applying this plan costs + grants. */}
+      {canManage && selectedBundle && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-lg-green/5 px-3 py-2 text-sm">
+          <span className="font-semibold text-gray-900">{selectedBundle.name}</span>
+          <span className="rounded-full bg-lg-green/10 px-2 py-0.5 text-xs font-semibold text-lg-green">{priceLabel(selectedBundle)}</span>
+          <span className="text-gray-500">· {selectedBundle.items.length} feature{selectedBundle.items.length === 1 ? '' : 's'}</span>
+          {selectedBundle.verticalKey && <span className="text-gray-400">· {selectedBundle.verticalKey}</span>}
+          <span className="text-xs text-gray-400">— applying licenses these features and sets the brand's tier price.</span>
+        </div>
+      )}
 
       {err && <p className="text-sm text-red-600">{err}</p>}
 

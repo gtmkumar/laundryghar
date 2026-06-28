@@ -1,6 +1,7 @@
 using core.Application.Common.Interfaces;
 using core.Infrastructure.Auth;
 using core.Infrastructure.Email;
+using core.Infrastructure.Gateway;
 using core.Infrastructure.Persistence;
 using core.Infrastructure.Services;
 using laundryghar.SharedDataModel.Contracts;
@@ -31,6 +32,10 @@ public static class DependencyInjection
         // E6: refresh-token root insert (raw SQL for the self-referential family_id FK).
         // Injects the concrete LaundryGharDbContext for Database.ExecuteSqlAsync.
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
+        // Razorpay Payment Links — collect brand platform-tier invoices (reads Razorpay:KeyId/KeySecret).
+        services.AddHttpClient("razorpay-core", c => c.BaseAddress = new Uri("https://api.razorpay.com/"));
+        services.AddScoped<IRazorpayLinkClient, RazorpayLinkClient>();
 
         return services;
     }

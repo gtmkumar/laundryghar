@@ -32,6 +32,16 @@ echo "▶ clearing stale listeners"; free_ports; sleep 1
 export ConnectionStrings__Default="Host=localhost;Port=5432;Database=laundry_ghar_db;Username=app_user;Password=app_user"
 export ConnectionStrings__Admin="Host=localhost;Port=5432;Database=laundry_ghar_db;Username=postgres;Password=postgres"
 
+# Razorpay keys for tier-invoice collection — loaded from the gitignored Keys/ CSV if present
+# (never committed). CSV: header "key_id,key_secret" then one data row.
+RZP_CSV="$REPO/Keys/rzp-test-key.csv"
+if [ -f "$RZP_CSV" ]; then
+  RZP_LINE="$(tail -n +2 "$RZP_CSV" | head -1 | tr -d '\r')"
+  export Razorpay__KeyId="${RZP_LINE%%,*}"
+  export Razorpay__KeySecret="${RZP_LINE##*,}"
+  echo "▶ Razorpay keys loaded from Keys/rzp-test-key.csv (${Razorpay__KeyId})"
+fi
+
 echo "▶ backend hosts (CORE 5056 / OPERATIONS 5015 / COMMERCE 5242)"
 ( cd "$BE" && ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5056 \
     nohup dotnet run --project core.WebApi/core.WebApi.csproj --no-launch-profile >/tmp/core_host.log 2>&1 & )

@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright E2E screenshots (regenerated)
+e2e/screenshots/
