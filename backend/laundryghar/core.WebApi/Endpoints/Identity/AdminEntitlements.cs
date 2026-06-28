@@ -27,6 +27,7 @@ public class AdminEntitlements : IEndpointGroup
         group.MapGet(GetPlatformSubscription, "brands/{brandId:guid}/platform-subscription").RequireAuthorization("permission:saas.read");
         group.MapPost(SetBrandModule, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.manage");
         group.MapPost(ApplyBundle, "brands/{brandId:guid}/apply-bundle").RequireAuthorization("permission:saas.manage");
+        group.MapPost(SetInvoiceStatus, "brand-platform-invoices/{invoiceId:guid}/status").RequireAuthorization("permission:saas.manage");
     }
 
     public static async Task<IResult> GetBundles(IDispatcher dispatcher, CancellationToken ct)
@@ -68,5 +69,12 @@ public class AdminEntitlements : IEndpointGroup
     {
         await dispatcher.SendAsync(new ApplyBundleToBrandCommand(brandId, req, user.UserId), ct);
         return Results.Ok(new Response { Status = true });
+    }
+
+    public static async Task<IResult> SetInvoiceStatus(Guid invoiceId, SetInvoiceStatusRequest req,
+        ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new SetBrandPlatformInvoiceStatusCommand(invoiceId, req, user.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
     }
 }

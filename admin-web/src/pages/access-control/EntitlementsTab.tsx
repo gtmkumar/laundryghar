@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Loader2, Check, Lock, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useBrandEntitlements, useModuleBundles, useBrandPlatformSubscription, useSetBrandModule, useApplyBundle } from '@/hooks/useEntitlements'
+import { useBrandEntitlements, useModuleBundles, useBrandPlatformSubscription, useSetBrandModule, useApplyBundle, useSetBrandPlatformInvoiceStatus } from '@/hooks/useEntitlements'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Field } from '@/components/shared/FormDrawer'
 import type { ModuleBundle } from '@/types/api'
@@ -10,6 +10,12 @@ const sourceLabel: Record<string, string> = {
   core: 'Always on',
   bundle: 'Plan',
   manual: 'Manual',
+}
+
+const INVOICE_TONE: Record<string, string> = {
+  issued: 'bg-blue-50 text-blue-600',
+  paid: 'bg-emerald-50 text-emerald-700',
+  void: 'bg-gray-100 text-gray-400 line-through',
 }
 
 const CURRENCY_SYMBOL: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£' }
@@ -31,6 +37,7 @@ export function EntitlementsTab() {
   const platformSub = useBrandPlatformSubscription()
   const setModule = useSetBrandModule()
   const applyBundle = useApplyBundle()
+  const setInvoiceStatus = useSetBrandPlatformInvoiceStatus()
 
   const [bundleCode, setBundleCode] = useState('')
   const [err, setErr] = useState<string | null>(null)
@@ -114,13 +121,56 @@ export function EntitlementsTab() {
             )}>{platformSub.data.status}</span>
             <span className="text-xs text-gray-400">· renews {new Date(platformSub.data.nextBillingAt).toLocaleDateString()}</span>
           </div>
-          {platformSub.data.invoices[0] && (
-            <p className="mt-1.5 text-xs text-gray-500">
-              Latest invoice: {priceLabel({ price: platformSub.data.invoices[0].amount, currencyCode: platformSub.data.invoices[0].currencyCode, billingInterval: null })}
-              {' '}· <span className="capitalize">{platformSub.data.invoices[0].status}</span>
-              {' '}· due {new Date(platformSub.data.invoices[0].dueAt).toLocaleDateString()}
-              {platformSub.data.invoices.length > 1 && <> · {platformSub.data.invoices.length} invoices total</>}
-            </p>
+          {platformSub.data.invoices.length > 0 && (
+            <div className="mt-3 overflow-hidden rounded-lg border border-gray-100">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/60 text-left text-gray-400">
+                    <th className="px-3 py-1.5 font-medium">Period</th>
+                    <th className="px-3 py-1.5 text-right font-medium">Amount</th>
+                    <th className="px-3 py-1.5 font-medium">Status</th>
+                    <th className="px-3 py-1.5 font-medium">Due</th>
+                    {canManage && <th className="px-3 py-1.5"><span className="sr-only">Actions</span></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {platformSub.data.invoices.map((inv) => (
+                    <tr key={inv.id} className="border-b border-gray-50 last:border-0">
+                      <td className="px-3 py-1.5 text-gray-600">
+                        {new Date(inv.periodStart).toLocaleDateString()} – {new Date(inv.periodEnd).toLocaleDateString()}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-medium tabular-nums text-gray-900">
+                        {priceLabel({ price: inv.amount, currencyCode: inv.currencyCode, billingInterval: null })}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <span className={cn('inline-block rounded-full px-2 py-0.5 capitalize', INVOICE_TONE[inv.status] ?? 'bg-gray-100 text-gray-500')}>{inv.status}</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-gray-500">{new Date(inv.dueAt).toLocaleDateString()}</td>
+                      {canManage && (
+                        <td className="px-3 py-1.5 text-right">
+                          {inv.status === 'issued' && (
+                            <span className="inline-flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { setErr(null); setInvoiceStatus.mutate({ invoiceId: inv.id, status: 'paid' }, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                                disabled={setInvoiceStatus.isPending}
+                                className="font-medium text-lg-green hover:underline disabled:opacity-50"
+                              >Mark paid</button>
+                              <button
+                                type="button"
+                                onClick={() => { setErr(null); setInvoiceStatus.mutate({ invoiceId: inv.id, status: 'void' }, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                                disabled={setInvoiceStatus.isPending}
+                                className="font-medium text-gray-400 hover:text-red-600 hover:underline disabled:opacity-50"
+                              >Void</button>
+                            </span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

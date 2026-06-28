@@ -38,3 +38,8 @@ export async function setBrandModule(
 export async function applyBundleToBrand(brandId: string, bundleCode: string): Promise<void> {
   await identityClient.post(`${BASE}/brands/${brandId}/apply-bundle`, { bundleCode })
 }
+
+/** Mark a brand-platform invoice 'paid' or 'void' (records a manual/offline payment, or cancels it). */
+export async function setBrandPlatformInvoiceStatus(invoiceId: string, status: 'paid' | 'void'): Promise<void> {
+  await identityClient.post(`${BASE}/brand-platform-invoices/${invoiceId}/status`, { status })
+}

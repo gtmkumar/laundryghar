@@ -29,6 +29,9 @@ public sealed record SetBrandModuleRequest(string ModuleKey, bool Enabled, DateO
 /// <summary>Apply a plan bundle to a brand: replace its 'bundle' rows with the bundle's items.</summary>
 public sealed record ApplyBundleRequest(string BundleCode);
 
+/// <summary>Mark a brand-platform invoice 'paid' or 'void'.</summary>
+public sealed record SetInvoiceStatusRequest(string Status);
+
 // ── Brand platform subscription (the brand's own platform tier + its invoices) ──
 public sealed record BrandPlatformInvoiceDto(
     Guid Id, DateTimeOffset PeriodStart, DateTimeOffset PeriodEnd,

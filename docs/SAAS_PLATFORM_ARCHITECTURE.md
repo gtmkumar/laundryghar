@@ -325,8 +325,10 @@ Ordered by leverage. The architecture is present; these are the "last-mile" item
 4. **Franchise subscription billing job** (analogue of `SubscriptionBillingService`) — invoices + charges
    for `finance_royalty.franchise_subscriptions` are entity-only today.
 5. **Operator UIs:** ✅ **platform MRR view DONE** (`/platform-billing` — MRR, ARR, active tenants,
-   revenue-by-tier, invoices-by-status; `GET /admin/entitlements/platform-billing`). Remaining:
-   per-invoice management/retry, usage/quota dashboard, churn analytics, payment-gateway settings.
+   revenue-by-tier, invoices-by-status). ✅ **per-invoice mark-paid/void DONE** (Licensing tab invoice list
+   + `POST /admin/entitlements/brand-platform-invoices/{id}/status`, saas.manage) — records manual/offline
+   payments so collected/outstanding move live. Remaining: usage/quota dashboard, churn analytics,
+   payment-gateway settings.
 6. **Overage & proration** — plans carry overage rates and mid-cycle starts but neither is charged.
 7. **Suspension enforcement in the order path** — a `suspended` subscription does not yet block service.
 
