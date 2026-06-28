@@ -221,9 +221,11 @@ builder.Services.AddScoped<IChannelSender, RoutingChannelSender>();
 // ── Worker: event publisher (dev stub) ─────────────────────────────────────────
 builder.Services.AddScoped<IEventPublisher, LoggingEventPublisher>();
 
-// ── Worker: subscription charger (fail-closed seam; dev stub in Development) ────
+// ── Worker: subscription charger (dev stub in Development; real gateway otherwise) ────
 if (builder.Environment.IsDevelopment())
     builder.Services.AddSingleton<ISubscriptionCharger, DevSubscriptionCharger>();
+else
+    builder.Services.AddSingleton<ISubscriptionCharger, GatewaySubscriptionCharger>();
 
 // ── Worker: background hosted services — gated on a configured DB connection ────
 // CRITICAL no-DB gate: each hosted worker opens a DbContext per tick. With no

@@ -3,6 +3,7 @@ import {
   getBrandEntitlements,
   getModuleBundles,
   getBrandPlatformSubscription,
+  cancelBrandPlatformSubscription,
   getPlatformBillingSummary,
   setBrandModule,
   applyBundleToBrand,
@@ -45,6 +46,18 @@ export function useSetBrandPlatformInvoiceStatus() {
       setBrandPlatformInvoiceStatus(v.invoiceId, v.status),
     onSuccess: () => {
       // The invoice list (per-brand card) + the platform-wide MRR collected/outstanding both change.
+      qc.invalidateQueries({ queryKey: ['entitlements', 'platform-subscription', brandId] })
+      qc.invalidateQueries({ queryKey: ['entitlements', 'platform-billing'] })
+    },
+  })
+}
+
+export function useCancelBrandPlatformSubscription() {
+  const qc = useQueryClient()
+  const brandId = useEffectiveBrandId()
+  return useMutation({
+    mutationFn: () => cancelBrandPlatformSubscription(brandId!),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['entitlements', 'platform-subscription', brandId] })
       qc.invalidateQueries({ queryKey: ['entitlements', 'platform-billing'] })
     },

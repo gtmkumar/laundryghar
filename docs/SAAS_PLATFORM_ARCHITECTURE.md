@@ -310,9 +310,12 @@ Ordered by leverage. The architecture is present; these are the "last-mile" item
    `POST /admin/entitlements/brand-platform-invoices/{id}/{payment-link,sync-payment}`; the Licensing
    tab shows **Pay link ↗ / Sync**). Keys via `Razorpay:KeyId/KeySecret` (env; loaded from the gitignored
    `Keys/` CSV by `run-stack.sh`). Verified live against Razorpay **test** mode (real `rzp.io` links).
-   *Remaining:* the CUSTOMER-subscription mandate charger (`ISubscriptionCharger`) is still
-   `DevSubscriptionCharger`; and brand-invoice auto-reconcile currently uses **pull (sync)** — a push
-   webhook (`payment_link.paid`) would mark invoices paid automatically.
+   ✅ **Push auto-reconcile**: core webhook `POST /api/v1/webhooks/razorpay-paylink` handles
+   `payment_link.paid` (HMAC-verified, RLS-bypassed) → marks the invoice paid (in addition to the pull Sync).
+   ✅ **Customer-subscription charging**: `GatewaySubscriptionCharger` (over `IPaymentGateway.ChargeMandateAsync`)
+   registered for non-Development; the dev stub stays in Development.
+   *Remaining (prod-config only):* register the two webhook URLs + `Razorpay:WebhookSecret` in the Razorpay
+   dashboard, and the customer mandate-authorization flow before mandates can be charged.
 2. **✅ DONE — Plan ↔ Bundle link + brand-platform billing** (§5). `module_bundle` now carries the
    brand-tier price (`phase4_bundle_pricing.sql`); applying a bundle sets price + features in one action.
    And there is now a **brand-level platform subscription**: `identity_access.brand_platform_subscription`
@@ -332,7 +335,8 @@ Ordered by leverage. The architecture is present; these are the "last-mile" item
 5. **Operator UIs:** ✅ **platform MRR view DONE** (`/platform-billing` — MRR, ARR, active tenants,
    revenue-by-tier, invoices-by-status). ✅ **per-invoice mark-paid/void DONE** (Licensing tab invoice list
    + `POST /admin/entitlements/brand-platform-invoices/{id}/status`, saas.manage) — records manual/offline
-   payments so collected/outstanding move live. Remaining: usage/quota dashboard, churn analytics,
+   payments so collected/outstanding move live. ✅ **cancel subscription + churn signal** (Licensing tab
+   "Cancel subscription"; the MRR view shows cancelled-tenant count). Remaining: usage/quota dashboard,
    payment-gateway settings.
 6. **Overage & proration** — plans carry overage rates and mid-cycle starts but neither is charged.
 7. **Suspension enforcement in the order path** — a `suspended` subscription does not yet block service.

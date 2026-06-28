@@ -21,6 +21,11 @@ export async function getBrandPlatformSubscription(brandId: string): Promise<Bra
   return unwrap(data)
 }
 
+/** Cancel the brand's platform subscription (stops renewals; drops it from MRR). */
+export async function cancelBrandPlatformSubscription(brandId: string): Promise<void> {
+  await identityClient.post(`${BASE}/brands/${brandId}/platform-subscription/cancel`)
+}
+
 export async function getModuleBundles(): Promise<ModuleBundle[]> {
   const { data } = await identityClient.get<ApiResponse<ModuleBundle[]>>(`${BASE}/bundles`)
   return unwrap(data)

@@ -25,6 +25,7 @@ public class AdminEntitlements : IEndpointGroup
         group.MapGet(GetPlatformBilling, "platform-billing").RequireAuthorization("permission:saas.read");
         group.MapGet(GetBrandModules, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.read");
         group.MapGet(GetPlatformSubscription, "brands/{brandId:guid}/platform-subscription").RequireAuthorization("permission:saas.read");
+        group.MapPost(CancelPlatformSubscription, "brands/{brandId:guid}/platform-subscription/cancel").RequireAuthorization("permission:saas.manage");
         group.MapPost(SetBrandModule, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.manage");
         group.MapPost(ApplyBundle, "brands/{brandId:guid}/apply-bundle").RequireAuthorization("permission:saas.manage");
         group.MapPost(SetInvoiceStatus, "brand-platform-invoices/{invoiceId:guid}/status").RequireAuthorization("permission:saas.manage");
@@ -77,6 +78,12 @@ public class AdminEntitlements : IEndpointGroup
         ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
     {
         var ok = await dispatcher.SendAsync(new SetBrandPlatformInvoiceStatusCommand(invoiceId, req, user.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> CancelPlatformSubscription(Guid brandId, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new CancelBrandPlatformSubscriptionCommand(brandId, user.UserId), ct);
         return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
     }
 

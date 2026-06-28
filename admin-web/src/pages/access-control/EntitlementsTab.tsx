@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Loader2, Check, Lock, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useBrandEntitlements, useModuleBundles, useBrandPlatformSubscription, useSetBrandModule, useApplyBundle, useSetBrandPlatformInvoiceStatus, useCreateInvoicePaymentLink, useSyncInvoicePayment } from '@/hooks/useEntitlements'
+import { useBrandEntitlements, useModuleBundles, useBrandPlatformSubscription, useSetBrandModule, useApplyBundle, useSetBrandPlatformInvoiceStatus, useCreateInvoicePaymentLink, useSyncInvoicePayment, useCancelBrandPlatformSubscription } from '@/hooks/useEntitlements'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Field } from '@/components/shared/FormDrawer'
 import type { ModuleBundle } from '@/types/api'
@@ -40,6 +40,7 @@ export function EntitlementsTab() {
   const setInvoiceStatus = useSetBrandPlatformInvoiceStatus()
   const createLink = useCreateInvoicePaymentLink()
   const syncPay = useSyncInvoicePayment()
+  const cancelSub = useCancelBrandPlatformSubscription()
 
   const [bundleCode, setBundleCode] = useState('')
   const [err, setErr] = useState<string | null>(null)
@@ -122,6 +123,14 @@ export function EntitlementsTab() {
               platformSub.data.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500',
             )}>{platformSub.data.status}</span>
             <span className="text-xs text-gray-400">· renews {new Date(platformSub.data.nextBillingAt).toLocaleDateString()}</span>
+            {canManage && platformSub.data.status === 'active' && (
+              <button
+                type="button"
+                onClick={() => { setErr(null); cancelSub.mutate(undefined, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                disabled={cancelSub.isPending}
+                className="ml-auto text-xs font-medium text-gray-400 hover:text-red-600 hover:underline disabled:opacity-50"
+              >Cancel subscription</button>
+            )}
           </div>
           {platformSub.data.invoices.length > 0 && (
             <div className="mt-3 overflow-hidden rounded-lg border border-gray-100">

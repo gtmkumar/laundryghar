@@ -2324,6 +2324,7 @@ export interface PlatformBillingSummary {
   monthlyMrr: number
   annualRunRate: number
   activeTenants: number
+  cancelledTenants: number
   outstandingAmount: number
   collectedAmount: number
   byTier: TierMrr[]

@@ -41,6 +41,8 @@ public class GetPlatformBillingSummaryQueryHandler
 
         var monthlyMrr = Math.Round(byTier.Sum(t => t.MonthlyMrr), 2);
         var currency = subs.Count > 0 ? subs[0].CurrencyCode : "INR";
+        var cancelledTenants = await _db.BrandPlatformSubscriptions.AsNoTracking()
+            .CountAsync(s => s.Status == "cancelled", ct);
 
         var invoicesByStatus = await _db.BrandPlatformInvoices.AsNoTracking()
             .GroupBy(i => i.Status)
@@ -54,6 +56,7 @@ public class GetPlatformBillingSummaryQueryHandler
             MonthlyMrr: monthlyMrr,
             AnnualRunRate: Math.Round(monthlyMrr * 12m, 2),
             ActiveTenants: subs.Count,
+            CancelledTenants: cancelledTenants,
             OutstandingAmount: Sum("issued"),
             CollectedAmount: Sum("paid"),
             ByTier: byTier,

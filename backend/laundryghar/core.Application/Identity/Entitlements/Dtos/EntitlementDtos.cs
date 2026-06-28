@@ -58,6 +58,7 @@ public sealed record PlatformBillingSummaryDto(
     decimal MonthlyMrr,
     decimal AnnualRunRate,
     int ActiveTenants,
+    int CancelledTenants,           // churned subscriptions (status = cancelled)
     decimal OutstandingAmount,      // sum of issued (not-yet-paid) invoices
     decimal CollectedAmount,        // sum of paid invoices
     IReadOnlyList<TierMrrDto> ByTier,

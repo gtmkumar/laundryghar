@@ -54,7 +54,7 @@ export function PlatformBillingPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Monthly recurring revenue" value={cur(data.monthlyMrr)} sub="MRR across active tenants" icon={Coins} color="text-lg-green" />
             <StatCard label="Annual run-rate" value={cur(data.annualRunRate)} sub="MRR × 12" icon={TrendingUp} color="text-sky-500" />
-            <StatCard label="Active tenants" value={data.activeTenants.toLocaleString('en-IN')} sub="brands on a paid tier" icon={Building2} color="text-violet-500" />
+            <StatCard label="Active tenants" value={data.activeTenants.toLocaleString('en-IN')} sub={data.cancelledTenants > 0 ? `${data.cancelledTenants} cancelled (churn)` : 'brands on a paid tier'} icon={Building2} color="text-violet-500" />
             <StatCard label="Outstanding" value={cur(data.outstandingAmount)} sub={`${cur(data.collectedAmount)} collected`} icon={Receipt} color="text-amber-500" />
           </div>
 
