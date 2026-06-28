@@ -98,10 +98,34 @@ public class ApplyBundleToBrandCommandHandler : ICommandHandler<ApplyBundleToBra
             }
             else
             {
-                // Tier change: refresh the plan + price snapshot; keep the running period (proration TBD).
+                // Tier change: refresh the plan + price snapshot, keeping the running period.
+                var oldPrice = sub.Price;
+                var oldBundle = sub.BundleCode;
                 sub.BundleCode = bundle.Code; sub.PlanName = bundle.Name;
                 sub.Price = price; sub.BillingInterval = interval; sub.CurrencyCode = currency;
                 sub.Status = "active"; sub.UpdatedAt = now; sub.UpdatedBy = cmd.ActorId;
+
+                // Proration on a mid-cycle UPGRADE to a different tier: charge the price difference for
+                // the days remaining in the already-invoiced period. A downgrade keeps the lower price
+                // and simply takes effect at the next renewal (no immediate credit).
+                if (!string.Equals(oldBundle, bundle.Code, StringComparison.OrdinalIgnoreCase) && price > oldPrice)
+                {
+                    var periodSeconds = (sub.CurrentPeriodEnd - sub.CurrentPeriodStart).TotalSeconds;
+                    var remainingSeconds = (sub.CurrentPeriodEnd - now).TotalSeconds;
+                    if (periodSeconds > 0 && remainingSeconds > 0)
+                    {
+                        var fraction = (decimal)(remainingSeconds / periodSeconds);
+                        var proration = Math.Round((price - oldPrice) * fraction, 2);
+                        if (proration > 0)
+                            _db.BrandPlatformInvoices.Add(new BrandPlatformInvoice
+                            {
+                                Id = Guid.NewGuid(), SubscriptionId = sub.Id, BrandId = cmd.BrandId,
+                                BillingPeriodStart = now, BillingPeriodEnd = sub.CurrentPeriodEnd,
+                                Amount = proration, CurrencyCode = currency, Status = "issued",
+                                IssuedAt = now, DueAt = now.AddDays(7), CreatedAt = now,
+                            });
+                    }
+                }
             }
 
             var hasInvoice = await _db.BrandPlatformInvoices

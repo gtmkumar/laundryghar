@@ -313,9 +313,10 @@ Ordered by leverage. The architecture is present; these are the "last-mile" item
    And there is now a **brand-level platform subscription**: `identity_access.brand_platform_subscription`
    + `brand_platform_invoice` (`phase4_brand_platform_subscription.sql`). `ApplyBundleToBrand` snapshots
    the tier price → upserts the subscription → issues the first invoice (one core transaction); the
-   `BrandPlatformBillingService` worker (opt-in `Worker:BrandPlatformBillingEnabled`) issues renewals. The
-   Licensing tab shows the current tier + latest invoice. **Remaining:** actually *charge* it (P0 #1) +
-   proration on mid-cycle tier change.
+   `BrandPlatformBillingService` worker (opt-in `Worker:BrandPlatformBillingEnabled`) issues renewals. A
+   mid-cycle **upgrade** issues a prorated invoice for the price difference over the remaining period (a
+   downgrade keeps the lower price and applies at next renewal). The Licensing tab shows the current tier +
+   latest invoice. **Remaining:** actually *charge* the invoices (P0 #1).
 3. **✅ ALREADY DONE — Live entitlement revocation.** Both `ApplyBundleToBrand` *and* `SetBrandModule`
    already bump `PermVersion` (`BumpBrandMembersAsync`); with `Auth:EnforceTokenVersion` on, the change is
    live (stale tokens rejected). The earlier audit claim that neither bumps was incorrect.
