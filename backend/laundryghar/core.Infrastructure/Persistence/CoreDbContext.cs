@@ -50,6 +50,8 @@ public sealed class CoreDbContext : ICoreDbContext
     public DbSet<BrandModule> BrandModules => _db.BrandModules;
     public DbSet<ModuleBundle> ModuleBundles => _db.ModuleBundles;
     public DbSet<ModuleBundleItem> ModuleBundleItems => _db.ModuleBundleItems;
+    public DbSet<BrandPlatformSubscription> BrandPlatformSubscriptions => _db.BrandPlatformSubscriptions;
+    public DbSet<BrandPlatformInvoice> BrandPlatformInvoices => _db.BrandPlatformInvoices;
 
     public DbSet<RefreshToken> RefreshTokens => _db.RefreshTokens;
     public DbSet<LoginHistory> LoginHistories => _db.LoginHistories;

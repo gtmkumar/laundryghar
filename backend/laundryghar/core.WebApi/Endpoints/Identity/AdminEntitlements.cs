@@ -23,6 +23,7 @@ public class AdminEntitlements : IEndpointGroup
 
         group.MapGet(GetBundles, "bundles").RequireAuthorization("permission:saas.read");
         group.MapGet(GetBrandModules, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.read");
+        group.MapGet(GetPlatformSubscription, "brands/{brandId:guid}/platform-subscription").RequireAuthorization("permission:saas.read");
         group.MapPost(SetBrandModule, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.manage");
         group.MapPost(ApplyBundle, "brands/{brandId:guid}/apply-bundle").RequireAuthorization("permission:saas.manage");
     }
@@ -39,6 +40,13 @@ public class AdminEntitlements : IEndpointGroup
         return data is null
             ? Results.NotFound()
             : Results.Ok(new SingleResponse<BrandEntitlementsDto> { Status = true, Data = data });
+    }
+
+    public static async Task<IResult> GetPlatformSubscription(Guid brandId, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var data = await dispatcher.QueryAsync(new GetBrandPlatformSubscriptionQuery(brandId), ct);
+        // 200 with null data = brand is not on a priced tier yet (UI shows "no plan").
+        return Results.Ok(new SingleResponse<BrandPlatformSubscriptionDto?> { Status = true, Data = data });
     }
 
     public static async Task<IResult> SetBrandModule(Guid brandId, SetBrandModuleRequest req,

@@ -76,10 +76,61 @@ public class ApplyBundleToBrandCommandHandler : ICommandHandler<ApplyBundleToBra
             }
         }
 
+        // Record the brand's platform subscription from this priced tier and issue the first
+        // invoice for the current period. Unpriced/custom bundles create no billable subscription.
+        if (bundle.Price is decimal price)
+        {
+            var interval = bundle.BillingInterval ?? "monthly";
+            var currency = bundle.CurrencyCode ?? "INR";
+            var sub = await _db.BrandPlatformSubscriptions.FirstOrDefaultAsync(s => s.BrandId == cmd.BrandId, ct);
+            if (sub is null)
+            {
+                sub = new BrandPlatformSubscription
+                {
+                    Id = Guid.NewGuid(), BrandId = cmd.BrandId,
+                    BundleCode = bundle.Code, PlanName = bundle.Name,
+                    Price = price, BillingInterval = interval, CurrencyCode = currency, Status = "active",
+                    CurrentPeriodStart = now, CurrentPeriodEnd = AddInterval(now, interval),
+                    NextBillingAt = AddInterval(now, interval), AutoRenew = true,
+                    CreatedAt = now, UpdatedAt = now, CreatedBy = cmd.ActorId, UpdatedBy = cmd.ActorId,
+                };
+                _db.BrandPlatformSubscriptions.Add(sub);
+            }
+            else
+            {
+                // Tier change: refresh the plan + price snapshot; keep the running period (proration TBD).
+                sub.BundleCode = bundle.Code; sub.PlanName = bundle.Name;
+                sub.Price = price; sub.BillingInterval = interval; sub.CurrencyCode = currency;
+                sub.Status = "active"; sub.UpdatedAt = now; sub.UpdatedBy = cmd.ActorId;
+            }
+
+            var hasInvoice = await _db.BrandPlatformInvoices
+                .AnyAsync(i => i.SubscriptionId == sub.Id && i.BillingPeriodStart == sub.CurrentPeriodStart, ct);
+            if (!hasInvoice)
+            {
+                _db.BrandPlatformInvoices.Add(new BrandPlatformInvoice
+                {
+                    Id = Guid.NewGuid(), SubscriptionId = sub.Id, BrandId = cmd.BrandId,
+                    BillingPeriodStart = sub.CurrentPeriodStart, BillingPeriodEnd = sub.CurrentPeriodEnd,
+                    Amount = sub.Price, CurrencyCode = sub.CurrencyCode, Status = "issued",
+                    IssuedAt = now, DueAt = now.AddDays(7), CreatedAt = now,
+                });
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
 
         // Invalidate brand-scoped members' tokens so the plan change applies live.
         await Common.PermVersionBumper.BumpBrandMembersAsync(_db, cmd.BrandId, ct);
         return true;
     }
+
+    /// <summary>Advance a timestamp by one billing interval.</summary>
+    internal static DateTimeOffset AddInterval(DateTimeOffset from, string interval) => interval switch
+    {
+        "quarterly"   => from.AddMonths(3),
+        "half_yearly" => from.AddMonths(6),
+        "yearly"      => from.AddMonths(12),
+        _             => from.AddMonths(1), // monthly (default)
+    };
 }

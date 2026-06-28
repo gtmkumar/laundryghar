@@ -47,6 +47,8 @@ public interface ICoreDbContext
     DbSet<BrandModule> BrandModules { get; }
     DbSet<ModuleBundle> ModuleBundles { get; }
     DbSet<ModuleBundleItem> ModuleBundleItems { get; }
+    DbSet<BrandPlatformSubscription> BrandPlatformSubscriptions { get; }
+    DbSet<BrandPlatformInvoice> BrandPlatformInvoices { get; }
 
     // ─── Identity access (system auth: login / OTP / refresh / password reset) ─
     DbSet<RefreshToken> RefreshTokens { get; }

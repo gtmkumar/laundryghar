@@ -14,6 +14,10 @@ public sealed class ModuleBundleConfiguration : IEntityTypeConfiguration<ModuleB
         b.Property(e => e.Name).HasColumnName("name").IsRequired();
         b.Property(e => e.Description).HasColumnName("description");
         b.Property(e => e.VerticalKey).HasColumnName("vertical_key").HasMaxLength(20);
+        b.Property(e => e.Price).HasColumnName("price").HasColumnType("numeric(14,2)");
+        b.Property(e => e.BillingInterval).HasColumnName("billing_interval").HasMaxLength(20);
+        b.Property(e => e.CurrencyCode).HasColumnName("currency_code").HasColumnType("character(3)");
+        b.Property(e => e.IsPublic).HasColumnName("is_public").HasDefaultValue(true);
         b.HasMany(e => e.Items).WithOne().HasForeignKey(i => i.BundleCode);
     }
 }

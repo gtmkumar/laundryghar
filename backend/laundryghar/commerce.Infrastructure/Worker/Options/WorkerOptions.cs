@@ -132,6 +132,16 @@ public sealed class WorkerOptions
     /// </summary>
     public int SubscriptionDunningBackoffMinutes { get; set; } = 1440;
 
+    // ── Brand platform billing (the tenant's own platform tier) ────────────────────
+
+    /// <summary>Master switch for the brand platform-subscription renewal billing job.
+    /// Default <c>false</c>; set <c>Worker:BrandPlatformBillingEnabled=true</c> to enable.
+    /// (The first invoice is issued synchronously by ApplyBundleToBrand regardless of this flag.)</summary>
+    public bool BrandPlatformBillingEnabled { get; set; } = false;
+
+    /// <summary>Poll interval (seconds) for the brand platform billing job. Default 86400 (daily).</summary>
+    public int BrandPlatformBillingPollIntervalSeconds { get; set; } = 86400;
+
     // ── Auto-Dispatch ──────────────────────────────────────────────────────────────
 
     /// <summary>

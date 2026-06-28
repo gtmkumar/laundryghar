@@ -1,10 +1,17 @@
 import { identityClient, unwrap } from './client'
-import type { ApiResponse, BrandEntitlements, ModuleBundle } from '@/types/api'
+import type { ApiResponse, BrandEntitlements, ModuleBundle, BrandPlatformSubscription } from '@/types/api'
 
 const BASE = '/api/v1/admin/entitlements'
 
 export async function getBrandEntitlements(brandId: string): Promise<BrandEntitlements> {
   const { data } = await identityClient.get<ApiResponse<BrandEntitlements>>(`${BASE}/brands/${brandId}/modules`)
+  return unwrap(data)
+}
+
+/** The brand's current platform tier subscription + invoices, or null if not on a priced tier. */
+export async function getBrandPlatformSubscription(brandId: string): Promise<BrandPlatformSubscription | null> {
+  const { data } = await identityClient.get<ApiResponse<BrandPlatformSubscription | null>>(
+    `${BASE}/brands/${brandId}/platform-subscription`)
   return unwrap(data)
 }
 

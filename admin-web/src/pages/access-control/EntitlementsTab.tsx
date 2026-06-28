@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Loader2, Check, Lock, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useBrandEntitlements, useModuleBundles, useSetBrandModule, useApplyBundle } from '@/hooks/useEntitlements'
+import { useBrandEntitlements, useModuleBundles, useBrandPlatformSubscription, useSetBrandModule, useApplyBundle } from '@/hooks/useEntitlements'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Field } from '@/components/shared/FormDrawer'
+import type { ModuleBundle } from '@/types/api'
 
 const sourceLabel: Record<string, string> = {
   core: 'Always on',
@@ -11,11 +12,23 @@ const sourceLabel: Record<string, string> = {
   manual: 'Manual',
 }
 
+const CURRENCY_SYMBOL: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£' }
+const INTERVAL_ABBR: Record<string, string> = { monthly: 'mo', quarterly: 'qtr', half_yearly: '6mo', yearly: 'yr' }
+
+/** "₹2,999/mo" for a priced tier, "Custom" when unpriced. */
+function priceLabel(b: Pick<ModuleBundle, 'price' | 'currencyCode' | 'billingInterval'>): string {
+  if (b.price == null) return 'Custom'
+  const sym = CURRENCY_SYMBOL[b.currencyCode ?? 'INR'] ?? `${b.currencyCode ?? ''} `
+  const per = b.billingInterval ? `/${INTERVAL_ABBR[b.billingInterval] ?? b.billingInterval}` : ''
+  return `${sym}${b.price.toLocaleString()}${per}`
+}
+
 export function EntitlementsTab() {
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('saas.manage')
   const ent = useBrandEntitlements()
   const bundles = useModuleBundles()
+  const platformSub = useBrandPlatformSubscription()
   const setModule = useSetBrandModule()
   const applyBundle = useApplyBundle()
 
@@ -47,6 +60,8 @@ export function EntitlementsTab() {
     applyBundle.mutate(bundleCode, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') })
   }
 
+  const selectedBundle = bundles.data?.find((b) => b.code === bundleCode)
+
   return (
     <div className="space-y-5">
       {/* Header: plan applier */}
@@ -67,7 +82,7 @@ export function EntitlementsTab() {
               >
                 <option value="">Select a plan…</option>
                 {bundles.data?.map((b) => (
-                  <option key={b.code} value={b.code}>{b.name}</option>
+                  <option key={b.code} value={b.code}>{b.name} — {priceLabel(b)}</option>
                 ))}
               </select>
             </Field>
@@ -83,6 +98,43 @@ export function EntitlementsTab() {
           </div>
         )}
       </div>
+
+      {/* Current platform tier: what this brand pays the platform + its latest invoice. */}
+      {platformSub.data && (
+        <div className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Platform tier</span>
+            <span className="font-semibold text-gray-900">{platformSub.data.planName}</span>
+            <span className="rounded-full bg-lg-green/10 px-2 py-0.5 text-xs font-semibold text-lg-green">
+              {priceLabel({ price: platformSub.data.price, currencyCode: platformSub.data.currencyCode, billingInterval: platformSub.data.billingInterval })}
+            </span>
+            <span className={cn(
+              'rounded-full px-2 py-0.5 text-xs font-medium capitalize',
+              platformSub.data.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500',
+            )}>{platformSub.data.status}</span>
+            <span className="text-xs text-gray-400">· renews {new Date(platformSub.data.nextBillingAt).toLocaleDateString()}</span>
+          </div>
+          {platformSub.data.invoices[0] && (
+            <p className="mt-1.5 text-xs text-gray-500">
+              Latest invoice: {priceLabel({ price: platformSub.data.invoices[0].amount, currencyCode: platformSub.data.invoices[0].currencyCode, billingInterval: null })}
+              {' '}· <span className="capitalize">{platformSub.data.invoices[0].status}</span>
+              {' '}· due {new Date(platformSub.data.invoices[0].dueAt).toLocaleDateString()}
+              {platformSub.data.invoices.length > 1 && <> · {platformSub.data.invoices.length} invoices total</>}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Selected-tier summary: ties price ↔ features so the operator sees what applying this plan costs + grants. */}
+      {canManage && selectedBundle && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-lg-green/5 px-3 py-2 text-sm">
+          <span className="font-semibold text-gray-900">{selectedBundle.name}</span>
+          <span className="rounded-full bg-lg-green/10 px-2 py-0.5 text-xs font-semibold text-lg-green">{priceLabel(selectedBundle)}</span>
+          <span className="text-gray-500">· {selectedBundle.items.length} feature{selectedBundle.items.length === 1 ? '' : 's'}</span>
+          {selectedBundle.verticalKey && <span className="text-gray-400">· {selectedBundle.verticalKey}</span>}
+          <span className="text-xs text-gray-400">— applying licenses these features and sets the brand's tier price.</span>
+        </div>
+      )}
 
       {err && <p className="text-sm text-red-600">{err}</p>}
 

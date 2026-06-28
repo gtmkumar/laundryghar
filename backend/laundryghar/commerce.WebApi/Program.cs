@@ -245,6 +245,7 @@ if (!string.IsNullOrWhiteSpace(connStr))
     builder.Services.AddHostedService<RoyaltyGenerationService>();    // opt-in: Worker:RoyaltyGenerationEnabled=true
     builder.Services.AddHostedService<DailyReconService>();           // opt-in: Worker:DailyReconEnabled=true
     builder.Services.AddHostedService<SubscriptionBillingService>();  // opt-in: Worker:SubscriptionBillingEnabled=true
+    builder.Services.AddHostedService<BrandPlatformBillingService>(); // opt-in: Worker:BrandPlatformBillingEnabled=true
     builder.Services.AddHostedService<LoyaltyEarnService>();          // mandatory
     builder.Services.AddHostedService<PartitionMaintenanceService>(); // on by default (Worker:PartitionMaintenanceEnabled=false to opt out)
 }

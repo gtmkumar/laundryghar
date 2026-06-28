@@ -275,10 +275,17 @@ This is the crux of operating as a commercial SaaS, and it is the **least comple
 **There is no link table between them.** So "subscribe to **Pro** = ₹X **and** unlock the Pro modules" is
 *two manual operations*: set the price on a plan, then separately `apply-bundle` the matching tier.
 
-> **Recommended fix (highest leverage):** add `platform_plan.module_bundle_code` (FK-by-code to
-> `module_bundle`) and have "assign plan to brand/franchise" auto-invoke `ApplyBundleToBrand`. One action
-> then sets **price + quotas + features** atomically — turning the two halves into a single self-driving
-> SaaS plan. Bump `PermVersion` on apply so the change is near-live.
+> **✅ Implemented (2026-06-28) — refined from the original FK idea.** `platform_plan` lives in the
+> **commerce** host (`finance_royalty`) while `brand_module`/`module_bundle` live in **core**
+> (`identity_access`), so a `platform_plan.module_bundle_code` FK would make both *validation* and
+> *apply* cross core↔commerce. And `platform_plans` are **franchise-level** SaaS tiers — the wrong grain
+> for **brand-level** entitlement. So instead the **`module_bundle` itself carries the brand-tier price**
+> (`price`, `billing_interval`, `currency_code`, `is_public` — patch `phase4_bundle_pricing.sql`). Now
+> **one object ties price ↔ features in the same context as entitlement**, and `ApplyBundleToBrand`
+> (which already bumps `PermVersion`) is the single "put brand on tier" action. `platform_plans` remains
+> the separate **franchise** SaaS axis. Pricing surfaces in the Licensing tab (`GetModuleBundles` →
+> `EntitlementsTab`). **Next:** issue a recurring brand-platform invoice from this price (reuse the
+> `SubscriptionBillingService` machinery).
 
 ```mermaid
 flowchart LR
@@ -300,9 +307,18 @@ Ordered by leverage. The architecture is present; these are the "last-mile" item
 ### P0 — blocks taking real money
 1. **Real gateway charging.** `ISubscriptionCharger` is `DevSubscriptionCharger` (simulates success).
    Implement `RazorpaySubscriptionCharger` (mandate auth + auto-debit). Plumbing (mandates, webhook) exists.
-2. **Plan ↔ Bundle link** (§5) — connect price to features in one action.
-3. **Live entitlement revocation** — `SetBrandModule`/`ApplyBundleToBrand` should bump `PermVersion`
-   (today changes take effect only at next login).
+   *(Still open — needs live Razorpay credentials.)*
+2. **✅ DONE — Plan ↔ Bundle link + brand-platform billing** (§5). `module_bundle` now carries the
+   brand-tier price (`phase4_bundle_pricing.sql`); applying a bundle sets price + features in one action.
+   And there is now a **brand-level platform subscription**: `identity_access.brand_platform_subscription`
+   + `brand_platform_invoice` (`phase4_brand_platform_subscription.sql`). `ApplyBundleToBrand` snapshots
+   the tier price → upserts the subscription → issues the first invoice (one core transaction); the
+   `BrandPlatformBillingService` worker (opt-in `Worker:BrandPlatformBillingEnabled`) issues renewals. The
+   Licensing tab shows the current tier + latest invoice. **Remaining:** actually *charge* it (P0 #1) +
+   proration on mid-cycle tier change.
+3. **✅ ALREADY DONE — Live entitlement revocation.** Both `ApplyBundleToBrand` *and* `SetBrandModule`
+   already bump `PermVersion` (`BumpBrandMembersAsync`); with `Auth:EnforceTokenVersion` on, the change is
+   live (stale tokens rejected). The earlier audit claim that neither bumps was incorrect.
 
 ### P1 — operate the business
 4. **Franchise subscription billing job** (analogue of `SubscriptionBillingService`) — invoices + charges

@@ -60,6 +60,8 @@ public class LaundryGharDbContext : DbContext
     public DbSet<BrandModule> BrandModules => Set<BrandModule>();
     public DbSet<ModuleBundle> ModuleBundles => Set<ModuleBundle>();
     public DbSet<ModuleBundleItem> ModuleBundleItems => Set<ModuleBundleItem>();
+    public DbSet<BrandPlatformSubscription> BrandPlatformSubscriptions => Set<BrandPlatformSubscription>();
+    public DbSet<BrandPlatformInvoice> BrandPlatformInvoices => Set<BrandPlatformInvoice>();
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<LoginHistory> LoginHistories => Set<LoginHistory>();
