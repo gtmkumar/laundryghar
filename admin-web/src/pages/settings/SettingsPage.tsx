@@ -1,20 +1,24 @@
 import { useState } from 'react'
-import { Mail, UserCog, Loader2, Map as MapIcon, Coins, CreditCard, MessageCircle, Smartphone, Gauge, Radio } from 'lucide-react'
+import { Mail, UserCog, Loader2, Map as MapIcon, Coins, CreditCard, MessageCircle, Smartphone, Gauge, Radio, Banknote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettings } from '@/hooks/useSettings'
+import { usePermissions } from '@/hooks/usePermissions'
 import { EmailPanel } from './EmailPanel'
 import { ProvisioningPanel } from './ProvisioningPanel'
 import { MapsPanel } from './MapsPanel'
 import { PayoutPanel } from './PayoutPanel'
 import { PaymentsPanel } from './PaymentsPanel'
+import { PlatformPaymentsPanel } from './PlatformPaymentsPanel'
 import { WhatsAppPanel } from './WhatsAppPanel'
 import { SmsPanel } from './SmsPanel'
 import { FarePanel } from './FarePanel'
 import { DispatchPanel } from './DispatchPanel'
 
-type Key = 'email' | 'maps' | 'payout' | 'provisioning' | 'payments' | 'whatsapp' | 'sms' | 'fare' | 'dispatch'
+type Key = 'email' | 'maps' | 'payout' | 'provisioning' | 'payments' | 'platform-payments' | 'whatsapp' | 'sms' | 'fare' | 'dispatch'
 
-const NAV: { section: string; items: { key: Key; label: string; icon: React.ElementType }[] }[] = [
+type NavItem = { key: Key; label: string; icon: React.ElementType; platformOnly?: boolean }
+
+const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Integrations',
     items: [
@@ -33,12 +37,26 @@ const NAV: { section: string; items: { key: Key; label: string; icon: React.Elem
     ],
   },
   { section: 'Operations', items: [{ key: 'payout', label: 'Rider payouts', icon: Coins }] },
-  { section: 'Platform', items: [{ key: 'provisioning', label: 'User Provisioning', icon: UserCog }] },
+  {
+    section: 'Platform',
+    items: [
+      { key: 'provisioning', label: 'User Provisioning', icon: UserCog },
+      // Platform-scoped Razorpay account for SaaS tier billing — operator only.
+      { key: 'platform-payments', label: 'Platform billing', icon: Banknote, platformOnly: true },
+    ],
+  },
 ]
 
 export function SettingsPage() {
   const [active, setActive] = useState<Key>('email')
   const settings = useSettings()
+  const { isPlatformAdmin } = usePermissions()
+
+  // Hide platform-only items (and any section left empty) from non-platform admins.
+  const nav = NAV.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.platformOnly || isPlatformAdmin),
+  })).filter((group) => group.items.length > 0)
 
   return (
     <div className="space-y-5">
@@ -51,7 +69,7 @@ export function SettingsPage() {
         {/* Left nav */}
         <aside className="lg:w-60 shrink-0">
           <div className="rounded-2xl border border-gray-200 bg-white p-2 space-y-3">
-            {NAV.map((group) => (
+            {nav.map((group) => (
               <div key={group.section}>
                 <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
                   {group.section}
@@ -87,6 +105,8 @@ export function SettingsPage() {
             <FarePanel />
           ) : active === 'dispatch' ? (
             <DispatchPanel />
+          ) : active === 'platform-payments' ? (
+            <PlatformPaymentsPanel />
           ) : settings.isLoading ? (
             <div className="flex items-center justify-center py-24 text-gray-400">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading settings...

@@ -104,6 +104,23 @@ public static class SettingsStore
     }
 
     /// <summary>
+    /// Loads the PLATFORM-scoped payment gateway (category 'payment', key 'platform_gateway',
+    /// BrandId == null) — the operator's own Razorpay account used to collect SaaS tier invoices
+    /// from tenant brands. Distinct from each brand's own <c>payment/gateway</c> row (customer
+    /// payments). Platform-scoped, so only readable/writable under RLS bypass (platform admins +
+    /// the paylink webhook). Returns a disabled default when unset, so callers fall back to env.
+    /// </summary>
+    public static async Task<PaymentGatewaySettings> LoadPlatformPaymentGatewayAsync(
+        ICoreDbContext db, IFieldCipher cipher, CancellationToken ct)
+    {
+        var row = await db.SystemSettings.AsNoTracking()
+            .Where(s => s.Category == "payment" && s.SettingKey == "platform_gateway"
+                     && s.Status == "active" && s.BrandId == null)
+            .FirstOrDefaultAsync(ct);
+        return PaymentGatewaySettings.FromJson(row?.SettingValue, cipher);
+    }
+
+    /// <summary>
     /// Loads WhatsApp settings, decrypting the access token with <paramref name="cipher"/>.
     /// Returns a default (disabled) instance when no row exists.
     /// </summary>

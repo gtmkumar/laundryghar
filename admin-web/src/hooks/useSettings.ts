@@ -7,6 +7,8 @@ import {
   updateMapsSettings,
   updatePayoutSettings,
   updatePaymentGatewaySettings,
+  getPlatformPaymentGateway,
+  updatePlatformPaymentGateway,
   updateWhatsAppSettings,
   updateSmsSettings,
   getFareSettings,
@@ -19,12 +21,14 @@ import type {
   UpdateMapsPayload,
   UpdatePayoutPayload,
   UpdatePaymentGatewayPayload,
+  UpdatePlatformPaymentGatewayPayload,
   UpdateWhatsAppPayload,
   UpdateSmsPayload,
   FareSettings,
   DispatchSettings,
 } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
+import { usePermissions } from './usePermissions'
 
 export function useSettings() {
   const brandId = useEffectiveBrandId()
@@ -78,6 +82,25 @@ export function useUpdatePaymentGatewaySettings() {
   return useMutation({
     mutationFn: (payload: UpdatePaymentGatewayPayload) => updatePaymentGatewaySettings(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+  })
+}
+
+// ── Platform billing (operator's SaaS-collection Razorpay account) — platform-admin only ──
+
+export function usePlatformPaymentGateway() {
+  const { isPlatformAdmin } = usePermissions()
+  return useQuery({
+    queryKey: ['settings', 'platform-payment'],
+    queryFn: getPlatformPaymentGateway,
+    enabled: isPlatformAdmin, // platform-scoped; the endpoint 403s for non-platform admins
+  })
+}
+
+export function useUpdatePlatformPaymentGateway() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: UpdatePlatformPaymentGatewayPayload) => updatePlatformPaymentGateway(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', 'platform-payment'] }),
   })
 }
 

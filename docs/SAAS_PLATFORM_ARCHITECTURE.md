@@ -379,9 +379,17 @@ It applies, in dependency order: `phase4_role_vertical_key`, `phase4_user_vertic
 
 **2. Configure Razorpay** (the only code-external step):
 
-- **Env vars** on the hosts (never commit; `run-stack.sh` already loads the first two from the gitignored
-  `Keys/` CSV locally):
-  `Razorpay__KeyId`, `Razorpay__KeySecret`, and `Razorpay__WebhookSecret`.
+- **Platform-billing keys (the SaaS-collection account) — two ways, DB-first then env fallback:**
+  - **From the admin UI (preferred):** *Settings → Platform billing* (platform-admin only). Saves a
+    platform-scoped (`BrandId = null`) `payment/platform_gateway` row in `kernel.system_settings` with the
+    secrets AES-256-GCM encrypted. Enable it to run a **separate SaaS-billing account**, or enter the same
+    keys you use for customer payments for **one account for everything**. `RazorpayLinkClient` and the
+    paylink webhook resolve these first.
+  - **Or env vars** on the hosts as the fallback (never commit; `run-stack.sh` loads the first two from the
+    gitignored `Keys/` CSV locally): `Razorpay__KeyId`, `Razorpay__KeySecret`, `Razorpay__WebhookSecret`.
+    Used only when the Settings → Platform billing row is absent/disabled.
+  - Per-**brand** customer-payment keys remain under *Settings → Payments* (consumed by commerce's
+    `SettingsFirstPaymentGateway`, also DB-first → env fallback) — a different merchant account per tenant.
 - **Razorpay dashboard → Settings → Webhooks → Add**, pointing at the deployed hosts:
 
   | URL | Events | Marks |
@@ -389,8 +397,9 @@ It applies, in dependency order: `phase4_role_vertical_key`, `phase4_user_vertic
   | `https://<core-host>/api/v1/webhooks/razorpay-paylink` | `payment_link.paid` | brand tier invoice → paid |
   | `https://<commerce-host>/api/v1/webhooks/razorpay` | `payment.captured`, `payment.failed` | customer payments |
 
-  Copy each webhook's **signing secret** into `Razorpay__WebhookSecret` (the handlers fail-closed if a
-  signature is present but unverifiable).
+  Copy each webhook's **signing secret** into the matching Webhook Secret field — the paylink one into
+  *Settings → Platform billing* (or `Razorpay__WebhookSecret` env), the customer one into *Settings →
+  Payments*. The handlers fail-closed if a signature is present but unverifiable.
 - For **customer-subscription** auto-charge, also run the mandate-authorization flow so each subscription
   has an authorized `gateway_mandate_id` before `GatewaySubscriptionCharger` can debit it.
 
