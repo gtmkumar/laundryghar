@@ -67,3 +67,7 @@ logs/
 tmp/
 *.tmp
 *.png
+
+# Secrets — never commit
+Keys/
+*rzp*key*.csv

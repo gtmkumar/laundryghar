@@ -28,6 +28,8 @@ public class AdminEntitlements : IEndpointGroup
         group.MapPost(SetBrandModule, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.manage");
         group.MapPost(ApplyBundle, "brands/{brandId:guid}/apply-bundle").RequireAuthorization("permission:saas.manage");
         group.MapPost(SetInvoiceStatus, "brand-platform-invoices/{invoiceId:guid}/status").RequireAuthorization("permission:saas.manage");
+        group.MapPost(CreateInvoicePaymentLink, "brand-platform-invoices/{invoiceId:guid}/payment-link").RequireAuthorization("permission:saas.manage");
+        group.MapPost(SyncInvoicePayment, "brand-platform-invoices/{invoiceId:guid}/sync-payment").RequireAuthorization("permission:saas.manage");
     }
 
     public static async Task<IResult> GetBundles(IDispatcher dispatcher, CancellationToken ct)
@@ -76,5 +78,17 @@ public class AdminEntitlements : IEndpointGroup
     {
         var ok = await dispatcher.SendAsync(new SetBrandPlatformInvoiceStatusCommand(invoiceId, req, user.UserId), ct);
         return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> CreateInvoicePaymentLink(Guid invoiceId, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var url = await dispatcher.SendAsync(new CreateBrandPlatformInvoicePaymentLinkCommand(invoiceId), ct);
+        return url is null ? Results.NotFound() : Results.Ok(new SingleResponse<string> { Status = true, Data = url });
+    }
+
+    public static async Task<IResult> SyncInvoicePayment(Guid invoiceId, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var status = await dispatcher.SendAsync(new SyncBrandPlatformInvoicePaymentCommand(invoiceId), ct);
+        return status is null ? Results.NotFound() : Results.Ok(new SingleResponse<string> { Status = true, Data = status });
     }
 }

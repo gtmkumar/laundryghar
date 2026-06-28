@@ -305,9 +305,14 @@ flowchart LR
 Ordered by leverage. The architecture is present; these are the "last-mile" items.
 
 ### P0 — blocks taking real money
-1. **Real gateway charging.** `ISubscriptionCharger` is `DevSubscriptionCharger` (simulates success).
-   Implement `RazorpaySubscriptionCharger` (mandate auth + auto-debit). Plumbing (mandates, webhook) exists.
-   *(Still open — needs live Razorpay credentials.)*
+1. **Gateway charging.** ✅ **Brand platform-tier invoices are collected via real Razorpay Payment Links**
+   (`IRazorpayLinkClient` → `POST/GET /v1/payment_links`; create-link + status-sync commands +
+   `POST /admin/entitlements/brand-platform-invoices/{id}/{payment-link,sync-payment}`; the Licensing
+   tab shows **Pay link ↗ / Sync**). Keys via `Razorpay:KeyId/KeySecret` (env; loaded from the gitignored
+   `Keys/` CSV by `run-stack.sh`). Verified live against Razorpay **test** mode (real `rzp.io` links).
+   *Remaining:* the CUSTOMER-subscription mandate charger (`ISubscriptionCharger`) is still
+   `DevSubscriptionCharger`; and brand-invoice auto-reconcile currently uses **pull (sync)** — a push
+   webhook (`payment_link.paid`) would mark invoices paid automatically.
 2. **✅ DONE — Plan ↔ Bundle link + brand-platform billing** (§5). `module_bundle` now carries the
    brand-tier price (`phase4_bundle_pricing.sql`); applying a bundle sets price + features in one action.
    And there is now a **brand-level platform subscription**: `identity_access.brand_platform_subscription`

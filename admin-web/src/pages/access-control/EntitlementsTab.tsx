@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Loader2, Check, Lock, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useBrandEntitlements, useModuleBundles, useBrandPlatformSubscription, useSetBrandModule, useApplyBundle, useSetBrandPlatformInvoiceStatus } from '@/hooks/useEntitlements'
+import { useBrandEntitlements, useModuleBundles, useBrandPlatformSubscription, useSetBrandModule, useApplyBundle, useSetBrandPlatformInvoiceStatus, useCreateInvoicePaymentLink, useSyncInvoicePayment } from '@/hooks/useEntitlements'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Field } from '@/components/shared/FormDrawer'
 import type { ModuleBundle } from '@/types/api'
@@ -38,6 +38,8 @@ export function EntitlementsTab() {
   const setModule = useSetBrandModule()
   const applyBundle = useApplyBundle()
   const setInvoiceStatus = useSetBrandPlatformInvoiceStatus()
+  const createLink = useCreateInvoicePaymentLink()
+  const syncPay = useSyncInvoicePayment()
 
   const [bundleCode, setBundleCode] = useState('')
   const [err, setErr] = useState<string | null>(null)
@@ -149,7 +151,25 @@ export function EntitlementsTab() {
                       {canManage && (
                         <td className="px-3 py-1.5 text-right">
                           {inv.status === 'issued' && (
-                            <span className="inline-flex gap-2">
+                            <span className="inline-flex items-center gap-2">
+                              {inv.paymentLinkUrl ? (
+                                <>
+                                  <a href={inv.paymentLinkUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">Pay link ↗</a>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setErr(null); syncPay.mutate(inv.id, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                                    disabled={syncPay.isPending}
+                                    className="font-medium text-gray-500 hover:underline disabled:opacity-50"
+                                  >Sync</button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => { setErr(null); createLink.mutate(inv.id, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}
+                                  disabled={createLink.isPending}
+                                  className="font-medium text-blue-600 hover:underline disabled:opacity-50"
+                                >Get pay link</button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => { setErr(null); setInvoiceStatus.mutate({ invoiceId: inv.id, status: 'paid' }, { onError: (e) => setErr(e instanceof Error ? e.message : 'Failed.') }) }}

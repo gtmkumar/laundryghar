@@ -49,6 +49,8 @@ public sealed class BrandPlatformInvoiceConfiguration : IEntityTypeConfiguration
         b.Property(e => e.IssuedAt).HasColumnName("issued_at").IsRequired();
         b.Property(e => e.DueAt).HasColumnName("due_at").IsRequired();
         b.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();
+        b.Property(e => e.RazorpayPaymentLinkId).HasColumnName("razorpay_payment_link_id").HasMaxLength(64);
+        b.Property(e => e.PaymentLinkUrl).HasColumnName("payment_link_url").HasMaxLength(512);
 
         // Idempotency: one invoice per subscription per billing period.
         b.HasIndex(e => new { e.SubscriptionId, e.BillingPeriodStart })

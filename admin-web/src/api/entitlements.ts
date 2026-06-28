@@ -43,3 +43,15 @@ export async function applyBundleToBrand(brandId: string, bundleCode: string): P
 export async function setBrandPlatformInvoiceStatus(invoiceId: string, status: 'paid' | 'void'): Promise<void> {
   await identityClient.post(`${BASE}/brand-platform-invoices/${invoiceId}/status`, { status })
 }
+
+/** Create (or fetch the existing) Razorpay payment link for an invoice; returns the payable short URL. */
+export async function createBrandPlatformInvoicePaymentLink(invoiceId: string): Promise<string> {
+  const { data } = await identityClient.post<ApiResponse<string>>(`${BASE}/brand-platform-invoices/${invoiceId}/payment-link`)
+  return unwrap(data)
+}
+
+/** Reconcile an invoice against its Razorpay link status (marks paid if the link was paid); returns the status. */
+export async function syncBrandPlatformInvoicePayment(invoiceId: string): Promise<string> {
+  const { data } = await identityClient.post<ApiResponse<string>>(`${BASE}/brand-platform-invoices/${invoiceId}/sync-payment`)
+  return unwrap(data)
+}

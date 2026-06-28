@@ -24,4 +24,8 @@ public class BrandPlatformInvoice
     public DateTimeOffset IssuedAt { get; set; }
     public DateTimeOffset DueAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+
+    // Razorpay Payment Link collection (set when a link is generated for this invoice).
+    public string? RazorpayPaymentLinkId { get; set; }
+    public string? PaymentLinkUrl { get; set; }
 }

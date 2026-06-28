@@ -26,7 +26,8 @@ public class GetBrandPlatformSubscriptionQueryHandler
             .OrderByDescending(i => i.BillingPeriodStart)
             .Take(12)
             .Select(i => new BrandPlatformInvoiceDto(
-                i.Id, i.BillingPeriodStart, i.BillingPeriodEnd, i.Amount, i.CurrencyCode, i.Status, i.IssuedAt, i.DueAt))
+                i.Id, i.BillingPeriodStart, i.BillingPeriodEnd, i.Amount, i.CurrencyCode, i.Status, i.IssuedAt, i.DueAt,
+                i.PaymentLinkUrl))
             .ToListAsync(ct);
 
         return new BrandPlatformSubscriptionDto(

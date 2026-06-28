@@ -2284,6 +2284,8 @@ export interface BrandPlatformInvoice {
   status: string
   issuedAt: string
   dueAt: string
+  /** Razorpay payment-link short URL, once a link has been generated for this invoice. */
+  paymentLinkUrl?: string | null
 }
 
 /** The brand's own platform subscription (the priced tier it pays for) + its invoices. */

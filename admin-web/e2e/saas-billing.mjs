@@ -45,6 +45,14 @@ try {
   ok('an invoice row + Mark paid action present', (await page.getByRole('button', { name: 'Mark paid' }).count()) > 0)
   await shot('02-licensing-applied')
 
+  // 2b) Create a real Razorpay payment link for the invoice -----------------
+  await page.getByRole('button', { name: 'Get pay link' }).first().click()
+  const payLink = page.getByRole('link', { name: /Pay link/ }).first()
+  await payLink.waitFor({ state: 'visible', timeout: 25000 })
+  const payHref = await payLink.getAttribute('href')
+  ok('real Razorpay payment link created (rzp.io)', /rzp\.io|razorpay/i.test(payHref || ''))
+  await shot('02b-razorpay-link')
+
   // 3) Mark the issued invoice paid -----------------------------------------
   await page.getByRole('button', { name: 'Mark paid' }).first().click()
   await page.waitForTimeout(1500) // let the mutation + refetch settle

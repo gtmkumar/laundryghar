@@ -35,7 +35,8 @@ public sealed record SetInvoiceStatusRequest(string Status);
 // ── Brand platform subscription (the brand's own platform tier + its invoices) ──
 public sealed record BrandPlatformInvoiceDto(
     Guid Id, DateTimeOffset PeriodStart, DateTimeOffset PeriodEnd,
-    decimal Amount, string CurrencyCode, string Status, DateTimeOffset IssuedAt, DateTimeOffset DueAt);
+    decimal Amount, string CurrencyCode, string Status, DateTimeOffset IssuedAt, DateTimeOffset DueAt,
+    string? PaymentLinkUrl = null);
 
 public sealed record BrandPlatformSubscriptionDto(
     Guid Id, Guid BrandId, string BundleCode, string PlanName,
