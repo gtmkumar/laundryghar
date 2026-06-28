@@ -46,6 +46,7 @@ export const ROUTE_PERMISSIONS: Record<string, string | null> = {
   '/settings': null,
   '/royalty': 'royalty.read',
   '/platform-plans': 'saas.read',
+  '/platform-billing': 'saas.read',
 }
 
 /**

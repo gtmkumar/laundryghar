@@ -22,6 +22,7 @@ public class AdminEntitlements : IEndpointGroup
         group.WithTags("Admin - Entitlements").RequireAuthorization();
 
         group.MapGet(GetBundles, "bundles").RequireAuthorization("permission:saas.read");
+        group.MapGet(GetPlatformBilling, "platform-billing").RequireAuthorization("permission:saas.read");
         group.MapGet(GetBrandModules, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.read");
         group.MapGet(GetPlatformSubscription, "brands/{brandId:guid}/platform-subscription").RequireAuthorization("permission:saas.read");
         group.MapPost(SetBrandModule, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.manage");
@@ -40,6 +41,12 @@ public class AdminEntitlements : IEndpointGroup
         return data is null
             ? Results.NotFound()
             : Results.Ok(new SingleResponse<BrandEntitlementsDto> { Status = true, Data = data });
+    }
+
+    public static async Task<IResult> GetPlatformBilling(IDispatcher dispatcher, CancellationToken ct)
+    {
+        var data = await dispatcher.QueryAsync(new GetPlatformBillingSummaryQuery(), ct);
+        return Results.Ok(new SingleResponse<PlatformBillingSummaryDto> { Status = true, Data = data });
     }
 
     public static async Task<IResult> GetPlatformSubscription(Guid brandId, IDispatcher dispatcher, CancellationToken ct)

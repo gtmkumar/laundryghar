@@ -1,7 +1,13 @@
 import { identityClient, unwrap } from './client'
-import type { ApiResponse, BrandEntitlements, ModuleBundle, BrandPlatformSubscription } from '@/types/api'
+import type { ApiResponse, BrandEntitlements, ModuleBundle, BrandPlatformSubscription, PlatformBillingSummary } from '@/types/api'
 
 const BASE = '/api/v1/admin/entitlements'
+
+/** Platform-wide SaaS revenue summary (operator MRR view). */
+export async function getPlatformBillingSummary(): Promise<PlatformBillingSummary> {
+  const { data } = await identityClient.get<ApiResponse<PlatformBillingSummary>>(`${BASE}/platform-billing`)
+  return unwrap(data)
+}
 
 export async function getBrandEntitlements(brandId: string): Promise<BrandEntitlements> {
   const { data } = await identityClient.get<ApiResponse<BrandEntitlements>>(`${BASE}/brands/${brandId}/modules`)

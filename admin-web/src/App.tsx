@@ -103,6 +103,7 @@ const router = createBrowserRouter([
               { path: 'expenses',       lazy: lazyPage(() => import('@/pages/finance/ExpensesPage'), 'ExpensesPage') },
               { path: 'royalty',        lazy: lazyPage(() => import('@/pages/finance/RoyaltyPage'), 'RoyaltyPage') },
               { path: 'platform-plans', lazy: lazyPage(() => import('@/pages/finance/PlatformPlansPage'), 'PlatformPlansPage') },
+              { path: 'platform-billing', lazy: lazyPage(() => import('@/pages/finance/PlatformBillingPage'), 'PlatformBillingPage') },
             ],
           },
           // Unknown route → home (outside the gate so it never 403s).

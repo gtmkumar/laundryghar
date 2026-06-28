@@ -3,10 +3,18 @@ import {
   getBrandEntitlements,
   getModuleBundles,
   getBrandPlatformSubscription,
+  getPlatformBillingSummary,
   setBrandModule,
   applyBundleToBrand,
 } from '@/api/entitlements'
 import { useEffectiveBrandId } from './useBrandContext'
+
+export function usePlatformBillingSummary() {
+  return useQuery({
+    queryKey: ['entitlements', 'platform-billing'],
+    queryFn: getPlatformBillingSummary,
+  })
+}
 
 export function useBrandEntitlements() {
   const brandId = useEffectiveBrandId()

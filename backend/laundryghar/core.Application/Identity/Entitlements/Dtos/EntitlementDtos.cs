@@ -39,3 +39,22 @@ public sealed record BrandPlatformSubscriptionDto(
     decimal Price, string BillingInterval, string CurrencyCode, string Status,
     DateTimeOffset CurrentPeriodStart, DateTimeOffset CurrentPeriodEnd, DateTimeOffset NextBillingAt,
     bool AutoRenew, IReadOnlyList<BrandPlatformInvoiceDto> Invoices);
+
+// ── Platform billing summary (operator MRR view across all brands) ──────────
+/// <summary>One tier's contribution to platform MRR (active brand subscriptions on that tier).</summary>
+public sealed record TierMrrDto(string BundleCode, string PlanName, int ActiveCount, decimal MonthlyMrr);
+
+/// <summary>Brand-platform invoice totals for one status (issued/paid/void).</summary>
+public sealed record InvoiceStatusTotalDto(string Status, int Count, decimal TotalAmount);
+
+/// <summary>Platform-wide SaaS revenue summary: what the platform earns from brands paying for tiers.
+/// MRR is each active subscription's price normalised to a monthly figure. (Single currency for now.)</summary>
+public sealed record PlatformBillingSummaryDto(
+    string Currency,
+    decimal MonthlyMrr,
+    decimal AnnualRunRate,
+    int ActiveTenants,
+    decimal OutstandingAmount,      // sum of issued (not-yet-paid) invoices
+    decimal CollectedAmount,        // sum of paid invoices
+    IReadOnlyList<TierMrrDto> ByTier,
+    IReadOnlyList<InvoiceStatusTotalDto> InvoicesByStatus);

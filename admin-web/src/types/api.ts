@@ -2303,6 +2303,31 @@ export interface BrandPlatformSubscription {
   invoices: BrandPlatformInvoice[]
 }
 
+export interface TierMrr {
+  bundleCode: string
+  planName: string
+  activeCount: number
+  monthlyMrr: number
+}
+
+export interface InvoiceStatusTotal {
+  status: string
+  count: number
+  totalAmount: number
+}
+
+/** Platform-wide SaaS revenue summary (operator MRR view). */
+export interface PlatformBillingSummary {
+  currency: string
+  monthlyMrr: number
+  annualRunRate: number
+  activeTenants: number
+  outstandingAmount: number
+  collectedAmount: number
+  byTier: TierMrr[]
+  invoicesByStatus: InvoiceStatusTotal[]
+}
+
 export interface InviteUserPayload {
   email: string
   phone?: string
