@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace core.Application.Identity.Users.Queries.GetUsers;
 
-public sealed record GetUsersQuery(int Page = 1, int PageSize = 20, string? Status = null, string? UserType = null, string? Search = null)
+public sealed record GetUsersQuery(int Page = 1, int PageSize = 20, string? Status = null, string? UserType = null, string? Search = null, string? VerticalKey = null)
     : IQuery<PaginatedList<UserDto>>;
 
 public class GetUsersQueryHandler : IQueryHandler<GetUsersQuery, PaginatedList<UserDto>>
@@ -21,6 +21,9 @@ public class GetUsersQueryHandler : IQueryHandler<GetUsersQuery, PaginatedList<U
             .AsQueryable();
         if (!string.IsNullOrEmpty(r.Status))   q = q.Where(u => u.Status   == r.Status);
         if (!string.IsNullOrEmpty(r.UserType)) q = q.Where(u => u.UserType == r.UserType);
+        // Filter by home vertical (laundry/salon/logistics) using the denormalised column — lets a
+        // platform admin list e.g. all salon staff without joining through memberships→brand.
+        if (!string.IsNullOrEmpty(r.VerticalKey)) q = q.Where(u => u.VerticalKey == r.VerticalKey);
         if (!string.IsNullOrEmpty(r.Search))
             q = q.Where(u => (u.Email != null && u.Email.Contains(r.Search))
                            || (u.PhoneE164 != null && u.PhoneE164.Contains(r.Search)));

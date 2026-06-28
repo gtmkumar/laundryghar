@@ -14,7 +14,9 @@ public sealed record UserDto(
     string? PanNumber = null, string? AadhaarNumberMasked = null,
     string? KycStatus = null, DateTimeOffset? KycVerifiedAt = null,
     string? BankAccountName = null, string? BankAccountNumber = null,
-    string? BankIfsc = null, string? UpiId = null);
+    string? BankIfsc = null, string? UpiId = null,
+    // Denormalised home vertical (the primary membership's brand vertical), null = platform/cross-vertical.
+    string? VerticalKey = null);
 
 /// <summary>
 /// Applies masking to financial PII fields of a <see cref="UserDto"/>.

@@ -1,12 +1,10 @@
 using core.Application.Common.Interfaces;
 using core.Application.Identity.AccessControl.Commands.GrantMembership;
 using core.Application.Identity.AccessControl.Dtos;
-using core.Application.Identity.Settings;
 using core.Application.Identity.Users.Commands.CreateUser;
 using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.Services;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace core.Application.Identity.AccessControl.Commands.InviteUser;
@@ -36,40 +34,8 @@ public class InviteUserCommandHandler : ICommandHandler<InviteUserCommand, UserD
             new GrantMembershipRequest(user.Id, r.ScopeType, r.ScopeId, r.RoleId, IsPrimary: true),
             _actor.UserId), ct);
 
-        await SendInviteEmailAsync(_actor, user.Id, r.Email, $"{r.FirstName} {r.LastName}".Trim(), ct);
+        await InviteEmailSender.SendAsync(_db, _mailer, _log, _actor, user.Id, r.Email,
+            $"{r.FirstName} {r.LastName}".Trim(), ct);
         return user;
-    }
-
-    // Best-effort: an email failure must never roll back a successful invite.
-    private async Task SendInviteEmailAsync(ICurrentUser actor, Guid userId, string? email, string name, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(email)) return;
-        try
-        {
-            var mode = await SettingsStore.LoadProvisioningModeAsync(_db, actor.BrandId, ct);
-            if (mode == "self_service")
-            {
-                var token = await _db.Users.AsNoTracking().Where(u => u.Id == userId)
-                    .Select(u => u.InvitationToken).FirstOrDefaultAsync(ct);
-                if (string.IsNullOrEmpty(token))
-                {
-                    _log.LogWarning("Invited user {UserId} has no invitation token; skipping self-service email.", userId);
-                    return;
-                }
-                var baseUrl = (await SettingsStore.LoadAdminBaseUrlAsync(_db, actor.BrandId, ct)).TrimEnd('/');
-                var acceptUrl = $"{baseUrl}/accept-invite?token={Uri.EscapeDataString(token)}";
-                var (subject, html) = EmailTemplates.InviteSelfService(name, acceptUrl);
-                await _mailer.SendAsync(actor.BrandId, email, subject, html, ct);
-            }
-            else
-            {
-                var (subject, html) = EmailTemplates.InviteAdminActivate(name);
-                await _mailer.SendAsync(actor.BrandId, email, subject, html, ct);
-            }
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Failed to send invite email to {Email}.", email);
-        }
     }
 }

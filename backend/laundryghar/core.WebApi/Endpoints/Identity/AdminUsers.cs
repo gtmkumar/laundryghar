@@ -1,3 +1,4 @@
+using core.Application.Identity.AccessControl.Commands.ResendInvite;
 using core.Application.Identity.Users.Commands.ChangePrimaryRole;
 using core.Application.Identity.Users.Commands.CreateUser;
 using core.Application.Identity.Users.Commands.DeactivateUser;
@@ -33,17 +34,19 @@ public class AdminUsers : IEndpointGroup
         group.MapPut(UpdateUser, "{id:guid}").RequireAuthorization("permission:users.update");
         group.MapPost(DeactivateUser, "{id:guid}/deactivate").RequireAuthorization("permission:users.deactivate");
         group.MapPost(SetPassword, "{id:guid}/set-password").RequireAuthorization("permission:users.set_password");
+        // Re-send the invitation email to a still-pending user (rotates the token).
+        group.MapPost(ResendInvite, "{id:guid}/resend-invite").RequireAuthorization("permission:users.create");
         // H3: Separate privileged endpoint for changing user_type.
         group.MapPost(SetUserType, "{id:guid}/set-type").RequireAuthorization("permission:users.set_type");
         // Replace a user's primary role; guarded the same as a membership grant.
         group.MapPost(ChangeRole, "{id:guid}/change-role").RequireAuthorization("permission:memberships.grant");
     }
 
-    public static async Task<IResult> GetUsers(string? status, string? userType, string? search,
+    public static async Task<IResult> GetUsers(string? status, string? userType, string? search, string? verticalKey,
         IDispatcher dispatcher, CancellationToken ct, int page = 1, int pageSize = 20)
     {
         var data = await dispatcher.QueryAsync(
-            new GetUsersQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status, userType, search), ct);
+            new GetUsersQuery(page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize, status, userType, search, verticalKey), ct);
         return Results.Ok(new PaginatedListResponse<UserDto> { Status = true, Data = data });
     }
 
@@ -75,6 +78,12 @@ public class AdminUsers : IEndpointGroup
     public static async Task<IResult> SetPassword(Guid id, SetPasswordRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)
     {
         var ok = await dispatcher.SendAsync(new SetPasswordCommand(id, req, user.UserId), ct);
+        return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    public static async Task<IResult> ResendInvite(Guid id, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var ok = await dispatcher.SendAsync(new ResendInviteCommand(id), ct);
         return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
     }
 

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import {
   ShieldCheck, Ban, RotateCcw, KeyRound,
-  Loader2, Copy, Check, X, RefreshCw,
+  Loader2, Copy, Check, X, RefreshCw, Mail,
 } from 'lucide-react'
 import { useSetPersonStatus } from '@/hooks/useAccessControl'
+import { useResendInvite } from '@/hooks/useUsers'
 import { usePermissions } from '@/hooks/usePermissions'
+import { showToast } from '@/stores/toastStore'
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu'
 import type { AccessPerson } from '@/types/api'
 
@@ -25,24 +27,40 @@ function generatePassword(): string {
 export function PersonRowActions({ person }: { person: AccessPerson }) {
   const [activateOpen, setActivateOpen] = useState(false)
   const mutation = useSetPersonStatus()
+  const resend = useResendInvite()
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('users.update')
+  const canInvite = hasPermission('users.create')
 
   const status = person.status
   const canActivate = canManage && (status === 'invited' || status === 'locked')
   const canSuspend = canManage && status === 'active'
   const canReactivate = canManage && status === 'suspended'
+  const canResend = canInvite && status === 'invited'
 
   const run = (action: 'suspend' | 'reactivate') => mutation.mutate({ userId: person.id, action })
+  const resendInviteEmail = async () => {
+    try {
+      await resend.mutateAsync(person.id)
+      showToast('success', `Invitation re-sent to ${person.email}.`)
+    } catch (e) {
+      showToast('error', e instanceof Error ? e.message : 'Could not resend the invitation.')
+    }
+  }
 
   return (
     <>
-      <ActionMenu busy={mutation.isPending} label="Row actions" icon="vertical" width={192}>
+      <ActionMenu busy={mutation.isPending || resend.isPending} label="Row actions" icon="vertical" width={192}>
         {(close) => (
           <>
             {canActivate && (
               <ActionMenuItem icon={ShieldCheck} onClick={() => { close(); setActivateOpen(true) }}>
                 Activate user
+              </ActionMenuItem>
+            )}
+            {canResend && (
+              <ActionMenuItem icon={Mail} onClick={() => { close(); void resendInviteEmail() }}>
+                Resend invite
               </ActionMenuItem>
             )}
             {canReactivate && (
@@ -55,7 +73,7 @@ export function PersonRowActions({ person }: { person: AccessPerson }) {
                 Suspend access
               </ActionMenuItem>
             )}
-            {!canActivate && !canReactivate && !canSuspend && (
+            {!canActivate && !canResend && !canReactivate && !canSuspend && (
               <p className="px-3 py-2 text-xs text-gray-400">
                 {canManage ? 'No actions available' : 'You don’t have permission to manage users'}
               </p>

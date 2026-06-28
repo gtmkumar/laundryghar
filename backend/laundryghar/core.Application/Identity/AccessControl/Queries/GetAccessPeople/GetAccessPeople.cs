@@ -2,6 +2,7 @@ using core.Application.Common.Interfaces;
 using core.Application.Identity.AccessControl.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.Common;
+using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace core.Application.Identity.AccessControl.Queries.GetAccessPeople;
@@ -12,7 +13,8 @@ public sealed record GetAccessPeopleQuery(string? Search, int Page, int PageSize
 public class GetAccessPeopleQueryHandler : IQueryHandler<GetAccessPeopleQuery, AccessPeoplePageDto>
 {
     private readonly ICoreDbContext _db;
-    public GetAccessPeopleQueryHandler(ICoreDbContext db) => _db = db;
+    private readonly ICurrentUser _user;
+    public GetAccessPeopleQueryHandler(ICoreDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
     public async Task<AccessPeoplePageDto> HandleAsync(GetAccessPeopleQuery q, CancellationToken ct)
     {
@@ -25,6 +27,7 @@ public class GetAccessPeopleQueryHandler : IQueryHandler<GetAccessPeopleQuery, A
                 u.Id,
                 u.Email,
                 u.Status,
+                u.UserType,
                 u.LastActiveAt,
                 u.LastLoginAt,
                 First = u.Profile != null ? u.Profile.FirstName : null,
@@ -50,6 +53,35 @@ public class GetAccessPeopleQueryHandler : IQueryHandler<GetAccessPeopleQuery, A
                 && ((u.Membership.ScopeType == "franchise" && u.Membership.ScopeId == fid)
                     || (u.Membership.ScopeType == "store" && u.Membership.ScopeId != null && storeIds.Contains(u.Membership.ScopeId.Value))))
                 .ToList();
+        }
+
+        // Brand isolation: a brand-scoped admin (or a platform admin who has selected a brand via
+        // X-Brand-Id) must only see people whose primary membership resolves to that same brand —
+        // otherwise the directory leaks other tenants' staff. Degrades gracefully (shows everything)
+        // for a platform admin with no brand context, preserving the prior cross-brand behaviour.
+        if (_user.TryGetBrandId() is Guid brandId)
+        {
+            var brandFranchiseIds = (await _db.Franchises.AsNoTracking()
+                .Where(f => f.BrandId == brandId).Select(f => f.Id).ToListAsync(ct)).ToHashSet();
+            var brandStoreIds = (await _db.Stores.AsNoTracking()
+                .Where(s => s.BrandId == brandId).Select(s => s.Id).ToListAsync(ct)).ToHashSet();
+            var brandWarehouseIds = (await _db.Warehouses.AsNoTracking()
+                .Where(w => w.BrandId == brandId).Select(w => w.Id).ToListAsync(ct)).ToHashSet();
+
+            users = users.Where(u =>
+            {
+                var m = u.Membership;
+                if (m is null) return _user.IsPlatformAdmin; // unscoped / no-role: platform admins only
+                return m.ScopeType switch
+                {
+                    "platform"  => _user.IsPlatformAdmin,    // platform staff visible to platform admins only
+                    "brand"     => m.ScopeId == brandId,
+                    "franchise" => m.ScopeId is Guid f && brandFranchiseIds.Contains(f),
+                    "store"     => m.ScopeId is Guid s && brandStoreIds.Contains(s),
+                    "warehouse" => m.ScopeId is Guid w && brandWarehouseIds.Contains(w),
+                    _ => false,
+                };
+            }).ToList();
         }
 
         // Scope-name lookups (batch)
@@ -82,6 +114,7 @@ public class GetAccessPeopleQueryHandler : IQueryHandler<GetAccessPeopleQuery, A
                 ScopeLabel(u.Membership?.ScopeType, u.Membership?.ScopeId),
                 AccessHelpers.Tier(roleScope),
                 u.Status,
+                u.UserType,
                 u.LastActiveAt ?? u.LastLoginAt);
         }).ToList();
 

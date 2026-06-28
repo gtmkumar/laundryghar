@@ -22,6 +22,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(e => e.MfaSecret).HasColumnName("mfa_secret");
         b.Property(e => e.MfaBackupCodes).HasColumnName("mfa_backup_codes").HasColumnType("text[]");
         b.Property(e => e.UserType).HasColumnName("user_type").HasMaxLength(30).IsRequired();
+        b.Property(e => e.VerticalKey).HasColumnName("vertical_key").HasMaxLength(20);
         b.Property(e => e.Locale).HasColumnName("locale").HasMaxLength(10).IsRequired();
         b.Property(e => e.Timezone).HasColumnName("timezone").HasMaxLength(50).IsRequired();
         b.Property(e => e.Status).HasColumnName("status").HasMaxLength(20).IsRequired();

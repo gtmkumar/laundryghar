@@ -65,8 +65,9 @@ export interface BrandDto {
   tagline: string | null
   currencyCode: string
   timezone: string
-  /** The brand's industry vertical (laundry/salon/logistics) — drives client-side verticalKey
-   *  gating. Optional until the brand DTO carries it. (Multi-vertical Phase 3.) */
+  /** The brand's industry vertical (laundry/salon/logistics) — drives client-side vertical gating
+   *  and terminology (see useActiveVertical / lib/verticalTerms). Populated by the backend BrandDto;
+   *  kept optional for backward-compat with brands persisted in the store before this field existed. */
   verticalKey?: string
   status: string
   createdAt: string
@@ -1876,6 +1877,8 @@ export interface AccessPerson {
   scopeLabel: string
   tier: string // "enterprise" | "franchise"
   status: string // "active" | "invited" | ...
+  /** Coarse account type (e.g. "ops_staff" | "warehouse_staff" | "store_admin"). */
+  userType: string
   lastActiveAt: string | null
 }
 
@@ -2178,6 +2181,8 @@ export interface AccessRoleSummary {
   isSystem: boolean
   memberCount: number
   onCells: string[] // "module:action" cells that are enabled
+  /** Vertical this role belongs to (laundry/salon/logistics), or null = neutral/all brands. */
+  verticalKey?: string | null
 }
 
 export interface AccessRoleGroup {

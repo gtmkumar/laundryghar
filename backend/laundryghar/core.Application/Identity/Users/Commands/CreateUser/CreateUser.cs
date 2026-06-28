@@ -22,6 +22,13 @@ public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, UserD
             throw new ValidationException(
                 new Dictionary<string, string[]> { ["identifier"] = ["Either email or phone is required."] });
 
+        // The user_type is client-supplied (incl. via the invite flow). Reject anything outside
+        // the known set so a misconfigured/hostile caller can't persist an arbitrary type that
+        // the DB CHECK, auth scope resolution, and vertical routing would later choke on.
+        if (!UserType.IsValid(cmd.Request.UserType))
+            throw new ValidationException(
+                new Dictionary<string, string[]> { ["userType"] = [$"'{cmd.Request.UserType}' is not a valid user type."] });
+
         var inviteToken = cmd.Request.Password is null
             ? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
             : null;

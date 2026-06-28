@@ -37,6 +37,9 @@ public sealed record BrandDto(
     string? Tagline,
     string CurrencyCode,
     string Timezone,
+    // The industry vertical the brand operates (laundry/salon/logistics). Denormalised onto
+    // this DTO so clients can drive vertical-aware terminology/gating without a second call.
+    string VerticalKey,
     string Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);

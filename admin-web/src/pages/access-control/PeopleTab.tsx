@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Loader2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { userTypeLabel } from '@/types/userType'
 import type { AccessPeoplePage, AccessPerson, AccessPeopleCounts } from '@/types/api'
 import { PersonRowActions } from './PersonRowActions'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
@@ -40,6 +41,8 @@ const ROLE_BADGE: Record<string, string> = {
   store_staff: 'bg-teal-50 text-teal-600',
   warehouse_supervisor: 'bg-indigo-100 text-indigo-700',
   warehouse_staff: 'bg-indigo-50 text-indigo-600',
+  // Vertical-neutral on-site processing staff (salon/logistics) — same family as warehouse_staff.
+  ops_staff: 'bg-indigo-100 text-indigo-700',
   rider: 'bg-orange-100 text-orange-700',
 }
 
@@ -164,7 +167,7 @@ export function PeopleTab({ query, sort, onSort }: Props) {
                   </span>
                 </td>
                 <td className="px-5 py-3 text-gray-600">{p.scopeLabel}</td>
-                <td className="px-5 py-3 capitalize text-gray-500">{p.tier}</td>
+                <td className="px-5 py-3 text-gray-500">{userTypeLabel(p.userType)}</td>
                 <td className="px-5 py-3">
                   <span className="inline-flex items-center gap-1.5 text-xs font-medium capitalize">
                     <span className={cn('h-1.5 w-1.5 rounded-full', p.status === 'active' ? 'bg-emerald-500' : p.status === 'invited' ? 'bg-amber-500' : 'bg-gray-300')} />

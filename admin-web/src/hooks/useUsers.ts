@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getUser, updateUser, changeUserRole } from '@/api/users'
+import { getUser, updateUser, changeUserRole, setUserType, resendInvite } from '@/api/users'
 import type { UpdateUserPayload, ChangeRolePayload } from '@/types/api'
 
 export function useUser(id: string | null) {
@@ -32,5 +32,25 @@ export function useChangeUserRole() {
       qc.invalidateQueries({ queryKey: ['access', 'franchises'] })
       qc.invalidateQueries({ queryKey: ['admin-user', v.id] })
     },
+  })
+}
+
+export function useSetUserType() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { id: string; newUserType: string }) => setUserType(v.id, v.newUserType),
+    onSuccess: (_data, v) => {
+      // The account type shows on the detail drawer and the People directory "Type" column.
+      qc.invalidateQueries({ queryKey: ['admin-user', v.id] })
+      qc.invalidateQueries({ queryKey: ['access', 'people'] })
+    },
+  })
+}
+
+export function useResendInvite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => resendInvite(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'people'] }),
   })
 }

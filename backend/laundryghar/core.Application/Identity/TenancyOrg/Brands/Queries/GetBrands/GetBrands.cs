@@ -27,7 +27,7 @@ public class GetBrandsQueryHandler : IQueryHandler<GetBrandsQuery, PaginatedList
 
         var projected = q.OrderBy(b => b.Name).Select(b => new BrandDto(
             b.Id, b.PlatformId, b.Code, b.Name, b.LegalName, b.Tagline,
-            b.CurrencyCode, b.Timezone, b.Status, b.CreatedAt, b.UpdatedAt));
+            b.CurrencyCode, b.Timezone, b.VerticalKey, b.Status, b.CreatedAt, b.UpdatedAt));
 
         return PaginatedList<BrandDto>.CreateAsync(projected, query.Params.Page, query.Params.PageSize, cancellationToken);
     }

@@ -2,6 +2,7 @@ using core.Application.Common.Interfaces;
 using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
+using laundryghar.SharedDataModel.Enums;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -110,6 +111,17 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
                 .Where(m => m.UserId == cmd.Request.UserId && m.IsPrimary && m.RevokedAt == null)
                 .ToListAsync(ct);
             existingPrimary.ForEach(m => m.IsPrimary = false);
+
+            // Keep the user's denormalised home vertical in sync with their new primary brand
+            // (null for a platform-scoped primary). Persisted in the same SaveChanges below.
+            var homeVertical = await ResolveScopeVerticalAsync(cmd.Request.ScopeType, effectiveScopeId, ct);
+            var targetUser = await _db.Users.FirstOrDefaultAsync(u => u.Id == cmd.Request.UserId, ct);
+            if (targetUser is not null)
+            {
+                targetUser.VerticalKey = homeVertical;
+                targetUser.UpdatedAt = DateTimeOffset.UtcNow;
+                targetUser.UpdatedBy = cmd.ActorId;
+            }
         }
 
         var membership = new UserScopeMembership
@@ -135,5 +147,21 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
         return new MembershipDto(
             membership.Id, membership.UserId, membership.ScopeType, membership.ScopeId,
             membership.RoleId, targetRole.Code, membership.IsPrimary, membership.GrantedAt);
+    }
+
+    /// <summary>Resolve the vertical of the brand a scope belongs to (brand/franchise/store/warehouse
+    /// → brand → vertical_key); null for a platform scope or an unresolvable id.</summary>
+    private async Task<string?> ResolveScopeVerticalAsync(string scopeType, Guid? scopeId, CancellationToken ct)
+    {
+        Guid? brandId = scopeType switch
+        {
+            ScopeType.Brand     => scopeId,
+            ScopeType.Franchise => await _db.Franchises.AsNoTracking().Where(f => f.Id == scopeId).Select(f => (Guid?)f.BrandId).FirstOrDefaultAsync(ct),
+            ScopeType.Store     => await _db.Stores.AsNoTracking().Where(s => s.Id == scopeId).Select(s => (Guid?)s.BrandId).FirstOrDefaultAsync(ct),
+            ScopeType.Warehouse => await _db.Warehouses.AsNoTracking().Where(w => w.Id == scopeId).Select(w => (Guid?)w.BrandId).FirstOrDefaultAsync(ct),
+            _ => null,
+        };
+        if (brandId is null) return null;
+        return await _db.Brands.AsNoTracking().Where(b => b.Id == brandId).Select(b => b.VerticalKey).FirstOrDefaultAsync(ct);
     }
 }

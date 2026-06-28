@@ -334,20 +334,32 @@ public sealed class IdentitySeeder
 
     // ─── 2. Roles ──────────────────────────────────────────────────────────
 
-    private static readonly (string Code, string Name, string ScopeType, short Priority)[] RoleDefs =
+    // VerticalKey: null = vertical-neutral (every brand); a value gates the role to that vertical
+    // (mirrors modules — see GetAccessRoles / GetNavigator). The on-site processing scope
+    // (ScopeType.Warehouse) is the only vertical-specific tier: laundry has warehouse_*, salon has a
+    // salon manager/stylist, logistics has a hub supervisor/operator — all sharing the same
+    // operational permission set (only the labels differ per vertical).
+    private static readonly (string Code, string Name, string ScopeType, short Priority, string? VerticalKey)[] RoleDefs =
     [
-        ("platform_admin",       "Platform Administrator",  ScopeType.Platform,  10),
-        ("brand_admin",          "Brand Administrator",     ScopeType.Brand,     20),
+        ("platform_admin",       "Platform Administrator",  ScopeType.Platform,  10,  null),
+        ("brand_admin",          "Brand Administrator",     ScopeType.Brand,     20,  null),
         // Priority 24: brand-level oversight that outranks the focused brand managers
         // (operations_manager=25, finance=26, …) but stays below brand_admin (20).
-        ("regional_manager",     "Regional Manager",        ScopeType.Brand,     24),
-        ("franchise_owner",      "Franchise Owner",         ScopeType.Franchise, 40),
-        ("store_admin",          "Store Administrator",     ScopeType.Store,     50),
-        ("store_staff",          "Store Staff",             ScopeType.Store,     60),
-        ("warehouse_supervisor", "Warehouse Supervisor",    ScopeType.Warehouse, 70),
-        ("warehouse_staff",      "Warehouse Staff",         ScopeType.Warehouse, 80),
-        ("rider",                "Rider",                   ScopeType.Store,     90),
-        ("auditor",              "Auditor",                 ScopeType.Platform,  100),
+        ("regional_manager",     "Regional Manager",        ScopeType.Brand,     24,  null),
+        ("franchise_owner",      "Franchise Owner",         ScopeType.Franchise, 40,  null),
+        ("store_admin",          "Store Administrator",     ScopeType.Store,     50,  null),
+        ("store_staff",          "Store Staff",             ScopeType.Store,     60,  null),
+        // Laundry on-site processing (warehouse).
+        ("warehouse_supervisor", "Warehouse Supervisor",    ScopeType.Warehouse, 70,  VerticalKey.Laundry),
+        ("warehouse_staff",      "Warehouse Staff",         ScopeType.Warehouse, 80,  VerticalKey.Laundry),
+        // Salon on-site service (studio).
+        ("salon_manager",        "Salon Manager",           ScopeType.Warehouse, 70,  VerticalKey.Salon),
+        ("salon_staff",          "Stylist",                 ScopeType.Warehouse, 80,  VerticalKey.Salon),
+        // Logistics on-site (hub).
+        ("hub_supervisor",       "Hub Supervisor",          ScopeType.Warehouse, 70,  VerticalKey.Logistics),
+        ("hub_operator",         "Hub Operator",            ScopeType.Warehouse, 80,  VerticalKey.Logistics),
+        ("rider",                "Rider",                   ScopeType.Store,     90,  null),
+        ("auditor",              "Auditor",                 ScopeType.Platform,  100, null),
     ];
 
     private async Task<Dictionary<string, Role>> SeedRolesAsync(CancellationToken ct)
@@ -358,7 +370,7 @@ public sealed class IdentitySeeder
         var now = DateTimeOffset.UtcNow;
         int added = 0;
 
-        foreach (var (code, name, scopeType, priority) in RoleDefs)
+        foreach (var (code, name, scopeType, priority, verticalKey) in RoleDefs)
         {
             if (existing.ContainsKey(code)) continue;
             var role = new Role
@@ -368,6 +380,7 @@ public sealed class IdentitySeeder
                 Code = code,
                 Name = name,
                 ScopeType = scopeType,
+                VerticalKey = verticalKey,
                 IsSystem = true,
                 IsAssignable = true,
                 Priority = priority,
@@ -546,25 +559,36 @@ public sealed class IdentitySeeder
             "payment.record","customer.create",
         ]);
 
-        // warehouse_supervisor
-        Grant("warehouse_supervisor", [
+        // On-site processing/service roles share one permission set per tier across verticals
+        // (laundry warehouse_*, salon salon_manager/staff, logistics hub_*). The codes are
+        // operational, not laundry-specific; per-vertical nav/entitlement gating already hides the
+        // modules a vertical doesn't license, so over-granting across verticals is inert.
+        string[] onsiteSupervisorPerms =
+        [
             "warehouses.list","orders.list","orders.update",
             // BC-4: fulfillment.*, warehouse.*, qc, stockrecon, orders.read
             "orders.read",
             "fulfillment.read","fulfillment.tag","fulfillment.inspect",
             "warehouse.batch.manage","warehouse.process.scan",
             "qc.perform","stockrecon.manage",
-            // BC-5: logistics — warehouse_supervisor gets rider.read + assignment.manage + capacity.manage
+            // BC-5: logistics — supervisor gets rider.read + assignment.manage + capacity.manage
             "rider.read","rider.assignment.manage","rider.capacity.manage",
-        ]);
-
-        // warehouse_staff
-        Grant("warehouse_staff", [
+        ];
+        string[] onsiteStaffPerms =
+        [
             "orders.list",
-            // BC-4: garment ops + process scan + orders.read
+            // BC-4: on-site item ops + process scan + orders.read
             "orders.read","fulfillment.read","fulfillment.tag","fulfillment.inspect",
             "warehouse.process.scan",
-        ]);
+        ];
+
+        // laundry / salon / logistics on-site supervisor + staff
+        Grant("warehouse_supervisor", onsiteSupervisorPerms);
+        Grant("salon_manager", onsiteSupervisorPerms);
+        Grant("hub_supervisor", onsiteSupervisorPerms);
+        Grant("warehouse_staff", onsiteStaffPerms);
+        Grant("salon_staff", onsiteStaffPerms);
+        Grant("hub_operator", onsiteStaffPerms);
 
         // rider — self-scope task permissions only. Riders never touch admin order
         // APIs; their order mutations flow through /api/v1/rider/* which is gated

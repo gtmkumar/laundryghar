@@ -31,6 +31,6 @@ public class UpdateBrandCommandHandler : ICommandHandler<UpdateBrandCommand, Bra
 
         await _db.SaveChangesAsync(cancellationToken);
         return new BrandDto(brand.Id, brand.PlatformId, brand.Code, brand.Name, brand.LegalName,
-            brand.Tagline, brand.CurrencyCode, brand.Timezone, brand.Status, brand.CreatedAt, brand.UpdatedAt);
+            brand.Tagline, brand.CurrencyCode, brand.Timezone, brand.VerticalKey, brand.Status, brand.CreatedAt, brand.UpdatedAt);
     }
 }

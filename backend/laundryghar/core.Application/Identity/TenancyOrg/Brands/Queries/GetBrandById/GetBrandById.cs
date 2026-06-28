@@ -17,6 +17,6 @@ public class GetBrandByIdQueryHandler : IQueryHandler<GetBrandByIdQuery, BrandDt
         _db.Brands.AsNoTracking()
             .Where(b => b.Id == query.Id)
             .Select(b => new BrandDto(b.Id, b.PlatformId, b.Code, b.Name, b.LegalName, b.Tagline,
-                b.CurrencyCode, b.Timezone, b.Status, b.CreatedAt, b.UpdatedAt))
+                b.CurrencyCode, b.Timezone, b.VerticalKey, b.Status, b.CreatedAt, b.UpdatedAt))
             .FirstOrDefaultAsync(cancellationToken);
 }

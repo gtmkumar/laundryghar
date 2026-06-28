@@ -43,6 +43,7 @@ When two documents disagree, resolve in this order — **higher wins**:
 | `db/patches/*.sql`                | Post-baseline patches (RLS, FKs, features, seeds) | Backend agents, DBA            | Migration authoring         |
 | `./SCHEMA_FULL.sql`               | Original full-schema spec document            | Architects                         | Historical reference        |
 | `./GAP_ANALYSIS.md`               | 2026-06-10 gap register + remediation status  | Everyone                           | Backlog grooming            |
+| `./SAAS_PLATFORM_ARCHITECTURE.md` | How the platform works as a SaaS: tenancy, feature entitlement/gating, charging/billing + GA gaps | Eng, Product, Platform Ops | Understanding/monetizing the platform |
 
 ---
 

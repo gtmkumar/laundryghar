@@ -23,6 +23,10 @@ public class SetUserTypeCommandHandler : ICommandHandler<SetUserTypeCommand, boo
         [laundryghar.SharedDataModel.Enums.UserType.StoreAdmin]        = 50,
         [laundryghar.SharedDataModel.Enums.UserType.Staff]             = 60,
         [laundryghar.SharedDataModel.Enums.UserType.WarehouseStaff]    = 80,
+        // Vertical-neutral on-site processing staff — same privilege tier as the laundry
+        // warehouse_staff it succeeds. Without this entry GetValueOrDefault() returned
+        // int.MaxValue, silently skipping the privilege-escalation guard for ops_staff.
+        [laundryghar.SharedDataModel.Enums.UserType.OpsStaff]          = 80,
         [laundryghar.SharedDataModel.Enums.UserType.Rider]             = 90,
         [laundryghar.SharedDataModel.Enums.UserType.Auditor]           = 100,
         [laundryghar.SharedDataModel.Enums.UserType.Support]           = 110,

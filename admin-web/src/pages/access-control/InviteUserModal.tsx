@@ -4,6 +4,9 @@ import { useInviteUser } from '@/hooks/useAccessControl'
 import { useSettings } from '@/hooks/useSettings'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useEffectiveBrandId } from '@/hooks/useBrandContext'
+import { useActiveVertical } from '@/hooks/useActiveVertical'
+import { onsiteUserType } from '@/lib/verticalTerms'
+import { UserType } from '@/types/userType'
 import { FormDrawer, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import type { AccessRoles, AccessFranchise, InviteUserPayload } from '@/types/api'
 
@@ -14,20 +17,28 @@ interface Props {
   franchises?: AccessFranchise[]
 }
 
-function userTypeForRole(code: string, scopeType: string): string {
-  if (code === 'platform_admin') return 'platform_admin'
-  if (code === 'brand_admin') return 'brand_admin'
-  if (code === 'franchise_owner') return 'franchise_owner'
-  if (code === 'store_admin') return 'store_admin'
-  if (scopeType === 'warehouse') return 'warehouse_staff'
-  if (code === 'auditor') return 'auditor'
-  return 'staff'
+/**
+ * Derive the account user_type for an invite from the chosen role + the brand's vertical.
+ * On-site processing roles map to the vertical's neutral staff type (warehouse_staff for laundry,
+ * ops_staff elsewhere) rather than the old hardcoded warehouse_staff.
+ */
+function userTypeForRole(code: string, scopeType: string, verticalKey: string | undefined): string {
+  if (code === UserType.platformAdmin) return UserType.platformAdmin
+  if (code === UserType.brandAdmin) return UserType.brandAdmin
+  if (code === UserType.franchiseOwner) return UserType.franchiseOwner
+  if (code === UserType.storeAdmin) return UserType.storeAdmin
+  if (code === UserType.rider) return UserType.rider
+  if (code === UserType.auditor) return UserType.auditor
+  if (code === UserType.support) return UserType.support
+  if (scopeType === 'warehouse') return onsiteUserType(verticalKey)
+  return UserType.staff
 }
 
 export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
   const invite = useInviteUser()
   const { hasPermission } = usePermissions()
   const effectiveBrandId = useEffectiveBrandId()
+  const vertical = useActiveVertical()
   const canInvite = hasPermission('users.create')
   const settings = useSettings()
   const selfService = settings.data?.provisioning.mode === 'self_service'
@@ -83,7 +94,7 @@ export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
       email: email.trim(),
       firstName: firstName.trim() || undefined,
       lastName: lastName.trim() || undefined,
-      userType: userTypeForRole(role.code, role.scopeType),
+      userType: userTypeForRole(role.code, role.scopeType, vertical),
       roleId: role.id,
       scopeType,
       scopeId,
@@ -121,7 +132,7 @@ export function InviteUserModal({ open, onClose, roles, franchises }: Props) {
           </Field>
         </div>
         <Field label="Email">
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className={drawerInputCls} placeholder="priya@laundryghar.in" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className={drawerInputCls} placeholder="priya@example.com" />
         </Field>
         <Field label="Role">
           <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={drawerInputCls}>

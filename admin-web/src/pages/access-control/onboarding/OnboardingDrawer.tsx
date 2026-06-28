@@ -98,7 +98,7 @@ function StartForm({ busy, onStart }: { busy: boolean; onStart: (p: { legalName:
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">Create a new franchise as a draft, then complete each onboarding step before going live.</p>
-      <Field label="Legal name *"><input value={legalName} onChange={(e) => setLegalName(e.target.value)} className={inputCls} placeholder="Laundry Ghar Sector 45 Pvt Ltd" /></Field>
+      <Field label="Legal name *"><input value={legalName} onChange={(e) => setLegalName(e.target.value)} className={inputCls} placeholder="Acme Sector 45 Pvt Ltd" /></Field>
       <Field label="Display name"><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className={inputCls} placeholder="Sector 45" /></Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Contact phone *"><input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputCls} placeholder="+91 98xxxxxxxx" /></Field>

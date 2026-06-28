@@ -33,7 +33,8 @@ public class GetUserByIdQueryHandler : IQueryHandler<GetUserByIdQuery, UserDto?>
                 u.Profile != null ? u.Profile.BankAccountName : null,
                 u.Profile != null ? u.Profile.BankAccountNumber : null,
                 u.Profile != null ? u.Profile.BankIfsc        : null,
-                u.Profile != null ? u.Profile.UpiId           : null))
+                u.Profile != null ? u.Profile.UpiId           : null,
+                u.VerticalKey))
             .FirstOrDefaultAsync(ct);
 
         if (dto is null) return null;

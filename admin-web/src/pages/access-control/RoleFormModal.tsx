@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Shield, Copy, Pencil } from 'lucide-react'
 import { FormDrawer, Field, drawerInputCls } from '@/components/shared/FormDrawer'
 import { useCreateRole, useUpdateRole, useCloneRole } from '@/hooks/useAccessControl'
+import { useActiveVertical } from '@/hooks/useActiveVertical'
+import { roleScopeOptions } from '@/lib/verticalTerms'
 import type { AccessRoleSummary } from '@/types/api'
 
 export type RoleFormMode = 'create' | 'clone' | 'edit'
@@ -16,13 +18,6 @@ interface Props {
   onSaved: (role?: AccessRoleSummary) => void
 }
 
-const SCOPES = [
-  { value: 'brand', label: 'Brand (enterprise-wide)' },
-  { value: 'franchise', label: 'Franchise' },
-  { value: 'store', label: 'Store' },
-  { value: 'warehouse', label: 'Warehouse' },
-]
-
 const MODE_META: Record<RoleFormMode, { title: string; icon: typeof Shield; submit: string }> = {
   create: { title: 'New custom role', icon: Shield, submit: 'Create role' },
   clone: { title: 'Clone role', icon: Copy, submit: 'Clone role' },
@@ -33,6 +28,8 @@ export function RoleFormModal({ open, mode, source, onClose, onSaved }: Props) {
   const create = useCreateRole()
   const update = useUpdateRole()
   const clone = useCloneRole()
+  const vertical = useActiveVertical()
+  const scopes = roleScopeOptions(vertical)
   const meta = MODE_META[mode]
 
   const [code, setCode] = useState('')
@@ -118,7 +115,7 @@ export function RoleFormModal({ open, mode, source, onClose, onSaved }: Props) {
         {mode === 'create' && (
           <Field label="Scope">
             <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={drawerInputCls}>
-              {SCOPES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              {scopes.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </Field>
         )}

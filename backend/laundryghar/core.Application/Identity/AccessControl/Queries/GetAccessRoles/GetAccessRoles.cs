@@ -1,6 +1,8 @@
 using core.Application.Common.Interfaces;
 using core.Application.Identity.AccessControl.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace core.Application.Identity.AccessControl.Queries.GetAccessRoles;
@@ -10,14 +12,24 @@ public sealed record GetAccessRolesQuery : IQuery<AccessRolesDto>;
 public class GetAccessRolesQueryHandler : IQueryHandler<GetAccessRolesQuery, AccessRolesDto>
 {
     private readonly ICoreDbContext _db;
-    public GetAccessRolesQueryHandler(ICoreDbContext db) => _db = db;
+    private readonly ICurrentUser _user;
+    public GetAccessRolesQueryHandler(ICoreDbContext db, ICurrentUser user) { _db = db; _user = user; }
 
     public async Task<AccessRolesDto> HandleAsync(GetAccessRolesQuery q, CancellationToken ct)
     {
         var matrix = await ModuleMatrix.LoadAsync(_db, ct);
 
+        // System roles (BrandId == null) are global; custom roles are brand-scoped and must not
+        // leak across tenants. Scope to the caller's active brand (X-Brand-Id / JWT); when no brand
+        // context is resolvable (platform admin, no selection) fall back to the full set.
+        var brandId = _user.TryGetBrandId();
+        var brandVertical = brandId is { } bvId
+            ? await _db.Brands.AsNoTracking().Where(b => b.Id == bvId).Select(b => b.VerticalKey).FirstOrDefaultAsync(ct)
+            : null;
+
         var roles = await _db.Roles.AsNoTracking()
-            .Where(r => r.DeletedAt == null && r.Status == "active")
+            .Where(r => r.DeletedAt == null && r.Status == "active"
+                && (r.BrandId == null || brandId == null || r.BrandId == brandId))
             .Select(r => new
             {
                 r.Id,
@@ -25,12 +37,18 @@ public class GetAccessRolesQueryHandler : IQueryHandler<GetAccessRolesQuery, Acc
                 r.Name,
                 r.Description,
                 r.ScopeType,
+                r.VerticalKey,
                 r.IsSystem,
                 r.Priority,
                 PermCodes = r.RolePermissions.Select(rp => rp.Permission.Code).ToList(),
                 MemberCount = r.UserScopeMemberships.Count(m => m.RevokedAt == null),
             })
             .ToListAsync(ct);
+
+        // Vertical gate: a role tagged with a vertical_key (e.g. laundry warehouse_staff) is offered
+        // only to brands of that vertical; a neutral (null) role shows to all; with no brand context
+        // every role passes. Mirrors GetNavigator's module gating.
+        roles = roles.Where(r => VerticalKey.IsAvailableTo(r.VerticalKey, brandVertical)).ToList();
 
         var summaries = roles.Select(r =>
         {
@@ -42,7 +60,7 @@ public class GetAccessRolesQueryHandler : IQueryHandler<GetAccessRolesQuery, Acc
             {
                 r.ScopeType,
                 Dto = new RoleSummaryDto(r.Id, r.Code, r.Name, r.Description, r.ScopeType, r.IsSystem,
-                    r.MemberCount, onCells.OrderBy(c => c).ToList()),
+                    r.MemberCount, onCells.OrderBy(c => c).ToList(), r.VerticalKey),
                 r.Priority,
             };
         }).ToList();

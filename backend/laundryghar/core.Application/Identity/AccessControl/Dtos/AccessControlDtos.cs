@@ -4,7 +4,12 @@ namespace core.Application.Identity.AccessControl.Dtos;
 public sealed record PersonDto(
     Guid Id, string Name, string Email, string Initials,
     string RoleCode, string RoleName, string ScopeLabel,
-    string Tier, string Status, DateTimeOffset? LastActiveAt);
+    string Tier, string Status,
+    // The account's coarse user_type (e.g. ops_staff / warehouse_staff). The role *code* alone
+    // can't distinguish the vertical-neutral ops_staff (it shares role codes), so the directory
+    // needs the type to badge and humanise it. See SharedDataModel/Enums/UserType.
+    string UserType,
+    DateTimeOffset? LastActiveAt);
 
 public sealed record PeopleCountsDto(int All, int HqEmployees, int FranchiseOwners, int FranchiseStaff);
 
@@ -21,7 +26,9 @@ public sealed record MatrixModuleDto(string Key, string Label);
 public sealed record RoleSummaryDto(
     Guid Id, string Code, string Name, string? Description,
     string ScopeType, bool IsSystem, int MemberCount,
-    IReadOnlyList<string> OnCells); // "module:action" cells that are enabled
+    IReadOnlyList<string> OnCells, // "module:action" cells that are enabled
+    // Vertical the role belongs to (laundry/salon/logistics), or null = neutral/all brands.
+    string? VerticalKey = null);
 
 public sealed record RoleGroupDto(string Tier, string TierLabel, IReadOnlyList<RoleSummaryDto> Roles);
 

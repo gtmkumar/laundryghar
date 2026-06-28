@@ -18,6 +18,7 @@ public sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
         b.Property(e => e.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
         b.Property(e => e.Description).HasColumnName("description");
         b.Property(e => e.ScopeType).HasColumnName("scope_type").HasMaxLength(20).IsRequired();
+        b.Property(e => e.VerticalKey).HasColumnName("vertical_key").HasMaxLength(20);
         b.Property(e => e.IsSystem).HasColumnName("is_system").IsRequired();
         b.Property(e => e.IsAssignable).HasColumnName("is_assignable").IsRequired();
         b.Property(e => e.Priority).HasColumnName("priority").IsRequired();

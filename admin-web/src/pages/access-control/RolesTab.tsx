@@ -7,6 +7,8 @@ import { useBrandEntitlements } from '@/hooks/useEntitlements'
 import { usePermissions } from '@/hooks/usePermissions'
 import { showToast } from '@/stores/toastStore'
 import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
+import { useActiveVertical } from '@/hooks/useActiveVertical'
+import { scopeScopedLabel } from '@/lib/verticalTerms'
 import { RoleFormModal, type RoleFormMode } from './RoleFormModal'
 import type { AccessRoles, AccessRoleSummary } from '@/types/api'
 
@@ -15,12 +17,12 @@ interface Props {
   search?: string
 }
 
-const SCOPE_LABEL: Record<string, string> = {
-  platform: 'Platform-wide',
-  brand: 'Enterprise-wide',
-  franchise: 'Franchise-scoped',
-  store: 'Store-scoped',
-  warehouse: 'Warehouse-scoped',
+// Soft badge per vertical, shown on vertical-specific system roles (e.g. in the platform-admin
+// all-verticals view); neutral roles carry no badge.
+const VERTICAL_BADGE: Record<string, string> = {
+  laundry: 'bg-sky-100 text-sky-700',
+  salon: 'bg-pink-100 text-pink-700',
+  logistics: 'bg-amber-100 text-amber-700',
 }
 
 export function RolesTab({ query, search }: Props) {
@@ -28,6 +30,7 @@ export function RolesTab({ query, search }: Props) {
   const saveCells = useSetRoleCells()
   const deleteRole = useDeleteRole()
   const qc = useQueryClient()
+  const vertical = useActiveVertical()
   const { hasPermission } = usePermissions()
   const canEdit = hasPermission('permissions.assign')
   const canManageRoles = hasPermission('roles.manage')
@@ -257,8 +260,13 @@ export function RolesTab({ query, search }: Props) {
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold text-gray-900">{selected.name}</h3>
               <span className="rounded-full bg-lg-green/10 px-2 py-0.5 text-xs font-medium text-lg-green">
-                {SCOPE_LABEL[selected.scopeType] ?? selected.scopeType}
+                {scopeScopedLabel(selected.scopeType, vertical)}
               </span>
+              {selected.verticalKey && (
+                <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium capitalize', VERTICAL_BADGE[selected.verticalKey] ?? 'bg-slate-100 text-slate-600')}>
+                  {selected.verticalKey}
+                </span>
+              )}
             </div>
             {selected.description && <p className="mt-0.5 text-sm text-gray-500">{selected.description}</p>}
             {entByKey && (() => {

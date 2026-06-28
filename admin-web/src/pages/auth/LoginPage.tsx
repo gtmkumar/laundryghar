@@ -28,6 +28,7 @@ const HERO_STATS = [
 function landingPath(userType: string | undefined): string {
   switch (userType) {
     case 'warehouse_staff':
+    case 'ops_staff': // vertical-neutral on-site processing staff (salon/logistics)
       return '/warehouse/board' // operator kanban
     case 'store_admin':
     case 'staff':

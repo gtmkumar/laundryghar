@@ -15,6 +15,14 @@ public class User : IAuditableEntity, ISoftDeletable
     public string? MfaSecret { get; set; }
     public string[]? MfaBackupCodes { get; set; }
     public string UserType { get; set; } = null!;
+
+    /// <summary>Denormalised "home" vertical (laundry/salon/logistics): the vertical of the brand the
+    /// user's PRIMARY membership binds to, or <c>null</c> for a platform / cross-vertical user with no
+    /// single home brand. A convenience hint kept in sync when the primary membership changes
+    /// (see GrantMembership); a user may still hold roles in other verticals — that lives on the
+    /// memberships, not here. The authoritative vertical for a given action is the membership's brand.</summary>
+    public string? VerticalKey { get; set; }
+
     public string Locale { get; set; } = null!;
     public string Timezone { get; set; } = null!;
     public string Status { get; set; } = null!;

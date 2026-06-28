@@ -2,13 +2,23 @@ import { useState } from 'react'
 import { Loader2, Pencil, Mail, Phone, Shield, MapPin, Clock, Check, Briefcase, CreditCard, IdCard, BadgeCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FormDrawer, DetailSection, DetailRow, Field } from '@/components/shared/FormDrawer'
-import { useUser, useUpdateUser, useChangeUserRole } from '@/hooks/useUsers'
+import { useUser, useUpdateUser, useChangeUserRole, useSetUserType } from '@/hooks/useUsers'
 import { useAccessRoles, useAccessFranchises } from '@/hooks/useAccessControl'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useEffectiveBrandId } from '@/hooks/useBrandContext'
+import { useActiveVertical } from '@/hooks/useActiveVertical'
 import { useAuthStore } from '@/stores/authStore'
+import { designationPlaceholder } from '@/lib/verticalTerms'
+import { UserType, USER_TYPE_LABEL, userTypeLabel } from '@/types/userType'
 import { statusTone } from './FranchiseTeamShared'
 import type { UserEmploymentType, UserKycStatus } from '@/types/api'
+
+// Account types an admin can assign from the drawer (privileged → platform_admin is excluded; it is
+// granted via the dedicated platform flow). Ordered roughly by privilege for a sensible dropdown.
+const ASSIGNABLE_USER_TYPES: string[] = [
+  UserType.brandAdmin, UserType.franchiseOwner, UserType.storeAdmin, UserType.staff,
+  UserType.warehouseStaff, UserType.opsStaff, UserType.auditor, UserType.support,
+]
 
 export interface PersonSummary {
   id: string
@@ -59,6 +69,8 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
   const { data: user, isLoading } = useUser(open ? person?.id ?? null : null)
   const update = useUpdateUser()
   const changeRole = useChangeUserRole()
+  const setType = useSetUserType()
+  const vertical = useActiveVertical()
   const { hasPermission } = usePermissions()
   // The brand a brand-scoped membership must bind to: the JWT brand_id for
   // brand-scoped admins, or the platform-admin's active brand selection.
@@ -79,6 +91,14 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
   const [roleErr, setRoleErr] = useState<string | null>(null)
   // After a successful change the `person` prop is stale, so show the new role locally.
   const [roleOverride, setRoleOverride] = useState<{ name: string; scope: string } | null>(null)
+
+  // Account-type change (privileged): migrate a mislabeled account, e.g. warehouse_staff → ops_staff.
+  const canSetType = hasPermission('users.set_type') && !isSelf
+  const [typeEditing, setTypeEditing] = useState(false)
+  const [newType, setNewType] = useState('')
+  const [typeErr, setTypeErr] = useState<string | null>(null)
+  // The fetched `user` is stale right after a change, so show the new type locally until refetch.
+  const [typeOverride, setTypeOverride] = useState<string | null>(null)
 
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
@@ -112,6 +132,7 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
     if (!open) {
       setEditing(false); setErr(null); setSavedAt(null)
       setRoleEditing(false); setRoleErr(null); setRoleOverride(null); setNewRoleId(''); setNewFranchiseId('')
+      setTypeEditing(false); setTypeErr(null); setTypeOverride(null); setNewType('')
     }
   }
 
@@ -153,6 +174,20 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
       setRoleEditing(false); setNewRoleId(''); setNewFranchiseId('')
     } catch (e) {
       setRoleErr(e instanceof Error ? e.message : 'Could not change role.')
+    }
+  }
+
+  const currentType = typeOverride ?? user?.userType ?? ''
+  const saveType = async () => {
+    setTypeErr(null)
+    if (!newType) { setTypeErr('Pick an account type.'); return }
+    if (newType === currentType) { setTypeEditing(false); return }
+    try {
+      await setType.mutateAsync({ id: person.id, newUserType: newType })
+      setTypeOverride(newType)
+      setTypeEditing(false); setNewType('')
+    } catch (e) {
+      setTypeErr(e instanceof Error ? e.message : 'Could not change account type.')
     }
   }
 
@@ -345,11 +380,57 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                     <Field label="Phone"><input value={form.phone} onChange={set('phone')} className={inputCls} placeholder="+91…" /></Field>
                   </div>
                 ) : (
-                  <dl className="space-y-2.5">
-                    <DetailRow icon={<Mail className="h-4 w-4" />} label="Email" value={user?.email ?? '—'} />
-                    <DetailRow icon={<Phone className="h-4 w-4" />} label="Phone" value={user?.phoneE164 ?? '—'} />
-                    <DetailRow icon={<Shield className="h-4 w-4" />} label="Type" value={user?.userType ?? '—'} />
-                  </dl>
+                  <>
+                    <dl className="space-y-2.5">
+                      <DetailRow icon={<Mail className="h-4 w-4" />} label="Email" value={user?.email ?? '—'} />
+                      <DetailRow icon={<Phone className="h-4 w-4" />} label="Phone" value={user?.phoneE164 ?? '—'} />
+                      <DetailRow icon={<Shield className="h-4 w-4" />} label="Type" value={userTypeLabel(currentType)} />
+                    </dl>
+                    {typeEditing ? (
+                      <div className="mt-3 space-y-3">
+                        <Field label="Account type">
+                          <select value={newType} onChange={(e) => setNewType(e.target.value)} className={inputCls}>
+                            <option value="">Select an account type…</option>
+                            {ASSIGNABLE_USER_TYPES.map((t) => (
+                              <option key={t} value={t}>{USER_TYPE_LABEL[t] ?? t}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        {typeErr && <p className="text-sm text-red-600">{typeErr}</p>}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={saveType}
+                            disabled={setType.isPending}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-60"
+                          >
+                            {setType.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Update type
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setTypeEditing(false); setTypeErr(null) }}
+                            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-400">Controls auth scope &amp; which app the user lands in. Changing it does not move their role.</p>
+                      </div>
+                    ) : (
+                      <>
+                        {typeOverride && <p className="mt-2 text-xs text-lg-green">Account type updated.</p>}
+                        {canSetType && (
+                          <button
+                            type="button"
+                            onClick={() => { setTypeEditing(true); setNewType(currentType); setTypeErr(null) }}
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-lg-green"
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Change account type
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </>
                 )}
               </DetailSection>
 
@@ -363,7 +444,7 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                         {EMPLOYMENT_TYPES.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
                       </select>
                     </Field>
-                    <Field label="Designation"><input value={form.designation} onChange={set('designation')} className={inputCls} placeholder="e.g. Store Supervisor" /></Field>
+                    <Field label="Designation"><input value={form.designation} onChange={set('designation')} className={inputCls} placeholder={designationPlaceholder(vertical)} /></Field>
                   </div>
                 ) : (
                   <dl className="space-y-2.5">
