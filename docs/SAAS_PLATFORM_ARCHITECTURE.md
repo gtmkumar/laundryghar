@@ -359,11 +359,47 @@ Ordered by leverage. The architecture is present; these are the "last-mile" item
 | `Worker:SubscriptionBillingEnabled` / `…PollIntervalSeconds` | Enable + cadence of the customer-subscription billing job. |
 | `Worker:SubscriptionDunningBackoffMinutes` | Backoff between failed-charge retries. |
 | `Worker:RoyaltyGenerationEnabled` / trigger day | Enable + day-of-month for royalty invoice generation. |
-| `Razorpay:WebhookSecret` | HMAC secret for `POST /webhooks/razorpay` (fail-closed in non-Development). |
+| `Razorpay:WebhookSecret` | HMAC secret for the webhook receivers (fail-closed in non-Development). |
+| `Razorpay:KeyId` / `Razorpay:KeySecret` | Razorpay API key for tier-invoice collection (payment links) + the customer-sub gateway charger. |
 
 ---
 
-## 8. Key files index
+## 8. Deployment runbook (the two operational steps)
+
+**1. Apply the DB patches** (idempotent — safe to re-run; each ends with a verify gate):
+
+```bash
+DB_HOST=<host> DB_PORT=5432 DB_NAME=<db> DB_USER=postgres DB_PASS=<pw> \
+  bash db/patches/apply_saas_billing_patches.sh
+```
+
+It applies, in dependency order: `phase4_role_vertical_key`, `phase4_user_vertical_key`,
+`phase4_bundle_pricing`, `phase4_brand_platform_subscription`, `phase4_brand_platform_invoice_paylink`,
+`phase4_platform_billing_nav`. (Run *after* the baseline schema + `apply_patches.sh` FK set.)
+
+**2. Configure Razorpay** (the only code-external step):
+
+- **Env vars** on the hosts (never commit; `run-stack.sh` already loads the first two from the gitignored
+  `Keys/` CSV locally):
+  `Razorpay__KeyId`, `Razorpay__KeySecret`, and `Razorpay__WebhookSecret`.
+- **Razorpay dashboard → Settings → Webhooks → Add**, pointing at the deployed hosts:
+
+  | URL | Events | Marks |
+  |---|---|---|
+  | `https://<core-host>/api/v1/webhooks/razorpay-paylink` | `payment_link.paid` | brand tier invoice → paid |
+  | `https://<commerce-host>/api/v1/webhooks/razorpay` | `payment.captured`, `payment.failed` | customer payments |
+
+  Copy each webhook's **signing secret** into `Razorpay__WebhookSecret` (the handlers fail-closed if a
+  signature is present but unverifiable).
+- For **customer-subscription** auto-charge, also run the mandate-authorization flow so each subscription
+  has an authorized `gateway_mandate_id` before `GatewaySubscriptionCharger` can debit it.
+
+> Local dev needs none of step 2 beyond `Razorpay:KeyId/KeySecret`: with no `WebhookSecret`, the receivers
+> accept unsigned webhooks **in Development only** (logged loudly), and the dev subscription charger is used.
+
+---
+
+## 9. Key files index
 
 **Tenancy**
 - `database_scripts/01_bc1_tenancy_org.sql` — brand/franchise/store/warehouse + RLS policies
@@ -393,7 +429,7 @@ Ordered by leverage. The architecture is present; these are the "last-mile" item
 
 ---
 
-## 9. Glossary
+## 10. Glossary
 
 | Term | Meaning |
 |---|---|
