@@ -460,7 +460,9 @@ public sealed class RbacRlsFixture : IAsyncLifetime
                 status            text NOT NULL DEFAULT 'active',
                 CONSTRAINT partner_wallet_accounts_partner_id_key UNIQUE (partner_id)
             );
-            -- partner_wallet_transactions — append-only credit/debit ledger.
+            -- partner_wallet_transactions — append-only credit/debit ledger. idempotency_key is unique
+            -- PER PARTNER (not globally) — mirrors production's composite constraint (see
+            -- raas_partner_wallet_idem_scope.sql) so two partners can reuse the same free-form key.
             CREATE TABLE IF NOT EXISTS commerce.partner_wallet_transactions (
                 id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
                 partner_wallet_account_id uuid,
@@ -471,7 +473,9 @@ public sealed class RbacRlsFixture : IAsyncLifetime
                 balance_after             numeric(14,2),
                 reference_type            varchar(30),
                 reference_id              uuid,
-                idempotency_key           varchar(100) UNIQUE
+                idempotency_key           varchar(100),
+                CONSTRAINT partner_wallet_transactions_partner_idempotency_key
+                    UNIQUE (partner_id, idempotency_key)
             );
             """);
 

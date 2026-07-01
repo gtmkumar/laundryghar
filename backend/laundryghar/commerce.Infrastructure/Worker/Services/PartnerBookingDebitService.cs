@@ -19,19 +19,32 @@ namespace commerce.Infrastructure.Worker.Services;
 /// wallet in commerce — both over the one physical LaundryGharDbContext, so the outbox row written
 /// by the operations host is visible to this commerce-host worker (same DB, transactional outbox).
 ///
-/// Design (mirrors <see cref="LoyaltyEarnService"/> — the established outbox-consumer template):
-///   - Cursor-based watermark (<c>NotificationEventCursor</c>, consumer_name = 'partner_booking_debit')
-///     tracks the last processed event. We do NOT mutate <c>OutboxEvent.Status</c>/<c>PublishedAt</c> —
-///     those are exclusively owned by <see cref="OutboxEventRelayService"/> (the generic broker relay
-///     also drains these rows; the two consumers are independent and never race, because they touch
-///     disjoint state).
+/// Design — NO-SKIP delivery via a per-event inbox marker (this is a MONEY path: a skipped debit is
+/// a free booking, i.e. direct revenue loss, and the idempotent command cannot recover an event that
+/// was never delivered):
+///   - Per-event processed marker (<c>OutboxConsumedEvent</c>, kernel.outbox_consumed_events,
+///     consumer_name = 'partner_booking_debit'). We query the set of UNPROCESSED debit events with an
+///     anti-join (an event is eligible iff it has no marker for this consumer) — NOT by a moving
+///     <c>OccurredAt</c> watermark. Eligibility is order-independent, so an event can never be stepped
+///     over. This structurally fixes the two watermark defects: (1) an earlier-<c>OccurredAt</c> row
+///     that COMMITS after a later one the watermark already passed, and (2) a burst of &gt;BatchSize
+///     rows sharing one <c>OccurredAt</c> where a strict '&gt;' cursor skips the tied remainder.
+///     (<see cref="LoyaltyEarnService"/> still uses the old time-watermark cursor and shares that
+///     latent skip risk; the fix is deliberately scoped to this money path — see the class remarks in
+///     that file. Migrating loyalty to this same inbox table is a safe follow-up.)
+///   - We do NOT mutate <c>OutboxEvent.Status</c>/<c>PublishedAt</c> — those are exclusively owned by
+///     <see cref="OutboxEventRelayService"/> (the generic broker relay also drains these rows; the two
+///     consumers are independent and never race, because they touch disjoint state).
 ///   - Idempotency: <see cref="DebitPartnerWalletCommand"/> keys the ledger row on the booking id
 ///     (unique on partner_wallet_transactions.idempotency_key), so a redelivered event is a no-op.
 ///     This is the AUTHORITATIVE double-debit guard — the booking-time pre-check only narrows the race.
+///     Because re-delivery is safe, we favour a mechanism that never skips even if it occasionally
+///     re-delivers: the marker is written only AFTER the debit commits (or the booking is terminally
+///     cancelled), so a crash before the marker just re-delivers the (idempotent) debit next poll.
 ///   - Failure path: an insufficient-balance <see cref="BusinessRuleException"/> (a race that slipped
 ///     past the pre-check, or a frozen wallet) is terminal — retrying cannot succeed — so we cancel the
-///     unfunded booking (Status → 'cancelled') and advance past the event. Only UNEXPECTED (transient)
-///     errors leave the cursor unadvanced so the next poll retries.
+///     unfunded booking (Status → 'cancelled') and mark the event processed. Only UNEXPECTED (transient)
+///     errors leave the event UNMARKED so the next poll retries it.
 ///   - Mandatory (no opt-in flag): prepaid economics must always run, else bookings are created but
 ///     never charged.
 /// </summary>
@@ -86,73 +99,69 @@ public sealed class PartnerBookingDebitService : BackgroundService
         var db         = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
         var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
 
-        // Load or initialise our cursor (per-consumer watermark).
-        var cursor = await db.NotificationEventCursors
-            .FirstOrDefaultAsync(c => c.ConsumerName == ConsumerName, ct);
-
-        if (cursor is null)
-        {
-            cursor = new laundryghar.SharedDataModel.Entities.EngagementCms.NotificationEventCursor
-            {
-                ConsumerName   = ConsumerName,
-                LastEventId    = null,
-                ProcessedCount = 0,
-                UpdatedAt      = DateTimeOffset.UtcNow
-            };
-            db.NotificationEventCursors.Add(cursor);
-            await db.SaveChangesAsync(ct);
-        }
-
-        // Fetch debit events strictly after the cursor watermark, oldest first.
-        var query = db.OutboxEvents
-            .Where(e => e.EventType == EventType)
+        // NO-SKIP delivery: query the UNPROCESSED debit events via an anti-join against this
+        // consumer's inbox (kernel.outbox_consumed_events). An event is eligible iff it has NO
+        // marker for this consumer — eligibility is "not yet processed", NOT "occurred after a
+        // moving time-watermark". Because it is order-independent, an event can never be stepped
+        // over, whether it commits out of OccurredAt order or shares its OccurredAt with a whole
+        // batch of siblings. OrderBy(OccurredAt) is fairness (oldest first) only, not correctness.
+        var events = await db.OutboxEvents
+            .Where(e => e.EventType == EventType
+                     && !db.OutboxConsumedEvents.Any(
+                            c => c.ConsumerName == ConsumerName && c.EventId == e.Id))
             .OrderBy(e => e.OccurredAt)
-            .Take(BatchSize);
+            .ThenBy(e => e.Id)
+            .Take(BatchSize)
+            .ToListAsync(ct);
 
-        if (cursor.LastEventId.HasValue)
-        {
-            var lastEvent = await db.OutboxEvents
-                .Where(e => e.Id == cursor.LastEventId.Value)
-                .Select(e => new { e.OccurredAt })
-                .FirstOrDefaultAsync(ct);
-
-            if (lastEvent is not null)
-                query = db.OutboxEvents
-                    .Where(e => e.EventType == EventType && e.OccurredAt > lastEvent.OccurredAt)
-                    .OrderBy(e => e.OccurredAt)
-                    .Take(BatchSize);
-        }
-
-        var events = await query.ToListAsync(ct);
         if (events.Count == 0) return;
-
-        Guid lastProcessedId = cursor.LastEventId ?? Guid.Empty;
-        int  handledCount    = 0;
 
         foreach (var evt in events)
         {
             var handled = await ProcessEventAsync(db, dispatcher, evt, ct);
             if (!handled)
-                break; // transient failure — stop; next poll retries from the same watermark.
+                break; // transient failure — leave this (and later) events UNMARKED; next poll retries.
 
-            lastProcessedId = evt.Id;
-            handledCount++;
+            // Mark processed ONLY after the debit is durable (or the booking terminally cancelled),
+            // so a crash before this point re-delivers the idempotent debit — never a skip.
+            await MarkProcessedAsync(db, evt.Id, ct);
         }
+    }
 
-        if (handledCount == 0) return;
+    /// <summary>
+    /// Durably records that this consumer has finished with <paramref name="eventId"/> so it is never
+    /// re-queried. Committed in its own SaveChanges after the debit's transaction, so the two never
+    /// share a transaction boundary. A duplicate-key collision (defensive — this consumer is
+    /// single-instance) means a concurrent pass already marked it: detach and treat as done, since the
+    /// debit is idempotent regardless.
+    /// </summary>
+    private async Task MarkProcessedAsync(LaundryGharDbContext db, Guid eventId, CancellationToken ct)
+    {
+        var marker = new laundryghar.SharedDataModel.Entities.Kernel.OutboxConsumedEvent
+        {
+            ConsumerName = ConsumerName,
+            EventId      = eventId,
+            ProcessedAt  = DateTimeOffset.UtcNow
+        };
 
-        // Advance cursor only past contiguously-handled events (never past an unhandled one).
-        cursor.LastEventId    = lastProcessedId;
-        cursor.ProcessedCount += handledCount;
-        cursor.UpdatedAt      = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(ct);
+        db.OutboxConsumedEvents.Add(marker);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            db.Entry(marker).State = EntityState.Detached;
+            _logger.LogDebug(
+                "PartnerBookingDebitService: eventId={EventId} already marked processed; ignoring.", eventId);
+        }
     }
 
     /// <summary>
     /// Processes one debit event. Returns <c>true</c> when the event is fully handled (success,
     /// idempotent no-op, terminal cancel, or an unrecoverable/poison payload we deliberately skip)
-    /// and the cursor may advance; <c>false</c> only for UNEXPECTED transient errors, so the caller
-    /// stops and retries from the current watermark next poll.
+    /// and the caller may mark it processed; <c>false</c> only for UNEXPECTED transient errors, so the
+    /// caller leaves it UNMARKED and the next poll retries it.
     /// </summary>
     private async Task<bool> ProcessEventAsync(
         LaundryGharDbContext db,

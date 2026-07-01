@@ -132,7 +132,21 @@ public sealed class PartnerRazorpayLinkClient : IPartnerPaymentLinkClient
         var status = root.TryGetProperty("status", out var s) ? s.GetString() ?? "created" : "created";
         // amount_paid is in paise; convert to major units.
         var paidPaise = root.TryGetProperty("amount_paid", out var ap) && ap.TryGetInt64(out var v) ? v : 0L;
-        return new PartnerPaymentLinkDetails(status, paidPaise / 100m);
+        // notes are echoed back verbatim; pull-based reconcilers bind the credit to these server-set
+        // values (partner_id / idempotency_key / kind), exactly like the push webhook does.
+        return new PartnerPaymentLinkDetails(status, paidPaise / 100m, ReadNotes(root));
+    }
+
+    /// <summary>Reads the string-valued entries of the link's <c>notes</c> object (non-string values
+    /// are skipped). Mirrors <c>ProcessPartnerPaylinkWebhookHandler.ReadNotes</c>.</summary>
+    private static IReadOnlyDictionary<string, string> ReadNotes(JsonElement entity)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (entity.TryGetProperty("notes", out var notes) && notes.ValueKind == JsonValueKind.Object)
+            foreach (var p in notes.EnumerateObject())
+                if (p.Value.ValueKind == JsonValueKind.String)
+                    result[p.Name] = p.Value.GetString()!;
+        return result;
     }
 
     private static void Ensure(string keyId, string keySecret)

@@ -255,6 +255,14 @@ internal static class PartnerWalletLedger
                     await db.SaveChangesAsync(innerCt);
                 }
 
+                // Serialize concurrent credit/debit on THIS wallet: take a pessimistic row lock, then
+                // reload so Balance reflects any concurrent transaction that committed while we waited.
+                // Without this, a top-up (HTTP) and a debit (worker) — or two worker replicas — could
+                // both read the same stale balance and the second write would silently clobber the first
+                // (version is a plain counter, not an EF concurrency token). The lock releases on commit.
+                await db.LockPartnerWalletRowAsync(partnerId, innerCt);
+                await db.ReloadAsync(wallet, innerCt);
+
                 if (wallet.Status != "active")
                     throw new BusinessRuleException($"Partner wallet is {wallet.Status}; cannot transact.");
                 if (direction == -1 && wallet.Balance < amount)

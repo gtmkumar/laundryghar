@@ -178,6 +178,7 @@ public class LaundryGharDbContext : DbContext
 
     // kernel
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
+    public DbSet<OutboxConsumedEvent> OutboxConsumedEvents => Set<OutboxConsumedEvent>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
     public DbSet<FileAttachment> FileAttachments => Set<FileAttachment>();

@@ -115,6 +115,15 @@ public sealed class CommerceDbContext : ICommerceDbContext
     }
 
     /// <inheritdoc/>
+    public Task LockPartnerWalletRowAsync(Guid partnerId, CancellationToken cancellationToken) =>
+        // Parameterised via ExecuteSqlInterpolated (no string concatenation). Runs on the DbContext's
+        // current transaction, so the FOR UPDATE lock is held for the rest of ExecuteInTransactionAsync.
+        // The SELECT is executed server-side even though no rows are read back, so the lock is acquired.
+        _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT id FROM commerce.partner_wallet_accounts WHERE partner_id = {partnerId} FOR UPDATE",
+            cancellationToken);
+
+    /// <inheritdoc/>
     public Task ReloadAsync<TEntity>(TEntity entity, CancellationToken cancellationToken)
         where TEntity : class =>
         _db.Entry(entity).ReloadAsync(cancellationToken);

@@ -110,6 +110,17 @@ public interface ICommerceDbContext
     Task ExecuteInTransactionAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Takes a pessimistic row-level lock (<c>SELECT … FOR UPDATE</c>) on the calling partner's wallet
+    /// account row. Call inside <see cref="ExecuteInTransactionAsync"/>: concurrent credit/debit on the
+    /// SAME wallet then serialize on this lock (the second waiter blocks until the first commits), which
+    /// closes the READ COMMITTED lost-update race on <c>balance</c> — the <c>version</c> column is a
+    /// plain counter, not an EF concurrency token, so a bare read-modify-write would otherwise clobber a
+    /// concurrent update. The lock is released when the surrounding transaction commits. Reload the
+    /// wallet entity after acquiring the lock so its <c>Balance</c> reflects the freshly committed value.
+    /// </summary>
+    Task LockPartnerWalletRowAsync(Guid partnerId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Reloads a tracked entity from the database, refreshing all property values. Finance handlers
     /// use this after <see cref="SaveChangesAsync"/> to pick up DB-generated columns
     /// (cash-book <c>variance</c>, expense <c>total_amount</c>, royalty <c>amount_due</c>,

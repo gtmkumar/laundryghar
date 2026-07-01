@@ -96,15 +96,15 @@ public class PartnerBillingEndpoints : IEndpointGroup
         return Results.Ok(new SingleResponse<TopUpPartnerWalletViaLinkResponse> { Status = true, Data = r });
     }
 
+    /// <summary>Pull-reconcile a wallet top-up link. The caller supplies ONLY the link id (route): the
+    /// partner binding, idempotency key and credit amount are all read from the link's server-set state,
+    /// so no request body is accepted — any client-supplied idempotency key is deliberately not trusted.</summary>
     public static async Task<IResult> SyncTopUp(
-        string linkId, TopUpSyncBody body, IDispatcher dispatcher, CancellationToken ct)
+        string linkId, IDispatcher dispatcher, CancellationToken ct)
     {
-        var r = await dispatcher.SendAsync(new SyncPartnerWalletTopUpCommand(linkId, body.IdempotencyKey), ct);
+        var r = await dispatcher.SendAsync(new SyncPartnerWalletTopUpCommand(linkId), ct);
         return Results.Ok(new SingleResponse<SyncPartnerWalletTopUpResponse> { Status = true, Data = r });
     }
-
-    /// <summary>Body for the wallet top-up sync — the idempotency key the link was created with.</summary>
-    public sealed record TopUpSyncBody(string IdempotencyKey);
 
     // ── Invoice handlers ────────────────────────────────────────────────────────────
 

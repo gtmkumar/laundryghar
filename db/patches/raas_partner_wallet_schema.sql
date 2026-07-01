@@ -73,7 +73,12 @@ CREATE TABLE IF NOT EXISTS commerce.partner_wallet_transactions (
     CONSTRAINT partner_wallet_transactions_partner_wallet_account_id_fkey
         FOREIGN KEY (partner_wallet_account_id)
         REFERENCES commerce.partner_wallet_accounts(id) ON DELETE RESTRICT,
-    CONSTRAINT partner_wallet_transactions_idempotency_key_key UNIQUE (idempotency_key)
+    -- Idempotency is scoped PER PARTNER (not global): keys are caller-supplied free-form strings, so two
+    -- partners may reuse the same string without colliding. A global UNIQUE(idempotency_key) would reject
+    -- the second partner and, because the ledger dedup lookup is partner-scoped, surface as a 500. Mirrors
+    -- the house pattern UNIQUE(customer_id, idempotency_key) (pickup_idempotency_and_source.sql).
+    -- NOTE: existing deployments are migrated by db/patches/raas_partner_wallet_idem_scope.sql.
+    CONSTRAINT partner_wallet_transactions_partner_idempotency_key UNIQUE (partner_id, idempotency_key)
 );
 CREATE INDEX IF NOT EXISTS idx_partner_wallet_transactions_partner
     ON commerce.partner_wallet_transactions(partner_id);

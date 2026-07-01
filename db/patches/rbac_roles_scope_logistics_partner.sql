@@ -10,6 +10,14 @@
 --   This clones rbac_roles_scope_territory.sql byte-for-byte, adding one value; the
 --   resulting set is a superset, so it is safe whether or not the territory patch ran.
 --
+--   NOTE — REDUNDANT BUT HARMLESS: the identical CHECK relax is now FOLDED into step 0
+--   of rbac_catalog_logistics_partner.sql so that patch is self-sufficient and a
+--   lexicographic glob runner (which applies 'catalog' before 'roles') no longer aborts.
+--   This standalone patch is kept for explicitness and back-compat; it drops/re-adds the
+--   same superset constraint, so applying it before OR after the catalog patch (and
+--   re-running it) all converge on the same result. It can be deleted once no runner
+--   references it.
+--
 --   NOTE — user_scope_memberships.scope_type CHECK is deliberately NOT touched.
 --   Partners do NOT get user_scope_memberships rows: a membership row FKs to
 --   identity_access.users, and partners are external (isolated by partner_id RLS +

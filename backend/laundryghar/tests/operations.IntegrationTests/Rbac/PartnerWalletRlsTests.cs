@@ -230,4 +230,46 @@ public sealed class PartnerWalletRlsTests
             "SELECT count(*) FROM commerce.partner_wallet_accounts WHERE partner_id = ANY(@ps)",
             ("@ps", new[] { p1, p2 })));
     }
+
+    /// <summary>
+    /// Idempotency is scoped PER PARTNER, not globally: two DIFFERENT partners may use the same
+    /// caller-supplied key (the composite UNIQUE(partner_id, idempotency_key) permits it), while the
+    /// SAME partner reusing a key is rejected (23505). Guards the money-correctness regression a global
+    /// UNIQUE(idempotency_key) caused — partner B being permanently unable to top up with a key partner A
+    /// already used. Seeded/asserted on the superuser connection (table owner) so the test isolates the
+    /// CONSTRAINT shape, independent of RLS.
+    /// </summary>
+    [Fact]
+    public async Task Idempotency_key_is_unique_per_partner_not_globally()
+    {
+        if (!_fx.DockerAvailable) { return; } // Docker not available: skip (xunit 2.9.2 lacks Assert.Skip)
+
+        Guid p1 = Guid.NewGuid(), p2 = Guid.NewGuid();
+        var sharedKey = $"topup-{Guid.NewGuid():N}";
+
+        await using var su = await _fx.OpenSuperuserAsync();
+        await SeedPartnerAsync(su, p1, $"P1-{p1:N}");
+        await SeedPartnerAsync(su, p2, $"P2-{p2:N}");
+        var walletP1 = await SeedWalletAsync(su, p1, 0m);
+        var walletP2 = await SeedWalletAsync(su, p2, 0m);
+
+        // Partner 1 uses the key — succeeds.
+        await SeedTxnAsync(su, walletP1, p1, 1, 100m, sharedKey);
+
+        // Partner 2 reuses the SAME key — must ALSO succeed (uniqueness is per-partner).
+        await SeedTxnAsync(su, walletP2, p2, 1, 250m, sharedKey);
+
+        // Partner 1 reusing its OWN key — rejected by the composite unique (23505).
+        var dup = await Assert.ThrowsAsync<PostgresException>(
+            () => SeedTxnAsync(su, walletP1, p1, 1, 100m, sharedKey));
+        Assert.Equal("23505", dup.SqlState);
+
+        // Both partners' first credits persisted.
+        Assert.Equal(1L, await CountAsync(su,
+            "SELECT count(*) FROM commerce.partner_wallet_transactions WHERE partner_id = @p AND idempotency_key = @k",
+            ("@p", p1), ("@k", sharedKey)));
+        Assert.Equal(1L, await CountAsync(su,
+            "SELECT count(*) FROM commerce.partner_wallet_transactions WHERE partner_id = @p AND idempotency_key = @k",
+            ("@p", p2), ("@k", sharedKey)));
+    }
 }

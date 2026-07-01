@@ -30,9 +30,13 @@ public sealed class PartnerWalletTransactionConfiguration : IEntityTypeConfigura
         b.HasIndex(e => e.PartnerId)
             .HasDatabaseName("idx_partner_wallet_transactions_partner");
 
-        b.HasIndex(e => e.IdempotencyKey)
+        // Idempotency is scoped PER PARTNER, not globally: a caller-supplied key is only unique within
+        // its own partner, so two different partners may reuse the same free-form key without colliding
+        // (a global unique would 500 the second partner). Matches the house pattern
+        // UNIQUE(customer_id, idempotency_key) — see db/patches/pickup_idempotency_and_source.sql.
+        b.HasIndex(e => new { e.PartnerId, e.IdempotencyKey })
             .IsUnique()
-            .HasDatabaseName("partner_wallet_transactions_idempotency_key_key");
+            .HasDatabaseName("partner_wallet_transactions_partner_idempotency_key");
 
         // In-BC FK to the wallet account (same schema).
         b.HasOne(e => e.PartnerWalletAccount)

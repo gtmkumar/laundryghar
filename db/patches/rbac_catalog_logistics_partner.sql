@@ -5,9 +5,13 @@
 --   seeder-built one. Everything here is additive + idempotent; no existing row
 --   is mutated or removed.
 --
---   Prerequisite: db/patches/rbac_roles_scope_logistics_partner.sql (relaxes the
---   roles_scope_type_check to allow 'logistics_partner'). Run that FIRST, else the
---   role INSERTs below fail the CHECK.
+--   SELF-SUFFICIENT ORDERING: this patch FOLDS the roles.scope_type CHECK relax
+--   (allow 'logistics_partner') into step 0 below, BEFORE the role INSERTs. A
+--   lexicographic/glob patch runner applies this file ('c'atalog) before its old
+--   companion rbac_roles_scope_logistics_partner.sql ('r'oles) — folding the relax
+--   here makes the apply order-independent. The companion patch remains a harmless
+--   idempotent duplicate (it drops/re-adds the same superset CHECK); running either
+--   order, or re-running, converges on the same constraint.
 --
 --   Adds:
 --     1. 8 partner_booking.* permissions (module 'partner_booking') — ON CONFLICT (code).
@@ -31,6 +35,26 @@
 -- =============================================================================
 
 BEGIN;
+
+-- ── 0. Relax roles.scope_type CHECK to allow 'logistics_partner' (folded from
+--       rbac_roles_scope_logistics_partner.sql so this patch is self-sufficient and
+--       order-independent). MUST run before the partner_admin/partner_operator INSERTs
+--       in step 2, which set scope_type='logistics_partner'. Idempotent: drop-if-exists
+--       then re-add the SUPERSET set (safe whether or not the territory patch has run). ──
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'roles_scope_type_check'
+          AND conrelid = 'identity_access.roles'::regclass
+    ) THEN
+        ALTER TABLE identity_access.roles DROP CONSTRAINT roles_scope_type_check;
+    END IF;
+
+    ALTER TABLE identity_access.roles
+        ADD CONSTRAINT roles_scope_type_check
+        CHECK (scope_type IN ('platform','brand','territory','franchise','store','warehouse','logistics_partner'));
+END $$;
 
 -- ── 1. New permissions (module 'partner_booking'; risk mirrors PermissionDefs) ────
 INSERT INTO identity_access.permissions

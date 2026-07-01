@@ -6,7 +6,12 @@ public sealed record PartnerPaymentLink(string Id, string ShortUrl, string Statu
 /// <summary>The current state of a Razorpay Payment Link, pulled on demand.</summary>
 /// <param name="Status">created | paid | cancelled | expired.</param>
 /// <param name="AmountPaidMajor">Total collected on the link, in major units (rupees).</param>
-public sealed record PartnerPaymentLinkDetails(string Status, decimal AmountPaidMajor);
+/// <param name="Notes">The link's <c>notes</c>, echoed back verbatim by Razorpay. These were authored
+/// server-side when the link was created (e.g. the wallet top-up sets <c>kind</c> / <c>partner_id</c> /
+/// <c>idempotency_key</c>). Reconcilers MUST bind the credit to these server-set values, never to caller
+/// input. Empty when the link carries no notes.</param>
+public sealed record PartnerPaymentLinkDetails(
+    string Status, decimal AmountPaidMajor, IReadOnlyDictionary<string, string> Notes);
 
 /// <summary>
 /// Thin client over Razorpay Payment Links for the RaaS partner-billing lane (partner invoices +

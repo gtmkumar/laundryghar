@@ -43,12 +43,12 @@ public sealed record PartnerBookingTrackDto(
 
 /// <summary>Staff creates/assigns a dispatch for a partner booking.
 /// <para><see cref="PartnerId"/> is supplied by the caller (it is displayed on the incoming-booking
-/// card): a brand-staff session cannot SELECT logistics.partner_bookings (that table is
-/// partner-RLS-scoped), so the handler cannot read the booking to derive it. The
-/// partner_booking_id FK still guarantees the booking exists. brand_id is taken from the staff's
-/// brand context (the serving fleet's brand), which is exactly the booking's serving brand.</para></summary>
-/// <param name="PartnerBookingId">The booking to fulfil (FK-checked).</param>
-/// <param name="PartnerId">The booking's owning partner — becomes the dispatch's partner arm.</param>
+/// card) but is NOT trusted: the handler performs a controlled RLS-bypass read of the booking and
+/// verifies the supplied value matches the booking's owning partner (rejecting a mismatch), deriving
+/// the dispatch's partner arm from server state. brand_id is taken from the staff's brand context and
+/// is verified against — or claimed onto — the booking's serving brand under the same bypass.</para></summary>
+/// <param name="PartnerBookingId">The booking to fulfil (FK-checked; read under bypass for attribution).</param>
+/// <param name="PartnerId">Must equal the booking's owning partner — verified server-side.</param>
 /// <param name="RiderId">The rider to assign (optional; a dispatch may be created 'pending').</param>
 /// <param name="PickupOtp">Optional pickup verification code.</param>
 /// <param name="DropOtp">Optional drop verification code.</param>
