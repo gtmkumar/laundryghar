@@ -52,7 +52,7 @@ public sealed class OpsQueuesHandler : IQueryHandler<OpsQueuesQuery, OpsQueuesRe
         // lifecycle super-state (vertical-neutral) rather than a hardcoded laundry-status list —
         // terminal ⟺ lifecycle_state ∈ {completed, cancelled, closed}.
         var baseQuery = _db.Orders
-            .Where(o => o.BrandId == brandId && !OrderLifecycleState.Terminal.Contains(o.LifecycleState));
+            .Where(o => o.BrandId == brandId && !OrderLifecycleState.TerminalArray.Contains(o.LifecycleState));
 
         if (q.StoreId.HasValue)
             baseQuery = baseQuery.Where(o => o.StoreId == q.StoreId.Value);

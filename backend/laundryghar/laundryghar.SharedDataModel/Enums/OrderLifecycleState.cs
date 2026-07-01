@@ -38,6 +38,11 @@ public static class OrderLifecycleState
     public static readonly IReadOnlySet<string> Terminal =
         new HashSet<string> { Completed, Cancelled, Closed };
 
+    /// <summary>Same terminal set as a plain array — EF Core can translate <c>array.Contains(col)</c>
+    /// to SQL (<c>= ANY</c>), whereas <see cref="Terminal"/> (an <see cref="IReadOnlySet{T}"/>) is NOT
+    /// translatable. Use this in LINQ-to-DB predicates; use <see cref="Terminal"/> for in-memory checks.</summary>
+    public static readonly string[] TerminalArray = [Completed, Cancelled, Closed];
+
     public static bool IsValid(string? value) => value is not null && All.Contains(value);
 
     /// <summary>
