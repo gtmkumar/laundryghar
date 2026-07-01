@@ -58,6 +58,14 @@ public sealed class JwtTokenService : IJwtTokenService
             claimsList.Add(new Claim("permissions", claims.Permissions));
         if (!string.IsNullOrEmpty(claims.ScopeNodes))
             claimsList.Add(new Claim("scope_nodes", claims.ScopeNodes));
+        // Step-up (§8): high/critical codes always travel; amr + stepup_at only on a token upgraded
+        // by /auth/step-up/verify (login/refresh leave them null → freshness naturally lapses).
+        if (!string.IsNullOrEmpty(claims.StepUpPerms))
+            claimsList.Add(new Claim(TokenClaims.StepUpPermsClaim, claims.StepUpPerms));
+        if (!string.IsNullOrEmpty(claims.Amr))
+            claimsList.Add(new Claim(TokenClaims.AmrClaim, claims.Amr));
+        if (claims.StepUpAt is { } stepUpAt)
+            claimsList.Add(new Claim(TokenClaims.StepUpAtClaim, stepUpAt.ToString(), ClaimValueTypes.Integer64));
         claimsList.Add(new Claim(TokenClaims.PermVersionClaim, claims.PermVersion.ToString()));
 
         return WriteToken(claimsList, creds);

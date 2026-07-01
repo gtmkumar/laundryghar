@@ -29,6 +29,7 @@ using laundryghar.Utilities.OpenApi;
 using laundryghar.Utilities.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -245,6 +246,8 @@ builder.Services.AddSingleton<IAuthorizationHandler, CustomerOnlyHandler>();
 // Identity CustomerOnlyHandler above (distinct requirement types).
 builder.Services.AddSingleton<IAuthorizationHandler, McpCustomerOnlyHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+// §8 step-up: convert a step-up policy denial into a structured 403 step_up_required.
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, StepUpAuthorizationResultHandler>();
 
 // Single AddAuthorization. "McpCustomerOnly" is registered as an EXPLICIT named policy so
 // the default provider resolves it — PermissionPolicyProvider.GetPolicyAsync falls back to

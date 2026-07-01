@@ -188,6 +188,21 @@ public static class ScopeResolver
             }).ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
+        // Step-up (§8): the subset of the caller's effective permissions that are high/critical and
+        // therefore require a fresh OTP re-verification. Baked into the token so the DB-less per-host
+        // authorization handlers can decide "is this action risky" with a claim read (no risk catalog
+        // per host). platform_admin bypasses the membership check but NOT step-up, so it must carry the
+        // FULL high/critical catalog. Runs only at token mint (login/refresh/step-up) — not a hot path.
+        List<string> stepUpPerms = user.UserType == UserType.PlatformAdmin
+            ? await db.Permissions.AsNoTracking()
+                .Where(p => p.RiskLevel == RiskLevel.High || p.RiskLevel == RiskLevel.Critical)
+                .Select(p => p.Code)
+                .ToListAsync(ct)
+            : await db.Permissions.AsNoTracking()
+                .Where(p => permissions.Contains(p.Code) && (p.RiskLevel == RiskLevel.High || p.RiskLevel == RiskLevel.Critical))
+                .Select(p => p.Code)
+                .ToListAsync(ct);
+
         return new TokenClaims(
             UserId:      user.Id,
             UserType:    user.UserType,
@@ -200,6 +215,7 @@ public static class ScopeResolver
             StoreId:     storeId,
             Permissions: string.Join(' ', permissions),
             PermVersion: user.PermVersion,
-            ScopeNodes:  scopeNodes);
+            ScopeNodes:  scopeNodes,
+            StepUpPerms: string.Join(' ', stepUpPerms));
     }
 }

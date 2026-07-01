@@ -37,3 +37,12 @@ public sealed record TokenResponse(string AccessToken, string RefreshToken, int 
 public sealed record OtpSentResponse(string Message, DateTimeOffset ExpiresAt);
 
 public sealed record OtpVerifiedResponse(string AccessToken, string RefreshToken, int ExpiresInSeconds, string TokenType = "Bearer");
+
+/// <summary>Step-up (§8) verify request. The OTP was sent to the caller's own phone/email
+/// (purpose=sensitive_action); the identifier is derived server-side from the authenticated token.</summary>
+public sealed record StepUpVerifyRequest(string IdentifierType, string Code);
+
+/// <summary>Result of a successful step-up: an UPGRADED access token carrying amr+stepup_at.
+/// No refresh token is issued (this is not a login) — the client swaps its in-memory access token
+/// and retries the high/critical action.</summary>
+public sealed record StepUpVerifiedResponse(string AccessToken, int ExpiresInSeconds, string TokenType = "Bearer");
