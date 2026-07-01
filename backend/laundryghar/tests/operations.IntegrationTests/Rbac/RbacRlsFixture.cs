@@ -404,6 +404,67 @@ public sealed class RbacRlsFixture : IAsyncLifetime
             ALTER TABLE logistics.partner_users    ENABLE ROW LEVEL SECURITY;
             ALTER TABLE logistics.partner_bookings ENABLE ROW LEVEL SECURITY;
             """);
+
+        // 10. RaaS partner PREPAID WALLET spine (FULL-9 / issue #14). Trimmed, real-shaped
+        //     mirror of db/patches/raas_partner_wallet_schema.sql + rls_partner_wallet.sql. Both
+        //     commerce tables carry partner_id — the same isolation key as the logistics spine,
+        //     so the rls_partner policy is byte-for-byte the same shape. available_balance is a
+        //     GENERATED column, exactly as production.
+        await ExecAsync(conn, """
+            CREATE SCHEMA IF NOT EXISTS commerce;
+
+            -- partner_wallet_accounts — one prepaid balance per partner (partner_id UNIQUE).
+            CREATE TABLE IF NOT EXISTS commerce.partner_wallet_accounts (
+                id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_id        uuid NOT NULL,
+                currency_code     char(3) NOT NULL DEFAULT 'INR',
+                balance           numeric(14,2) NOT NULL DEFAULT 0,
+                locked_balance    numeric(14,2) NOT NULL DEFAULT 0,
+                available_balance numeric(14,2) GENERATED ALWAYS AS (balance - locked_balance) STORED,
+                status            text NOT NULL DEFAULT 'active',
+                CONSTRAINT partner_wallet_accounts_partner_id_key UNIQUE (partner_id)
+            );
+            -- partner_wallet_transactions — append-only credit/debit ledger.
+            CREATE TABLE IF NOT EXISTS commerce.partner_wallet_transactions (
+                id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_wallet_account_id uuid,
+                partner_id                uuid NOT NULL,
+                direction                 smallint NOT NULL CHECK (direction IN (1, -1)),
+                amount                    numeric(14,2) NOT NULL,
+                balance_before            numeric(14,2),
+                balance_after             numeric(14,2),
+                reference_type            varchar(30),
+                reference_id              uuid,
+                idempotency_key           varchar(100) UNIQUE
+            );
+            """);
+
+        // 10a. grants for both app roles on the commerce partner-wallet tables.
+        await ExecAsync(conn, """
+            GRANT USAGE ON SCHEMA commerce TO app_user, app_admin;
+            GRANT SELECT, INSERT, UPDATE, DELETE ON
+                commerce.partner_wallet_accounts, commerce.partner_wallet_transactions
+                TO app_user, app_admin;
+            """);
+
+        // 10b. rls_partner policies (FOR ALL TO app_user), mirroring rls_partner_wallet.sql.
+        await ExecAsync(conn, """
+            DROP POLICY IF EXISTS rls_partner ON commerce.partner_wallet_accounts;
+            CREATE POLICY rls_partner ON commerce.partner_wallet_accounts FOR ALL TO app_user
+                USING      (kernel.rls_bypass() OR partner_id = kernel.current_partner_id())
+                WITH CHECK (kernel.rls_bypass() OR partner_id = kernel.current_partner_id());
+
+            DROP POLICY IF EXISTS rls_partner ON commerce.partner_wallet_transactions;
+            CREATE POLICY rls_partner ON commerce.partner_wallet_transactions FOR ALL TO app_user
+                USING      (kernel.rls_bypass() OR partner_id = kernel.current_partner_id())
+                WITH CHECK (kernel.rls_bypass() OR partner_id = kernel.current_partner_id());
+            """);
+
+        // 10c. activate RLS on the partner-wallet spine.
+        await ExecAsync(conn, """
+            ALTER TABLE commerce.partner_wallet_accounts     ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE commerce.partner_wallet_transactions ENABLE ROW LEVEL SECURITY;
+            """);
     }
 }
 

@@ -74,6 +74,10 @@ public sealed class CommerceDbContext : ICommerceDbContext
     public DbSet<WalletAccount> WalletAccounts => _db.WalletAccounts;
     public DbSet<WalletTransaction> WalletTransactions => _db.WalletTransactions;
 
+    // ─── Commerce: RaaS partner prepaid wallet + ledger (rls_partner-isolated) ──
+    public DbSet<PartnerWalletAccount> PartnerWalletAccounts => _db.PartnerWalletAccounts;
+    public DbSet<PartnerWalletTransaction> PartnerWalletTransactions => _db.PartnerWalletTransactions;
+
     // ─── Commerce: subscription plans, customer subscriptions, mandates ────────
     public DbSet<SubscriptionPlan> SubscriptionPlans => _db.SubscriptionPlans;
     public DbSet<CustomerSubscription> CustomerSubscriptions => _db.CustomerSubscriptions;

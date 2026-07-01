@@ -68,6 +68,10 @@ public interface ICommerceDbContext
     DbSet<WalletAccount> WalletAccounts { get; }
     DbSet<WalletTransaction> WalletTransactions { get; }
 
+    // ─── Commerce: RaaS partner prepaid wallet + ledger (rls_partner-isolated) ──
+    DbSet<PartnerWalletAccount> PartnerWalletAccounts { get; }
+    DbSet<PartnerWalletTransaction> PartnerWalletTransactions { get; }
+
     // ─── Commerce: subscription plans, customer subscriptions, mandates ────────
     DbSet<SubscriptionPlan> SubscriptionPlans { get; }
     DbSet<CustomerSubscription> CustomerSubscriptions { get; }
