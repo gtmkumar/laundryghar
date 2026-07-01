@@ -147,6 +147,8 @@ public class LaundryGharDbContext : DbContext
     // commerce — RaaS partner prepaid wallet (partner_id-isolated via rls_partner)
     public DbSet<PartnerWalletAccount> PartnerWalletAccounts => Set<PartnerWalletAccount>();
     public DbSet<PartnerWalletTransaction> PartnerWalletTransactions => Set<PartnerWalletTransaction>();
+    // commerce — RaaS partner invoices (partner_id-isolated via rls_partner)
+    public DbSet<PartnerInvoice> PartnerInvoices => Set<PartnerInvoice>();
 
     // commerce — subscriptions (ADR-010 module A)
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();

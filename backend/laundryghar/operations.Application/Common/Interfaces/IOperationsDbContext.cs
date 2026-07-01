@@ -72,6 +72,12 @@ public interface IOperationsDbContext
     DbSet<PartnerUser> PartnerUsers { get; }
     DbSet<PartnerBooking> PartnerBookings { get; }
 
+    // ─── Commerce: RaaS partner prepaid wallet (READ-ONLY here) ──────────────
+    // Surfaced so CreatePartnerBooking can run a prepaid-balance sufficiency pre-check
+    // (FULL-11). The physical row lives in commerce over the same LaundryGharDbContext;
+    // WRITES (credit/debit) belong to commerce.Application — operations only reads.
+    DbSet<PartnerWalletAccount> PartnerWalletAccounts { get; }
+
     // ─── Order spine: delivery/pickup legs + status history ──────────────────
     DbSet<DeliveryAssignment> DeliveryAssignments { get; }
     DbSet<PickupRequest> PickupRequests { get; }

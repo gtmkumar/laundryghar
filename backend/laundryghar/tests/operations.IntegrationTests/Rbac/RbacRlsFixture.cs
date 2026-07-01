@@ -465,6 +465,40 @@ public sealed class RbacRlsFixture : IAsyncLifetime
             ALTER TABLE commerce.partner_wallet_accounts     ENABLE ROW LEVEL SECURITY;
             ALTER TABLE commerce.partner_wallet_transactions ENABLE ROW LEVEL SECURITY;
             """);
+
+        // 11. RaaS partner INVOICE spine (FULL-10 / issue #14). Trimmed, real-shaped mirror of
+        //     db/patches/raas_partner_invoice_schema.sql + rls_partner_invoice.sql. Keyed by
+        //     partner_id (same isolation key), with the GENERATED amount_due column exactly as
+        //     production so the acceptance gate exercises the real DDL shape.
+        await ExecAsync(conn, """
+            CREATE TABLE IF NOT EXISTS commerce.partner_invoices (
+                id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_id     uuid NOT NULL,
+                invoice_number varchar(40) NOT NULL UNIQUE,
+                grand_total    numeric(14,2) NOT NULL DEFAULT 0,
+                amount_paid    numeric(14,2) NOT NULL DEFAULT 0,
+                amount_due     numeric(14,2) GENERATED ALWAYS AS (grand_total - amount_paid) STORED,
+                status         varchar(20) NOT NULL DEFAULT 'issued'
+            );
+            """);
+
+        // 11a. grants for both app roles on the commerce partner-invoice table.
+        await ExecAsync(conn, """
+            GRANT SELECT, INSERT, UPDATE, DELETE ON commerce.partner_invoices TO app_user, app_admin;
+            """);
+
+        // 11b. rls_partner policy (FOR ALL TO app_user), mirroring rls_partner_invoice.sql.
+        await ExecAsync(conn, """
+            DROP POLICY IF EXISTS rls_partner ON commerce.partner_invoices;
+            CREATE POLICY rls_partner ON commerce.partner_invoices FOR ALL TO app_user
+                USING      (kernel.rls_bypass() OR partner_id = kernel.current_partner_id())
+                WITH CHECK (kernel.rls_bypass() OR partner_id = kernel.current_partner_id());
+            """);
+
+        // 11c. activate RLS on the partner-invoice spine.
+        await ExecAsync(conn, """
+            ALTER TABLE commerce.partner_invoices ENABLE ROW LEVEL SECURITY;
+            """);
     }
 }
 

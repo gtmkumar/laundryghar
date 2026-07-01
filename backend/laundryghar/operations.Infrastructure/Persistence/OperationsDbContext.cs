@@ -64,6 +64,7 @@ public sealed class OperationsDbContext : IOperationsDbContext
     public DbSet<Partner> Partners => _db.Partners;
     public DbSet<PartnerUser> PartnerUsers => _db.PartnerUsers;
     public DbSet<PartnerBooking> PartnerBookings => _db.PartnerBookings;
+    public DbSet<PartnerWalletAccount> PartnerWalletAccounts => _db.PartnerWalletAccounts;
 
     public DbSet<DeliveryAssignment> DeliveryAssignments => _db.DeliveryAssignments;
     public DbSet<PickupRequest> PickupRequests => _db.PickupRequests;

@@ -72,6 +72,9 @@ public interface ICommerceDbContext
     DbSet<PartnerWalletAccount> PartnerWalletAccounts { get; }
     DbSet<PartnerWalletTransaction> PartnerWalletTransactions { get; }
 
+    // ─── Commerce: RaaS partner invoices (rls_partner-isolated) ────────────────
+    DbSet<PartnerInvoice> PartnerInvoices { get; }
+
     // ─── Commerce: subscription plans, customer subscriptions, mandates ────────
     DbSet<SubscriptionPlan> SubscriptionPlans { get; }
     DbSet<CustomerSubscription> CustomerSubscriptions { get; }
