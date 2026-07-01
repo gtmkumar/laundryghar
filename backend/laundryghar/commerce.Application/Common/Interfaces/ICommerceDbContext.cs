@@ -68,6 +68,13 @@ public interface ICommerceDbContext
     DbSet<WalletAccount> WalletAccounts { get; }
     DbSet<WalletTransaction> WalletTransactions { get; }
 
+    // ─── Commerce: RaaS partner prepaid wallet + ledger (rls_partner-isolated) ──
+    DbSet<PartnerWalletAccount> PartnerWalletAccounts { get; }
+    DbSet<PartnerWalletTransaction> PartnerWalletTransactions { get; }
+
+    // ─── Commerce: RaaS partner invoices (rls_partner-isolated) ────────────────
+    DbSet<PartnerInvoice> PartnerInvoices { get; }
+
     // ─── Commerce: subscription plans, customer subscriptions, mandates ────────
     DbSet<SubscriptionPlan> SubscriptionPlans { get; }
     DbSet<CustomerSubscription> CustomerSubscriptions { get; }
@@ -101,6 +108,17 @@ public interface ICommerceDbContext
     /// the unit of work spans more than a single <see cref="SaveChangesAsync"/> call.
     /// </summary>
     Task ExecuteInTransactionAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Takes a pessimistic row-level lock (<c>SELECT … FOR UPDATE</c>) on the calling partner's wallet
+    /// account row. Call inside <see cref="ExecuteInTransactionAsync"/>: concurrent credit/debit on the
+    /// SAME wallet then serialize on this lock (the second waiter blocks until the first commits), which
+    /// closes the READ COMMITTED lost-update race on <c>balance</c> — the <c>version</c> column is a
+    /// plain counter, not an EF concurrency token, so a bare read-modify-write would otherwise clobber a
+    /// concurrent update. The lock is released when the surrounding transaction commits. Reload the
+    /// wallet entity after acquiring the lock so its <c>Balance</c> reflects the freshly committed value.
+    /// </summary>
+    Task LockPartnerWalletRowAsync(Guid partnerId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Reloads a tracked entity from the database, refreshing all property values. Finance handlers

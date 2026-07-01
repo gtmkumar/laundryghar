@@ -275,6 +275,20 @@ public sealed class IdentitySeeder
         ("customer.export",              "customer","export",         "Export customers",              "normal"),
         ("rider.export",                 "rider","export",            "Export riders",                 "normal"),
         ("wallet.export",                "wallet","export",           "Export wallets",                "normal"),
+        // ── RaaS FULL-12: partner_booking module (§4/§10 partner_admin/partner_operator) ──
+        // All 8 share module 'partner_booking' so the single navigator/matrix module row
+        // (permission_modules '{partner_booking}') owns them via AssignPermissionModuleKeysAsync.
+        // action = code minus the 'partner_' prefix, keeping the last verb segment meaningful
+        // (create/cancel/topup) for the mutating-verb deny logic below. These roles are enforced
+        // by a partner_role JWT claim + partner_id RLS in the MVP — this catalog is UI-truth only.
+        ("partner_booking.read",         "partner_booking","booking.read",   "View partner bookings",       "low"),
+        ("partner_booking.create",       "partner_booking","booking.create", "Create partner booking",      "normal"),
+        ("partner_booking.track",        "partner_booking","booking.track",  "Track partner booking",       "low"),
+        ("partner_booking.cancel",       "partner_booking","booking.cancel", "Cancel partner booking",      "normal"),
+        ("partner_wallet.read",          "partner_booking","wallet.read",    "View partner wallet",         "low"),
+        ("partner_wallet.topup",         "partner_booking","wallet.topup",   "Top up partner wallet",       "high"),
+        ("partner_invoice.read",         "partner_booking","invoice.read",   "View partner invoices",       "low"),
+        ("partner_invoice.export",       "partner_booking","invoice.export", "Export partner invoices",     "normal"),
     ];
 
     private async Task<Dictionary<string, Permission>> SeedPermissionsAsync(CancellationToken ct)
@@ -388,9 +402,18 @@ public sealed class IdentitySeeder
         ("hub_operator",         "Hub Operator",            ScopeType.Warehouse, 80,  VerticalKey.Logistics),
         ("rider",                "Rider",                   ScopeType.Store,     90,  null),
         ("auditor",              "Auditor",                 ScopeType.Platform,  100, null),
-        // RBAC #12: brand-scoped customer support. NOT the RaaS partner_* roles — those
-        // need a logistics_partner scope_type absent from the CHECK/ScopeType enum (out of scope).
+        // RBAC #12: brand-scoped customer support.
         ("support",              "Support",                 ScopeType.Brand,     110, null),
+        // RaaS FULL-12: external logistics-partner mini-RBAC (§4/§10). partner_admin owns the
+        // account (bookings + wallet + invoices); partner_operator books/tracks only (no top-up,
+        // no invoices — §13 "operator sees but can't top up"). Scoped to ScopeType.LogisticsPartner
+        // (now allowed by the relaxed roles_scope_type_check — see
+        // db/patches/rbac_roles_scope_logistics_partner.sql). Logistics vertical, matching hub_*.
+        // These are catalog/UI rows only: the MVP enforces partner authz via a partner_role JWT
+        // claim + partner_id RLS, NOT role_permissions/ScopeResolver, and partners never get
+        // user_scope_memberships rows (that would require staff users behind an FK → users).
+        ("partner_admin",        "Partner Admin",           ScopeType.LogisticsPartner, 120, VerticalKey.Logistics),
+        ("partner_operator",     "Partner Operator",        ScopeType.LogisticsPartner, 130, VerticalKey.Logistics),
     ];
 
     private async Task<Dictionary<string, Role>> SeedRolesAsync(CancellationToken ct)
@@ -698,8 +721,8 @@ public sealed class IdentitySeeder
         // support — brand-scoped customer support (§10 support column). Read-only across the
         // order lifecycle + customer + subscription, order notes, and refund within cap; plus
         // the support inbox itself. No create/update/delete of catalog/pricing/users.
-        // (partner_booking view is omitted: those permissions belong to the RaaS workstream and
-        //  do not exist yet — Grant() would no-op them anyway.)
+        // (§10 support → partner_booking V is intentionally NOT granted here: support is a brand
+        //  staff role and partner_booking rows are partner-scoped, isolated by partner_id RLS.)
         Grant("support", [
             // order view + notes (§10 order → V+notes)
             "orders.list","orders.read","orders.notes.manage",
@@ -713,6 +736,23 @@ public sealed class IdentitySeeder
             "payment.refund",
             // support inbox
             "support.read","support.manage",
+        ]);
+
+        // ── RaaS FULL-12: partner mini-RBAC (§4/§10/§13) ─────────────────────────
+        // Catalog/UI-truth grants only. Partner authz in the MVP flows through a partner_role
+        // JWT claim + partner_id RLS, NOT these role_permissions rows / ScopeResolver — so these
+        // grants make the role-management matrix truthful without changing enforcement.
+        // partner_admin: full account control — bookings + wallet (incl. top-up) + invoices.
+        Grant("partner_admin", [
+            "partner_booking.read","partner_booking.create","partner_booking.track","partner_booking.cancel",
+            "partner_wallet.read","partner_wallet.topup",
+            "partner_invoice.read","partner_invoice.export",
+        ]);
+        // partner_operator: books/tracks/cancels + sees the wallet balance, but CANNOT top up and
+        // has NO invoice access (§13 "operator sees but can't top up").
+        Grant("partner_operator", [
+            "partner_booking.read","partner_booking.create","partner_booking.track","partner_booking.cancel",
+            "partner_wallet.read",
         ]);
 
         // ─── §9 belt-and-braces: deny rows (first-ever effect='deny' seeds) ─────

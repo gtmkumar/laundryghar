@@ -94,6 +94,13 @@ else
     builder.Services.AddScoped<IPaymentGateway, SettingsFirstPaymentGateway>();
 }
 
+// ── RaaS partner-billing Razorpay Payment Links (invoices + wallet top-ups, FULL-10) ──
+// Unconditional (no DB access at startup; mirrors core's razorpay-core registration). Resolves the
+// PLATFORM gateway credentials settings-first (payment/platform_gateway) → env Razorpay:KeyId/KeySecret.
+// Consumed by the partner invoice-pay / wallet top-up-via-link handlers AND the partner paylink webhook.
+builder.Services.AddHttpClient("razorpay-partner", c => c.BaseAddress = new Uri("https://api.razorpay.com/"));
+builder.Services.AddScoped<IPartnerPaymentLinkClient, PartnerRazorpayLinkClient>();
+
 // ── OpenAPI document (+ Bearer scheme & standard error responses) ──────────────
 builder.Services.AddDefaultOpenApi();
 
@@ -256,6 +263,7 @@ if (!string.IsNullOrWhiteSpace(connStr))
     builder.Services.AddHostedService<SubscriptionBillingService>();  // opt-in: Worker:SubscriptionBillingEnabled=true
     builder.Services.AddHostedService<BrandPlatformBillingService>(); // opt-in: Worker:BrandPlatformBillingEnabled=true
     builder.Services.AddHostedService<LoyaltyEarnService>();          // mandatory
+    builder.Services.AddHostedService<PartnerBookingDebitService>();  // mandatory: RaaS prepaid booking→wallet debit
     builder.Services.AddHostedService<PartitionMaintenanceService>(); // on by default (Worker:PartitionMaintenanceEnabled=false to opt out)
 }
 
@@ -293,7 +301,10 @@ app.UseMiddleware<ExceptionHandler>();
 app.Use(async (ctx, next) =>
 {
     if (HttpMethods.IsPost(ctx.Request.Method)
-        && ctx.Request.Path.Equals("/api/v1/webhooks/razorpay", StringComparison.OrdinalIgnoreCase))
+        && (ctx.Request.Path.Equals("/api/v1/webhooks/razorpay", StringComparison.OrdinalIgnoreCase)
+            // Partner paylink webhook: also anonymous + no partner claim → bypass RLS so the handler
+            // can resolve the partner invoice by link id / credit any partner's wallet (FULL-10).
+            || ctx.Request.Path.Equals("/api/v1/webhooks/razorpay-partner-paylink", StringComparison.OrdinalIgnoreCase)))
     {
         ctx.Items["bypass_rls"] = true;
     }

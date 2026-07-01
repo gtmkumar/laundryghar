@@ -74,6 +74,13 @@ public sealed class CommerceDbContext : ICommerceDbContext
     public DbSet<WalletAccount> WalletAccounts => _db.WalletAccounts;
     public DbSet<WalletTransaction> WalletTransactions => _db.WalletTransactions;
 
+    // ─── Commerce: RaaS partner prepaid wallet + ledger (rls_partner-isolated) ──
+    public DbSet<PartnerWalletAccount> PartnerWalletAccounts => _db.PartnerWalletAccounts;
+    public DbSet<PartnerWalletTransaction> PartnerWalletTransactions => _db.PartnerWalletTransactions;
+
+    // ─── Commerce: RaaS partner invoices (rls_partner-isolated) ────────────────
+    public DbSet<PartnerInvoice> PartnerInvoices => _db.PartnerInvoices;
+
     // ─── Commerce: subscription plans, customer subscriptions, mandates ────────
     public DbSet<SubscriptionPlan> SubscriptionPlans => _db.SubscriptionPlans;
     public DbSet<CustomerSubscription> CustomerSubscriptions => _db.CustomerSubscriptions;
@@ -106,6 +113,15 @@ public sealed class CommerceDbContext : ICommerceDbContext
             await tx.CommitAsync(cancellationToken);
         });
     }
+
+    /// <inheritdoc/>
+    public Task LockPartnerWalletRowAsync(Guid partnerId, CancellationToken cancellationToken) =>
+        // Parameterised via ExecuteSqlInterpolated (no string concatenation). Runs on the DbContext's
+        // current transaction, so the FOR UPDATE lock is held for the rest of ExecuteInTransactionAsync.
+        // The SELECT is executed server-side even though no rows are read back, so the lock is acquired.
+        _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT id FROM commerce.partner_wallet_accounts WHERE partner_id = {partnerId} FOR UPDATE",
+            cancellationToken);
 
     /// <inheritdoc/>
     public Task ReloadAsync<TEntity>(TEntity entity, CancellationToken cancellationToken)

@@ -129,6 +129,8 @@ public class LaundryGharDbContext : DbContext
     public DbSet<Partner> Partners => Set<Partner>();
     public DbSet<PartnerUser> PartnerUsers => Set<PartnerUser>();
     public DbSet<PartnerBooking> PartnerBookings => Set<PartnerBooking>();
+    // logistics — RaaS partner dispatch (FULL-11b; dual-visibility via rls_partner_or_brand)
+    public DbSet<PartnerDispatch> PartnerDispatches => Set<PartnerDispatch>();
 
     // commerce
     public DbSet<Package> Packages => Set<Package>();
@@ -144,6 +146,11 @@ public class LaundryGharDbContext : DbContext
     public DbSet<PaymentRefund> PaymentRefunds => Set<PaymentRefund>();
     public DbSet<WalletAccount> WalletAccounts => Set<WalletAccount>();
     public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
+    // commerce — RaaS partner prepaid wallet (partner_id-isolated via rls_partner)
+    public DbSet<PartnerWalletAccount> PartnerWalletAccounts => Set<PartnerWalletAccount>();
+    public DbSet<PartnerWalletTransaction> PartnerWalletTransactions => Set<PartnerWalletTransaction>();
+    // commerce — RaaS partner invoices (partner_id-isolated via rls_partner)
+    public DbSet<PartnerInvoice> PartnerInvoices => Set<PartnerInvoice>();
 
     // commerce — subscriptions (ADR-010 module A)
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
@@ -171,6 +178,7 @@ public class LaundryGharDbContext : DbContext
 
     // kernel
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
+    public DbSet<OutboxConsumedEvent> OutboxConsumedEvents => Set<OutboxConsumedEvent>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
     public DbSet<FileAttachment> FileAttachments => Set<FileAttachment>();

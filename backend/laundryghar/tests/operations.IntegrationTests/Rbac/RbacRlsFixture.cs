@@ -404,6 +404,141 @@ public sealed class RbacRlsFixture : IAsyncLifetime
             ALTER TABLE logistics.partner_users    ENABLE ROW LEVEL SECURITY;
             ALTER TABLE logistics.partner_bookings ENABLE ROW LEVEL SECURITY;
             """);
+
+        // 9d. RaaS partner DISPATCH spine (FULL-11b / issue #14). Trimmed, real-shaped mirror of
+        //     db/patches/raas_partner_dispatch_schema.sql + rls_partner_dispatch.sql. This is the
+        //     DUAL-VISIBILITY table: it carries partner_id AND brand_id, and the COMBINED
+        //     rls_partner_or_brand policy lets BOTH the owning partner (partner arm) and the serving
+        //     brand's fleet staff (brand arm) see the row. The FK → partner_bookings(id) matches
+        //     production; brand_id / rider_id are scalar (no FK).
+        await ExecAsync(conn, """
+            CREATE TABLE IF NOT EXISTS logistics.partner_dispatches (
+                id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_id         uuid NOT NULL,
+                partner_booking_id uuid NOT NULL REFERENCES logistics.partner_bookings(id) ON DELETE CASCADE,
+                brand_id           uuid,
+                rider_id           uuid,
+                status             text NOT NULL DEFAULT 'pending',
+                last_known_lat     numeric(10,7),
+                last_known_lng     numeric(10,7),
+                created_at         timestamptz NOT NULL DEFAULT now()
+            );
+            """);
+
+        // 9e. grants + the COMBINED partner-or-brand policy, mirroring rls_partner_dispatch.sql.
+        await ExecAsync(conn, """
+            GRANT SELECT, INSERT, UPDATE, DELETE ON logistics.partner_dispatches TO app_user, app_admin;
+
+            DROP POLICY IF EXISTS rls_partner_or_brand ON logistics.partner_dispatches;
+            CREATE POLICY rls_partner_or_brand ON logistics.partner_dispatches FOR ALL TO app_user
+                USING      (kernel.rls_bypass()
+                            OR partner_id = kernel.current_partner_id()
+                            OR (brand_id IS NOT NULL AND brand_id = kernel.current_brand_id()))
+                WITH CHECK (kernel.rls_bypass()
+                            OR partner_id = kernel.current_partner_id()
+                            OR (brand_id IS NOT NULL AND brand_id = kernel.current_brand_id()));
+
+            ALTER TABLE logistics.partner_dispatches ENABLE ROW LEVEL SECURITY;
+            """);
+
+        // 10. RaaS partner PREPAID WALLET spine (FULL-9 / issue #14). Trimmed, real-shaped
+        //     mirror of db/patches/raas_partner_wallet_schema.sql + rls_partner_wallet.sql. Both
+        //     commerce tables carry partner_id — the same isolation key as the logistics spine,
+        //     so the rls_partner policy is byte-for-byte the same shape. available_balance is a
+        //     GENERATED column, exactly as production.
+        await ExecAsync(conn, """
+            CREATE SCHEMA IF NOT EXISTS commerce;
+
+            -- partner_wallet_accounts — one prepaid balance per partner (partner_id UNIQUE).
+            CREATE TABLE IF NOT EXISTS commerce.partner_wallet_accounts (
+                id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_id        uuid NOT NULL,
+                currency_code     char(3) NOT NULL DEFAULT 'INR',
+                balance           numeric(14,2) NOT NULL DEFAULT 0,
+                locked_balance    numeric(14,2) NOT NULL DEFAULT 0,
+                available_balance numeric(14,2) GENERATED ALWAYS AS (balance - locked_balance) STORED,
+                status            text NOT NULL DEFAULT 'active',
+                CONSTRAINT partner_wallet_accounts_partner_id_key UNIQUE (partner_id)
+            );
+            -- partner_wallet_transactions — append-only credit/debit ledger. idempotency_key is unique
+            -- PER PARTNER (not globally) — mirrors production's composite constraint (see
+            -- raas_partner_wallet_idem_scope.sql) so two partners can reuse the same free-form key.
+            CREATE TABLE IF NOT EXISTS commerce.partner_wallet_transactions (
+                id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_wallet_account_id uuid,
+                partner_id                uuid NOT NULL,
+                direction                 smallint NOT NULL CHECK (direction IN (1, -1)),
+                amount                    numeric(14,2) NOT NULL,
+                balance_before            numeric(14,2),
+                balance_after             numeric(14,2),
+                reference_type            varchar(30),
+                reference_id              uuid,
+                idempotency_key           varchar(100),
+                CONSTRAINT partner_wallet_transactions_partner_idempotency_key
+                    UNIQUE (partner_id, idempotency_key)
+            );
+            """);
+
+        // 10a. grants for both app roles on the commerce partner-wallet tables.
+        await ExecAsync(conn, """
+            GRANT USAGE ON SCHEMA commerce TO app_user, app_admin;
+            GRANT SELECT, INSERT, UPDATE, DELETE ON
+                commerce.partner_wallet_accounts, commerce.partner_wallet_transactions
+                TO app_user, app_admin;
+            """);
+
+        // 10b. rls_partner policies (FOR ALL TO app_user), mirroring rls_partner_wallet.sql.
+        await ExecAsync(conn, """
+            DROP POLICY IF EXISTS rls_partner ON commerce.partner_wallet_accounts;
+            CREATE POLICY rls_partner ON commerce.partner_wallet_accounts FOR ALL TO app_user
+                USING      (kernel.rls_bypass() OR partner_id = kernel.current_partner_id())
+                WITH CHECK (kernel.rls_bypass() OR partner_id = kernel.current_partner_id());
+
+            DROP POLICY IF EXISTS rls_partner ON commerce.partner_wallet_transactions;
+            CREATE POLICY rls_partner ON commerce.partner_wallet_transactions FOR ALL TO app_user
+                USING      (kernel.rls_bypass() OR partner_id = kernel.current_partner_id())
+                WITH CHECK (kernel.rls_bypass() OR partner_id = kernel.current_partner_id());
+            """);
+
+        // 10c. activate RLS on the partner-wallet spine.
+        await ExecAsync(conn, """
+            ALTER TABLE commerce.partner_wallet_accounts     ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE commerce.partner_wallet_transactions ENABLE ROW LEVEL SECURITY;
+            """);
+
+        // 11. RaaS partner INVOICE spine (FULL-10 / issue #14). Trimmed, real-shaped mirror of
+        //     db/patches/raas_partner_invoice_schema.sql + rls_partner_invoice.sql. Keyed by
+        //     partner_id (same isolation key), with the GENERATED amount_due column exactly as
+        //     production so the acceptance gate exercises the real DDL shape.
+        await ExecAsync(conn, """
+            CREATE TABLE IF NOT EXISTS commerce.partner_invoices (
+                id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_id     uuid NOT NULL,
+                invoice_number varchar(40) NOT NULL UNIQUE,
+                grand_total    numeric(14,2) NOT NULL DEFAULT 0,
+                amount_paid    numeric(14,2) NOT NULL DEFAULT 0,
+                amount_due     numeric(14,2) GENERATED ALWAYS AS (grand_total - amount_paid) STORED,
+                status         varchar(20) NOT NULL DEFAULT 'issued'
+            );
+            """);
+
+        // 11a. grants for both app roles on the commerce partner-invoice table.
+        await ExecAsync(conn, """
+            GRANT SELECT, INSERT, UPDATE, DELETE ON commerce.partner_invoices TO app_user, app_admin;
+            """);
+
+        // 11b. rls_partner policy (FOR ALL TO app_user), mirroring rls_partner_invoice.sql.
+        await ExecAsync(conn, """
+            DROP POLICY IF EXISTS rls_partner ON commerce.partner_invoices;
+            CREATE POLICY rls_partner ON commerce.partner_invoices FOR ALL TO app_user
+                USING      (kernel.rls_bypass() OR partner_id = kernel.current_partner_id())
+                WITH CHECK (kernel.rls_bypass() OR partner_id = kernel.current_partner_id());
+            """);
+
+        // 11c. activate RLS on the partner-invoice spine.
+        await ExecAsync(conn, """
+            ALTER TABLE commerce.partner_invoices ENABLE ROW LEVEL SECURITY;
+            """);
     }
 }
 
