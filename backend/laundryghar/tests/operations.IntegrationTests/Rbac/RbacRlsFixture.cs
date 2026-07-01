@@ -405,6 +405,42 @@ public sealed class RbacRlsFixture : IAsyncLifetime
             ALTER TABLE logistics.partner_bookings ENABLE ROW LEVEL SECURITY;
             """);
 
+        // 9d. RaaS partner DISPATCH spine (FULL-11b / issue #14). Trimmed, real-shaped mirror of
+        //     db/patches/raas_partner_dispatch_schema.sql + rls_partner_dispatch.sql. This is the
+        //     DUAL-VISIBILITY table: it carries partner_id AND brand_id, and the COMBINED
+        //     rls_partner_or_brand policy lets BOTH the owning partner (partner arm) and the serving
+        //     brand's fleet staff (brand arm) see the row. The FK → partner_bookings(id) matches
+        //     production; brand_id / rider_id are scalar (no FK).
+        await ExecAsync(conn, """
+            CREATE TABLE IF NOT EXISTS logistics.partner_dispatches (
+                id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_id         uuid NOT NULL,
+                partner_booking_id uuid NOT NULL REFERENCES logistics.partner_bookings(id) ON DELETE CASCADE,
+                brand_id           uuid,
+                rider_id           uuid,
+                status             text NOT NULL DEFAULT 'pending',
+                last_known_lat     numeric(10,7),
+                last_known_lng     numeric(10,7),
+                created_at         timestamptz NOT NULL DEFAULT now()
+            );
+            """);
+
+        // 9e. grants + the COMBINED partner-or-brand policy, mirroring rls_partner_dispatch.sql.
+        await ExecAsync(conn, """
+            GRANT SELECT, INSERT, UPDATE, DELETE ON logistics.partner_dispatches TO app_user, app_admin;
+
+            DROP POLICY IF EXISTS rls_partner_or_brand ON logistics.partner_dispatches;
+            CREATE POLICY rls_partner_or_brand ON logistics.partner_dispatches FOR ALL TO app_user
+                USING      (kernel.rls_bypass()
+                            OR partner_id = kernel.current_partner_id()
+                            OR (brand_id IS NOT NULL AND brand_id = kernel.current_brand_id()))
+                WITH CHECK (kernel.rls_bypass()
+                            OR partner_id = kernel.current_partner_id()
+                            OR (brand_id IS NOT NULL AND brand_id = kernel.current_brand_id()));
+
+            ALTER TABLE logistics.partner_dispatches ENABLE ROW LEVEL SECURITY;
+            """);
+
         // 10. RaaS partner PREPAID WALLET spine (FULL-9 / issue #14). Trimmed, real-shaped
         //     mirror of db/patches/raas_partner_wallet_schema.sql + rls_partner_wallet.sql. Both
         //     commerce tables carry partner_id — the same isolation key as the logistics spine,

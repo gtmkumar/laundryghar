@@ -72,6 +72,10 @@ public interface IOperationsDbContext
     DbSet<PartnerUser> PartnerUsers { get; }
     DbSet<PartnerBooking> PartnerBookings { get; }
 
+    // ─── Logistics: RaaS partner dispatch (FULL-11b) — dual visibility to the
+    //     owning partner AND the serving brand's fleet (rls_partner_or_brand). ─
+    DbSet<PartnerDispatch> PartnerDispatches { get; }
+
     // ─── Commerce: RaaS partner prepaid wallet (READ-ONLY here) ──────────────
     // Surfaced so CreatePartnerBooking can run a prepaid-balance sufficiency pre-check
     // (FULL-11). The physical row lives in commerce over the same LaundryGharDbContext;

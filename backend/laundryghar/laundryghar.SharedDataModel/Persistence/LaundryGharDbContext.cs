@@ -129,6 +129,8 @@ public class LaundryGharDbContext : DbContext
     public DbSet<Partner> Partners => Set<Partner>();
     public DbSet<PartnerUser> PartnerUsers => Set<PartnerUser>();
     public DbSet<PartnerBooking> PartnerBookings => Set<PartnerBooking>();
+    // logistics — RaaS partner dispatch (FULL-11b; dual-visibility via rls_partner_or_brand)
+    public DbSet<PartnerDispatch> PartnerDispatches => Set<PartnerDispatch>();
 
     // commerce
     public DbSet<Package> Packages => Set<Package>();
