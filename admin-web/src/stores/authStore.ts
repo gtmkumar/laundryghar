@@ -4,6 +4,8 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 interface JwtClaims {
   sub: string
   email?: string
+  /** The user's own phone (E.164), minted as the `phone` claim. Present when on file. */
+  phone?: string
   name?: string
   user_type: string
   permissions?: string[]
@@ -16,6 +18,13 @@ interface AuthState {
   refreshToken: string | null
   user: JwtClaims | null
   setTokens: (access: string, refresh: string) => void
+  /**
+   * Swap ONLY the access token (re-derives `user` from it) while preserving the
+   * refresh token. Used by the step-up flow, whose /step-up/verify response is an
+   * upgraded access token with NO refresh token — a full setTokens() would wipe
+   * the in-memory refresh token unnecessarily.
+   */
+  setAccessToken: (access: string) => void
   clearAuth: () => void
 }
 
@@ -53,6 +62,11 @@ export const useAuthStore = create<AuthState>()(
       setTokens: (access, refresh) => {
         const user = parseJwt(access)
         set({ accessToken: access, refreshToken: refresh, user })
+      },
+
+      setAccessToken: (access) => {
+        const user = parseJwt(access)
+        set({ accessToken: access, user })
       },
 
       clearAuth: () => set({ accessToken: null, refreshToken: null, user: null }),

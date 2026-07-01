@@ -36,6 +36,23 @@ export function apiErrorStatus(error: unknown): number | undefined {
 }
 
 /**
+ * Detects the backend's §8 "step-up required" 403. High/critical actions reject
+ * with `{ responseMessage: "step_up_required", errorMessage: { step_up_required:
+ * ["<permission.code>", …] } }`. Returns the permission codes that need a fresh
+ * OTP re-verification (empty array if the list is absent), or `null` when this is
+ * an ordinary permission denial. The permission codes are informational — the
+ * fix is the same regardless of which one tripped: re-verify and retry.
+ */
+export function stepUpRequiredPermissions(error: unknown): string[] | null {
+  if (apiErrorStatus(error) !== 403) return null
+  const envelope = envelopeOf(error)
+  if (envelope?.responseMessage !== 'step_up_required') return null
+  const raw = envelope.errorMessage?.step_up_required
+  if (Array.isArray(raw)) return raw.filter((c): c is string => typeof c === 'string')
+  return typeof raw === 'string' ? [raw] : []
+}
+
+/**
  * Field-level validation errors keyed by the backend's field name (PascalCase
  * or camelCase, e.g. `Price` / `nameLocalized`). The generic `error` key the
  * backend uses for non-field failures is excluded — that belongs in the

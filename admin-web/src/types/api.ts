@@ -50,6 +50,29 @@ export interface PasswordLoginRequest {
   password: string
 }
 
+// ── Step-up (§8 sensitive-action re-verification) ─────────────────────────────
+// A high/critical action can 403 with responseMessage="step_up_required"; the
+// user must re-verify a fresh OTP, then retry with the upgraded access token.
+
+export type StepUpIdentifierType = 'phone' | 'email'
+
+/** POST /api/v1/auth/otp/send response (purpose=sensitive_action). */
+export interface OtpSentResponse {
+  message: string
+  expiresAt: string
+}
+
+/**
+ * POST /api/v1/auth/step-up/verify response — an UPGRADED access token carrying
+ * fresh amr+stepup_at claims. NOTE: no refresh token is issued (this is a
+ * re-verification, not a login), so only the access token is swapped.
+ */
+export interface StepUpTokenResponse {
+  accessToken: string
+  expiresInSeconds: number
+  tokenType: string
+}
+
 export interface RefreshTokenRequest {
   refreshToken: string
 }
