@@ -2455,6 +2455,50 @@ export interface MembershipDto {
   grantedAt: string
 }
 
+/** A permission in the catalog (GET /admin/roles/permissions) — populates the per-user override picker. */
+export interface PermissionCatalogItem {
+  id: string
+  code: string
+  module: string
+  action: string
+  name: string
+  riskLevel: string
+}
+
+/**
+ * Set or clear a per-user permission override
+ * (POST /admin/access-control/people/{id}/permission-override).
+ *  - effect 'allow' | 'deny' upserts the override;
+ *  - effect null removes it (reverts to role-derived behaviour).
+ * Optional scope/expiry/reason confine, time-box, and document it (docs/rbac.md §7).
+ */
+export interface SetUserPermissionOverridePayload {
+  permissionCode: string
+  effect: 'allow' | 'deny' | null
+  scopeType?: string | null
+  scopeId?: string | null
+  reason?: string | null
+  expiresAt?: string | null
+}
+
+/**
+ * Grant an ADDITIONAL (additive, multi-scope) membership
+ * (POST /admin/roles/memberships/grant) — distinct from the single-primary change-role flow.
+ */
+export interface GrantMembershipPayload {
+  userId: string
+  scopeType: string
+  scopeId?: string | null
+  roleId: string
+  isPrimary?: boolean
+}
+
+/** Revoke one membership by id (POST /admin/roles/memberships/revoke). */
+export interface RevokeMembershipPayload {
+  membershipId: string
+  reason?: string | null
+}
+
 export type RiderEmploymentType = 'employee' | 'contractor' | 'gig' | 'outsourced'
 export type RiderVehicleType = 'two_wheeler' | 'three_wheeler' | 'four_wheeler' | 'cycle' | 'foot'
 

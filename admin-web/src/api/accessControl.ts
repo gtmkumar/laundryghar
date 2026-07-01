@@ -13,11 +13,18 @@ import type {
   UpdateRolePayload,
   CloneRolePayload,
   RoleCellChange,
+  PermissionCatalogItem,
+  SetUserPermissionOverridePayload,
+  GrantMembershipPayload,
+  RevokeMembershipPayload,
+  MembershipDto,
 } from '@/types/api'
 
 export type PersonStatusAction = 'activate' | 'suspend' | 'reactivate'
 
 const BASE = '/api/v1/admin/access-control'
+// Membership grant/revoke + the permission catalog live under a different route group.
+const ROLES_BASE = '/api/v1/admin/roles'
 
 export async function getAccessPeople(
   params: PaginationParams & { search?: string; franchiseId?: string; sort?: string } = {},
@@ -78,4 +85,36 @@ export async function setPersonStatus(
     { action, password },
   )
   return unwrap(data)
+}
+
+// ── Per-user permission overrides + additive memberships (docs/rbac.md §6/§7) ─
+/** Permission catalog for the per-user override picker. Optionally filter by module. */
+export async function getPermissionCatalog(module?: string): Promise<PermissionCatalogItem[]> {
+  const { data } = await identityClient.get<ApiResponse<PermissionCatalogItem[]>>(
+    `${ROLES_BASE}/permissions`,
+    { params: module ? { module } : undefined },
+  )
+  return unwrap(data)
+}
+
+/** Set (allow/deny) or clear (effect:null) a per-user permission override for one person. */
+export async function setUserPermissionOverride(
+  personId: string,
+  payload: SetUserPermissionOverridePayload,
+): Promise<void> {
+  await identityClient.post(`${BASE}/people/${personId}/permission-override`, payload)
+}
+
+/** Grant an additional multi-scope membership; returns the created membership (id needed to revoke it). */
+export async function grantMembership(payload: GrantMembershipPayload): Promise<MembershipDto> {
+  const { data } = await identityClient.post<ApiResponse<MembershipDto>>(
+    `${ROLES_BASE}/memberships/grant`,
+    payload,
+  )
+  return unwrap(data)
+}
+
+/** Revoke a single membership by id. */
+export async function revokeMembership(payload: RevokeMembershipPayload): Promise<void> {
+  await identityClient.post(`${ROLES_BASE}/memberships/revoke`, payload)
 }
