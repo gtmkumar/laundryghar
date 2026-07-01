@@ -28,12 +28,14 @@ using commerce.Infrastructure.Worker.Stubs;
 using laundryghar.SharedDataModel;
 using laundryghar.SharedDataModel.Contracts;
 using laundryghar.Utilities.Auth;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Middlewares.ExceptionsMiddleware;
 using laundryghar.Utilities.OpenApi;
 using laundryghar.Utilities.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -51,6 +53,7 @@ builder.AddServiceDefaults();
 // marked worker scope (WorkerScope.CreateWorkerAsyncScope). One Scoped ICurrentTenant backs
 // the RLS interceptor; without it DI scope validation fails at builder.Build().
 builder.Services.AddCurrentUser();
+builder.Services.AddAuditTrail(); // RBAC audit trail: interceptor + IAuditWriter
 builder.Services.AddScoped<ICurrentTenant, CommerceHostCurrentTenant>();
 
 // ── Shared data model: LaundryGharDbContext (+ RLS interceptor wiring) ─────────
@@ -133,7 +136,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, AnyPermissionHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, CustomerOnlyHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, PartnerOnlyHandler>(); // RaaS partner lane (wallet/invoices)
+builder.Services.AddSingleton<IAuthorizationHandler, PartnerAdminHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+// §8 step-up: convert a step-up policy denial into a structured 403 step_up_required.
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, StepUpAuthorizationResultHandler>();
 builder.Services.AddAuthorization();
 
 // ─────────────────────────────────────────────────────────────────────────────

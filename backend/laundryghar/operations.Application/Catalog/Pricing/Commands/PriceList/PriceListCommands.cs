@@ -1,5 +1,6 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,10 @@ public sealed class CreatePriceListHandler : ICommandHandler<CreatePriceListComm
     {
         var brandId = _user.RequireBrandId();
         var req = cmd.Request;
+
+        if (!_user.IsWithinScope(brandId: brandId, franchiseId: req.FranchiseId, storeId: req.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
+
         var now = DateTimeOffset.UtcNow;
 
         // Business version: start at 1
@@ -86,6 +91,9 @@ public sealed class UpdatePriceListHandler : ICommandHandler<UpdatePriceListComm
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return null;
 
+        if (!_user.IsWithinScope(brandId: e.BrandId, franchiseId: e.FranchiseId, storeId: e.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
+
         if (e.IsPublished)
             throw new BusinessRuleException("Published price lists cannot be modified. Create a new version.");
 
@@ -114,8 +122,10 @@ public sealed class PublishPriceListHandler : ICommandHandler<PublishPriceListCo
 {
     private readonly IOperationsDbContext _db;
     private readonly ICurrentUser _user;
+    private readonly IAuditWriter _audit;
 
-    public PublishPriceListHandler(IOperationsDbContext db, ICurrentUser user) { _db = db; _user = user; }
+    public PublishPriceListHandler(IOperationsDbContext db, ICurrentUser user, IAuditWriter audit)
+    { _db = db; _user = user; _audit = audit; }
 
     public async Task<PriceListDto?> HandleAsync(PublishPriceListCommand cmd, CancellationToken ct)
     {
@@ -124,9 +134,13 @@ public sealed class PublishPriceListHandler : ICommandHandler<PublishPriceListCo
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return null;
 
+        if (!_user.IsWithinScope(brandId: e.BrandId, franchiseId: e.FranchiseId, storeId: e.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
+
         if (e.IsPublished)
             return CreatePriceListHandler.ToDto(e); // idempotent
 
+        var prevStatus = e.Status;
         var now = DateTimeOffset.UtcNow;
         e.IsPublished = true;
         e.PublishedAt = now;
@@ -137,6 +151,15 @@ public sealed class PublishPriceListHandler : ICommandHandler<PublishPriceListCo
         e.Version++;
 
         await _db.SaveChangesAsync(ct);
+
+        // Semantic audit: publishing flips a whole price list (and its items) live; record it
+        // as one named action with the status transition rather than a bare "price_lists.updated".
+        await _audit.WriteAsync("pricing.pricelist.publish", "price_lists", e.Id,
+            resourceDisplay: $"{e.Code} · {e.Name}",
+            oldValues: new { Status = prevStatus, IsPublished = false },
+            newValues: new { Status = "published", IsPublished = true },
+            changedFields: ["status", "is_published", "published_at"], ct: ct);
+
         return CreatePriceListHandler.ToDto(e);
     }
 }
@@ -158,6 +181,9 @@ public sealed class DeletePriceListHandler : ICommandHandler<DeletePriceListComm
         var e = await _db.PriceLists
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return false;
+
+        if (!_user.IsWithinScope(brandId: e.BrandId, franchiseId: e.FranchiseId, storeId: e.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
 
         // Soft-delete must also move status off the live ('draft'/'published') states so
         // status-keyed reports don't miscount it. price_lists CHECK is

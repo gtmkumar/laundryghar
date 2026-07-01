@@ -4,6 +4,7 @@ using core.Application.Identity.Auth.Commands.ForgotPassword;
 using core.Application.Identity.Auth.Commands.Logout;
 using core.Application.Identity.Auth.Commands.OtpSend;
 using core.Application.Identity.Auth.Commands.OtpVerify;
+using core.Application.Identity.Auth.Commands.StepUpVerify;
 using core.Application.Identity.Auth.Commands.PasswordLogin;
 using core.Application.Identity.Auth.Commands.RefreshToken;
 using core.Application.Identity.Auth.Commands.ResetPassword;
@@ -108,6 +109,23 @@ public class Auth : IEndpointGroup
         .WithName("OtpVerify")
         .Produces<SingleResponse<OtpVerifiedResponse>>()
         .AllowAnonymous();
+
+        // POST /api/v1/auth/step-up/verify — §8: fresh OTP re-verification for a high/critical action.
+        // Authenticated (unlike /otp/verify): the identifier is derived from the caller's own token,
+        // and the response is an UPGRADED access token carrying amr+stepup_at (no refresh token).
+        // Send the OTP first via /otp/send with purpose=sensitive_action.
+        group.MapPost("/step-up/verify", async (
+            StepUpVerifyRequest req,
+            IDispatcher dispatcher,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(new StepUpVerifyCommand(req), ct);
+            return Results.Ok(new SingleResponse<StepUpVerifiedResponse> { Status = true, Data = result });
+        })
+        .AddEndpointFilter<ValidationFilter<StepUpVerifyRequest>>()
+        .WithName("StepUpVerify")
+        .Produces<SingleResponse<StepUpVerifiedResponse>>()
+        .RequireAuthorization();
 
         // POST /api/v1/auth/refresh
         group.MapPost("/refresh", async (

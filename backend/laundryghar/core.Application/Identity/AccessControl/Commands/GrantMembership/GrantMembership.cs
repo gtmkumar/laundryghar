@@ -3,6 +3,8 @@ using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Auth.Audit;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +17,9 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
 {
     private readonly ICoreDbContext _db;
     private readonly ICurrentUser _actor;
-    public GrantMembershipCommandHandler(ICoreDbContext db, ICurrentUser actor) { _db = db; _actor = actor; }
+    private readonly IAuditWriter _audit;
+    public GrantMembershipCommandHandler(ICoreDbContext db, ICurrentUser actor, IAuditWriter audit)
+    { _db = db; _actor = actor; _audit = audit; }
 
     public async Task<MembershipDto> HandleAsync(GrantMembershipCommand cmd, CancellationToken ct)
     {
@@ -47,33 +51,63 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
                     new Dictionary<string, string[]> { ["scopeId"] = ["Brand-scoped roles require a brand id."] });
         }
 
+        // ── Resolve the target scope's FULL ancestor chain (brand → franchise → store/warehouse) ──
+        // The scope guard is ancestor-or-self: a brand/franchise-scoped actor granting at a resource
+        // UNDER their own node must match via an ANCESTOR id, not the leaf. Passing only the leaf slot
+        // (e.g. storeId for a store target, brandId=null) makes a brand_admin fail Matches(B, null) and
+        // get a false 403. So we look up the target's brand (and franchise for store/warehouse) up-front
+        // and feed every level to IsWithinScope. Platform targets stay all-null (platform-admin only).
+        Guid? targetBrandId = null, targetFranchiseId = null, targetStoreId = null, targetWarehouseId = null;
+        switch (cmd.Request.ScopeType)
+        {
+            case ScopeType.Brand:
+                targetBrandId = effectiveScopeId;
+                break;
+            case ScopeType.Franchise:
+                targetFranchiseId = effectiveScopeId;
+                targetBrandId = await _db.Franchises.AsNoTracking()
+                    .Where(f => f.Id == effectiveScopeId)
+                    .Select(f => (Guid?)f.BrandId)
+                    .FirstOrDefaultAsync(ct);
+                break;
+            case ScopeType.Store:
+                targetStoreId = effectiveScopeId;
+                var storeChain = await _db.Stores.AsNoTracking()
+                    .Where(s => s.Id == effectiveScopeId)
+                    .Select(s => new { s.BrandId, s.FranchiseId })
+                    .FirstOrDefaultAsync(ct);
+                targetBrandId = storeChain?.BrandId;
+                targetFranchiseId = storeChain?.FranchiseId;
+                break;
+            case ScopeType.Warehouse:
+                targetWarehouseId = effectiveScopeId;
+                var whChain = await _db.Warehouses.AsNoTracking()
+                    .Where(w => w.Id == effectiveScopeId)
+                    .Select(w => new { w.BrandId, w.FranchiseId })
+                    .FirstOrDefaultAsync(ct);
+                targetBrandId = whChain?.BrandId;
+                targetFranchiseId = whChain?.FranchiseId;
+                break;
+        }
+
+        // ── RBAC §6 sub-brand scope guard: the target scope node must lie within the actor's assigned scope ──
+        // Platform admins pass automatically; a brand/franchise/store/warehouse-scoped actor may only grant a
+        // membership at a node that is ancestor-or-self of one of their own membership nodes. This supersedes
+        // the brand-only H2b below: it closes the sub-brand escalation where an actor whose brand matches the
+        // target could otherwise grant at a DIFFERENT franchise/store/warehouse within the same brand.
+        if (!_actor.IsWithinScope(
+                brandId:     targetBrandId,
+                franchiseId: targetFranchiseId,
+                storeId:     targetStoreId,
+                warehouseId: targetWarehouseId))
+        {
+            throw new ForbiddenException("This membership is outside your assigned scope.");
+        }
+
         // ── H2b: actor's scope must cover the target ScopeId ──
-        // Platform admins bypass scope checks (they manage all brands).
+        // Platform admins bypass scope checks (they manage all brands). Reuses the brand resolved above.
         if (!actor.IsPlatformAdmin && effectiveScopeId.HasValue)
         {
-            // Resolve the brand of the target scope
-            Guid? targetBrandId = cmd.Request.ScopeType switch
-            {
-                laundryghar.SharedDataModel.Enums.ScopeType.Brand =>
-                    effectiveScopeId,
-                laundryghar.SharedDataModel.Enums.ScopeType.Franchise =>
-                    await _db.Franchises.AsNoTracking()
-                        .Where(f => f.Id == effectiveScopeId)
-                        .Select(f => (Guid?)f.BrandId)
-                        .FirstOrDefaultAsync(ct),
-                laundryghar.SharedDataModel.Enums.ScopeType.Store =>
-                    await _db.Stores.AsNoTracking()
-                        .Where(s => s.Id == effectiveScopeId)
-                        .Select(s => (Guid?)s.BrandId)
-                        .FirstOrDefaultAsync(ct),
-                laundryghar.SharedDataModel.Enums.ScopeType.Warehouse =>
-                    await _db.Warehouses.AsNoTracking()
-                        .Where(w => w.Id == effectiveScopeId)
-                        .Select(w => (Guid?)w.BrandId)
-                        .FirstOrDefaultAsync(ct),
-                _ => null
-            };
-
             // Actor's brand_id (from JWT active scope) must match the target scope's brand
             if (targetBrandId.HasValue && actor.BrandId != targetBrandId)
             {
@@ -143,6 +177,19 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
 
         // Invalidate the target user's existing tokens (live revocation).
         await Common.PermVersionBumper.BumpUserAsync(_db, cmd.Request.UserId, ct);
+
+        // Semantic audit: privilege grant — who got which role at which scope.
+        await _audit.WriteAsync("membership.grant", "user_scope_memberships", membership.Id,
+            resourceDisplay: $"{targetRole.Code} @ {membership.ScopeType}",
+            newValues: new
+            {
+                membership.UserId,
+                membership.ScopeType,
+                membership.ScopeId,
+                RoleCode = targetRole.Code,
+                membership.IsPrimary
+            },
+            ct: ct);
 
         return new MembershipDto(
             membership.Id, membership.UserId, membership.ScopeType, membership.ScopeId,

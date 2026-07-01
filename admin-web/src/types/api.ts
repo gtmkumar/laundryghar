@@ -50,6 +50,29 @@ export interface PasswordLoginRequest {
   password: string
 }
 
+// ── Step-up (§8 sensitive-action re-verification) ─────────────────────────────
+// A high/critical action can 403 with responseMessage="step_up_required"; the
+// user must re-verify a fresh OTP, then retry with the upgraded access token.
+
+export type StepUpIdentifierType = 'phone' | 'email'
+
+/** POST /api/v1/auth/otp/send response (purpose=sensitive_action). */
+export interface OtpSentResponse {
+  message: string
+  expiresAt: string
+}
+
+/**
+ * POST /api/v1/auth/step-up/verify response — an UPGRADED access token carrying
+ * fresh amr+stepup_at claims. NOTE: no refresh token is issued (this is a
+ * re-verification, not a login), so only the access token is swapped.
+ */
+export interface StepUpTokenResponse {
+  accessToken: string
+  expiresInSeconds: number
+  tokenType: string
+}
+
 export interface RefreshTokenRequest {
   refreshToken: string
 }
@@ -2430,6 +2453,50 @@ export interface MembershipDto {
   roleCode: string
   isPrimary: boolean
   grantedAt: string
+}
+
+/** A permission in the catalog (GET /admin/roles/permissions) — populates the per-user override picker. */
+export interface PermissionCatalogItem {
+  id: string
+  code: string
+  module: string
+  action: string
+  name: string
+  riskLevel: string
+}
+
+/**
+ * Set or clear a per-user permission override
+ * (POST /admin/access-control/people/{id}/permission-override).
+ *  - effect 'allow' | 'deny' upserts the override;
+ *  - effect null removes it (reverts to role-derived behaviour).
+ * Optional scope/expiry/reason confine, time-box, and document it (docs/rbac.md §7).
+ */
+export interface SetUserPermissionOverridePayload {
+  permissionCode: string
+  effect: 'allow' | 'deny' | null
+  scopeType?: string | null
+  scopeId?: string | null
+  reason?: string | null
+  expiresAt?: string | null
+}
+
+/**
+ * Grant an ADDITIONAL (additive, multi-scope) membership
+ * (POST /admin/roles/memberships/grant) — distinct from the single-primary change-role flow.
+ */
+export interface GrantMembershipPayload {
+  userId: string
+  scopeType: string
+  scopeId?: string | null
+  roleId: string
+  isPrimary?: boolean
+}
+
+/** Revoke one membership by id (POST /admin/roles/memberships/revoke). */
+export interface RevokeMembershipPayload {
+  membershipId: string
+  reason?: string | null
 }
 
 export type RiderEmploymentType = 'employee' | 'contractor' | 'gig' | 'outsourced'

@@ -1,4 +1,5 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -27,6 +28,9 @@ public sealed class UpdateRiderAssignmentHandler
         var assignment = await _db.RiderAssignments
             .FirstOrDefaultAsync(a => a.Id == command.Id && a.BrandId == brandId, cancellationToken);
         if (assignment is null) return null;
+
+        if (!_user.IsWithinScope(brandId: assignment.BrandId, storeId: assignment.StoreId))
+            throw new ForbiddenException("This assignment is outside your assigned scope.");
 
         var req = command.Request;
         var now = DateTimeOffset.UtcNow;

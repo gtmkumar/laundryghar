@@ -82,6 +82,9 @@ public sealed class CreateDeliveryAssignmentHandler
                 "No store could be resolved for this assignment. " +
                 "Ensure the pickup request, order, or rider has a store association.");
 
+        if (!_user.IsWithinScope(brandId: brandId, storeId: resolvedStoreId.Value))
+            throw new ForbiddenException("This delivery assignment is outside your assigned scope.");
+
         var assignment = new DeliveryAssignment
         {
             Id              = Guid.NewGuid(),
@@ -138,6 +141,9 @@ public sealed class UpdateDeliveryAssignmentHandler
         var e = await _db.DeliveryAssignments
             .FirstOrDefaultAsync(a => a.Id == cmd.Id && a.BrandId == brandId, ct);
         if (e is null) return null;
+
+        if (!_user.IsWithinScope(brandId: e.BrandId, storeId: e.StoreId))
+            throw new ForbiddenException("This delivery assignment is outside your assigned scope.");
 
         var wasTerminal = DeliveryAssignmentStatusHelper.IsTerminal(e.Status);
         e.Status    = cmd.Request.Status;

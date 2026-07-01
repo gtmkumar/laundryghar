@@ -64,6 +64,11 @@ public sealed class GenerateRoyaltyInvoiceHandler
         if (franchise is null)
             throw new BusinessRuleException("Franchise not found.");
 
+        // §6 scope boundary (docs/rbac.md): brand-level RLS alone does not stop a franchise
+        // -scoped operator from generating a royalty invoice against another franchise in the brand.
+        if (!_user.IsWithinScope(brandId: brandId, franchiseId: req.FranchiseId))
+            throw new ForbiddenException("This royalty invoice is outside your assigned scope.");
+
         // Prevent duplicate invoice for same franchise + period
         var exists = await _db.RoyaltyInvoices.AnyAsync(
             i => i.FranchiseId  == req.FranchiseId
@@ -235,6 +240,11 @@ public sealed class IssueRoyaltyInvoiceHandler
             .FirstOrDefaultAsync(i => i.Id == cmd.Id && i.BrandId == brandId, ct);
         if (invoice is null) return null;
 
+        // §6 scope boundary (docs/rbac.md): brand RLS alone lets a franchise-scoped operator
+        // issue another franchise's invoice within the brand. Enforce ancestor-or-self.
+        if (!_user.IsWithinScope(brandId: invoice.BrandId, franchiseId: invoice.FranchiseId))
+            throw new ForbiddenException("This royalty invoice is outside your assigned scope.");
+
         if (invoice.Status != "draft")
             throw new BusinessRuleException($"Only draft invoices can be issued. Current status: '{invoice.Status}'.");
 
@@ -272,6 +282,11 @@ public sealed class RecordRoyaltyPaymentHandler
             .Include(i => i.Calculations)
             .FirstOrDefaultAsync(i => i.Id == cmd.Id && i.BrandId == brandId, ct);
         if (invoice is null) return null;
+
+        // §6 scope boundary (docs/rbac.md): brand RLS alone lets a franchise-scoped operator
+        // record payment on another franchise's invoice within the brand. Enforce ancestor-or-self.
+        if (!_user.IsWithinScope(brandId: invoice.BrandId, franchiseId: invoice.FranchiseId))
+            throw new ForbiddenException("This royalty invoice is outside your assigned scope.");
 
         if (invoice.Status is not ("issued" or "sent" or "viewed" or "partial" or "overdue"))
             throw new BusinessRuleException(

@@ -38,6 +38,10 @@ public sealed class CloseStockReconCommandHandler : ICommandHandler<CloseStockRe
             .FirstOrDefaultAsync(r => r.Id == cmd.ReconId && r.BrandId == brandId, ct);
         if (recon is null) return null;
 
+        // Include the recon's brand so a brand-scoped admin matches via the ancestor id.
+        if (!_user.IsWithinScope(brandId: recon.BrandId, storeId: recon.StoreId, warehouseId: recon.WarehouseId))
+            throw new ForbiddenException("This reconciliation is outside your assigned scope.");
+
         if (recon.Status != "in_progress")
             throw new BusinessRuleException("Only an in-progress reconciliation can be closed.");
 

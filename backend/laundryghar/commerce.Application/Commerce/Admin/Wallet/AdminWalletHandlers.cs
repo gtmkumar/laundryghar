@@ -1,6 +1,7 @@
 using commerce.Application.Common.Interfaces;
 using FluentValidation;
 using laundryghar.SharedDataModel.Entities.Commerce;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Common;
 using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
@@ -72,8 +73,10 @@ public sealed class AdminWalletAdjustHandler : ICommandHandler<AdminWalletAdjust
 {
     private readonly ICommerceDbContext _db;
     private readonly ICurrentUser _user;
+    private readonly IAuditWriter _audit;
 
-    public AdminWalletAdjustHandler(ICommerceDbContext db, ICurrentUser user) { _db = db; _user = user; }
+    public AdminWalletAdjustHandler(ICommerceDbContext db, ICurrentUser user, IAuditWriter audit)
+    { _db = db; _user = user; _audit = audit; }
 
     public async Task<WalletTransactionDto> HandleAsync(AdminWalletAdjustCommand cmd, CancellationToken ct)
     {
@@ -169,6 +172,20 @@ public sealed class AdminWalletAdjustHandler : ICommandHandler<AdminWalletAdjust
             _db.WalletTransactions.Add(walletTxn);
             await _db.SaveChangesAsync(innerCt);
         }, ct);
+
+        // Semantic audit: admin balance movement with signed delta + before/after balance.
+        await _audit.WriteAsync(
+            "wallet.adjust", "wallet_accounts", walletTxn.WalletAccountId,
+            resourceDisplay: $"{req.TransactionType} {(req.Direction == 1 ? "+" : "-")}{req.Amount:F2}",
+            newValues: new
+            {
+                req.CustomerId,
+                Delta = req.Direction * req.Amount,
+                walletTxn.BalanceBefore,
+                walletTxn.BalanceAfter,
+                req.TransactionType
+            },
+            ct: ct);
 
         return GetCustomerWalletTransactionsHandler.ToTransactionDto(walletTxn);
     }

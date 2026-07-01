@@ -45,6 +45,9 @@ public sealed class CreateCapacityConfigHandler
                 throw new BusinessRuleException("Store not found under the current brand.");
         }
 
+        if (!_user.IsWithinScope(brandId: brandId, storeId: req.StoreId))
+            throw new ForbiddenException("This capacity config is outside your assigned scope.");
+
         var config = new RiderCapacityConfig
         {
             Id                   = Guid.NewGuid(),

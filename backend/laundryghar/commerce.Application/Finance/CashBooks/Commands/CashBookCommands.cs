@@ -65,6 +65,9 @@ public sealed class OpenCashBookHandler : ICommandHandler<OpenCashBookCommand, C
         if (!franchiseInBrand)
             throw new KeyNotFoundException("Franchise not found.");
 
+        if (!_user.IsWithinScope(brandId: brandId, franchiseId: req.FranchiseId, storeId: req.StoreId))
+            throw new ForbiddenException("This cash book is outside your assigned scope.");
+
         // Enforce uniqueness (store + date + shift)
         var exists = await _db.CashBooks.AnyAsync(
             b => b.BrandId   == brandId
@@ -158,6 +161,8 @@ public sealed class AddCashBookEntryHandler : ICommandHandler<AddCashBookEntryCo
 
             if (book is null)
                 throw new BusinessRuleException("Cash book not found.");
+            if (!_user.IsWithinScope(brandId: book.BrandId, franchiseId: book.FranchiseId, storeId: book.StoreId))
+                throw new ForbiddenException("This cash book is outside your assigned scope.");
             if (book.Status != "open")
                 throw new BusinessRuleException($"Cannot add entries to a cash book with status '{book.Status}'.");
 
@@ -278,6 +283,8 @@ public sealed class CloseCashBookHandler : ICommandHandler<CloseCashBookCommand,
 
         if (book is null)
             throw new BusinessRuleException("Cash book not found.");
+        if (!_user.IsWithinScope(brandId: book.BrandId, franchiseId: book.FranchiseId, storeId: book.StoreId))
+            throw new ForbiddenException("This cash book is outside your assigned scope.");
         if (book.Status != "open")
             throw new BusinessRuleException($"Cannot close a cash book with status '{book.Status}'.");
 
@@ -344,6 +351,8 @@ public sealed class CreateShiftHandoverHandler : ICommandHandler<CreateShiftHand
             .AnyAsync(s => s.Id == req.StoreId && s.BrandId == brandId, ct);
         if (!storeExists)
             throw new KeyNotFoundException("Store not found.");
+        if (!_user.IsWithinScope(brandId: brandId, storeId: req.StoreId))
+            throw new ForbiddenException("This shift handover is outside your assigned scope.");
         if (req.CashBookId is Guid cashBookId)
         {
             var bookExists = await _db.CashBooks

@@ -2,6 +2,7 @@ using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
 using laundryghar.SharedDataModel.Entities.TenancyOrg;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -37,6 +38,12 @@ public sealed class CreateWarehouseBatchCommandHandler
             .AnyAsync(w => w.Id == req.WarehouseId && w.BrandId == brandId, cancellationToken);
         if (!warehouseInBrand)
             throw new KeyNotFoundException("Warehouse not found.");
+
+        // Pass the warehouse's brand so a brand-scoped admin matches via the ancestor id
+        // (the warehouse was just validated to belong to this brand). Exact-level guard
+        // without brandId would 403 a brand_admin acting on their own warehouse.
+        if (!_user.IsWithinScope(brandId: brandId, warehouseId: req.WarehouseId))
+            throw new ForbiddenException("This warehouse batch is outside your assigned scope.");
 
         var count  = await _db.WarehouseBatches.CountAsync(b => b.BrandId == brandId, cancellationToken);
         var batchNo = $"WB-{now:yyyyMMdd}-{(count + 1):D4}";

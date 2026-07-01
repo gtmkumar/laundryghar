@@ -3,6 +3,7 @@ using core.Application.Identity.Onboarding.Dtos;
 using core.Application.Identity.Onboarding.Queries.GetOnboardingState;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.TenancyOrg;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,8 @@ public class SaveCommercialsCommandHandler : ICommandHandler<SaveCommercialsComm
     {
         var f = await _db.Franchises.FirstOrDefaultAsync(x => x.Id == command.FranchiseId && x.DeletedAt == null, cancellationToken);
         if (f is null) return null;
+        if (!_actor.IsWithinScope(brandId: f.BrandId, franchiseId: f.Id))
+            throw new ForbiddenException("This franchise is outside your assigned scope.");
         var r = command.Request;
         var now = DateTimeOffset.UtcNow;
         var today = DateOnly.FromDateTime(now.UtcDateTime);

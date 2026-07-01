@@ -1,5 +1,7 @@
 using core.Application.Common.Interfaces;
 using core.Application.Identity.TenancyOrg.Dtos;
+using laundryghar.Utilities.Exceptions;
+using laundryghar.Utilities.Services;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,13 +12,20 @@ public sealed record UpdateFranchiseCommand(Guid Id, UpdateFranchiseRequest Requ
 public class UpdateFranchiseCommandHandler : ICommandHandler<UpdateFranchiseCommand, FranchiseDto?>
 {
     private readonly ICoreDbContext _db;
+    private readonly ICurrentUser _user;
 
-    public UpdateFranchiseCommandHandler(ICoreDbContext db) => _db = db;
+    public UpdateFranchiseCommandHandler(ICoreDbContext db, ICurrentUser user)
+    {
+        _db = db;
+        _user = user;
+    }
 
     public async Task<FranchiseDto?> HandleAsync(UpdateFranchiseCommand command, CancellationToken cancellationToken)
     {
         var f = await _db.Franchises.FindAsync([command.Id], cancellationToken);
         if (f is null) return null;
+        if (!_user.IsWithinScope(brandId: f.BrandId, franchiseId: f.Id))
+            throw new ForbiddenException("This franchise is outside your assigned scope.");
         if (command.Request.LegalName        is not null) f.LegalName        = command.Request.LegalName;
         if (command.Request.OnboardingStatus is not null) f.OnboardingStatus = command.Request.OnboardingStatus;
         if (command.Request.Status           is not null) f.Status           = command.Request.Status;

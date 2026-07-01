@@ -1,6 +1,7 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -30,6 +31,9 @@ public sealed class CreateOrderNoteHandler : ICommandHandler<CreateOrderNoteComm
         var order = await _db.Orders
             .FirstOrDefaultAsync(o => o.Id == cmd.OrderId && o.BrandId == brandId, ct);
         if (order is null || order.DeletedAt != null) return null;
+
+        if (!_user.IsWithinScope(brandId: order.BrandId, franchiseId: order.FranchiseId, storeId: order.StoreId, warehouseId: order.WarehouseId))
+            throw new ForbiddenException("This order is outside your assigned scope.");
 
         var note = new OrderNote
         {

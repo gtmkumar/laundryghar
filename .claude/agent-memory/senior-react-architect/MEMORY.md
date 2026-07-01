@@ -9,3 +9,4 @@
 - [Dashboard ops + live Orders](project-dashboard-ops-orders-live.md) — Tasks #41/#42: riders+needs-action panels, Orders active-cards/history split, new-booking chime/toast; backend ops-queues unactioned bucket + statusGroup param; shared orderFormat/chime/detector infra
 - [POS-web Gap R2](project-pos-web-gap-r2.md) — POS-1..7 + perm gating: persisted cartStore, idempotency keys (body+header), brand-keyed catalog cache, partial/credit pay, usePermissions/useDebounce/EmptyState infra
 - [admin-web patterns](project-admin-web-patterns.md) — shared FilterableTable/FormDrawer/ConfirmDialog, route→permission map (routePermissions.ts), infinite-scroll + totalCount, validation.ts schemas, CSV built into FilterableTable
+- [RBAC admin-UX](project-rbac-admin-ux.md) — Issue #14: per-user overrides + additive memberships panels in PersonDetailDrawer; memberships live on admin/roles base; NO GET to list a user's overrides/memberships (backend follow-up)

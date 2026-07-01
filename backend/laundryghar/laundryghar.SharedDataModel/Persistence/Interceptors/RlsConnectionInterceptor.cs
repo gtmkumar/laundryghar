@@ -53,6 +53,7 @@ public sealed class RlsConnectionInterceptor : DbConnectionInterceptor
         var franchiseId = _currentTenant.FranchiseId?.ToString() ?? string.Empty;
         var storeId = _currentTenant.StoreId?.ToString() ?? string.Empty;
         var userId = _currentTenant.UserId?.ToString() ?? string.Empty;
+        var partnerId = _currentTenant.PartnerId?.ToString() ?? string.Empty;
         var bypassRls = _currentTenant.BypassRls ? "true" : "false";
 
         // set_config(setting_name, value, is_local) — false = session-level
@@ -62,6 +63,7 @@ public sealed class RlsConnectionInterceptor : DbConnectionInterceptor
                 set_config('app.current_franchise_id', @franchise_id, false),
                 set_config('app.current_store_id',     @store_id,     false),
                 set_config('app.current_user_id',      @user_id,      false),
+                set_config('app.current_partner_id',   @partner_id,   false),
                 set_config('app.bypass_rls',           @bypass_rls,   false)
             """;
 
@@ -69,6 +71,7 @@ public sealed class RlsConnectionInterceptor : DbConnectionInterceptor
         AddParameter(cmd, "@franchise_id", franchiseId);
         AddParameter(cmd, "@store_id",     storeId);
         AddParameter(cmd, "@user_id",      userId);
+        AddParameter(cmd, "@partner_id",   partnerId);
         AddParameter(cmd, "@bypass_rls",   bypassRls);
     }
 

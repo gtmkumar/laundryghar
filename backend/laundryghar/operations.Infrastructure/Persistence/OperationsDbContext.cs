@@ -60,6 +60,11 @@ public sealed class OperationsDbContext : IOperationsDbContext
     public DbSet<IncentiveRule> IncentiveRules => _db.IncentiveRules;
     public DbSet<RiderRating> RiderRatings => _db.RiderRatings;
 
+    // ─── RaaS partner MVP (partner_id-isolated via rls_partner) ────────────────
+    public DbSet<Partner> Partners => _db.Partners;
+    public DbSet<PartnerUser> PartnerUsers => _db.PartnerUsers;
+    public DbSet<PartnerBooking> PartnerBookings => _db.PartnerBookings;
+
     public DbSet<DeliveryAssignment> DeliveryAssignments => _db.DeliveryAssignments;
     public DbSet<PickupRequest> PickupRequests => _db.PickupRequests;
     public DbSet<OrderStatusHistory> OrderStatusHistories => _db.OrderStatusHistories;

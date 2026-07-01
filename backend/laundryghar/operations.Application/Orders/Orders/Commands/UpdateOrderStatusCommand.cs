@@ -44,6 +44,9 @@ public sealed class UpdateOrderStatusHandler : ICommandHandler<UpdateOrderStatus
             .FirstOrDefaultAsync(o => o.Id == cmd.OrderId && o.BrandId == brandId, ct);
         if (order is null || order.DeletedAt != null) return null;
 
+        if (!_user.IsWithinScope(brandId: order.BrandId, franchiseId: order.FranchiseId, storeId: order.StoreId, warehouseId: order.WarehouseId))
+            throw new ForbiddenException("This order is outside your assigned scope.");
+
         // Enforce the fulfilment-mode state machine (point_to_point uses a shorter path).
         // The strategy owns its status vocabulary — there is no shared closed list to validate
         // against (that would re-impose the laundry vocabulary the OrderStatus widening removed).

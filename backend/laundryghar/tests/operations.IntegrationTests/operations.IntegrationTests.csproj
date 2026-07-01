@@ -21,6 +21,11 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
+        <!-- RBAC EF integration tests: ScopeResolver lives in core.Application; CoreDbContext (ICoreDbContext
+             over LaundryGharDbContext) lives in core.Infrastructure. These transitively bring in
+             laundryghar.Utilities (AuditSaveChangesInterceptor, ICurrentTenant/ICurrentUser). -->
+        <ProjectReference Include="..\..\core.Application\core.Application.csproj" />
+        <ProjectReference Include="..\..\core.Infrastructure\core.Infrastructure.csproj" />
     </ItemGroup>
 
 </Project>

@@ -62,6 +62,12 @@ public interface ICoreDbContext
     // ─── Logistics (rider counts in access-control franchise cards) ──────────
     DbSet<Rider> Riders { get; }
 
+    // ─── Logistics (RaaS partner login: resolve the partner user + org by phone) ──
+    // Read-only surface for the CORE host, which mints partner tokens. Writes to these
+    // tables belong to the operations host (rls_partner-isolated).
+    DbSet<Partner> Partners { get; }
+    DbSet<PartnerUser> PartnerUsers { get; }
+
     // ─── Kernel (system settings store — Admin Settings) ─────────────────────
     DbSet<SystemSetting> SystemSettings { get; }
 

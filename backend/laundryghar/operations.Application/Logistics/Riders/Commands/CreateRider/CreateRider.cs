@@ -66,6 +66,11 @@ public sealed class CreateRiderHandler : ICommandHandler<CreateRiderCommand, Rid
                 throw new BusinessRuleException("PrimaryStoreId must be a store of the selected franchise in the current brand.");
         }
 
+        // RBAC sub-brand scope guard: the franchise/store the rider is being created
+        // under come from the request, so confirm they fall within the caller's assigned scope.
+        if (!_user.IsWithinScope(brandId: brandId, franchiseId: req.FranchiseId, storeId: req.PrimaryStoreId))
+            throw new ForbiddenException("This rider is outside your assigned scope.");
+
         // Prevent duplicate rider profile for same user under same brand
         var duplicate = await _db.Riders.IgnoreQueryFilters()
             .AnyAsync(r => r.UserId == req.UserId && r.BrandId == brandId, ct);

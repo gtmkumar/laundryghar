@@ -11,6 +11,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { designationPlaceholder } from '@/lib/verticalTerms'
 import { UserType, USER_TYPE_LABEL, userTypeLabel } from '@/types/userType'
 import { statusTone } from './FranchiseTeamShared'
+import { PermissionOverridesPanel } from './PermissionOverridesPanel'
+import { MembershipsPanel } from './MembershipsPanel'
 import type { UserEmploymentType, UserKycStatus } from '@/types/api'
 
 // Account types an admin can assign from the drawer (privileged → platform_admin is excluded; it is
@@ -367,6 +369,24 @@ export function PersonDetailDrawer({ person, open, onClose }: Props) {
                   </>
                 )}
               </DetailSection>
+
+              {/* Additive multi-scope memberships (grant/revoke) — separate from the change-primary flow above */}
+              <MembershipsPanel
+                personId={person.id}
+                canGrant={hasPermission('memberships.grant')}
+                canRevoke={hasPermission('memberships.revoke')}
+                isSelf={isSelf}
+                roles={rolesQ.data}
+                franchises={franchises}
+                effectiveBrandId={effectiveBrandId}
+              />
+
+              {/* Per-user permission overrides (allow/deny/clear a single capability) */}
+              <PermissionOverridesPanel
+                personId={person.id}
+                canManage={hasPermission('permissions.assign')}
+                isSelf={isSelf}
+              />
 
               {/* Identity */}
               <DetailSection plain title="Identity">

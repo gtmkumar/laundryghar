@@ -23,6 +23,9 @@ public class ActivateFranchiseCommandHandler : ICommandHandler<ActivateFranchise
         var f = await _db.Franchises.FirstOrDefaultAsync(x => x.Id == command.FranchiseId && x.DeletedAt == null, cancellationToken);
         if (f is null) return null;
 
+        if (!_actor.IsWithinScope(brandId: f.BrandId, franchiseId: f.Id))
+            throw new ForbiddenException("This franchise is outside your assigned scope.");
+
         var state = await OnboardingState.BuildAsync(_db, f, cancellationToken);
         if (state.IsActive) return state;
         if (!state.CanActivate)

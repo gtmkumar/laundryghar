@@ -4,6 +4,7 @@ using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Exceptions;
 
 namespace core.Application.Identity.Users.Commands.CreateUser;
@@ -14,7 +15,9 @@ public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, UserD
 {
     private readonly ICoreDbContext _db;
     private readonly IPasswordHasher _hasher;
-    public CreateUserCommandHandler(ICoreDbContext db, IPasswordHasher hasher) { _db = db; _hasher = hasher; }
+    private readonly IAuditWriter _audit;
+    public CreateUserCommandHandler(ICoreDbContext db, IPasswordHasher hasher, IAuditWriter audit)
+    { _db = db; _hasher = hasher; _audit = audit; }
 
     public async Task<UserDto> HandleAsync(CreateUserCommand cmd, CancellationToken ct)
     {
@@ -67,6 +70,13 @@ public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, UserD
         }
 
         await _db.SaveChangesAsync(ct);
+
+        // Semantic audit: account creation (also covers the invite flow, which delegates here).
+        // Identifiers only — never the password/hash or invitation token.
+        await _audit.WriteAsync("user.create", "users", user.Id,
+            resourceDisplay: user.Email ?? user.PhoneE164,
+            newValues: new { user.Email, user.PhoneE164, user.UserType, user.Status }, ct: ct);
+
         return new UserDto(user.Id, user.Email, user.PhoneE164, user.UserType, user.Status,
             user.MfaEnabled, user.LastLoginAt, user.CreatedAt,
             cmd.Request.FirstName, cmd.Request.LastName, null);

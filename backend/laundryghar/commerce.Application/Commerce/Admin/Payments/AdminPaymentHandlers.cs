@@ -1,5 +1,6 @@
 using commerce.Application.Common.Interfaces;
 using laundryghar.SharedDataModel.Entities.Commerce;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Common;
 using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
@@ -64,12 +65,14 @@ public sealed class IssueRefundHandler : ICommandHandler<IssueRefundCommand, Pay
     private readonly ICommerceDbContext _db;
     private readonly ICurrentUser _user;
     private readonly IPaymentGateway _gateway;
+    private readonly IAuditWriter _audit;
 
-    public IssueRefundHandler(ICommerceDbContext db, ICurrentUser user, IPaymentGateway gateway)
+    public IssueRefundHandler(ICommerceDbContext db, ICurrentUser user, IPaymentGateway gateway, IAuditWriter audit)
     {
         _db = db;
         _user = user;
         _gateway = gateway;
+        _audit = audit;
     }
 
     public async Task<PaymentRefundDto> HandleAsync(IssueRefundCommand cmd, CancellationToken ct)
@@ -82,6 +85,13 @@ public sealed class IssueRefundHandler : ICommandHandler<IssueRefundCommand, Pay
 
         if (payment is null)
             throw new BusinessRuleException("Payment not found.");
+
+        // §6 scope boundary (docs/rbac.md): brand-level RLS alone does not stop a franchise/store
+        // -scoped operator from refunding another franchise/store's payment within the same brand.
+        // Enforce ancestor-or-self against the payment's node; platform/brand-scoped actors pass.
+        if (!_user.IsWithinScope(brandId: payment.BrandId, franchiseId: payment.FranchiseId, storeId: payment.StoreId))
+            throw new ForbiddenException("This payment is outside your assigned scope.");
+
         if (payment.Status != "captured" && payment.Status != "completed")
             throw new BusinessRuleException($"Cannot refund a payment with status '{payment.Status}'.");
         if (req.Amount <= 0)
@@ -219,6 +229,14 @@ public sealed class IssueRefundHandler : ICommandHandler<IssueRefundCommand, Pay
             _db.PaymentRefunds.Add(refund);
             await _db.SaveChangesAsync(innerCt);
         }, ct);
+
+        // Semantic audit: money-movement action with its canonical action code and a
+        // human-readable refund reference. Fail-open — never blocks the refund.
+        await _audit.WriteAsync(
+            "payment.refund", "payments", payment.Id,
+            resourceDisplay: $"{refund.RefundNumber} · {refund.Amount:F2} {payment.CurrencyCode}",
+            newValues: new { refund.RefundNumber, req.Amount, req.RefundType, req.Reason, refund.RefundMethod },
+            ct: ct);
 
         return ToRefundDto(refund);
     }

@@ -1,6 +1,7 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -33,6 +34,9 @@ public sealed class CreateDeliverySlotHandler : ICommandHandler<CreateDeliverySl
             .AnyAsync(s => s.Id == req.StoreId && s.BrandId == brandId, ct);
         if (!storeInBrand)
             throw new KeyNotFoundException("Store not found.");
+
+        if (!_user.IsWithinScope(brandId: brandId, storeId: req.StoreId))
+            throw new ForbiddenException("This delivery slot is outside your assigned scope.");
 
         var slot = new DeliverySlot
         {
@@ -85,6 +89,9 @@ public sealed class UpdateDeliverySlotHandler : ICommandHandler<UpdateDeliverySl
         var slot = await _db.DeliverySlots
             .FirstOrDefaultAsync(s => s.Id == cmd.Id && s.BrandId == brandId, ct);
         if (slot is null) return null;
+
+        if (!_user.IsWithinScope(brandId: slot.BrandId, storeId: slot.StoreId))
+            throw new ForbiddenException("This delivery slot is outside your assigned scope.");
 
         if (cmd.Request.Capacity.HasValue) slot.Capacity = cmd.Request.Capacity.Value;
         if (cmd.Request.IsActive.HasValue) slot.IsActive = cmd.Request.IsActive.Value;

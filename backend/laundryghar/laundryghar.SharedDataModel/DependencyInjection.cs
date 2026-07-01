@@ -80,6 +80,14 @@ public static class DependencyInjection
             // Resolve the Scoped interceptor from the request-scoped IServiceProvider so
             // each request gets its own instance carrying its own ICurrentTenant.
             options.AddInterceptors(sp.GetRequiredService<RlsConnectionInterceptor>());
+
+            // Audit-trail SaveChanges interceptor(s), registered by the host via AddAuditTrail()
+            // (they live in laundryghar.Utilities so they can inject ICurrentUser). Enumerated as the
+            // EF abstraction so SharedDataModel need not depend on Utilities. Empty when AddAuditTrail
+            // was not called (e.g. integration-test setups) — the RLS interceptor is unaffected as it
+            // is a DbConnectionInterceptor, not an ISaveChangesInterceptor.
+            foreach (var saveInterceptor in sp.GetServices<Microsoft.EntityFrameworkCore.Diagnostics.ISaveChangesInterceptor>())
+                options.AddInterceptors(saveInterceptor);
         });
 
         return services;

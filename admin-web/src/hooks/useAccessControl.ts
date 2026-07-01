@@ -10,9 +10,22 @@ import {
   updateRole,
   deleteRole,
   cloneRole,
+  getPermissionCatalog,
+  setUserPermissionOverride,
+  grantMembership,
+  revokeMembership,
   type PersonStatusAction,
 } from '@/api/accessControl'
-import type { InviteUserPayload, CreateRolePayload, UpdateRolePayload, CloneRolePayload, RoleCellChange } from '@/types/api'
+import type {
+  InviteUserPayload,
+  CreateRolePayload,
+  UpdateRolePayload,
+  CloneRolePayload,
+  RoleCellChange,
+  SetUserPermissionOverridePayload,
+  GrantMembershipPayload,
+  RevokeMembershipPayload,
+} from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
 
 const PEOPLE_PAGE_SIZE = 100
@@ -103,5 +116,54 @@ export function useCloneRole() {
   return useMutation({
     mutationFn: (v: { roleId: string; payload: CloneRolePayload }) => cloneRole(v.roleId, v.payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'roles'] }),
+  })
+}
+
+// ── Per-user overrides + additive memberships ────────────────────────────────
+/** The permission catalog (module/action/name/riskLevel) for the override picker.
+ *  Static-ish, so cache it a while; pass `enabled` to defer until the panel is shown. */
+export function usePermissionCatalog(enabled = true) {
+  return useQuery({
+    queryKey: ['access', 'permission-catalog'],
+    queryFn: () => getPermissionCatalog(),
+    enabled,
+    staleTime: 5 * 60_000,
+  })
+}
+
+/** Set/clear a per-user permission override; refreshes the person's detail. */
+export function useSetUserPermissionOverride() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { personId: string; payload: SetUserPermissionOverridePayload }) =>
+      setUserPermissionOverride(v.personId, v.payload),
+    onSuccess: (_data, v) => {
+      qc.invalidateQueries({ queryKey: ['admin-user', v.personId] })
+    },
+  })
+}
+
+/** Grant an additional membership; refreshes the person + the People/Franchises lists. */
+export function useGrantMembership() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: GrantMembershipPayload) => grantMembership(payload),
+    onSuccess: (_data, v) => {
+      qc.invalidateQueries({ queryKey: ['admin-user', v.userId] })
+      qc.invalidateQueries({ queryKey: ['access', 'people'] })
+      qc.invalidateQueries({ queryKey: ['access', 'franchises'] })
+    },
+  })
+}
+
+/** Revoke a membership; `userId` is passed through only to scope the cache invalidation. */
+export function useRevokeMembership() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { userId: string; payload: RevokeMembershipPayload }) => revokeMembership(v.payload),
+    onSuccess: (_data, v) => {
+      qc.invalidateQueries({ queryKey: ['admin-user', v.userId] })
+      qc.invalidateQueries({ queryKey: ['access', 'people'] })
+    },
   })
 }

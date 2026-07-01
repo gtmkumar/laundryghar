@@ -65,6 +65,9 @@ public sealed class GenerateInvoiceHandler : ICommandHandler<GenerateInvoiceComm
             .FirstOrDefaultAsync(o => o.Id == cmd.OrderId && o.BrandId == brandId, ct)
             ?? throw new KeyNotFoundException($"Order {cmd.OrderId} not found.");
 
+        if (!_user.IsWithinScope(brandId: order.BrandId, franchiseId: order.FranchiseId, storeId: order.StoreId, warehouseId: order.WarehouseId))
+            throw new ForbiddenException("This order is outside your assigned scope.");
+
         // ── 3. Validate billable state ─────────────────────────────────────────
         if (!BillableStatuses.Contains(order.Status))
             throw new BusinessRuleException(

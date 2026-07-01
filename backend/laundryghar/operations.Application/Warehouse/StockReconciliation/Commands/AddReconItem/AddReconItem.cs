@@ -1,6 +1,7 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -28,6 +29,10 @@ public sealed class AddReconItemCommandHandler : ICommandHandler<AddReconItemCom
         var recon = await _db.StockReconciliations
             .FirstOrDefaultAsync(r => r.Id == command.ReconId && r.BrandId == brandId, cancellationToken);
         if (recon is null) return null;
+
+        // Include the recon's brand so a brand-scoped admin matches via the ancestor id.
+        if (!_user.IsWithinScope(brandId: recon.BrandId, storeId: recon.StoreId, warehouseId: recon.WarehouseId))
+            throw new ForbiddenException("This reconciliation session is outside your assigned scope.");
 
         var req = command.Request;
         var now = DateTimeOffset.UtcNow;

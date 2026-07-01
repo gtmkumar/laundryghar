@@ -14,9 +14,11 @@ namespace laundryghar.Utilities.Auth;
 /// </summary>
 public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
 {
-    public const string PolicyPrefix       = "permission:";
-    public const string CustomerOnlyPolicy = "CustomerOnly";
-    public const string RiderOnlyPolicy    = "RiderOnly";
+    public const string PolicyPrefix        = "permission:";
+    public const string CustomerOnlyPolicy  = "CustomerOnly";
+    public const string RiderOnlyPolicy     = "RiderOnly";
+    public const string PartnerOnlyPolicy   = "PartnerOnly";
+    public const string PartnerAdminPolicy  = "PartnerAdmin";
 
     private readonly DefaultAuthorizationPolicyProvider _fallback;
 
@@ -75,6 +77,26 @@ public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
             var policy = new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .AddRequirements(new RiderOnlyRequirement())
+                .Build();
+            return Task.FromResult<AuthorizationPolicy?>(policy);
+        }
+
+        // Partner-only policy — token_use must be "partner" (RaaS partner lane)
+        if (string.Equals(policyName, PartnerOnlyPolicy, StringComparison.OrdinalIgnoreCase))
+        {
+            var policy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new PartnerOnlyRequirement())
+                .Build();
+            return Task.FromResult<AuthorizationPolicy?>(policy);
+        }
+
+        // Partner-admin policy — token_use=partner AND partner_role=partner_admin (partner-admin lane)
+        if (string.Equals(policyName, PartnerAdminPolicy, StringComparison.OrdinalIgnoreCase))
+        {
+            var policy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new PartnerAdminRequirement())
                 .Build();
             return Task.FromResult<AuthorizationPolicy?>(policy);
         }

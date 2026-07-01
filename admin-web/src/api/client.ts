@@ -20,7 +20,8 @@ import type { ApiResponse, PaginatedList, TokenResponse } from '@/types/api'
 import { useAuthStore } from '@/stores/authStore'
 import { useBrandStore } from '@/stores/brandStore'
 import { showToast } from '@/stores/toastStore'
-import { apiErrorMessage } from '@/lib/apiError'
+import { requestStepUp } from '@/stores/stepUpStore'
+import { apiErrorMessage, stepUpRequiredPermissions } from '@/lib/apiError'
 
 const IDENTITY_URL = import.meta.env.VITE_IDENTITY_URL as string
 const CATALOG_URL = import.meta.env.VITE_CATALOG_URL as string
@@ -39,6 +40,13 @@ let pendingQueue: Array<{
   resolve: (token: string) => void
   reject: (err: unknown) => void
 }> = []
+
+// ── Step-up (§8) single-flight ────────────────────────────────────────────────
+// A burst of parallel high/critical calls can each 403 with `step_up_required`.
+// They must share ONE OTP prompt, not open N modals. The first to arrive starts
+// the prompt; the rest await the same promise, then all retry with the upgraded
+// token (or reject with their original error if the user cancels).
+let stepUpInFlight: Promise<boolean> | null = null
 
 function drainQueue(token: string) {
   pendingQueue.forEach((p) => p.resolve(token))
@@ -143,7 +151,11 @@ function createInstance(baseURL: string): AxiosInstance {
     async (error: unknown) => {
       const axiosError = error as {
         response?: { status: number }
-        config: AxiosRequestConfig & { _retried?: boolean }
+        config: AxiosRequestConfig & {
+          _retried?: boolean
+          _stepUpRetried?: boolean
+          _skipAuthRetry?: boolean
+        }
         message?: string
       }
 
@@ -160,14 +172,45 @@ function createInstance(baseURL: string): AxiosInstance {
       }
 
       // 403 = authenticated but not authorized. This is NOT a session problem, so
-      // never refresh or log out — surface a non-blocking toast and let the page
-      // decide whether to also render <ForbiddenState/> for a primary-query 403.
+      // never refresh or log out. Two sub-cases:
+      //  a) §8 step_up_required — a fresh OTP re-verification unlocks the action.
+      //     Prompt for it (shared across concurrent 403s), swap the upgraded token,
+      //     and transparently retry the original request once.
+      //  b) an ordinary permission denial — surface a non-blocking toast and let the
+      //     page decide whether to also render <ForbiddenState/> for a primary query.
       if (status === 403) {
+        const stepUpPerms = stepUpRequiredPermissions(error)
+        if (stepUpPerms && !axiosError.config._stepUpRetried) {
+          axiosError.config._stepUpRetried = true // retry at most once — never loop
+          try {
+            stepUpInFlight =
+              stepUpInFlight ??
+              requestStepUp(stepUpPerms).finally(() => {
+                stepUpInFlight = null
+              })
+            const verified = await stepUpInFlight
+            if (verified) {
+              // The dialog already swapped the upgraded access token into authStore;
+              // re-attach it (the request interceptor also refreshes it) and retry.
+              const { accessToken } = getAuthState()
+              if (accessToken && axiosError.config.headers) {
+                axiosError.config.headers['Authorization'] = `Bearer ${accessToken}`
+              }
+              return instance(axiosError.config)
+            }
+          } catch {
+            // fall through — user cancelled or verification errored: reject as usual.
+          }
+          return Promise.reject(error)
+        }
         showToast('error', "You don't have permission to perform this action.")
         return Promise.reject(error)
       }
 
-      if (status !== 401 || axiosError.config._retried) {
+      // Auth calls (step-up send/verify) opt out of the refresh-and-retry: a
+      // wrong/expired OTP returns 401, and a silent refresh + resubmit would
+      // consume a second backend OTP attempt.
+      if (status !== 401 || axiosError.config._retried || axiosError.config._skipAuthRetry) {
         return Promise.reject(error)
       }
 

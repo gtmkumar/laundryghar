@@ -40,6 +40,9 @@ public sealed class CancelOrderHandler : ICommandHandler<CancelOrderCommand, Ord
             .FirstOrDefaultAsync(o => o.Id == cmd.OrderId && o.BrandId == brandId, ct);
         if (order is null || order.DeletedAt != null) return null;
 
+        if (!_user.IsWithinScope(brandId: order.BrandId, franchiseId: order.FranchiseId, storeId: order.StoreId, warehouseId: order.WarehouseId))
+            throw new ForbiddenException("This order is outside your assigned scope.");
+
         var strategy = _strategies.ResolveForOrder(order);
 
         // Customer can only cancel if placed or pickup_scheduled

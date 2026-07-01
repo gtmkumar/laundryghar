@@ -111,5 +111,22 @@
     "unassignedOrder": "Awaiting pickup scheduling",
     "pendingPickup": "Pending pickup request",
     "viewAll": "View all"
+  },
+  "stepUp": {
+    "title": "Verify it's you",
+    "description": "This is a sensitive action. Confirm your identity with a one-time code to continue.",
+    "chooseChannel": "Where should we send the code?",
+    "channelPhone": "Text me",
+    "channelEmail": "Email me",
+    "sendCode": "Send code",
+    "sending": "Sending…",
+    "codeSentTo": "We sent a 6-digit code to {{value}}.",
+    "codeLabel": "Enter the 6-digit code",
+    "verify": "Verify & continue",
+    "verifying": "Verifying…",
+    "resend": "Resend code",
+    "cancel": "Cancel",
+    "noIdentifier": "No phone or email is on file for your account, so we can't run the security check. Contact your administrator.",
+    "genericError": "We couldn't verify that code. Please try again."
   }
 }

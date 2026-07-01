@@ -93,6 +93,12 @@ public sealed class RecordOfflinePaymentHandler : ICommandHandler<RecordOfflineP
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BrandId == brandId && o.DeletedAt == null, ct)
             ?? throw new KeyNotFoundException($"Order {req.OrderId} not found.");
 
+        // §6 scope boundary (docs/rbac.md): brand-level RLS alone does not stop a franchise/store
+        // -scoped operator from recording a payment against another franchise/store's order within
+        // the same brand. Enforce ancestor-or-self against the order's node; platform/brand pass.
+        if (!_user.IsWithinScope(brandId: order.BrandId, franchiseId: order.FranchiseId, storeId: order.StoreId))
+            throw new ForbiddenException("This order is outside your assigned scope.");
+
         // ── Idempotency: client-supplied key takes precedence; fall back to
         //    server-derived (orderId + amount + reference) when absent.
         //    H3b fix: honour req.IdempotencyKey so that POS retries with an

@@ -13,6 +13,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { RequirePermission } from '@/components/layout/RequirePermission'
 import { Toaster } from '@/components/shared/Toaster'
+import { StepUpDialog } from '@/components/shared/StepUpDialog'
 
 // Route-level code splitting: each page is its own chunk, loaded on first
 // visit instead of shipping every page in the startup bundle. Pages use
@@ -119,6 +120,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
       <Toaster />
+      <StepUpDialog />
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   )

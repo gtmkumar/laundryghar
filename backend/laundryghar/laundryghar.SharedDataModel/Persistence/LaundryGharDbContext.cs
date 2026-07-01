@@ -125,6 +125,11 @@ public class LaundryGharDbContext : DbContext
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
     public DbSet<TicketMessage> TicketMessages => Set<TicketMessage>();
 
+    // logistics — RaaS partner MVP (partner_id-isolated via rls_partner)
+    public DbSet<Partner> Partners => Set<Partner>();
+    public DbSet<PartnerUser> PartnerUsers => Set<PartnerUser>();
+    public DbSet<PartnerBooking> PartnerBookings => Set<PartnerBooking>();
+
     // commerce
     public DbSet<Package> Packages => Set<Package>();
     public DbSet<CustomerPackage> CustomerPackages => Set<CustomerPackage>();

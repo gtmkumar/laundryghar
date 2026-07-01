@@ -21,5 +21,6 @@ public sealed class WorkerCurrentTenant : ICurrentTenant
     public Guid? FranchiseId => null;
     public Guid? StoreId     => null;
     public Guid? UserId      => null;
+    public Guid? PartnerId   => null;
     public bool  BypassRls   => true;
 }

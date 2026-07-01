@@ -41,7 +41,9 @@ public sealed class OtpSendValidator : AbstractValidator<OtpSendRequest>
     private static readonly string[] ValidTypes    = ["phone", "email"];
     private static readonly string[] ValidPurposes = [
         OtpPurpose.Login, OtpPurpose.Signup, OtpPurpose.VerifyPhone,
-        OtpPurpose.VerifyEmail, OtpPurpose.ResetPassword
+        OtpPurpose.VerifyEmail, OtpPurpose.ResetPassword,
+        // Step-up (§8): allow requesting a fresh OTP for a high/critical re-verification.
+        OtpPurpose.SensitiveAction
     ];
 
     public OtpSendValidator()
@@ -63,6 +65,19 @@ public sealed class OtpVerifyValidator : AbstractValidator<OtpVerifyRequest>
         RuleFor(x => x.Identifier).NotEmpty().MaximumLength(255);
         RuleFor(x => x.IdentifierType).NotEmpty().Must(t => ValidTypes.Contains(t));
         RuleFor(x => x.Purpose).NotEmpty();
+        RuleFor(x => x.Code).NotEmpty().Length(6).Matches(@"^\d{6}$")
+            .WithMessage("OTP must be exactly 6 digits.");
+    }
+}
+
+public sealed class StepUpVerifyValidator : AbstractValidator<StepUpVerifyRequest>
+{
+    private static readonly string[] ValidTypes = ["phone", "email"];
+
+    public StepUpVerifyValidator()
+    {
+        RuleFor(x => x.IdentifierType).NotEmpty().Must(t => ValidTypes.Contains(t))
+            .WithMessage("identifierType must be 'phone' or 'email'.");
         RuleFor(x => x.Code).NotEmpty().Length(6).Matches(@"^\d{6}$")
             .WithMessage("OTP must be exactly 6 digits.");
     }

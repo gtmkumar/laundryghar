@@ -247,6 +247,34 @@ public sealed class IdentitySeeder
         // ── R3-SEC-3: settings permissions — replaces UserType string check in SettingsEndpoints
         ("settings.read",                "settings","read",           "Read admin settings",           "low"),
         ("settings.manage",              "settings","manage",         "Manage admin settings",         "high"),
+        // ── RBAC #12: seed-catalog completion ─────────────────────────────────
+        // royalty override — §5/§7 canonical critical action
+        ("royalty.override",             "royalty","override",        "Override royalty invoice",      "critical"),
+        // audit & report modules (§10 audit/report row)
+        ("audit.view",                   "audit","view",              "View audit logs",               "low"),
+        ("audit.export",                 "audit","export",            "Export audit logs",             "normal"),
+        ("report.view",                  "report","view",             "View reports",                  "low"),
+        ("report.export",                "report","export",           "Export reports",                "normal"),
+        // feature flags (§10 settings/feature_flag row)
+        ("feature_flag.view",            "feature_flag","view",       "View feature flags",            "low"),
+        ("feature_flag.manage",          "feature_flag","manage",     "Manage feature flags",          "high"),
+        // support — code-owned (previously only in db/patches/support_permissions.sql)
+        ("support.read",                 "support","read",            "View support inbox",            "low"),
+        ("support.manage",               "support","manage",          "Manage support tickets",        "normal"),
+        // territories — read (siblings territories.list/create/update/delete already exist)
+        ("territories.read",             "territories","read",        "Read territory",                "low"),
+        // ── Auditor export set — every *.view/*.list auditor sees, it may also export (§9) ──
+        ("orders.export",                "orders","export",           "Export orders",                 "normal"),
+        ("payment.export",               "payment","export",          "Export payments",               "normal"),
+        ("cashbook.export",              "cashbook","export",         "Export cash books",             "normal"),
+        ("expense.export",               "expense","export",          "Export expenses",               "normal"),
+        ("royalty.export",               "royalty","export",          "Export royalty invoices",       "normal"),
+        ("analytics.export",             "analytics","export",        "Export analytics",              "normal"),
+        ("catalog.export",               "catalog","export",          "Export catalog",                "normal"),
+        ("pricing.export",               "pricing","export",          "Export price lists",            "normal"),
+        ("customer.export",              "customer","export",         "Export customers",              "normal"),
+        ("rider.export",                 "rider","export",            "Export riders",                 "normal"),
+        ("wallet.export",                "wallet","export",           "Export wallets",                "normal"),
     ];
 
     private async Task<Dictionary<string, Permission>> SeedPermissionsAsync(CancellationToken ct)
@@ -360,6 +388,9 @@ public sealed class IdentitySeeder
         ("hub_operator",         "Hub Operator",            ScopeType.Warehouse, 80,  VerticalKey.Logistics),
         ("rider",                "Rider",                   ScopeType.Store,     90,  null),
         ("auditor",              "Auditor",                 ScopeType.Platform,  100, null),
+        // RBAC #12: brand-scoped customer support. NOT the RaaS partner_* roles — those
+        // need a logistics_partner scope_type absent from the CHECK/ScopeType enum (out of scope).
+        ("support",              "Support",                 ScopeType.Brand,     110, null),
     ];
 
     private async Task<Dictionary<string, Role>> SeedRolesAsync(CancellationToken ct)
@@ -489,6 +520,13 @@ public sealed class IdentitySeeder
             "pos.order.create","pos.order.read",
             // Settings — brand_admin manages settings (R3-SEC-3)
             "settings.read","settings.manage",
+            // RBAC #12: feature flags (§10 settings/feature_flag → brand_admin M)
+            "feature_flag.view","feature_flag.manage",
+            // RBAC #12: audit & report (§10 audit/report → brand_admin M)
+            "audit.view","audit.export","report.view","report.export",
+            // RBAC #12: data export set (brand_admin is enumerated; mirrors the auditor export set)
+            "orders.export","payment.export","cashbook.export","expense.export","royalty.export",
+            "analytics.export","catalog.export","pricing.export","customer.export","rider.export","wallet.export",
         ]);
 
         // franchise_owner
@@ -515,6 +553,8 @@ public sealed class IdentitySeeder
             "analytics.read",
             // POS — franchise_owner can use POS (R3-SEC-2)
             "pos.order.create","pos.order.read",
+            // RBAC #12: feature flags — franchise_owner view (§10 settings/feature_flag → V)
+            "feature_flag.view",
         ]);
 
         // store_admin
@@ -541,6 +581,8 @@ public sealed class IdentitySeeder
             "cms.banner.manage",
             // POS — store_admin is the primary POS operator (R3-SEC-2)
             "pos.order.create","pos.order.read",
+            // RBAC #12: feature flags — store_admin view (§10 settings/feature_flag → V(store))
+            "feature_flag.view",
         ]);
 
         // store_staff
@@ -646,7 +688,79 @@ public sealed class IdentitySeeder
             "cms.notification.read",
             // BC-9: analytics — auditor gets read only
             "analytics.read",
+            // RBAC #12: audit & report (§10 audit/report → auditor M = view + export)
+            "audit.view","audit.export","report.view","report.export",
+            // RBAC #12: §9 auditors get *.view + *.export across their scope
+            "orders.export","payment.export","cashbook.export","expense.export","royalty.export",
+            "analytics.export","catalog.export","pricing.export","customer.export","rider.export","wallet.export",
         ]);
+
+        // support — brand-scoped customer support (§10 support column). Read-only across the
+        // order lifecycle + customer + subscription, order notes, and refund within cap; plus
+        // the support inbox itself. No create/update/delete of catalog/pricing/users.
+        // (partner_booking view is omitted: those permissions belong to the RaaS workstream and
+        //  do not exist yet — Grant() would no-op them anyway.)
+        Grant("support", [
+            // order view + notes (§10 order → V+notes)
+            "orders.list","orders.read","orders.notes.manage",
+            // customer read
+            "customer.read",
+            // pickup / delivery view (§10 pickup/delivery → V)
+            "pickup.read","delivery.slot.read",
+            // subscription view (§10 subscription → V)
+            "subscription.read",
+            // refund within cap (§10 payment/refund → X(refund cap)); the cap is enforced at the endpoint
+            "payment.refund",
+            // support inbox
+            "support.read","support.manage",
+        ]);
+
+        // ─── §9 belt-and-braces: deny rows (first-ever effect='deny' seeds) ─────
+        // ScopeResolver already honours deny-wins. Idempotent via the SAME existingSet dedup
+        // as Grant(), so re-runs never violate UNIQUE(role_id, permission_id).
+        void Deny(string roleCode, IEnumerable<string> permCodes)
+        {
+            if (!roles.TryGetValue(roleCode, out var role)) return;
+            foreach (var code in permCodes)
+            {
+                if (!permissions.TryGetValue(code, out var perm)) continue;
+                if (existingSet.Contains((role.Id, perm.Id))) continue;
+                toAdd.Add(new RolePermission
+                {
+                    Id = Guid.NewGuid(),
+                    RoleId = role.Id,
+                    PermissionId = perm.Id,
+                    Effect = "deny",
+                    GrantedAt = now,
+                    CreatedAt = now
+                });
+                existingSet.Add((role.Id, perm.Id));
+            }
+        }
+
+        // The closed set of mutating verbs. A permission whose action segment (the last
+        // dot-separated token of its code) is one of these is a write. Kept in lockstep with
+        // db/patches/rbac_deny_rows.sql.
+        var mutatingVerbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "create","update","delete","manage","approve","publish","assign","cancel",
+            "refund","override","record","adjust","settle","verify","perform","scan",
+            "tag","inspect","reconcile","close","generate","issue","void","reject",
+            "activate","deactivate"
+        };
+        var mutatingCodes = PermissionDefs
+            .Where(d => mutatingVerbs.Contains(d.Action.Split('.').Last()))
+            .Select(d => d.Code);
+
+        // auditor is read-only (§9): deny every mutating permission. The Grant() calls above
+        // already added its *.view/*.list/*.read/*.export allows to existingSet, so Deny() skips
+        // those pairs — leaving exactly (mutating − auditor-allowed) denied.
+        Deny("auditor", mutatingCodes);
+
+        // franchise_owner: everything except royalty.override (§7 canonical deny example). The
+        // role is never granted royalty.override, so this deny only bites when a user also holds
+        // a higher role that grants it — deny still wins.
+        Deny("franchise_owner", ["royalty.override"]);
 
         if (toAdd.Count > 0)
         {

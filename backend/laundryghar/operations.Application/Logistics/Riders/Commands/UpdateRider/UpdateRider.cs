@@ -31,9 +31,11 @@ public sealed class UpdateRiderHandler : ICommandHandler<UpdateRiderCommand, Rid
             .FirstOrDefaultAsync(r => r.Id == command.Id && r.BrandId == brandId, ct);
         if (rider is null) return null;
 
-        // Franchise scoping (defense-in-depth): franchise-scoped actors must not
-        // modify riders that belong to a different franchise.
-        if (_user.FranchiseId is Guid fid && rider.FranchiseId != fid) return null;
+        // RBAC sub-brand scope guard: the caller's membership must be
+        // ancestor-or-self of the rider's brand/franchise/primary-store.
+        // Supersedes the prior manual franchise check (also covers store-scoped actors).
+        if (!_user.IsWithinScope(brandId: rider.BrandId, franchiseId: rider.FranchiseId, storeId: rider.PrimaryStoreId))
+            throw new ForbiddenException("This rider is outside your assigned scope.");
 
         var req = command.Request;
         var now = DateTimeOffset.UtcNow;

@@ -18,6 +18,10 @@ public interface IJwtTokenService
     /// </summary>
     string CreateOAuthCustomerAccessToken(CustomerTokenClaims claims, string scope);
 
+    /// <summary>Creates a signed access JWT for a RaaS partner (docs/rbac.md §9). Emits
+    /// <c>token_use=partner</c> + <c>partner_id</c> + <c>partner_role</c>; no brand_id, no permissions.</summary>
+    string CreatePartnerAccessToken(PartnerTokenClaims claims);
+
     /// <summary>Creates a raw (pre-hash) refresh token string. Caller is responsible for hashing and persisting.</summary>
     string GenerateRefreshTokenRaw();
 

@@ -67,6 +67,11 @@ public interface IOperationsDbContext
     // ─── Logistics: rider ratings (customer rates the rider after delivery) ──
     DbSet<RiderRating> RiderRatings { get; }
 
+    // ─── Logistics: RaaS partner MVP (partner_id-isolated via rls_partner) ────
+    DbSet<Partner> Partners { get; }
+    DbSet<PartnerUser> PartnerUsers { get; }
+    DbSet<PartnerBooking> PartnerBookings { get; }
+
     // ─── Order spine: delivery/pickup legs + status history ──────────────────
     DbSet<DeliveryAssignment> DeliveryAssignments { get; }
     DbSet<PickupRequest> PickupRequests { get; }

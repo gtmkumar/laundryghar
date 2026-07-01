@@ -1,6 +1,7 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -33,6 +34,11 @@ public sealed class CreateInspectionCommandHandler : ICommandHandler<CreateInspe
         var garment = await _db.FulfillmentUnits
             .FirstOrDefaultAsync(g => g.Id == req.FulfillmentUnitId && g.BrandId == brandId, cancellationToken)
             ?? throw new KeyNotFoundException($"FulfillmentUnit {req.FulfillmentUnitId} not found.");
+
+        // Pass the full ancestor chain (brand → franchise → store/warehouse) so a brand- or
+        // franchise-scoped admin matches via an ancestor id rather than 403-ing on the leaf.
+        if (!_user.IsWithinScope(brandId: garment.BrandId, franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
+            throw new ForbiddenException("This garment is outside your assigned scope.");
 
         var inspection = new FulfillmentUnitInspection
         {

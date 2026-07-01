@@ -18,7 +18,19 @@ public sealed record TokenClaims(
     // Space-separated permission codes
     string Permissions,
     // Snapshot of the user's perm_version at issuance (for live revocation). Default 0.
-    int PermVersion = 0
+    int PermVersion = 0,
+    // Space-separated "type:id" scope nodes the user holds (platform → "platform").
+    // Enables the per-request §6 ancestor-or-self boundary check (ICurrentUser.IsWithinScope).
+    string? ScopeNodes = null,
+    // Space-separated high/critical permission codes the caller must step up for (§8).
+    // Always emitted for system users; read by the authz handlers to decide if step-up applies.
+    string? StepUpPerms = null,
+    // Authentication method reference of a fresh step-up (e.g. "otp"); emitted ONLY on a token
+    // re-issued by /auth/step-up/verify — null on login/refresh.
+    string? Amr = null,
+    // Unix seconds of the successful step-up verify; emitted ONLY on the upgraded token. The proof
+    // is fresh while now − StepUpAt ≤ StepUp.FreshnessWindow.
+    long? StepUpAt = null
 )
 {
     /// <summary>Fixed token_use value for system users. Pinned for Catalog service contract.</summary>
@@ -26,6 +38,15 @@ public sealed record TokenClaims(
 
     /// <summary>JWT claim name carrying <see cref="PermVersion"/>.</summary>
     public const string PermVersionClaim = "perm_ver";
+
+    /// <summary>JWT claim name carrying the space-separated high/critical codes (<see cref="StepUpPerms"/>).</summary>
+    public const string StepUpPermsClaim = "step_up_perms";
+
+    /// <summary>JWT claim name carrying the step-up auth-method reference (<see cref="Amr"/>).</summary>
+    public const string AmrClaim = "amr";
+
+    /// <summary>JWT claim name carrying the step-up timestamp in unix seconds (<see cref="StepUpAt"/>).</summary>
+    public const string StepUpAtClaim = "stepup_at";
 }
 
 /// <summary>
@@ -48,4 +69,35 @@ public sealed record CustomerTokenClaims(
     /// rejected by Catalog/Orders endpoints (which only accept token_use=customer).
     /// </summary>
     public const string OAuthTokenUseValue = "customer_mcp";
+}
+
+/// <summary>
+/// Claims for a RaaS partner JWT (docs/rbac.md §9). A partner is a SEPARATE actor — not staff, not
+/// customer: the token carries <c>partner_id</c> (the RLS isolation key, mirroring brand_id) and a
+/// coarse <c>partner_role</c> (partner_admin | partner_operator), and NO permissions claim. It must
+/// NOT carry brand_id or grant bypass, so brand/staff RLS + the staff PermissionHandler stay inert
+/// for partner tokens; only the <c>rls_partner</c> policy governs partner visibility.
+/// </summary>
+public sealed record PartnerTokenClaims(
+    Guid PartnerUserId,
+    Guid PartnerId,
+    string PartnerRole,
+    string? Phone
+)
+{
+    /// <summary>Fixed token_use value for partners. Gated by PartnerOnlyRequirement.</summary>
+    public const string TokenUseValue = "partner";
+
+    /// <summary>JWT claim carrying the partner id (drives ICurrentTenant.PartnerId → rls_partner).</summary>
+    public const string PartnerIdClaim = "partner_id";
+
+    /// <summary>JWT claim carrying the coarse partner role (partner_admin | partner_operator).</summary>
+    public const string PartnerRoleClaim = "partner_role";
+}
+
+/// <summary>The two RaaS partner roles (a coarse claim, not staff role_permissions).</summary>
+public static class PartnerRole
+{
+    public const string Admin = "partner_admin";
+    public const string Operator = "partner_operator";
 }

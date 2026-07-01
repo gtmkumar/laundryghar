@@ -56,6 +56,20 @@ public sealed class JwtTokenService : IJwtTokenService
             claimsList.Add(new Claim("store_id", claims.StoreId.Value.ToString()));
         if (!string.IsNullOrEmpty(claims.Permissions))
             claimsList.Add(new Claim("permissions", claims.Permissions));
+        // ALWAYS emit scope_nodes for user tokens — even when empty. A membership-less principal
+        // (e.g. a global user_permission_override ALLOW with no memberships) would otherwise carry
+        // NO scope_nodes claim, and IsWithinScope's absent-claim fail-open (rollout safety for
+        // pre-feature tokens) would let it pass EVERY §6 scope guard. Emitting an EMPTY claim makes
+        // IsWithinScope loop 0 nodes → deny. The absent-claim path now only means pre-feature tokens.
+        claimsList.Add(new Claim("scope_nodes", claims.ScopeNodes ?? string.Empty));
+        // Step-up (§8): high/critical codes always travel; amr + stepup_at only on a token upgraded
+        // by /auth/step-up/verify (login/refresh leave them null → freshness naturally lapses).
+        if (!string.IsNullOrEmpty(claims.StepUpPerms))
+            claimsList.Add(new Claim(TokenClaims.StepUpPermsClaim, claims.StepUpPerms));
+        if (!string.IsNullOrEmpty(claims.Amr))
+            claimsList.Add(new Claim(TokenClaims.AmrClaim, claims.Amr));
+        if (claims.StepUpAt is { } stepUpAt)
+            claimsList.Add(new Claim(TokenClaims.StepUpAtClaim, stepUpAt.ToString(), ClaimValueTypes.Integer64));
         claimsList.Add(new Claim(TokenClaims.PermVersionClaim, claims.PermVersion.ToString()));
 
         return WriteToken(claimsList, creds);
@@ -97,6 +111,30 @@ public sealed class JwtTokenService : IJwtTokenService
             new("phone",     claims.Phone),
             new("scope",     scope),
         };
+
+        return WriteToken(claimsList, creds);
+    }
+
+    /// <inheritdoc/>
+    public string CreatePartnerAccessToken(PartnerTokenClaims claims)
+    {
+        var creds = new SigningCredentials(_keys.SigningKey, SecurityAlgorithms.RsaSha256);
+
+        // RaaS partner token: sub=partner_user_id, token_use=partner, partner_id (the RLS key) +
+        // partner_role. Deliberately NO brand_id and NO permissions claim — only rls_partner governs
+        // partner visibility, and the staff PermissionHandler (Gate 1 requires token_use=user) can
+        // never authorize this token.
+        var claimsList = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, claims.PartnerUserId.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("token_use", PartnerTokenClaims.TokenUseValue),
+            new(PartnerTokenClaims.PartnerIdClaim, claims.PartnerId.ToString()),
+            new(PartnerTokenClaims.PartnerRoleClaim, claims.PartnerRole),
+        };
+
+        if (!string.IsNullOrEmpty(claims.Phone))
+            claimsList.Add(new Claim("phone", claims.Phone));
 
         return WriteToken(claimsList, creds);
     }

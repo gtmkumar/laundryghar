@@ -99,6 +99,13 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             .FirstOrDefaultAsync(s => s.Id == req.StoreId && s.BrandId == brandId, ct)
             ?? throw new KeyNotFoundException($"Store {req.StoreId} not found in brand.");
 
+        // ── RBAC sub-brand scope guard ──────────────────────────────────────
+        // req.StoreId is validated to belong to the brand, but a store-scoped POS
+        // user must not book orders (burning loyalty/package/coupon balances) into
+        // a store outside their assigned membership. Platform/brand callers pass.
+        if (!_user.IsWithinScope(brandId: store.BrandId, franchiseId: store.FranchiseId, storeId: store.Id))
+            throw new ForbiddenException("This store is outside your assigned scope.");
+
         // ── Validate customer belongs to this brand (cross-brand IDOR guard) ─
         // req.CustomerId is actor-supplied in the request body; RLS does NOT protect
         // a bare assignment — we must verify ownership before writing the FK.
