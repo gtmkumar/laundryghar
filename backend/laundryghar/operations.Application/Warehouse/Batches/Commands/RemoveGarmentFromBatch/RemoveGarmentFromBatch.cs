@@ -32,7 +32,9 @@ public sealed class RemoveGarmentFromBatchCommandHandler : ICommandHandler<Remov
                                    && g.CurrentBatchId == command.BatchId, cancellationToken);
         if (garment is null) return false;
 
-        if (!_user.IsWithinScope(franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
+        // Pass the full ancestor chain (brand → franchise → store/warehouse) so a brand- or
+        // franchise-scoped admin matches via an ancestor id rather than 403-ing on the leaf.
+        if (!_user.IsWithinScope(brandId: garment.BrandId, franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
             throw new ForbiddenException("This garment is outside your assigned scope.");
 
         garment.CurrentBatchId = null;

@@ -48,7 +48,10 @@ public class CreateGarmentCommandHandler : ICommandHandler<CreateGarmentCommand,
             .FirstOrDefaultAsync(o => o.Id == oi.OrderId && o.BrandId == brandId, cancellationToken)
             ?? throw new KeyNotFoundException("Order not found.");
 
-        if (!_user.IsWithinScope(franchiseId: order.FranchiseId, storeId: oi.StoreId, warehouseId: req.WarehouseId))
+        // Pass the full ancestor chain (brand → franchise → store/warehouse) so a brand- or
+        // franchise-scoped admin matches via an ancestor id rather than 403-ing on the leaf.
+        // brandId is the order/garment's brand (order was validated to belong to it).
+        if (!_user.IsWithinScope(brandId: brandId, franchiseId: order.FranchiseId, storeId: oi.StoreId, warehouseId: req.WarehouseId))
             throw new ForbiddenException("This garment is outside your assigned scope.");
 
         var garment = new FulfillmentUnit

@@ -245,6 +245,58 @@ public sealed class ScopeResolverTests
         Assert.DoesNotContain(royalty.Code, perms);  // franchise_owner deny wins
     }
 
+    // 6 ── deny always wins ACROSS scopes (§7): a DESCENDANT store-scoped DENY override still bites when
+    //       the user operates at the ANCESTOR brand scope. Previously the scoped-skip fail-open silently
+    //       dropped the descendant DENY (a store/franchise suspension vanished at the broader active scope);
+    //       only ALLOW overrides are subtree-limited now.
+    [Fact]
+    public async Task descendant_scoped_deny_applies_at_ancestor_scope()
+    {
+        if (!_fx.DockerAvailable) return;
+        var t = Tag();
+
+        var brandId         = Guid.NewGuid();
+        var descendantStore = Guid.NewGuid(); // a store BENEATH the brand — NOT the active node
+
+        var suspended = Perm($"orders.refund.{t}"); // granted by the brand role, denied at the store
+        var keep      = Perm($"orders.read.{t}");   // untouched control
+
+        var brandRole = RoleRow($"brand_role.{t}", ScopeType.Brand);
+        var user = Usr();
+
+        await SeedAsync(new object[]
+        {
+            suspended, keep, brandRole, user,
+            RP(brandRole.Id, suspended.Id, "allow"), RP(brandRole.Id, keep.Id, "allow"),
+            Member(user.Id, brandRole.Id, ScopeType.Brand, brandId, primary: true),
+            // Store-scoped DENY (a suspension at a store beneath the brand). Active scope = brand, so this
+            // node is a DESCENDANT (not ancestor-or-self). Deny must still win across scopes.
+            Override(user.Id, suspended.Id, "deny", ScopeType.Store, descendantStore),
+        });
+
+        var perms = await ResolveAsync(user, ScopeType.Brand, brandId);
+        Assert.Contains(keep.Code, perms);            // control — untouched
+        Assert.DoesNotContain(suspended.Code, perms); // descendant DENY still bites at the ancestor scope
+
+        // Guard the mirror case: a DESCENDANT-scoped ALLOW is still subtree-limited (fails closed) —
+        // it must NOT leak in when the user operates at the ancestor brand.
+        var t2 = Tag();
+        var brandId2         = Guid.NewGuid();
+        var descendantStore2 = Guid.NewGuid();
+        var allowOnly        = Perm($"reports.export.{t2}"); // granted ONLY by a descendant store allow
+        var brandRole2       = RoleRow($"brand_role.{t2}", ScopeType.Brand);
+        var user2 = Usr();
+        await SeedAsync(new object[]
+        {
+            allowOnly, brandRole2, user2,
+            Member(user2.Id, brandRole2.Id, ScopeType.Brand, brandId2, primary: true),
+            Override(user2.Id, allowOnly.Id, "allow", ScopeType.Store, descendantStore2),
+        });
+
+        var perms2 = await ResolveAsync(user2, ScopeType.Brand, brandId2);
+        Assert.DoesNotContain(allowOnly.Code, perms2); // descendant ALLOW stays subtree-limited
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
 

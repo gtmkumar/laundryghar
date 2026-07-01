@@ -36,7 +36,9 @@ public sealed class CreateProcessLogCommandHandler : ICommandHandler<CreateProce
             .FirstOrDefaultAsync(g => g.Id == req.FulfillmentUnitId && g.BrandId == brandId, cancellationToken)
             ?? throw new KeyNotFoundException($"FulfillmentUnit {req.FulfillmentUnitId} not found.");
 
-        if (!_user.IsWithinScope(franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
+        // Pass the full ancestor chain (brand → franchise → store/warehouse) so a brand- or
+        // franchise-scoped admin matches via an ancestor id rather than 403-ing on the leaf.
+        if (!_user.IsWithinScope(brandId: garment.BrandId, franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
             throw new ForbiddenException("This fulfillment unit is outside your assigned scope.");
 
         // OccurredAt = partition key — let DB/EF set it from now(); do NOT manually manage partition.

@@ -30,7 +30,8 @@ public sealed class AddReconItemCommandHandler : ICommandHandler<AddReconItemCom
             .FirstOrDefaultAsync(r => r.Id == command.ReconId && r.BrandId == brandId, cancellationToken);
         if (recon is null) return null;
 
-        if (!_user.IsWithinScope(storeId: recon.StoreId, warehouseId: recon.WarehouseId))
+        // Include the recon's brand so a brand-scoped admin matches via the ancestor id.
+        if (!_user.IsWithinScope(brandId: recon.BrandId, storeId: recon.StoreId, warehouseId: recon.WarehouseId))
             throw new ForbiddenException("This reconciliation session is outside your assigned scope.");
 
         var req = command.Request;

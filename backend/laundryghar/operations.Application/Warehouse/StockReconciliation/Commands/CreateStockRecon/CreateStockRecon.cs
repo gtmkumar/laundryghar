@@ -28,7 +28,9 @@ public sealed class CreateStockReconCommandHandler : ICommandHandler<CreateStock
         var req     = command.Request;
         var now     = DateTimeOffset.UtcNow;
 
-        if (!_user.IsWithinScope(storeId: req.StoreId, warehouseId: req.WarehouseId))
+        // Include the brand so a brand-scoped admin matches via the ancestor id rather than
+        // 403-ing on the store/warehouse leaf.
+        if (!_user.IsWithinScope(brandId: brandId, storeId: req.StoreId, warehouseId: req.WarehouseId))
             throw new ForbiddenException("This stock reconciliation is outside your assigned scope.");
 
         var recon = new laundryghar.SharedDataModel.Entities.OrderLifecycle.StockReconciliation

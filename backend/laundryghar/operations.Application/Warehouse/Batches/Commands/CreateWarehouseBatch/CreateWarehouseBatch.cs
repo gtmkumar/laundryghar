@@ -39,7 +39,10 @@ public sealed class CreateWarehouseBatchCommandHandler
         if (!warehouseInBrand)
             throw new KeyNotFoundException("Warehouse not found.");
 
-        if (!_user.IsWithinScope(warehouseId: req.WarehouseId))
+        // Pass the warehouse's brand so a brand-scoped admin matches via the ancestor id
+        // (the warehouse was just validated to belong to this brand). Exact-level guard
+        // without brandId would 403 a brand_admin acting on their own warehouse.
+        if (!_user.IsWithinScope(brandId: brandId, warehouseId: req.WarehouseId))
             throw new ForbiddenException("This warehouse batch is outside your assigned scope.");
 
         var count  = await _db.WarehouseBatches.CountAsync(b => b.BrandId == brandId, cancellationToken);

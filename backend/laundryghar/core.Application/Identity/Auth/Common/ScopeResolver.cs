@@ -135,8 +135,12 @@ public static class ScopeResolver
         var userDeny = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var o in overrides)
         {
-            if (o.ScopeType is not null && !ancestorKeys.Contains(NodeKey(o.ScopeType, o.ScopeId)))
-                continue; // scoped override outside the active subtree → does not apply
+            // Deny always wins (§7): deny overrides apply across scopes; only ALLOW overrides are
+            // subtree-limited to the active node. A descendant-scoped DENY (e.g. a store/franchise
+            // suspension) must still bite when the user operates at the parent brand — otherwise the
+            // suspension would silently vanish at the broader active scope (fail-open).
+            if (o.Effect != "deny" && o.ScopeType is not null && !ancestorKeys.Contains(NodeKey(o.ScopeType, o.ScopeId)))
+                continue; // scoped ALLOW outside the active subtree → does not apply
             (o.Effect == "deny" ? userDeny : userAllow).Add(o.Code);
         }
 

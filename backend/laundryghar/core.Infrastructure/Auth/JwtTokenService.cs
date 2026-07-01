@@ -56,8 +56,12 @@ public sealed class JwtTokenService : IJwtTokenService
             claimsList.Add(new Claim("store_id", claims.StoreId.Value.ToString()));
         if (!string.IsNullOrEmpty(claims.Permissions))
             claimsList.Add(new Claim("permissions", claims.Permissions));
-        if (!string.IsNullOrEmpty(claims.ScopeNodes))
-            claimsList.Add(new Claim("scope_nodes", claims.ScopeNodes));
+        // ALWAYS emit scope_nodes for user tokens — even when empty. A membership-less principal
+        // (e.g. a global user_permission_override ALLOW with no memberships) would otherwise carry
+        // NO scope_nodes claim, and IsWithinScope's absent-claim fail-open (rollout safety for
+        // pre-feature tokens) would let it pass EVERY §6 scope guard. Emitting an EMPTY claim makes
+        // IsWithinScope loop 0 nodes → deny. The absent-claim path now only means pre-feature tokens.
+        claimsList.Add(new Claim("scope_nodes", claims.ScopeNodes ?? string.Empty));
         // Step-up (§8): high/critical codes always travel; amr + stepup_at only on a token upgraded
         // by /auth/step-up/verify (login/refresh leave them null → freshness naturally lapses).
         if (!string.IsNullOrEmpty(claims.StepUpPerms))

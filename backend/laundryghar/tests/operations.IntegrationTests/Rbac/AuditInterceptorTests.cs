@@ -50,6 +50,51 @@ public sealed class AuditInterceptorTests
         Assert.False(await r.ReadAsync());   // exactly one
     }
 
+    // 6b ── secret/PII marker fields (password_hash, mfa_secret, email, phone) are masked to
+    //        "[redacted]" in the audit snapshot — plaintext must NEVER land in the 7-year table.
+    [Fact]
+    public async Task audit_redacts_secret_and_pii_marker_fields()
+    {
+        if (!_fx.DockerAvailable) return;
+
+        var interceptor = Interceptor(Guid.NewGuid(), Guid.NewGuid());
+
+        const string secretHash = "PLAINTEXT_HASH_MUST_NOT_APPEAR";
+        const string secretMfa  = "PLAINTEXT_MFA_MUST_NOT_APPEAR";
+        const string phone      = "+919812345678";
+        var email = $"audit.{Guid.NewGuid():N}@example.com";
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            PhoneE164 = phone,
+            PasswordHash = secretHash,   // "hash"/"password" marker
+            MfaSecret = secretMfa,       // "secret" marker
+            UserType = "staff", Locale = "en-IN", Timezone = "Asia/Kolkata", Status = "active",
+            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+        };
+
+        await using (var db = _fx.NewContext(new IInterceptor[] { interceptor }))
+        {
+            db.Add(user);
+            await db.SaveChangesAsync();
+        }
+
+        await using var c = await _fx.OpenAsync();
+        await using var cmd = new Npgsql.NpgsqlCommand(
+            "SELECT new_values::text FROM identity_access.audit_logs WHERE resource_id = @rid", c);
+        cmd.Parameters.AddWithValue("rid", user.Id);
+        var newValues = (string?)await cmd.ExecuteScalarAsync();
+
+        Assert.NotNull(newValues);
+        Assert.Contains("[redacted]", newValues);        // marker fields are masked
+        Assert.DoesNotContain(secretHash, newValues);    // password_hash never plaintext
+        Assert.DoesNotContain(secretMfa, newValues);     // mfa_secret never plaintext
+        Assert.DoesNotContain(email, newValues);         // email (PII marker) masked
+        Assert.DoesNotContain(phone, newValues);         // phone (PII marker) masked
+    }
+
     // 7 ── a denylisted entity (RefreshToken) writes no audit row.
     [Fact]
     public async Task audit_denylisted_entity_writes_no_row()

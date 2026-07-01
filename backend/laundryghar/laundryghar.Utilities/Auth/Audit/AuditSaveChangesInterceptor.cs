@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Logging;
 
 namespace laundryghar.Utilities.Auth.Audit;
@@ -133,8 +134,8 @@ public sealed class AuditSaveChangesInterceptor : SaveChangesInterceptor
             var changed = entry.Properties.Where(p => p.IsModified).ToList();
             if (changed.Count == 0) return null; // no real column change (shadow/no-op)
             changedFields = changed.Select(p => p.Metadata.Name).ToArray();
-            oldJson = Serialize(changed.ToDictionary(p => p.Metadata.Name, p => Redact(p.Metadata.Name, p.OriginalValue)));
-            newJson = Serialize(changed.ToDictionary(p => p.Metadata.Name, p => Redact(p.Metadata.Name, p.CurrentValue)));
+            oldJson = Serialize(changed.ToDictionary(p => p.Metadata.Name, p => Redact(p.Metadata, p.OriginalValue)));
+            newJson = Serialize(changed.ToDictionary(p => p.Metadata.Name, p => Redact(p.Metadata, p.CurrentValue)));
         }
 
         var log = new AuditLog
@@ -154,10 +155,24 @@ public sealed class AuditSaveChangesInterceptor : SaveChangesInterceptor
     private static Dictionary<string, object?> Values(EntityEntry entry, bool current) =>
         entry.Properties.ToDictionary(
             p => p.Metadata.Name,
-            p => Redact(p.Metadata.Name, current ? p.CurrentValue : p.OriginalValue));
+            p => Redact(p.Metadata, current ? p.CurrentValue : p.OriginalValue));
 
-    private static object? Redact(string name, object? value)
-        => AuditContext.IsSecret(name) ? "[redacted]" : Sanitize(value);
+    // Redact by property NAME (secret/PII markers) → "[redacted]", OR by binding to the PII
+    // crypto ValueConverter → "[encrypted]". The converter check matters because
+    // PropertyEntry.CurrentValue/OriginalValue return the DECRYPTED model value: snapshotting it
+    // would both leak plaintext PII into the 7-year audit table AND defeat the AES-256-GCM
+    // at-rest encryption on those columns. This masks the encrypted columns even when their
+    // property name isn't in SecretMarkers.
+    private static object? Redact(IProperty property, object? value)
+    {
+        if (AuditContext.IsSecret(property.Name)) return "[redacted]";
+        if (IsPiiEncrypted(property)) return "[encrypted]";
+        return Sanitize(value);
+    }
+
+    // True when the column is backed by the PII crypto EF ValueConverter (type name contains "Pii").
+    private static bool IsPiiEncrypted(IProperty property)
+        => property.GetValueConverter()?.GetType().Name.Contains("Pii", StringComparison.Ordinal) == true;
 
     // Reduce EF/CLR values to JSON-safe primitives (avoid serializer throws on geometry, byte[], etc.).
     private static object? Sanitize(object? v)

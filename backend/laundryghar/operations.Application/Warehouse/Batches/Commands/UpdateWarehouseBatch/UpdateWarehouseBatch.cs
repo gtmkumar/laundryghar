@@ -33,7 +33,8 @@ public sealed class UpdateWarehouseBatchCommandHandler
             .FirstOrDefaultAsync(b => b.Id == command.Id && b.BrandId == brandId, cancellationToken);
         if (batch is null) return null;
 
-        if (!_user.IsWithinScope(warehouseId: batch.WarehouseId))
+        // Include the batch's brand so a brand-scoped admin matches via the ancestor id.
+        if (!_user.IsWithinScope(brandId: batch.BrandId, warehouseId: batch.WarehouseId))
             throw new ForbiddenException("This warehouse batch is outside your assigned scope.");
 
         var now = DateTimeOffset.UtcNow;

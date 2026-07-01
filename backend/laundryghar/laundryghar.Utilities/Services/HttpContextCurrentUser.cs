@@ -57,10 +57,12 @@ public sealed class HttpContextCurrentUser : ICurrentUser
         // Platform operators are unbounded (they already bypass RLS + permission checks).
         if (IsPlatformAdmin) return true;
 
-        // Backward-compat / rollout safety: a token with NO scope_nodes claim at all is either
-        // pre-dating this feature or belongs to a principal with no memberships (which then holds
-        // no permissions and can't reach a guarded handler anyway). Since the JWT is signed the
-        // claim cannot be stripped, so an absent claim reliably means "not enforceable" → allow.
+        // Backward-compat / rollout safety: a token with NO scope_nodes claim at all can only be a
+        // genuinely pre-feature (pre-deploy) token. The real mint path (JwtTokenService.CreateAccessToken)
+        // now ALWAYS emits scope_nodes for user tokens — even empty — so a membership-less principal
+        // carries a PRESENT-but-empty claim that correctly DENIES here (the foreach below loops 0 nodes
+        // → returns false). Since the JWT is signed the claim cannot be stripped, so an absent claim
+        // reliably means "pre-feature token, not enforceable" → allow (rollout safety only).
         // A present claim is enforced normally: deny unless one of its nodes matches the target.
         if (Claim("scope_nodes") is null) return true;
 

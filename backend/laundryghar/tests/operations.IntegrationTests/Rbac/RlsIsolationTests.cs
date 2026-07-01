@@ -258,6 +258,25 @@ public sealed class RlsIsolationTests
         Assert.Equal("42501", ex.SqlState);
     }
 
+    // A system / RaaS-partner / worker actor has NO brand context, so its audit row carries
+    // brand_id = NULL. Under enforced RLS this must still be ACCEPTED (WITH CHECK ... OR brand_id
+    // IS NULL) — otherwise the 42501 rejection would roll back the business write that produced it.
+    // Guards db/patches/audit_logs_rls_null_brand.sql.
+    [Fact]
+    public async Task Audit_null_brand_row_accepted_for_non_brand_actor()
+    {
+        if (!_fx.DockerAvailable) { return; } // Docker not available: skip (xunit 2.9.2 lacks Assert.Skip)
+
+        await using var app = await _fx.OpenAppUserAsync();
+        // A partner session: a brand IS set, but the audit row it writes is stamped brand_id = NULL.
+        await RbacRlsFixture.SetRlsAsync(app, brand: Guid.NewGuid(), bypass: false);
+
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO identity_access.audit_logs (brand_id, action, resource_type) " +
+            "VALUES (NULL, 'partner.booking.created', 'partner_booking')", app);
+        Assert.Equal(1, await cmd.ExecuteNonQueryAsync()); // no 42501 → business write survives
+    }
+
     [Fact]
     public async Task AppUser_is_not_superuser_and_not_bypassrls()
     {

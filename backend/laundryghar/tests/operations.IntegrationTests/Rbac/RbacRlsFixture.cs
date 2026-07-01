@@ -288,8 +288,13 @@ public sealed class RbacRlsFixture : IAsyncLifetime
 
             DROP POLICY IF EXISTS rls_brand ON identity_access.audit_logs;
             CREATE POLICY rls_brand ON identity_access.audit_logs FOR ALL TO app_user
+                -- Mirrors db/patches/audit_logs_rls_null_brand.sql: strict READ, but WRITE also
+                -- permits brand_id IS NULL so a system/partner/worker audit row can't abort its
+                -- business write.
                 USING (kernel.rls_bypass() OR brand_id = kernel.current_brand_id())
-                WITH CHECK (kernel.rls_bypass() OR brand_id = kernel.current_brand_id());
+                WITH CHECK (kernel.rls_bypass()
+                            OR brand_id = kernel.current_brand_id()
+                            OR brand_id IS NULL);
 
             -- user-self scoped table
             DROP POLICY IF EXISTS rls_user_self ON identity_access.user_scope_memberships;

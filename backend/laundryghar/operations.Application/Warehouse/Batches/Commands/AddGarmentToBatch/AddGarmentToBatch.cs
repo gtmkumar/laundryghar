@@ -35,9 +35,11 @@ public sealed class AddGarmentToBatchCommandHandler : ICommandHandler<AddGarment
             .FirstOrDefaultAsync(g => g.Id == command.FulfillmentUnitId && g.BrandId == brandId, cancellationToken);
         if (garment is null) return false;
 
-        if (!_user.IsWithinScope(franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
+        // Pass the full ancestor chain (brand → franchise → store/warehouse) so a brand- or
+        // franchise-scoped admin matches via an ancestor id rather than 403-ing on the leaf.
+        if (!_user.IsWithinScope(brandId: garment.BrandId, franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
             throw new ForbiddenException("This garment is outside your assigned scope.");
-        if (!_user.IsWithinScope(warehouseId: batch.WarehouseId))
+        if (!_user.IsWithinScope(brandId: batch.BrandId, warehouseId: batch.WarehouseId))
             throw new ForbiddenException("This batch is outside your assigned scope.");
 
         garment.CurrentBatchId = command.BatchId;

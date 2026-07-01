@@ -13,9 +13,19 @@ namespace laundryghar.Utilities.Auth.Audit;
 internal static class AuditContext
 {
     /// <summary>Property-name fragments whose values must NEVER land in the 7-year audit table.
-    /// Matched case-insensitively against the scalar property name.</summary>
+    /// Matched case-insensitively against the scalar property name. Covers credentials/secrets AND
+    /// financial/identity/contact PII (Rider/UserProfile bank+PAN+UPI+KYC, Partner/PartnerUser
+    /// phone+email) so plaintext never gets snapshotted into old_values/new_values. This is the
+    /// name-based backstop; the interceptor ALSO redacts any column bound to the PII crypto
+    /// ValueConverter, so encrypted columns are masked even if their name misses these markers.</summary>
     private static readonly string[] SecretMarkers =
-        ["password", "secret", "token", "hash", "salt", "privatekey", "apikey", "cvv", "otp"];
+    [
+        // credentials / secrets
+        "password", "secret", "token", "hash", "salt", "privatekey", "apikey", "cvv", "otp",
+        // financial / government-identity / contact PII
+        "bank", "ifsc", "upi", "pan", "aadhaar", "aadhar", "license", "licence",
+        "passport", "gstin", "accountnumber", "phone", "email", "dob",
+    ];
 
     public static bool IsSecret(string propertyName)
         => SecretMarkers.Any(m => propertyName.Contains(m, StringComparison.OrdinalIgnoreCase));
