@@ -62,6 +62,9 @@ public sealed class CoreDbContext : ICoreDbContext
 
     public DbSet<Rider> Riders => _db.Riders;
 
+    public DbSet<Partner> Partners => _db.Partners;
+    public DbSet<PartnerUser> PartnerUsers => _db.PartnerUsers;
+
     public DbSet<SystemSetting> SystemSettings => _db.SystemSettings;
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken) =>

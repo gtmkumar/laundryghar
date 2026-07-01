@@ -85,9 +85,12 @@ public sealed class RbacRlsFixture : IAsyncLifetime
 
     /// <summary>
     /// Byte-for-byte mirror of <c>RlsConnectionInterceptor.BuildSetConfigCommand</c>:
-    /// the same five <c>set_config</c> calls, same setting names, empty-string for null
+    /// the same six <c>set_config</c> calls, same setting names, empty-string for null
     /// uuids, bypass rendered as literal "true"/"false", and is_local = false (session).
     /// This is the ONLY way the tests should push tenant context onto an app_user session.
+    /// The <paramref name="partner"/> arg mirrors the interceptor's
+    /// <c>app.current_partner_id</c> var (added for the RaaS partner RLS layer); it is
+    /// optional and defaults to null so every existing brand/user test still compiles.
     /// </summary>
     public static async Task SetRlsAsync(
         NpgsqlConnection conn,
@@ -95,12 +98,14 @@ public sealed class RbacRlsFixture : IAsyncLifetime
         Guid? franchise = null,
         Guid? store = null,
         Guid? user = null,
-        bool bypass = false)
+        bool bypass = false,
+        Guid? partner = null)
     {
         var brandId = brand?.ToString() ?? string.Empty;
         var franchiseId = franchise?.ToString() ?? string.Empty;
         var storeId = store?.ToString() ?? string.Empty;
         var userId = user?.ToString() ?? string.Empty;
+        var partnerId = partner?.ToString() ?? string.Empty;
         var bypassRls = bypass ? "true" : "false";
 
         await using var cmd = new NpgsqlCommand("""
@@ -109,12 +114,14 @@ public sealed class RbacRlsFixture : IAsyncLifetime
                 set_config('app.current_franchise_id', @franchise_id, false),
                 set_config('app.current_store_id',     @store_id,     false),
                 set_config('app.current_user_id',      @user_id,      false),
+                set_config('app.current_partner_id',   @partner_id,   false),
                 set_config('app.bypass_rls',           @bypass_rls,   false)
             """, conn);
         cmd.Parameters.AddWithValue("@brand_id", brandId);
         cmd.Parameters.AddWithValue("@franchise_id", franchiseId);
         cmd.Parameters.AddWithValue("@store_id", storeId);
         cmd.Parameters.AddWithValue("@user_id", userId);
+        cmd.Parameters.AddWithValue("@partner_id", partnerId);
         cmd.Parameters.AddWithValue("@bypass_rls", bypassRls);
         await cmd.ExecuteNonQueryAsync();
     }
@@ -319,6 +326,78 @@ public sealed class RbacRlsFixture : IAsyncLifetime
             ALTER TABLE identity_access.role_permissions      ENABLE ROW LEVEL SECURITY;
             ALTER TABLE identity_access.user_scope_memberships ENABLE ROW LEVEL SECURITY;
             ALTER TABLE identity_access.audit_logs            ENABLE ROW LEVEL SECURITY;
+            """);
+
+        // 9. RaaS partner spine (issue #14). Trimmed, real-shaped mirror of
+        //    db/patches/raas_partner_schema.sql + db/patches/rls_partner.sql — hand-rolled
+        //    (alpine has no postgis, so we do NOT apply the real 05_bc5 DDL). The
+        //    partner_id column is the tenant isolation key, exactly like brand_id above.
+        await ExecAsync(conn, """
+            CREATE SCHEMA IF NOT EXISTS logistics;
+
+            -- app.current_partner_id → uuid (clone of kernel.current_brand_id()).
+            CREATE OR REPLACE FUNCTION kernel.current_partner_id() RETURNS uuid LANGUAGE sql STABLE AS
+              $$ SELECT NULLIF(current_setting('app.current_partner_id', true), '')::uuid $$;
+
+            -- partners — the isolation ROOT (partner_id = partners.id).
+            CREATE TABLE IF NOT EXISTS logistics.partners (
+                id     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                code   text,
+                status text
+            );
+            -- partner_users — partner login principals (id = JWT sub).
+            CREATE TABLE IF NOT EXISTS logistics.partner_users (
+                id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_id   uuid,
+                phone_e164   text,
+                partner_role text,
+                status       text
+            );
+            -- partner_bookings — booking raised by a partner (partner_id = rls key).
+            CREATE TABLE IF NOT EXISTS logistics.partner_bookings (
+                id                         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                partner_id                 uuid NOT NULL,
+                brand_id                   uuid,
+                created_by_partner_user_id uuid,
+                status                     text NOT NULL DEFAULT 'requested'
+            );
+            """);
+
+        // 9a. grants for both app roles on the logistics schema + partner tables + fn.
+        await ExecAsync(conn, """
+            GRANT USAGE ON SCHEMA logistics TO app_user, app_admin;
+            GRANT SELECT, INSERT, UPDATE, DELETE ON
+                logistics.partners, logistics.partner_users, logistics.partner_bookings
+                TO app_user, app_admin;
+            GRANT EXECUTE ON FUNCTION kernel.current_partner_id() TO app_user, app_admin;
+            """);
+
+        // 9b. rls_partner policies (FOR ALL TO app_user), mirroring rls_partner.sql.
+        await ExecAsync(conn, """
+            -- partner_bookings — isolate by partner_id.
+            DROP POLICY IF EXISTS rls_partner ON logistics.partner_bookings;
+            CREATE POLICY rls_partner ON logistics.partner_bookings FOR ALL TO app_user
+                USING      (kernel.rls_bypass() OR partner_id = kernel.current_partner_id())
+                WITH CHECK (kernel.rls_bypass() OR partner_id = kernel.current_partner_id());
+
+            -- partner_users — isolate by partner_id.
+            DROP POLICY IF EXISTS rls_partner ON logistics.partner_users;
+            CREATE POLICY rls_partner ON logistics.partner_users FOR ALL TO app_user
+                USING      (kernel.rls_bypass() OR partner_id = kernel.current_partner_id())
+                WITH CHECK (kernel.rls_bypass() OR partner_id = kernel.current_partner_id());
+
+            -- partners — isolation ROOT: match on id (a partner sees only its own org row).
+            DROP POLICY IF EXISTS rls_partner ON logistics.partners;
+            CREATE POLICY rls_partner ON logistics.partners FOR ALL TO app_user
+                USING      (kernel.rls_bypass() OR id = kernel.current_partner_id())
+                WITH CHECK (kernel.rls_bypass() OR id = kernel.current_partner_id());
+            """);
+
+        // 9c. activate RLS on the partner spine.
+        await ExecAsync(conn, """
+            ALTER TABLE logistics.partners         ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE logistics.partner_users    ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE logistics.partner_bookings ENABLE ROW LEVEL SECURITY;
             """);
     }
 }

@@ -67,6 +67,7 @@ public sealed class CommerceHostCurrentTenant : ICurrentTenant
     public Guid? FranchiseId => IsHttpLane ? ParseGuid("franchise_id") : null;
     public Guid? StoreId     => IsHttpLane ? ParseGuid("store_id")     : null;
     public Guid? UserId      => IsHttpLane ? ParseGuid(ClaimTypes.NameIdentifier) : null;
+    public Guid? PartnerId   => IsHttpLane ? ParseGuid("partner_id")   : null;
 
     /// <summary>
     /// True ONLY when:

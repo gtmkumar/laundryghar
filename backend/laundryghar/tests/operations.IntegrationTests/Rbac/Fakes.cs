@@ -12,6 +12,7 @@ public sealed class FakeCurrentTenant : ICurrentTenant
     public Guid? FranchiseId { get; init; }
     public Guid? StoreId { get; init; }
     public Guid? UserId { get; init; }
+    public Guid? PartnerId { get; init; }
     public bool BypassRls { get; init; }
 }
 

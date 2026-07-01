@@ -25,6 +25,7 @@ public sealed class HttpContextCurrentTenant : ICurrentTenant
     public Guid? FranchiseId => GetGuid("franchise_id");
     public Guid? StoreId     => GetGuid("store_id");
     public Guid? UserId      => GetGuid(ClaimTypes.NameIdentifier);
+    public Guid? PartnerId   => GetGuid("partner_id");
     public bool  BypassRls   => _accessor.HttpContext?.Items["bypass_rls"] is true;
 
     private Guid? GetGuid(string claimType)

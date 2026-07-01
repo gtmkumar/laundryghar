@@ -244,6 +244,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, AnyPermissionHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, CustomerOnlyHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, PartnerOnlyHandler>(); // RaaS partner lane (auth)
+builder.Services.AddSingleton<IAuthorizationHandler, PartnerAdminHandler>();
 // MCP requirement handler — type-dispatched, so its semantics stay isolated from the
 // Identity CustomerOnlyHandler above (distinct requirement types).
 builder.Services.AddSingleton<IAuthorizationHandler, McpCustomerOnlyHandler>();
@@ -452,4 +454,9 @@ static bool IsScopeResolvingAuthPath(PathString path) =>
     || path.StartsWithSegments("/api/v1/auth/refresh")
     || path.StartsWithSegments("/api/v1/customer/auth/otp")
     || path.StartsWithSegments("/api/v1/customer/auth/refresh")
+    // Partner (issue #14): the anonymous partner OTP send/verify paths resolve the partner user +
+    // org by phone before any partner context exists. partner_users/partners have rls_partner
+    // enabled, so without this bypass the lookups would return nothing. Each query is keyed to the
+    // caller-supplied phone; the mint is gated on a proven OTP + active status.
+    || path.StartsWithSegments("/api/v1/partner/auth/otp")
     || path.StartsWithSegments("/oauth");

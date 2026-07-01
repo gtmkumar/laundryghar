@@ -136,6 +136,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, AnyPermissionHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, CustomerOnlyHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, PartnerOnlyHandler>(); // RaaS partner lane (wallet/invoices)
+builder.Services.AddSingleton<IAuthorizationHandler, PartnerAdminHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 // §8 step-up: convert a step-up policy denial into a structured 403 step_up_required.
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, StepUpAuthorizationResultHandler>();

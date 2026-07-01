@@ -70,3 +70,34 @@ public sealed record CustomerTokenClaims(
     /// </summary>
     public const string OAuthTokenUseValue = "customer_mcp";
 }
+
+/// <summary>
+/// Claims for a RaaS partner JWT (docs/rbac.md §9). A partner is a SEPARATE actor — not staff, not
+/// customer: the token carries <c>partner_id</c> (the RLS isolation key, mirroring brand_id) and a
+/// coarse <c>partner_role</c> (partner_admin | partner_operator), and NO permissions claim. It must
+/// NOT carry brand_id or grant bypass, so brand/staff RLS + the staff PermissionHandler stay inert
+/// for partner tokens; only the <c>rls_partner</c> policy governs partner visibility.
+/// </summary>
+public sealed record PartnerTokenClaims(
+    Guid PartnerUserId,
+    Guid PartnerId,
+    string PartnerRole,
+    string? Phone
+)
+{
+    /// <summary>Fixed token_use value for partners. Gated by PartnerOnlyRequirement.</summary>
+    public const string TokenUseValue = "partner";
+
+    /// <summary>JWT claim carrying the partner id (drives ICurrentTenant.PartnerId → rls_partner).</summary>
+    public const string PartnerIdClaim = "partner_id";
+
+    /// <summary>JWT claim carrying the coarse partner role (partner_admin | partner_operator).</summary>
+    public const string PartnerRoleClaim = "partner_role";
+}
+
+/// <summary>The two RaaS partner roles (a coarse claim, not staff role_permissions).</summary>
+public static class PartnerRole
+{
+    public const string Admin = "partner_admin";
+    public const string Operator = "partner_operator";
+}

@@ -111,6 +111,30 @@ public sealed class JwtTokenService : IJwtTokenService
         return WriteToken(claimsList, creds);
     }
 
+    /// <inheritdoc/>
+    public string CreatePartnerAccessToken(PartnerTokenClaims claims)
+    {
+        var creds = new SigningCredentials(_keys.SigningKey, SecurityAlgorithms.RsaSha256);
+
+        // RaaS partner token: sub=partner_user_id, token_use=partner, partner_id (the RLS key) +
+        // partner_role. Deliberately NO brand_id and NO permissions claim — only rls_partner governs
+        // partner visibility, and the staff PermissionHandler (Gate 1 requires token_use=user) can
+        // never authorize this token.
+        var claimsList = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, claims.PartnerUserId.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("token_use", PartnerTokenClaims.TokenUseValue),
+            new(PartnerTokenClaims.PartnerIdClaim, claims.PartnerId.ToString()),
+            new(PartnerTokenClaims.PartnerRoleClaim, claims.PartnerRole),
+        };
+
+        if (!string.IsNullOrEmpty(claims.Phone))
+            claimsList.Add(new Claim("phone", claims.Phone));
+
+        return WriteToken(claimsList, creds);
+    }
+
     private string WriteToken(IEnumerable<Claim> claims, SigningCredentials creds)
     {
         var token = new JwtSecurityToken(
