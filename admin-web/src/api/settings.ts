@@ -12,6 +12,7 @@ import type {
   UpdatePayoutPayload,
   PaymentGatewaySettingsView,
   UpdatePaymentGatewayPayload,
+  UpdatePlatformPaymentGatewayPayload,
   WhatsAppSettingsView,
   UpdateWhatsAppPayload,
   SmsSettingsView,
@@ -57,6 +58,25 @@ export async function updatePaymentGatewaySettings(
 ): Promise<PaymentGatewaySettingsView> {
   const { data } = await identityClient.put<ApiResponse<PaymentGatewaySettingsView>>(
     `${BASE}/payment-gateway`,
+    payload,
+  )
+  return unwrap(data)
+}
+
+// ── Platform billing (operator's SaaS-collection Razorpay account) ──────────
+// Dedicated platform-scoped endpoints (not in the per-brand AdminSettings bundle),
+// platform-admin only. Used by the Settings → Platform billing panel.
+
+export async function getPlatformPaymentGateway(): Promise<PaymentGatewaySettingsView> {
+  const { data } = await identityClient.get<ApiResponse<PaymentGatewaySettingsView>>(`${BASE}/platform-payment-gateway`)
+  return unwrap(data)
+}
+
+export async function updatePlatformPaymentGateway(
+  payload: UpdatePlatformPaymentGatewayPayload,
+): Promise<PaymentGatewaySettingsView> {
+  const { data } = await identityClient.put<ApiResponse<PaymentGatewaySettingsView>>(
+    `${BASE}/platform-payment-gateway`,
     payload,
   )
   return unwrap(data)

@@ -93,6 +93,18 @@ public sealed record UpdatePaymentGatewayRequest(
     bool    CodEnabled);
 
 /// <summary>
+/// Update the PLATFORM-scoped payment gateway (the operator's Razorpay account that collects
+/// SaaS tier invoices from tenant brands). Separate from the per-brand <c>payment-gateway</c>
+/// endpoint (customer payments). No COD (irrelevant to B2B platform billing).
+/// KeySecret / WebhookSecret: null/blank = keep existing (SMTP pattern).
+/// </summary>
+public sealed record UpdatePlatformPaymentGatewayRequest(
+    bool    Enabled,
+    string? KeyId,
+    string? KeySecret,
+    string? WebhookSecret);
+
+/// <summary>
 /// Update WhatsApp Cloud API config.
 /// AccessToken: null/blank = keep existing.
 /// OtpEnabled/OtpTemplateName: login-OTP delivery via an approved

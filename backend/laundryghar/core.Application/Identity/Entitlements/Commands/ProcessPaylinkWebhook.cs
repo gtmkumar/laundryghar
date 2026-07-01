@@ -2,7 +2,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using core.Application.Common.Interfaces;
+using core.Application.Identity.Settings;
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.SharedDataModel.Crypto;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -21,18 +23,24 @@ public sealed record ProcessPaylinkWebhookCommand(byte[] RawBody, string? Signat
 public class ProcessPaylinkWebhookCommandHandler : ICommandHandler<ProcessPaylinkWebhookCommand, PaylinkWebhookResult>
 {
     private readonly ICoreDbContext _db;
+    private readonly IFieldCipher _cipher;
     private readonly IConfiguration _config;
     private readonly IHostEnvironment _env;
     private readonly ILogger<ProcessPaylinkWebhookCommandHandler> _log;
 
-    public ProcessPaylinkWebhookCommandHandler(ICoreDbContext db, IConfiguration config, IHostEnvironment env,
-        ILogger<ProcessPaylinkWebhookCommandHandler> log)
-    { _db = db; _config = config; _env = env; _log = log; }
+    public ProcessPaylinkWebhookCommandHandler(ICoreDbContext db, IFieldCipher cipher, IConfiguration config,
+        IHostEnvironment env, ILogger<ProcessPaylinkWebhookCommandHandler> log)
+    { _db = db; _cipher = cipher; _config = config; _env = env; _log = log; }
 
     public async Task<PaylinkWebhookResult> HandleAsync(ProcessPaylinkWebhookCommand cmd, CancellationToken ct)
     {
         // ── Verify signature (fail-closed, with a Development-only unsigned escape hatch) ──
-        var secret = _config["Razorpay:WebhookSecret"];
+        // Settings-first: the platform-billing account's WebhookSecret (Settings → Platform billing),
+        // else env config. RLS is bypassed for this anonymous path so the platform-scoped row resolves.
+        var platform = await SettingsStore.LoadPlatformPaymentGatewayAsync(_db, _cipher, ct);
+        var secret = !string.IsNullOrWhiteSpace(platform.WebhookSecret)
+            ? platform.WebhookSecret
+            : _config["Razorpay:WebhookSecret"];
         if (string.IsNullOrWhiteSpace(secret))
         {
             if (!_env.IsDevelopment()) return new PaylinkWebhookResult(false, "Razorpay:WebhookSecret not configured.");

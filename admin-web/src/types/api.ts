@@ -1995,6 +1995,16 @@ export interface UpdatePaymentGatewayPayload {
   codEnabled: boolean
 }
 
+// The platform-scoped Razorpay account that collects SaaS tier invoices from tenant
+// brands (Settings → Platform billing). The GET/PUT return a PaymentGatewaySettingsView
+// (codEnabled is always false here — irrelevant to B2B platform billing). Platform-admin only.
+export interface UpdatePlatformPaymentGatewayPayload {
+  enabled: boolean
+  keyId?: string
+  keySecret?: string             // omit/blank to keep stored secret
+  webhookSecret?: string         // omit/blank to keep stored secret
+}
+
 // ── Settings — WhatsApp ──────────────────────────────────────────────────────
 
 export interface WhatsAppSettingsView {

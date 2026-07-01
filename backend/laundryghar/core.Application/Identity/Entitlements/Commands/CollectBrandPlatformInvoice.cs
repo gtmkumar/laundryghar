@@ -25,8 +25,8 @@ public class CreateBrandPlatformInvoicePaymentLinkCommandHandler
         if (!string.IsNullOrEmpty(inv.PaymentLinkUrl)) return inv.PaymentLinkUrl; // already has a link
         if (!string.Equals(inv.Status, "issued", StringComparison.OrdinalIgnoreCase))
             throw new BusinessRuleException("Only an issued invoice can be collected.");
-        if (!_rzp.IsConfigured)
-            throw new BusinessRuleException("Razorpay is not configured (Razorpay:KeyId / Razorpay:KeySecret).");
+        if (!await _rzp.IsConfiguredAsync(ct))
+            throw new BusinessRuleException("Razorpay is not configured. Enable it under Settings → Platform billing, or set Razorpay:KeyId / Razorpay:KeySecret.");
 
         var sub = await _db.BrandPlatformSubscriptions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == inv.SubscriptionId, ct);
         var desc = $"Platform tier {(sub?.PlanName ?? "subscription")} · {inv.BillingPeriodStart:dd MMM} – {inv.BillingPeriodEnd:dd MMM yyyy}";

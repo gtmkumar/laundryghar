@@ -4,6 +4,7 @@ using core.Application.Identity.Settings.Commands.UpdateEmailSettings;
 using core.Application.Identity.Settings.Commands.UpdateFareSettings;
 using core.Application.Identity.Settings.Commands.UpdateMaps;
 using core.Application.Identity.Settings.Commands.UpdatePaymentGateway;
+using core.Application.Identity.Settings.Commands.UpdatePlatformPaymentGateway;
 using core.Application.Identity.Settings.Commands.UpdatePayout;
 using core.Application.Identity.Settings.Commands.UpdateProvisioning;
 using core.Application.Identity.Settings.Commands.UpdateSms;
@@ -12,6 +13,7 @@ using core.Application.Identity.Settings.Dtos;
 using core.Application.Identity.Settings.Queries.GetAdminSettings;
 using core.Application.Identity.Settings.Queries.GetDispatchSettings;
 using core.Application.Identity.Settings.Queries.GetFareSettings;
+using core.Application.Identity.Settings.Queries.GetPlatformPaymentGateway;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Common;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
@@ -52,6 +54,11 @@ public class AdminSettings : IEndpointGroup
         group.MapPut(UpdateMapsSettings, "maps").RequireAuthorization(Manage);
         group.MapPut(UpdatePayoutSettings, "payout").RequireAuthorization(Manage);
         group.MapPut(UpdatePaymentGatewaySettings, "payment-gateway").RequireAuthorization(Manage);
+
+        // ── Platform billing: the operator's own Razorpay account (SaaS tier invoices) ──
+        // Platform-scoped (BrandId == null) → platform-admin only (see PlatformForbidden).
+        group.MapGet(GetPlatformPaymentGatewaySettings, "platform-payment-gateway").RequireAuthorization(Read);
+        group.MapPut(UpdatePlatformPaymentGatewaySettings, "platform-payment-gateway").RequireAuthorization(Manage);
 
         // ── Marketplace: fare (brand) + dispatch (platform) ───────────────────
         group.MapGet(GetFareSettings, "fare").RequireAuthorization(Read);
@@ -111,6 +118,21 @@ public class AdminSettings : IEndpointGroup
         return Results.Ok(new SingleResponse<PaymentGatewaySettingsView> { Status = true, Data = r });
     }
 
+    // ── Platform billing (operator's SaaS-collection Razorpay account) — platform-admin only ──
+    public static async Task<IResult> GetPlatformPaymentGatewaySettings(ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
+    {
+        if (PlatformForbidden(u, out var deny)) return deny;
+        var r = await dispatcher.QueryAsync(new GetPlatformPaymentGatewayQuery(), ct);
+        return Results.Ok(new SingleResponse<PaymentGatewaySettingsView> { Status = true, Data = r });
+    }
+
+    public static async Task<IResult> UpdatePlatformPaymentGatewaySettings([FromBody] UpdatePlatformPaymentGatewayRequest req, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
+    {
+        if (PlatformForbidden(u, out var deny)) return deny;
+        var r = await dispatcher.SendAsync(new UpdatePlatformPaymentGatewayCommand(req), ct);
+        return Results.Ok(new SingleResponse<PaymentGatewaySettingsView> { Status = true, Data = r });
+    }
+
     public static async Task<IResult> GetFareSettings(ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
     {
         if (Forbidden(u, out var deny)) return deny;
@@ -161,5 +183,14 @@ public class AdminSettings : IEndpointGroup
         var allowed = u.IsPlatformAdmin || string.Equals(u.UserType, "brand_admin", StringComparison.OrdinalIgnoreCase);
         result = allowed ? Results.Empty : Results.Forbid();
         return !allowed;
+    }
+
+    // Stricter than Forbidden: the platform billing keys are a single platform-scoped
+    // (BrandId == null) Razorpay account for the whole deployment, so only platform admins
+    // may read/manage them — brand admins (who would only see their own brand) are excluded.
+    private static bool PlatformForbidden(ICurrentUser u, out IResult result)
+    {
+        result = u.IsPlatformAdmin ? Results.Empty : Results.Forbid();
+        return !u.IsPlatformAdmin;
     }
 }
