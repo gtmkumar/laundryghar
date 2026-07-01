@@ -3,6 +3,7 @@ using core.Application.Identity.Common;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,7 +30,9 @@ public sealed record SetUserPermissionOverrideCommand(Guid UserId, SetUserPermis
 public class SetUserPermissionOverrideCommandHandler : ICommandHandler<SetUserPermissionOverrideCommand, bool>
 {
     private readonly ICoreDbContext _db;
-    public SetUserPermissionOverrideCommandHandler(ICoreDbContext db) => _db = db;
+    private readonly IAuditWriter _audit;
+    public SetUserPermissionOverrideCommandHandler(ICoreDbContext db, IAuditWriter audit)
+    { _db = db; _audit = audit; }
 
     public async Task<bool> HandleAsync(SetUserPermissionOverrideCommand cmd, CancellationToken ct)
     {
@@ -94,6 +97,21 @@ public class SetUserPermissionOverrideCommandHandler : ICommandHandler<SetUserPe
 
         // Live revocation: invalidate the user's existing tokens.
         await PermVersionBumper.BumpUserAsync(_db, cmd.UserId, ct);
+
+        // Semantic audit: per-user permission override set/cleared (allow/deny at global or scoped level).
+        await _audit.WriteAsync("permission.override", "user_permission_overrides", cmd.UserId,
+            resourceDisplay: $"{cmd.Request.PermissionCode} = {(string.IsNullOrEmpty(effect) ? "cleared" : effect)}",
+            newValues: new
+            {
+                cmd.UserId,
+                cmd.Request.PermissionCode,
+                Effect = string.IsNullOrEmpty(effect) ? null : effect,
+                ScopeType = scopeType,
+                ScopeId = scopeId,
+                cmd.Request.ExpiresAt,
+                cmd.Request.Reason
+            },
+            ct: ct);
         return true;
     }
 }

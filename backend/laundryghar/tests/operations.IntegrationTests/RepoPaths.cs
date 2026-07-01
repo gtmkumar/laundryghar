@@ -11,6 +11,10 @@ internal static class RepoPaths
     public static string Patch(string fileName)
         => Path.Combine(RepoRoot, "db", "patches", fileName);
 
+    /// <summary>Resolves a canonical bounded-context DDL file under database_scripts/.</summary>
+    public static string Script(string fileName)
+        => Path.Combine(RepoRoot, "database_scripts", fileName);
+
     private static string FindRoot()
     {
         var dir = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);

@@ -1,5 +1,6 @@
 using commerce.Application.Common.Interfaces;
 using laundryghar.SharedDataModel.Entities.Commerce;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Common;
 using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
@@ -64,12 +65,14 @@ public sealed class IssueRefundHandler : ICommandHandler<IssueRefundCommand, Pay
     private readonly ICommerceDbContext _db;
     private readonly ICurrentUser _user;
     private readonly IPaymentGateway _gateway;
+    private readonly IAuditWriter _audit;
 
-    public IssueRefundHandler(ICommerceDbContext db, ICurrentUser user, IPaymentGateway gateway)
+    public IssueRefundHandler(ICommerceDbContext db, ICurrentUser user, IPaymentGateway gateway, IAuditWriter audit)
     {
         _db = db;
         _user = user;
         _gateway = gateway;
+        _audit = audit;
     }
 
     public async Task<PaymentRefundDto> HandleAsync(IssueRefundCommand cmd, CancellationToken ct)
@@ -226,6 +229,14 @@ public sealed class IssueRefundHandler : ICommandHandler<IssueRefundCommand, Pay
             _db.PaymentRefunds.Add(refund);
             await _db.SaveChangesAsync(innerCt);
         }, ct);
+
+        // Semantic audit: money-movement action with its canonical action code and a
+        // human-readable refund reference. Fail-open — never blocks the refund.
+        await _audit.WriteAsync(
+            "payment.refund", "payments", payment.Id,
+            resourceDisplay: $"{refund.RefundNumber} · {refund.Amount:F2} {payment.CurrencyCode}",
+            newValues: new { refund.RefundNumber, req.Amount, req.RefundType, req.Reason, refund.RefundMethod },
+            ct: ct);
 
         return ToRefundDto(refund);
     }

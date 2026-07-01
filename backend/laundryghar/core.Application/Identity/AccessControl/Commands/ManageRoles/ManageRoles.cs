@@ -4,6 +4,7 @@ using core.Application.Identity.Common;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
@@ -56,8 +57,8 @@ file static class RoleValidation
 // ── Create ───────────────────────────────────────────────────────────────────
 public class CreateRoleCommandHandler : ICommandHandler<CreateRoleCommand, RoleSummaryDto>
 {
-    private readonly ICoreDbContext _db; private readonly ICurrentUser _user;
-    public CreateRoleCommandHandler(ICoreDbContext db, ICurrentUser user) { _db = db; _user = user; }
+    private readonly ICoreDbContext _db; private readonly ICurrentUser _user; private readonly IAuditWriter _audit;
+    public CreateRoleCommandHandler(ICoreDbContext db, ICurrentUser user, IAuditWriter audit) { _db = db; _user = user; _audit = audit; }
 
     public async Task<RoleSummaryDto> HandleAsync(CreateRoleCommand cmd, CancellationToken ct)
     {
@@ -81,6 +82,10 @@ public class CreateRoleCommandHandler : ICommandHandler<CreateRoleCommand, RoleS
         _db.Roles.Add(role);
         await _db.SaveChangesAsync(ct);
 
+        await _audit.WriteAsync("role.manage", "roles", role.Id,
+            resourceDisplay: $"Created role '{role.Code}'",
+            newValues: new { role.Code, role.Name, role.ScopeType }, ct: ct);
+
         return new RoleSummaryDto(role.Id, role.Code, role.Name, role.Description, role.ScopeType, false, 0, []);
     }
 }
@@ -88,8 +93,8 @@ public class CreateRoleCommandHandler : ICommandHandler<CreateRoleCommand, RoleS
 // ── Update (name/description; custom roles only) ──────────────────────────────
 public class UpdateRoleCommandHandler : ICommandHandler<UpdateRoleCommand, bool>
 {
-    private readonly ICoreDbContext _db; private readonly ICurrentUser _user;
-    public UpdateRoleCommandHandler(ICoreDbContext db, ICurrentUser user) { _db = db; _user = user; }
+    private readonly ICoreDbContext _db; private readonly ICurrentUser _user; private readonly IAuditWriter _audit;
+    public UpdateRoleCommandHandler(ICoreDbContext db, ICurrentUser user, IAuditWriter audit) { _db = db; _user = user; _audit = audit; }
 
     public async Task<bool> HandleAsync(UpdateRoleCommand cmd, CancellationToken ct)
     {
@@ -100,11 +105,17 @@ public class UpdateRoleCommandHandler : ICommandHandler<UpdateRoleCommand, bool>
             throw new UnauthorizedAccessException("You can only edit roles in your own brand.");
         RoleValidation.RequireName(cmd.Request.Name);
 
+        var before = new { role.Name, role.Description };
         role.Name = cmd.Request.Name.Trim();
         role.Description = cmd.Request.Description?.Trim();
         role.UpdatedAt = DateTimeOffset.UtcNow;
         role.UpdatedBy = cmd.ActorId;
         await _db.SaveChangesAsync(ct);
+
+        await _audit.WriteAsync("role.manage", "roles", role.Id,
+            resourceDisplay: $"Updated role '{role.Code}'",
+            oldValues: before, newValues: new { role.Name, role.Description },
+            changedFields: ["name", "description"], ct: ct);
         return true;
     }
 }
@@ -112,8 +123,8 @@ public class UpdateRoleCommandHandler : ICommandHandler<UpdateRoleCommand, bool>
 // ── Delete (soft; custom roles with no members) ──────────────────────────────
 public class DeleteRoleCommandHandler : ICommandHandler<DeleteRoleCommand, bool>
 {
-    private readonly ICoreDbContext _db; private readonly ICurrentUser _user;
-    public DeleteRoleCommandHandler(ICoreDbContext db, ICurrentUser user) { _db = db; _user = user; }
+    private readonly ICoreDbContext _db; private readonly ICurrentUser _user; private readonly IAuditWriter _audit;
+    public DeleteRoleCommandHandler(ICoreDbContext db, ICurrentUser user, IAuditWriter audit) { _db = db; _user = user; _audit = audit; }
 
     public async Task<bool> HandleAsync(DeleteRoleCommand cmd, CancellationToken ct)
     {
@@ -134,6 +145,12 @@ public class DeleteRoleCommandHandler : ICommandHandler<DeleteRoleCommand, bool>
         role.DeletedAt = DateTimeOffset.UtcNow;
         role.UpdatedBy = cmd.ActorId;
         await _db.SaveChangesAsync(ct);
+
+        // Semantic audit: a soft-delete surfaces to the interceptor only as a "roles.updated"
+        // (DeletedAt set); name it explicitly and record the dropped permission grants.
+        await _audit.WriteAsync("role.manage", "roles", role.Id,
+            resourceDisplay: $"Deleted role '{role.Code}'",
+            oldValues: new { role.Code, role.Name, role.ScopeType, RemovedPermissionGrants = rps.Count }, ct: ct);
         return true;
     }
 }
@@ -141,8 +158,8 @@ public class DeleteRoleCommandHandler : ICommandHandler<DeleteRoleCommand, bool>
 // ── Clone (new custom brand role + copied permission grants) ──────────────────
 public class CloneRoleCommandHandler : ICommandHandler<CloneRoleCommand, RoleSummaryDto>
 {
-    private readonly ICoreDbContext _db; private readonly ICurrentUser _user;
-    public CloneRoleCommandHandler(ICoreDbContext db, ICurrentUser user) { _db = db; _user = user; }
+    private readonly ICoreDbContext _db; private readonly ICurrentUser _user; private readonly IAuditWriter _audit;
+    public CloneRoleCommandHandler(ICoreDbContext db, ICurrentUser user, IAuditWriter audit) { _db = db; _user = user; _audit = audit; }
 
     public async Task<RoleSummaryDto> HandleAsync(CloneRoleCommand cmd, CancellationToken ct)
     {
@@ -178,6 +195,13 @@ public class CloneRoleCommandHandler : ICommandHandler<CloneRoleCommand, RoleSum
             });
 
         await _db.SaveChangesAsync(ct);
+
+        // Semantic audit: multi-entity action (new role + copied grants) collapsed to one named row.
+        await _audit.WriteAsync("role.clone", "roles", clone.Id,
+            resourceDisplay: $"Cloned '{source.Code}' → '{clone.Code}'",
+            newValues: new { SourceRoleId = source.Id, source.Code, ClonedCode = clone.Code, clone.Name, CopiedPermissionGrants = sourcePerms.Count },
+            ct: ct);
+
         return new RoleSummaryDto(clone.Id, clone.Code, clone.Name, clone.Description, clone.ScopeType, false, 0, []);
     }
 }

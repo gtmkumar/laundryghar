@@ -3,6 +3,7 @@ using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +17,9 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
 {
     private readonly ICoreDbContext _db;
     private readonly ICurrentUser _actor;
-    public GrantMembershipCommandHandler(ICoreDbContext db, ICurrentUser actor) { _db = db; _actor = actor; }
+    private readonly IAuditWriter _audit;
+    public GrantMembershipCommandHandler(ICoreDbContext db, ICurrentUser actor, IAuditWriter audit)
+    { _db = db; _actor = actor; _audit = audit; }
 
     public async Task<MembershipDto> HandleAsync(GrantMembershipCommand cmd, CancellationToken ct)
     {
@@ -158,6 +161,19 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
 
         // Invalidate the target user's existing tokens (live revocation).
         await Common.PermVersionBumper.BumpUserAsync(_db, cmd.Request.UserId, ct);
+
+        // Semantic audit: privilege grant — who got which role at which scope.
+        await _audit.WriteAsync("membership.grant", "user_scope_memberships", membership.Id,
+            resourceDisplay: $"{targetRole.Code} @ {membership.ScopeType}",
+            newValues: new
+            {
+                membership.UserId,
+                membership.ScopeType,
+                membership.ScopeId,
+                RoleCode = targetRole.Code,
+                membership.IsPrimary
+            },
+            ct: ct);
 
         return new MembershipDto(
             membership.Id, membership.UserId, membership.ScopeType, membership.ScopeId,

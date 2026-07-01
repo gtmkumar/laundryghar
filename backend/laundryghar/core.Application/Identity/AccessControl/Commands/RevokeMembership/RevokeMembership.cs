@@ -1,6 +1,7 @@
 using core.Application.Common.Interfaces;
 using core.Application.Identity.Users.Dtos;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using LaundryGhar.Utilities.CQRS.Abstractions;
@@ -13,10 +14,12 @@ public class RevokeMembershipCommandHandler : ICommandHandler<RevokeMembershipCo
 {
     private readonly ICoreDbContext _db;
     private readonly ICurrentUser _user;
-    public RevokeMembershipCommandHandler(ICoreDbContext db, ICurrentUser user)
+    private readonly IAuditWriter _audit;
+    public RevokeMembershipCommandHandler(ICoreDbContext db, ICurrentUser user, IAuditWriter audit)
     {
         _db = db;
         _user = user;
+        _audit = audit;
     }
 
     public async Task<bool> HandleAsync(RevokeMembershipCommand cmd, CancellationToken ct)
@@ -44,6 +47,12 @@ public class RevokeMembershipCommandHandler : ICommandHandler<RevokeMembershipCo
 
         // Invalidate the user's existing tokens (live revocation).
         await core.Application.Identity.Common.PermVersionBumper.BumpUserAsync(_db, m.UserId, ct);
+
+        // Semantic audit: privilege revocation — which membership (user/scope/role) was pulled.
+        await _audit.WriteAsync("membership.revoke", "user_scope_memberships", m.Id,
+            resourceDisplay: $"Revoked membership @ {m.ScopeType}",
+            oldValues: new { m.UserId, m.ScopeType, m.ScopeId, m.RoleId, Reason = cmd.Request.Reason },
+            ct: ct);
         return true;
     }
 }
