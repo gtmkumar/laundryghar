@@ -1,6 +1,7 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -46,6 +47,9 @@ public class CreateGarmentCommandHandler : ICommandHandler<CreateGarmentCommand,
         var order = await _db.Orders
             .FirstOrDefaultAsync(o => o.Id == oi.OrderId && o.BrandId == brandId, cancellationToken)
             ?? throw new KeyNotFoundException("Order not found.");
+
+        if (!_user.IsWithinScope(franchiseId: order.FranchiseId, storeId: oi.StoreId, warehouseId: req.WarehouseId))
+            throw new ForbiddenException("This garment is outside your assigned scope.");
 
         var garment = new FulfillmentUnit
         {

@@ -37,6 +37,8 @@ public class InviteOwnerCommandHandler : ICommandHandler<InviteOwnerCommand, Onb
     {
         var f = await _db.Franchises.FirstOrDefaultAsync(x => x.Id == command.FranchiseId && x.DeletedAt == null, cancellationToken);
         if (f is null) return null;
+        if (!_actor.IsWithinScope(brandId: f.BrandId, franchiseId: f.Id))
+            throw new ForbiddenException("This franchise is outside your assigned scope.");
         var r = command.Request;
         if (string.IsNullOrWhiteSpace(r.Email))
             throw new ValidationException(new Dictionary<string, string[]> { ["email"] = ["Owner email is required."] });

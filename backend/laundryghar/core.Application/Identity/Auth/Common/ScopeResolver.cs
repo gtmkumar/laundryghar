@@ -48,43 +48,8 @@ public static class ScopeResolver
         activeMembership ??= memberships.FirstOrDefault(m => m.IsPrimary)
                           ?? memberships.FirstOrDefault();
 
-        // Resolve effective permissions across ALL the user's active memberships at the SAME
-        // scope as the active one (a user may hold several roles at one brand — e.g. Operations
-        // Manager + Finance Manager; previously only one counted). Then layer per-user
-        // overrides. Allow/deny semantics, DENY WINS:
-        //   effective = (role-allowed − role-denied ∪ user-allow) − user-deny
-        var roleAllowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var roleDenied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (activeMembership is not null)
-        {
-            foreach (var m in memberships.Where(m =>
-                         m.ScopeType == activeMembership.ScopeType && m.ScopeId == activeMembership.ScopeId))
-                foreach (var rp in m.Role.RolePermissions)
-                {
-                    if (rp.Effect == "deny") roleDenied.Add(rp.Permission.Code);
-                    else roleAllowed.Add(rp.Permission.Code);
-                }
-        }
-
-        // Per-user overrides (apply across scopes; deny always wins).
-        var overrides = await db.UserPermissionOverrides.AsNoTracking()
-            .Where(o => o.UserId == user.Id)
-            .Select(o => new { o.Effect, o.Permission.Code })
-            .ToListAsync(ct);
-        var userAllow = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var userDeny = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var o in overrides)
-            (o.Effect == "deny" ? userDeny : userAllow).Add(o.Code);
-
-        // effective = (roleAllowed − roleDenied ∪ userAllow) − userDeny
-        var effective = new HashSet<string>(roleAllowed, StringComparer.OrdinalIgnoreCase);
-        effective.ExceptWith(roleDenied);
-        effective.UnionWith(userAllow);
-        effective.ExceptWith(userDeny);
-
-        var permissions = new HashSet<string>(effective, StringComparer.OrdinalIgnoreCase);
-
-        // Determine tenant context from scope
+        // ── Determine the active scope's tenant chain FIRST (brand ⊃ franchise ⊃ store|warehouse).
+        // This chain defines the §6 ancestor-or-self node set below.
         Guid? brandId     = null;
         Guid? franchiseId = null;
         Guid? storeId     = null;
@@ -135,6 +100,60 @@ public static class ScopeResolver
             }
         }
 
+        // The ancestor-or-self key set for the active node (§6). "platform" is an ancestor of
+        // every node; a brand/franchise membership covers everything beneath it.
+        static string NodeKey(string type, Guid? id) => id is { } g ? $"{type}:{g}" : type;
+        var ancestorKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ScopeType.Platform };
+        if (brandId is { } ancBrand)         ancestorKeys.Add(NodeKey(ScopeType.Brand, ancBrand));
+        if (franchiseId is { } ancFranchise) ancestorKeys.Add(NodeKey(ScopeType.Franchise, ancFranchise));
+        if (storeId is { } ancStore)         ancestorKeys.Add(NodeKey(ScopeType.Store, ancStore));
+        if (activeMembership is not null)    ancestorKeys.Add(NodeKey(activeMembership.ScopeType, activeMembership.ScopeId));
+
+        // Resolve effective permissions across every membership whose scope node is ANCESTOR-OR-SELF
+        // of the active node — §6 inheritance: a brand-level role covers the franchise/store beneath
+        // it, so an operator active at Store-1 who also holds a brand role gets both. (Previously only
+        // memberships at the EXACT active node counted.) Then layer per-user overrides.
+        // Allow/deny semantics, DENY WINS: effective = (role-allowed − role-denied ∪ user-allow) − user-deny.
+        var roleAllowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var roleDenied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var m in memberships.Where(m => ancestorKeys.Contains(NodeKey(m.ScopeType, m.ScopeId))))
+            foreach (var rp in m.Role.RolePermissions)
+            {
+                if (rp.Effect == "deny") roleDenied.Add(rp.Permission.Code);
+                else roleAllowed.Add(rp.Permission.Code);
+            }
+
+        // Per-user overrides: skip EXPIRED rows; a scoped override applies only when its node is
+        // ancestor-or-self of the active scope; a global (null-scope) override applies everywhere.
+        // Deny always wins.
+        var nowUtc = DateTimeOffset.UtcNow;
+        var overrides = await db.UserPermissionOverrides.AsNoTracking()
+            .Where(o => o.UserId == user.Id && (o.ExpiresAt == null || o.ExpiresAt > nowUtc))
+            .Select(o => new { o.Effect, o.Permission.Code, o.ScopeType, o.ScopeId })
+            .ToListAsync(ct);
+        var userAllow = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var userDeny = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var o in overrides)
+        {
+            if (o.ScopeType is not null && !ancestorKeys.Contains(NodeKey(o.ScopeType, o.ScopeId)))
+                continue; // scoped override outside the active subtree → does not apply
+            (o.Effect == "deny" ? userDeny : userAllow).Add(o.Code);
+        }
+
+        // effective = (roleAllowed − roleDenied ∪ userAllow) − userDeny
+        var effective = new HashSet<string>(roleAllowed, StringComparer.OrdinalIgnoreCase);
+        effective.ExceptWith(roleDenied);
+        effective.UnionWith(userAllow);
+        effective.ExceptWith(userDeny);
+
+        var permissions = new HashSet<string>(effective, StringComparer.OrdinalIgnoreCase);
+
+        // Every node the user holds an active membership at → the scope_nodes claim, so mutating
+        // handlers can enforce the §6 boundary per request via ICurrentUser.IsWithinScope.
+        var scopeNodes = string.Join(' ', memberships
+            .Select(m => NodeKey(m.ScopeType, m.ScopeId))
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+
         // PaaS entitlement (Phase 3, behind a flag): keep only permissions whose CANONICAL
         // owning module (permissions.module_key) the brand has licensed (or that is core).
         // module_key is a single owner per permission (set by permission_canonical_module.sql),
@@ -180,6 +199,7 @@ public static class ScopeResolver
             FranchiseId: franchiseId,
             StoreId:     storeId,
             Permissions: string.Join(' ', permissions),
-            PermVersion: user.PermVersion);
+            PermVersion: user.PermVersion,
+            ScopeNodes:  scopeNodes);
     }
 }

@@ -191,6 +191,9 @@ public sealed class CreateExpenseHandler : ICommandHandler<CreateExpenseCommand,
                 throw new KeyNotFoundException("Warehouse not found.");
         }
 
+        if (!_user.IsWithinScope(brandId: brandId, franchiseId: req.FranchiseId, storeId: req.StoreId, warehouseId: req.WarehouseId))
+            throw new ForbiddenException("This expense is outside your assigned scope.");
+
         // Verify category belongs to brand
         var catExists = await _db.ExpenseCategories
             .AnyAsync(c => c.Id == req.CategoryId && c.BrandId == brandId && c.Status == "active", ct);
@@ -293,6 +296,9 @@ public sealed class ApproveExpenseHandler : ICommandHandler<ApproveExpenseComman
             .FirstOrDefaultAsync(e => e.Id == cmd.Id && e.BrandId == brandId, ct);
         if (expense is null) return null;
 
+        if (!_user.IsWithinScope(brandId: expense.BrandId, franchiseId: expense.FranchiseId, storeId: expense.StoreId, warehouseId: expense.WarehouseId))
+            throw new ForbiddenException("This expense is outside your assigned scope.");
+
         if (expense.Status != "submitted")
             throw new BusinessRuleException($"Only submitted expenses can be approved. Current status: '{expense.Status}'.");
 
@@ -328,6 +334,9 @@ public sealed class RejectExpenseHandler : ICommandHandler<RejectExpenseCommand,
             .Include(e => e.Category)
             .FirstOrDefaultAsync(e => e.Id == cmd.Id && e.BrandId == brandId, ct);
         if (expense is null) return null;
+
+        if (!_user.IsWithinScope(brandId: expense.BrandId, franchiseId: expense.FranchiseId, storeId: expense.StoreId, warehouseId: expense.WarehouseId))
+            throw new ForbiddenException("This expense is outside your assigned scope.");
 
         if (expense.Status != "submitted")
             throw new BusinessRuleException($"Only submitted expenses can be rejected. Current status: '{expense.Status}'.");
@@ -373,6 +382,9 @@ public sealed class MarkExpensePaidHandler : ICommandHandler<MarkExpensePaidComm
             .FirstOrDefaultAsync(e => e.Id == cmd.Id && e.BrandId == brandId, ct);
         if (expense is null) return null;
 
+        if (!_user.IsWithinScope(brandId: expense.BrandId, franchiseId: expense.FranchiseId, storeId: expense.StoreId, warehouseId: expense.WarehouseId))
+            throw new ForbiddenException("This expense is outside your assigned scope.");
+
         if (expense.Status != "approved")
             throw new BusinessRuleException($"Only approved expenses can be marked as paid. Current status: '{expense.Status}'.");
 
@@ -407,6 +419,9 @@ public sealed class AddExpenseAttachmentHandler
         var expense = await _db.Expenses
             .FirstOrDefaultAsync(e => e.Id == cmd.ExpenseId && e.BrandId == brandId, ct);
         if (expense is null) return null;
+
+        if (!_user.IsWithinScope(brandId: expense.BrandId, franchiseId: expense.FranchiseId, storeId: expense.StoreId, warehouseId: expense.WarehouseId))
+            throw new ForbiddenException("This expense is outside your assigned scope.");
 
         var req = cmd.Request;
         var now = DateTimeOffset.UtcNow;

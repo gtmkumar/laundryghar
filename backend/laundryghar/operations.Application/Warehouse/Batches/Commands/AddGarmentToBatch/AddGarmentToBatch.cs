@@ -1,4 +1,5 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -33,6 +34,11 @@ public sealed class AddGarmentToBatchCommandHandler : ICommandHandler<AddGarment
         var garment = await _db.FulfillmentUnits
             .FirstOrDefaultAsync(g => g.Id == command.FulfillmentUnitId && g.BrandId == brandId, cancellationToken);
         if (garment is null) return false;
+
+        if (!_user.IsWithinScope(franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
+            throw new ForbiddenException("This garment is outside your assigned scope.");
+        if (!_user.IsWithinScope(warehouseId: batch.WarehouseId))
+            throw new ForbiddenException("This batch is outside your assigned scope.");
 
         garment.CurrentBatchId = command.BatchId;
         garment.UpdatedAt      = now;

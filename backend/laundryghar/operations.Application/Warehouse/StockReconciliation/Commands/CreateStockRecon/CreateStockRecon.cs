@@ -1,5 +1,6 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -26,6 +27,9 @@ public sealed class CreateStockReconCommandHandler : ICommandHandler<CreateStock
         var brandId = _user.RequireBrandId();
         var req     = command.Request;
         var now     = DateTimeOffset.UtcNow;
+
+        if (!_user.IsWithinScope(storeId: req.StoreId, warehouseId: req.WarehouseId))
+            throw new ForbiddenException("This stock reconciliation is outside your assigned scope.");
 
         var recon = new laundryghar.SharedDataModel.Entities.OrderLifecycle.StockReconciliation
         {

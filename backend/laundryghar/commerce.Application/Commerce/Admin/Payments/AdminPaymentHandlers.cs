@@ -82,6 +82,13 @@ public sealed class IssueRefundHandler : ICommandHandler<IssueRefundCommand, Pay
 
         if (payment is null)
             throw new BusinessRuleException("Payment not found.");
+
+        // §6 scope boundary (docs/rbac.md): brand-level RLS alone does not stop a franchise/store
+        // -scoped operator from refunding another franchise/store's payment within the same brand.
+        // Enforce ancestor-or-self against the payment's node; platform/brand-scoped actors pass.
+        if (!_user.IsWithinScope(brandId: payment.BrandId, franchiseId: payment.FranchiseId, storeId: payment.StoreId))
+            throw new ForbiddenException("This payment is outside your assigned scope.");
+
         if (payment.Status != "captured" && payment.Status != "completed")
             throw new BusinessRuleException($"Cannot refund a payment with status '{payment.Status}'.");
         if (req.Amount <= 0)

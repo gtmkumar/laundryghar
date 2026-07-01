@@ -27,6 +27,10 @@ public sealed class CreatePriceListHandler : ICommandHandler<CreatePriceListComm
     {
         var brandId = _user.RequireBrandId();
         var req = cmd.Request;
+
+        if (!_user.IsWithinScope(brandId: brandId, franchiseId: req.FranchiseId, storeId: req.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
+
         var now = DateTimeOffset.UtcNow;
 
         // Business version: start at 1
@@ -86,6 +90,9 @@ public sealed class UpdatePriceListHandler : ICommandHandler<UpdatePriceListComm
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return null;
 
+        if (!_user.IsWithinScope(brandId: e.BrandId, franchiseId: e.FranchiseId, storeId: e.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
+
         if (e.IsPublished)
             throw new BusinessRuleException("Published price lists cannot be modified. Create a new version.");
 
@@ -124,6 +131,9 @@ public sealed class PublishPriceListHandler : ICommandHandler<PublishPriceListCo
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return null;
 
+        if (!_user.IsWithinScope(brandId: e.BrandId, franchiseId: e.FranchiseId, storeId: e.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
+
         if (e.IsPublished)
             return CreatePriceListHandler.ToDto(e); // idempotent
 
@@ -158,6 +168,9 @@ public sealed class DeletePriceListHandler : ICommandHandler<DeletePriceListComm
         var e = await _db.PriceLists
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return false;
+
+        if (!_user.IsWithinScope(brandId: e.BrandId, franchiseId: e.FranchiseId, storeId: e.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
 
         // Soft-delete must also move status off the live ('draft'/'published') states so
         // status-keyed reports don't miscount it. price_lists CHECK is

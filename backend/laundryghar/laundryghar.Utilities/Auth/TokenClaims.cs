@@ -18,7 +18,10 @@ public sealed record TokenClaims(
     // Space-separated permission codes
     string Permissions,
     // Snapshot of the user's perm_version at issuance (for live revocation). Default 0.
-    int PermVersion = 0
+    int PermVersion = 0,
+    // Space-separated "type:id" scope nodes the user holds (platform → "platform").
+    // Enables the per-request §6 ancestor-or-self boundary check (ICurrentUser.IsWithinScope).
+    string? ScopeNodes = null
 )
 {
     /// <summary>Fixed token_use value for system users. Pinned for Catalog service contract.</summary>

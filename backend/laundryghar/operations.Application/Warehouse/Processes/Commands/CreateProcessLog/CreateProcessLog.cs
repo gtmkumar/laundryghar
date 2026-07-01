@@ -1,6 +1,7 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -34,6 +35,9 @@ public sealed class CreateProcessLogCommandHandler : ICommandHandler<CreateProce
         var garment = await _db.FulfillmentUnits
             .FirstOrDefaultAsync(g => g.Id == req.FulfillmentUnitId && g.BrandId == brandId, cancellationToken)
             ?? throw new KeyNotFoundException($"FulfillmentUnit {req.FulfillmentUnitId} not found.");
+
+        if (!_user.IsWithinScope(franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
+            throw new ForbiddenException("This fulfillment unit is outside your assigned scope.");
 
         // OccurredAt = partition key — let DB/EF set it from now(); do NOT manually manage partition.
         var log = new ProcessLog

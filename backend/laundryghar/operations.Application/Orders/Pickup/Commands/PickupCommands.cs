@@ -195,6 +195,9 @@ public sealed class AssignPickupHandler : ICommandHandler<AssignPickupCommand, D
             .FirstOrDefaultAsync(p => p.Id == cmd.PickupRequestId && p.BrandId == brandId, ct);
         if (pr is null) return null;
 
+        if (!_user.IsWithinScope(brandId: pr.BrandId, franchiseId: pr.FranchiseId, storeId: pr.StoreId))
+            throw new ForbiddenException("This pickup request is outside your assigned scope.");
+
         // Validate the assigned rider belongs to this brand (cross-brand IDOR guard).
         var riderInBrand = await _db.Riders
             .AnyAsync(r => r.Id == cmd.Request.RiderId && r.BrandId == brandId, ct);
@@ -626,6 +629,9 @@ public sealed class RejectPickupHandler : ICommandHandler<RejectPickupCommand, P
             .FirstOrDefaultAsync(p => p.Id == cmd.PickupRequestId && p.BrandId == brandId, ct);
 
         if (pr is null) return null;
+
+        if (!_user.IsWithinScope(brandId: pr.BrandId, franchiseId: pr.FranchiseId, storeId: pr.StoreId))
+            throw new ForbiddenException("This pickup request is outside your assigned scope.");
 
         // State guard — only pending requests are rejectable.
         if (!RejectableStatuses.Contains(pr.Status))

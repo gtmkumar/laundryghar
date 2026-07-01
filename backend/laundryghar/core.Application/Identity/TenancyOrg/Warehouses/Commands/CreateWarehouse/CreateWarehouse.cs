@@ -1,5 +1,7 @@
 using core.Application.Common.Interfaces;
 using core.Application.Identity.TenancyOrg.Dtos;
+using laundryghar.Utilities.Exceptions;
+using laundryghar.Utilities.Services;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.TenancyOrg;
 
@@ -10,12 +12,24 @@ public sealed record CreateWarehouseCommand(CreateWarehouseRequest Request, Guid
 public class CreateWarehouseCommandHandler : ICommandHandler<CreateWarehouseCommand, WarehouseDto>
 {
     private readonly ICoreDbContext _db;
+    private readonly ICurrentUser _user;
 
-    public CreateWarehouseCommandHandler(ICoreDbContext db) => _db = db;
+    public CreateWarehouseCommandHandler(ICoreDbContext db, ICurrentUser user)
+    {
+        _db = db;
+        _user = user;
+    }
 
     public async Task<WarehouseDto> HandleAsync(CreateWarehouseCommand command, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
+
+        // §6 scope boundary (docs/rbac.md): brand-level RLS does not stop a franchise-scoped
+        // operator from creating a warehouse under another franchise within the same brand.
+        // Enforce ancestor-or-self against the caller-supplied target; platform/brand actors pass.
+        if (!_user.IsWithinScope(brandId: command.Request.BrandId, franchiseId: command.Request.FranchiseId))
+            throw new ForbiddenException("This warehouse is outside your assigned scope.");
+
         var w = new Warehouse
         {
             Id = Guid.NewGuid(), BrandId = command.Request.BrandId, FranchiseId = command.Request.FranchiseId,

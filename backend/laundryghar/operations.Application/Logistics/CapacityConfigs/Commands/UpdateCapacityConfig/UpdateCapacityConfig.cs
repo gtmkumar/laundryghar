@@ -1,4 +1,5 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -27,6 +28,9 @@ public sealed class UpdateCapacityConfigHandler
         var config  = await _db.RiderCapacityConfigs
             .FirstOrDefaultAsync(c => c.Id == command.Id && c.BrandId == brandId, cancellationToken);
         if (config is null) return null;
+
+        if (!_user.IsWithinScope(brandId: config.BrandId, storeId: config.StoreId))
+            throw new ForbiddenException("This capacity config is outside your assigned scope.");
 
         var req = command.Request;
         var now = DateTimeOffset.UtcNow;

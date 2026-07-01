@@ -1,4 +1,5 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -30,6 +31,9 @@ public sealed class RemoveGarmentFromBatchCommandHandler : ICommandHandler<Remov
             .FirstOrDefaultAsync(g => g.Id == command.FulfillmentUnitId && g.BrandId == brandId
                                    && g.CurrentBatchId == command.BatchId, cancellationToken);
         if (garment is null) return false;
+
+        if (!_user.IsWithinScope(franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
+            throw new ForbiddenException("This garment is outside your assigned scope.");
 
         garment.CurrentBatchId = null;
         garment.UpdatedAt      = now;

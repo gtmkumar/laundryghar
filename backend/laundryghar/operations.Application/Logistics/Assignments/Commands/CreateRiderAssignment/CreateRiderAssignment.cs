@@ -42,6 +42,9 @@ public sealed class CreateRiderAssignmentHandler
         if (!storeExists)
             throw new BusinessRuleException("Store not found under the current brand.");
 
+        if (!_user.IsWithinScope(brandId: brandId, storeId: req.StoreId))
+            throw new ForbiddenException("This assignment is outside your assigned scope.");
+
         var assignment = new RiderAssignment
         {
             Id                  = Guid.NewGuid(),

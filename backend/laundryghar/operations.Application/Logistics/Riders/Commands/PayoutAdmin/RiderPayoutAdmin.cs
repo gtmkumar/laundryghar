@@ -3,6 +3,7 @@ using laundryghar.SharedDataModel.Entities.FinanceRoyalty;
 using laundryghar.SharedDataModel.Entities.Logistics;
 using laundryghar.SharedDataModel.Enums;
 using laundryghar.Utilities.Exceptions;
+using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
 
@@ -74,13 +75,20 @@ public sealed record ReviewPayoutRequestCommand(Guid RequestId, bool Approve, st
 public sealed class ReviewPayoutRequestHandler : ICommandHandler<ReviewPayoutRequestCommand, PayoutRequestAdminDto?>
 {
     private readonly IOperationsDbContext _db;
-    public ReviewPayoutRequestHandler(IOperationsDbContext db) => _db = db;
+    private readonly ICurrentUser _user;
+    public ReviewPayoutRequestHandler(IOperationsDbContext db, ICurrentUser user)
+    {
+        _db = db;
+        _user = user;
+    }
 
     public async Task<PayoutRequestAdminDto?> HandleAsync(ReviewPayoutRequestCommand command, CancellationToken cancellationToken)
     {
         var ct = cancellationToken;
         var req = await _db.RiderPayoutRequests.FirstOrDefaultAsync(p => p.Id == command.RequestId, ct);
         if (req is null) return null;
+        if (!_user.IsWithinScope(brandId: req.BrandId, franchiseId: req.FranchiseId, storeId: req.StoreId))
+            throw new ForbiddenException("This payout request is outside your assigned scope.");
         if (req.Status != RiderPayoutRequestStatus.Requested)
             throw new BusinessRuleException($"Only a 'requested' payout can be reviewed (current: {req.Status}).");
 
@@ -107,13 +115,20 @@ public sealed record MarkPayoutPaidCommand(Guid RequestId, string? Reference, Gu
 public sealed class MarkPayoutPaidHandler : ICommandHandler<MarkPayoutPaidCommand, PayoutRequestAdminDto?>
 {
     private readonly IOperationsDbContext _db;
-    public MarkPayoutPaidHandler(IOperationsDbContext db) => _db = db;
+    private readonly ICurrentUser _user;
+    public MarkPayoutPaidHandler(IOperationsDbContext db, ICurrentUser user)
+    {
+        _db = db;
+        _user = user;
+    }
 
     public async Task<PayoutRequestAdminDto?> HandleAsync(MarkPayoutPaidCommand command, CancellationToken cancellationToken)
     {
         var ct = cancellationToken;
         var req = await _db.RiderPayoutRequests.FirstOrDefaultAsync(p => p.Id == command.RequestId, ct);
         if (req is null) return null;
+        if (!_user.IsWithinScope(brandId: req.BrandId, franchiseId: req.FranchiseId, storeId: req.StoreId))
+            throw new ForbiddenException("This payout request is outside your assigned scope.");
         if (req.Status != RiderPayoutRequestStatus.Approved)
             throw new BusinessRuleException($"Only an 'approved' payout can be marked paid (current: {req.Status}).");
 

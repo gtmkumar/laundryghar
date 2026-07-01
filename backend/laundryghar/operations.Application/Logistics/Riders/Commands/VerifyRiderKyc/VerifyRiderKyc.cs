@@ -1,5 +1,6 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -27,6 +28,9 @@ public sealed class VerifyRiderKycHandler : ICommandHandler<VerifyRiderKycComman
         var rider   = await _db.Riders
             .FirstOrDefaultAsync(r => r.Id == command.Id && r.BrandId == brandId, ct);
         if (rider is null) return null;
+
+        if (!_user.IsWithinScope(brandId: rider.BrandId, franchiseId: rider.FranchiseId, storeId: rider.PrimaryStoreId))
+            throw new ForbiddenException("This rider is outside your assigned scope.");
 
         // Franchise scoping (defense-in-depth): franchise-scoped actors must not
         // verify riders that belong to a different franchise.

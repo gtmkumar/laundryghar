@@ -3,6 +3,7 @@ using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.Kernel;
 using laundryghar.SharedDataModel.Entities.OrderLifecycle;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -34,6 +35,9 @@ public sealed class CreateQualityCheckCommandHandler
         var garment = await _db.FulfillmentUnits
             .FirstOrDefaultAsync(g => g.Id == req.FulfillmentUnitId && g.BrandId == brandId, cancellationToken)
             ?? throw new KeyNotFoundException($"FulfillmentUnit {req.FulfillmentUnitId} not found.");
+
+        if (!_user.IsWithinScope(franchiseId: garment.FranchiseId, storeId: garment.StoreId, warehouseId: garment.WarehouseId))
+            throw new ForbiddenException("This garment is outside your assigned scope.");
 
         var qcRound = (short)(await _db.QualityChecks
             .CountAsync(q => q.FulfillmentUnitId == req.FulfillmentUnitId, cancellationToken) + 1);

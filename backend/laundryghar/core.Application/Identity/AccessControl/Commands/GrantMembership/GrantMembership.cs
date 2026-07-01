@@ -3,6 +3,7 @@ using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -45,6 +46,20 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
             effectiveScopeId = actor.BrandId
                 ?? throw new laundryghar.Utilities.Exceptions.ValidationException(
                     new Dictionary<string, string[]> { ["scopeId"] = ["Brand-scoped roles require a brand id."] });
+        }
+
+        // ── RBAC §6 sub-brand scope guard: the target scope node must lie within the actor's assigned scope ──
+        // Platform admins pass automatically; a brand/franchise/store/warehouse-scoped actor may only grant a
+        // membership at a node that is ancestor-or-self of one of their own membership nodes. This supersedes
+        // the brand-only H2b below: it closes the sub-brand escalation where an actor whose brand matches the
+        // target could otherwise grant at a DIFFERENT franchise/store/warehouse within the same brand.
+        if (!_actor.IsWithinScope(
+                brandId:     cmd.Request.ScopeType == ScopeType.Brand     ? effectiveScopeId : null,
+                franchiseId: cmd.Request.ScopeType == ScopeType.Franchise ? effectiveScopeId : null,
+                storeId:     cmd.Request.ScopeType == ScopeType.Store     ? effectiveScopeId : null,
+                warehouseId: cmd.Request.ScopeType == ScopeType.Warehouse ? effectiveScopeId : null))
+        {
+            throw new ForbiddenException("This membership is outside your assigned scope.");
         }
 
         // ── H2b: actor's scope must cover the target ScopeId ──

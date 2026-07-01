@@ -1,5 +1,6 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
@@ -31,6 +32,9 @@ public sealed class UpdateWarehouseBatchCommandHandler
         var batch = await _db.WarehouseBatches
             .FirstOrDefaultAsync(b => b.Id == command.Id && b.BrandId == brandId, cancellationToken);
         if (batch is null) return null;
+
+        if (!_user.IsWithinScope(warehouseId: batch.WarehouseId))
+            throw new ForbiddenException("This warehouse batch is outside your assigned scope.");
 
         var now = DateTimeOffset.UtcNow;
         var req = command.Request;

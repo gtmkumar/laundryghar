@@ -36,6 +36,8 @@ public sealed class CreatePriceListItemHandler : ICommandHandler<CreatePriceList
             .FirstOrDefaultAsync(x => x.Id == cmd.PriceListId && x.BrandId == brandId, ct);
         if (priceList is null || priceList.DeletedAt != null)
             throw new KeyNotFoundException("Price list not found.");
+        if (!_user.IsWithinScope(brandId: priceList.BrandId, franchiseId: priceList.FranchiseId, storeId: priceList.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
         if (priceList.IsPublished)
             throw new BusinessRuleException("Cannot add items to a published price list.");
 
@@ -103,6 +105,14 @@ public sealed class UpdatePriceListItemHandler : ICommandHandler<UpdatePriceList
         var e = await _db.PriceListItems
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.PriceListId == cmd.PriceListId && x.BrandId == brandId, ct);
         if (e is null) return null;
+
+        // PriceListItem carries only BrandId, so its effective scope is the parent price list
+        // (which may be franchise/store scoped). Load it to enforce the sub-brand scope guard.
+        var priceList = await _db.PriceLists
+            .FirstOrDefaultAsync(x => x.Id == cmd.PriceListId && x.BrandId == brandId, ct);
+        if (priceList is null || priceList.DeletedAt != null) return null;
+        if (!_user.IsWithinScope(brandId: priceList.BrandId, franchiseId: priceList.FranchiseId, storeId: priceList.StoreId))
+            throw new ForbiddenException("This price list is outside your assigned scope.");
 
         var before = Snapshot(e);
         var oldBase = e.BasePrice;

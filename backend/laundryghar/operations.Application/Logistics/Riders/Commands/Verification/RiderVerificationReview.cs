@@ -1,5 +1,7 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Enums;
+using laundryghar.Utilities.Exceptions;
+using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
 using operations.Application.Logistics.RiderSelf.Commands.UploadRiderDocument;
@@ -91,13 +93,18 @@ public sealed record ReviewRiderVehicleCommand(Guid RiderId, bool Approve, strin
 public sealed class ReviewRiderVehicleHandler : ICommandHandler<ReviewRiderVehicleCommand, RiderVerificationView?>
 {
     private readonly IOperationsDbContext _db;
-    public ReviewRiderVehicleHandler(IOperationsDbContext db) => _db = db;
+    private readonly ICurrentUser _user;
+    public ReviewRiderVehicleHandler(IOperationsDbContext db, ICurrentUser user)
+    { _db = db; _user = user; }
 
     public async Task<RiderVerificationView?> HandleAsync(ReviewRiderVehicleCommand command, CancellationToken cancellationToken)
     {
         var ct = cancellationToken;
         var rider = await _db.Riders.FirstOrDefaultAsync(r => r.Id == command.RiderId, ct);
         if (rider is null) return null;
+
+        if (!_user.IsWithinScope(brandId: rider.BrandId, franchiseId: rider.FranchiseId, storeId: rider.PrimaryStoreId))
+            throw new ForbiddenException("This rider is outside your assigned scope.");
 
         var now = DateTimeOffset.UtcNow;
         rider.VehicleVerificationStatus = command.Approve
