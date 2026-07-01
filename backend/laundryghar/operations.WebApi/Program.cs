@@ -16,6 +16,7 @@
 using System.Reflection;
 using laundryghar.SharedDataModel;
 using laundryghar.Utilities.Auth;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Middlewares.ExceptionsMiddleware;
 using laundryghar.Utilities.OpenApi;
@@ -36,6 +37,7 @@ builder.AddServiceDefaults();
 // One ICurrentTenant adapter (shared HttpContextCurrentTenant) backs the RLS interceptor;
 // without it DI scope validation fails at builder.Build().
 builder.Services.AddCurrentUser();
+builder.Services.AddAuditTrail(); // RBAC audit trail: interceptor + IAuditWriter
 builder.Services.AddCurrentTenant();
 
 // ── Shared data model: LaundryGharDbContext (+ RLS interceptor wiring) ─────────

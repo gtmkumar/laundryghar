@@ -28,6 +28,7 @@ using commerce.Infrastructure.Worker.Stubs;
 using laundryghar.SharedDataModel;
 using laundryghar.SharedDataModel.Contracts;
 using laundryghar.Utilities.Auth;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Middlewares.ExceptionsMiddleware;
 using laundryghar.Utilities.OpenApi;
@@ -52,6 +53,7 @@ builder.AddServiceDefaults();
 // marked worker scope (WorkerScope.CreateWorkerAsyncScope). One Scoped ICurrentTenant backs
 // the RLS interceptor; without it DI scope validation fails at builder.Build().
 builder.Services.AddCurrentUser();
+builder.Services.AddAuditTrail(); // RBAC audit trail: interceptor + IAuditWriter
 builder.Services.AddScoped<ICurrentTenant, CommerceHostCurrentTenant>();
 
 // ── Shared data model: LaundryGharDbContext (+ RLS interceptor wiring) ─────────

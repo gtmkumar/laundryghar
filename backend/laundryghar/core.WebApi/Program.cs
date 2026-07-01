@@ -23,6 +23,7 @@ using core.WebApi.Mcp.Infrastructure.Http;
 using core.WebApi.Mcp.Tools;
 using laundryghar.SharedDataModel;
 using laundryghar.Utilities.Auth;
+using laundryghar.Utilities.Auth.Audit;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Middlewares.ExceptionsMiddleware;
 using laundryghar.Utilities.OpenApi;
@@ -40,6 +41,7 @@ builder.AddServiceDefaults();
 
 // ── Current user (ICurrentUser from request principal) ─────────────────────────
 builder.Services.AddCurrentUser();
+builder.Services.AddAuditTrail(); // RBAC audit trail: interceptor + IAuditWriter
 
 // ── Current tenant (ICurrentTenant from JWT claims — backs the shared RLS interceptor) ─
 // Cross-cutting registration (laundryghar.Utilities.Services.HttpContextCurrentTenant),
