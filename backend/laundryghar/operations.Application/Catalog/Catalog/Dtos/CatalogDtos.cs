@@ -278,20 +278,93 @@ public sealed record SaveItemPricingRequest(
     IReadOnlyList<Guid> FabricTypeIds
 );
 
-// ── CSV import (round-trips the Items Export format) ───────────────────────────
-// Services are matched by name; category by item-group name or code. Existing
-// codes are updated, new codes created. Prices upsert into the working list.
-public sealed record ImportItemServicePrice(string ServiceName, decimal? BasePrice);
+// ── CSV / XLSX import (round-trips the Items Export format) ─────────────────────
+// Services are matched by name; category by item-group name or code; fabrics by
+// name. Existing codes are updated, new codes created. Prices upsert into the
+// working list — or the Options.TargetPriceListId draft list when supplied.
+
+/// <summary>A per-fabric price override for one service on one item (e.g. "Silk" under "Dry Clean").
+/// Resolves the fabric by name; upserts a price_list_items row keyed by that fabric.</summary>
+public sealed record ImportItemFabricPrice(string FabricName, decimal Price);
+
+public sealed record ImportItemServicePrice(
+    string ServiceName,
+    decimal? BasePrice,
+    // Optional fabric-variant prices for this service. Backward compatible: absent → base price only.
+    IReadOnlyList<ImportItemFabricPrice>? FabricPrices = null
+);
+
 public sealed record ImportItemRow(
     string Code,
     string Name,
     string? Category,
     string? Status,
     int? TatHours,
-    IReadOnlyList<ImportItemServicePrice> ServicePrices
+    IReadOnlyList<ImportItemServicePrice> ServicePrices,
+    // Optional row-level tax rate. Absent → price rows keep their current tax settings.
+    decimal? TaxRatePercent = null
 );
-public sealed record ImportItemsRequest(IReadOnlyList<ImportItemRow> Rows);
-public sealed record ImportItemsResult(int Created, int Updated, int PricesSet, IReadOnlyList<string> Errors);
+
+/// <summary>Extra knobs the import wizard passes on commit.</summary>
+public sealed record ImportOptions(
+    // Create missing item-groups (categories) instead of leaving unmatched rows ungrouped.
+    bool? AutoCreateCategories = null,
+    // Write prices into this (unpublished) list instead of the brand working list.
+    Guid? TargetPriceListId = null,
+    // Storage key of the original uploaded file (from the parse step), for the audit log.
+    string? FileRef = null
+);
+
+public sealed record ImportItemsRequest(
+    IReadOnlyList<ImportItemRow> Rows,
+    ImportOptions? Options = null
+);
+
+public sealed record ImportItemsResult(
+    int Created,
+    int Updated,
+    int PricesSet,
+    IReadOnlyList<string> Errors,
+    int CategoriesCreated = 0
+);
+
+// ── Server-side parse (POST /items/import/parse) — dry-run + diff report ────────
+
+/// <summary>A parse/validation problem tied to a source line (and sheet, for xlsx workbooks).</summary>
+public sealed record ImportRowError(int Line, string Message, string? Sheet = null);
+
+/// <summary>One projected price change: current working-list price vs the value the import would set.</summary>
+public sealed record ImportPriceChange(
+    string Code,
+    string ItemName,
+    string ServiceName,
+    string? FabricName,
+    decimal? OldPrice,
+    decimal NewPrice
+);
+
+/// <summary>Diff summary the wizard shows before the user confirms the import.</summary>
+public sealed record ImportReport(
+    int TotalRows,
+    int ToCreate,
+    int ToUpdate,
+    IReadOnlyList<ImportPriceChange> PriceChanges,
+    bool PriceChangesTruncated,
+    IReadOnlyList<string> UnknownServices,
+    IReadOnlyList<string> UnknownCategories,
+    IReadOnlyList<ImportRowError> RowErrors
+);
+
+/// <summary>Response of the parse endpoint: normalized rows + the diff report + the stored file key.</summary>
+public sealed record ParseImportResult(
+    string? FileRef,
+    string Layout,
+    IReadOnlyList<ImportItemRow> Rows,
+    ImportReport Report
+);
+
+/// <summary>A generated import template (CSV or XLSX bytes) for download.</summary>
+public sealed record ImportTemplateFile(byte[] Content, string ContentType, string FileName);
 
 // ── ItemVariant ───────────────────────────────────────────────────────────────
 

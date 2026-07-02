@@ -1,133 +1,231 @@
-import { useMemo, useRef, useState } from 'react'
-import { Upload, FileText, Download, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { useImportItems, useServicesInfinite } from '@/hooks/useCatalog'
+import { useRef, useState } from 'react'
+import {
+  Upload, FileText, FileSpreadsheet, Download, CheckCircle2, AlertTriangle,
+  ArrowLeft, Loader2, FileUp,
+} from 'lucide-react'
+import { useImportItems, useParseImportFile, usePriceLists } from '@/hooks/useCatalog'
+import { downloadImportTemplate } from '@/api/catalog'
 import { FormDrawer, DrawerSection } from '@/components/shared/FormDrawer'
 import { apiErrorMessage } from '@/lib/apiError'
-import type { ImportItemRowPayload, ImportItemsResult } from '@/types/api'
+import { showToast } from '@/stores/toastStore'
+import { cn } from '@/lib/utils'
+import type { ImportParseResult, ImportItemsResult, ImportPriceChange } from '@/types/api'
 
-const FIXED = new Set(['code', 'name', 'category', 'status', 'tat'])
+const MAX_BYTES = 10 * 1024 * 1024
+const ACCEPT = '.csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-/** Minimal RFC-4180-ish CSV parser: handles quoted fields, escaped quotes, CRLF. */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = []
-  let row: string[] = []
-  let cell = ''
-  let inQuotes = false
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { cell += '"'; i++ }
-        else inQuotes = false
-      } else cell += c
-    } else if (c === '"') inQuotes = true
-    else if (c === ',') { row.push(cell); cell = '' }
-    else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = '' }
-    else if (c === '\r') { /* skip */ }
-    else cell += c
+function hasAcceptedExtension(name: string) {
+  const lower = name.toLowerCase()
+  return lower.endsWith('.csv') || lower.endsWith('.xlsx')
+}
+
+const money = (n: number | null | undefined) => (n == null ? '—' : `₹${n}`)
+
+// ── Small presentational pieces ────────────────────────────────────────────────
+
+function SummaryTile({ label, value, tone = 'default' }: {
+  label: string
+  value: number
+  tone?: 'default' | 'create' | 'update' | 'price'
+}) {
+  const valueCls =
+    tone === 'create' ? 'text-emerald-600'
+    : tone === 'update' ? 'text-lg-green'
+    : tone === 'price' ? 'text-amber-600'
+    : 'text-gray-900'
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50/50 px-3 py-2.5">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">{label}</p>
+      <p className={cn('mt-0.5 text-xl font-semibold tabular-nums', valueCls)}>{value}</p>
+    </div>
+  )
+}
+
+function LayoutBadge({ layout }: { layout: ImportParseResult['layout'] }) {
+  const legacy = layout === 'legacy_workbook'
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+        legacy ? 'bg-amber-100 text-amber-700' : 'bg-lg-green/10 text-lg-green',
+      )}
+    >
+      {legacy ? <FileSpreadsheet className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+      {legacy ? 'Legacy rate-sheet workbook detected' : 'Standard template'}
+    </span>
+  )
+}
+
+function PriceChangeTable({ changes, truncated }: { changes: ImportPriceChange[]; truncated?: boolean }) {
+  if (changes.length === 0) {
+    return <p className="text-sm text-gray-500">No price changes — existing prices are unchanged.</p>
   }
-  if (cell.length > 0 || row.length > 0) { row.push(cell); rows.push(row) }
-  return rows.filter((r) => r.some((c) => c.trim() !== ''))
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-100">
+      <div className="max-h-64 overflow-y-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-gray-50 text-left text-xs font-medium text-gray-500">
+            <tr>
+              <th className="px-3 py-2">Item</th>
+              <th className="px-3 py-2">Service</th>
+              <th className="px-3 py-2">Fabric</th>
+              <th className="px-3 py-2 text-right">Old → New</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {changes.map((c, i) => (
+              <tr key={`${c.code}-${c.serviceName}-${c.fabricName ?? ''}-${i}`}>
+                <td className="px-3 py-2">
+                  <span className="font-medium text-gray-800">{c.itemName}</span>
+                  <span className="ml-1 font-mono text-xs text-gray-400">{c.code}</span>
+                </td>
+                <td className="px-3 py-2 text-gray-600">{c.serviceName}</td>
+                <td className="px-3 py-2 text-gray-600">{c.fabricName || <span className="text-gray-300">—</span>}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  <span className="text-gray-400">{money(c.oldPrice)}</span>
+                  <span className="mx-1.5 text-gray-300">→</span>
+                  <span className="font-medium text-gray-800">{money(c.newPrice)}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {truncated && (
+        <p className="border-t border-gray-100 bg-gray-50/50 px-3 py-2 text-xs text-gray-500">
+          Showing the first {changes.length} price changes — more will be applied on import.
+        </p>
+      )}
+    </div>
+  )
 }
 
-interface Parsed {
-  rows: ImportItemRowPayload[]
-  serviceNames: string[]
-  warnings: string[]
-}
-
-function toPayload(grid: string[][]): Parsed {
-  if (grid.length < 2) return { rows: [], serviceNames: [], warnings: ['CSV has no data rows.'] }
-  const header = grid[0].map((h) => h.trim())
-  const idx = (name: string) => header.findIndex((h) => h.toLowerCase() === name)
-  const iCode = idx('code'), iName = idx('name'), iCat = idx('category'), iStatus = idx('status'), iTat = idx('tat')
-  const serviceCols = header
-    .map((h, i) => ({ name: h, i }))
-    .filter((c) => c.name && !FIXED.has(c.name.toLowerCase()))
-  const warnings: string[] = []
-  if (iCode < 0 || iName < 0) warnings.push('Missing required "Code" or "Name" column.')
-
-  const rows: ImportItemRowPayload[] = []
-  for (let r = 1; r < grid.length; r++) {
-    const cells = grid[r]
-    const code = iCode >= 0 ? (cells[iCode] ?? '').trim() : ''
-    const name = iName >= 0 ? (cells[iName] ?? '').trim() : ''
-    if (!code && !name) continue
-    const tatRaw = iTat >= 0 ? (cells[iTat] ?? '').trim() : ''
-    rows.push({
-      code,
-      name,
-      category: iCat >= 0 ? (cells[iCat] ?? '').trim() || null : null,
-      status: iStatus >= 0 ? (cells[iStatus] ?? '').trim() || null : null,
-      tatHours: tatRaw && Number.isFinite(Number(tatRaw)) ? Number(tatRaw) : null,
-      servicePrices: serviceCols.map((c) => {
-        const v = (cells[c.i] ?? '').trim()
-        return { serviceName: c.name, basePrice: v && Number.isFinite(Number(v)) ? Number(v) : null }
-      }),
-    })
-  }
-  return { rows, serviceNames: serviceCols.map((c) => c.name), warnings }
-}
+// ── Wizard ──────────────────────────────────────────────────────────────────────
 
 export function ImportCsvDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const parseFile = useParseImportFile()
   const importItems = useImportItems()
-  const { data: serviceData } = useServicesInfinite()
-  const services = useMemo(
-    () => (serviceData?.pages.flatMap((p) => p.list) ?? []).filter((s) => s.status === 'active'),
-    [serviceData],
-  )
-  const fileRef = useRef<HTMLInputElement>(null)
+  const { data: priceListData } = usePriceLists()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [fileName, setFileName] = useState('')
-  const [parsed, setParsed] = useState<Parsed | null>(null)
+  const [uploadPct, setUploadPct] = useState<number | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const [parsed, setParsed] = useState<ImportParseResult | null>(null)
   const [result, setResult] = useState<ImportItemsResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const [autoCreateCategories, setAutoCreateCategories] = useState(true)
+  const [targetPriceListId, setTargetPriceListId] = useState('')
+
+  // Reset all wizard state whenever the drawer (re)opens.
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (open) { setFileName(''); setParsed(null); setResult(null); setError(null) }
+    if (open) {
+      setFileName(''); setUploadPct(null); setDragging(false)
+      setParsed(null); setResult(null); setError(null)
+      setAutoCreateCategories(true); setTargetPriceListId('')
+    }
   }
   if (!open) return null
 
-  const pickFile = async (file: File | null) => {
+  // Only draft (unpublished) lists are safe import targets; a published list is read-only.
+  const draftLists = (priceListData?.list ?? []).filter((pl) => !pl.isPublished)
+  const step: 'upload' | 'preview' | 'result' = result ? 'result' : parsed ? 'preview' : 'upload'
+
+  const handleFile = async (file: File | null) => {
     if (!file) return
     setError(null); setResult(null)
-    if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv') {
-      return setError('Please choose a .csv file.')
+    if (!hasAcceptedExtension(file.name)) {
+      return setError('Please choose a .csv or .xlsx file.')
     }
+    if (file.size > MAX_BYTES) {
+      return setError('That file is larger than 10 MB. Please split it into smaller files.')
+    }
+    setFileName(file.name)
+    setUploadPct(0)
     try {
-      const text = await file.text()
-      const p = toPayload(parseCsv(text))
-      setFileName(file.name)
-      setParsed(p)
-    } catch {
-      setError('Could not read the file.')
+      const res = await parseFile.mutateAsync({ file, onProgress: setUploadPct })
+      setParsed(res)
+      // Default the auto-create toggle on only when there are missing categories to create.
+      setAutoCreateCategories(res.report.unknownCategories.length > 0)
+    } catch (e) {
+      setFileName('')
+      setError(apiErrorMessage(e, 'Could not read that file.'))
+    } finally {
+      setUploadPct(null)
     }
   }
 
-  const downloadTemplate = () => {
-    const header = ['Code', 'Name', 'Category', 'Status', 'TAT', ...services.map((s) => s.name)]
-    const example = ['SHIRT', 'Shirt', '', 'active', '24', ...services.map(() => '')]
-    const csv = [header, example].map((r) => r.map((c) => `"${c}"`).join(',')).join('\n')
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    const a = document.createElement('a')
-    a.href = url; a.download = 'items-template.csv'; a.click()
-    URL.revokeObjectURL(url)
+  const downloadTemplate = async (format: 'csv' | 'xlsx') => {
+    try {
+      const blob = await downloadImportTemplate(format)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `items-template.${format}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      showToast('error', apiErrorMessage(e, 'Could not download the template.'))
+    }
+  }
+
+  const backToUpload = () => {
+    setParsed(null); setFileName(''); setError(null)
   }
 
   const runImport = async () => {
     if (!parsed || parsed.rows.length === 0) return
     setError(null)
     try {
-      const res = await importItems.mutateAsync({ rows: parsed.rows })
+      const res = await importItems.mutateAsync({
+        rows: parsed.rows,
+        options: {
+          autoCreateCategories,
+          targetPriceListId: targetPriceListId || undefined,
+          fileRef: parsed.fileRef,
+        },
+      })
       setResult(res)
     } catch (e) {
       setError(apiErrorMessage(e, 'Import failed.'))
     }
   }
 
-  const canImport = !!parsed && parsed.rows.length > 0 && !parsed.warnings.length
+  const parsing = parseFile.isPending
+
+  // ── Footer per step ──
+  const footer =
+    step === 'result' ? (
+      <div className="flex justify-end">
+        <button type="button" onClick={onClose} className="rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)]">
+          Done
+        </button>
+      </div>
+    ) : step === 'preview' ? (
+      <div className="flex justify-between gap-2">
+        <button type="button" onClick={backToUpload} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back
+        </button>
+        <button
+          type="button"
+          onClick={() => void runImport()}
+          disabled={!parsed || parsed.rows.length === 0 || importItems.isPending}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-50"
+        >
+          {importItems.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          {importItems.isPending ? 'Importing…' : `Import ${parsed?.rows.length ?? 0} item${parsed?.rows.length === 1 ? '' : 's'}`}
+        </button>
+      </div>
+    ) : (
+      <div className="flex justify-end">
+        <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
+          Cancel
+        </button>
+      </div>
+    )
 
   return (
     <FormDrawer
@@ -135,78 +233,229 @@ export function ImportCsvDrawer({ open, onClose }: { open: boolean; onClose: () 
       onClose={onClose}
       icon={Upload}
       eyebrow="Catalogue · Items"
-      title="Import items from CSV"
-      width="md"
+      title="Import items"
+      width="lg"
       error={error}
-      footer={
-        <div className="flex justify-between gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
-            {result ? 'Done' : 'Cancel'}
-          </button>
-          {!result && (
-            <button
-              type="button"
-              onClick={() => void runImport()}
-              disabled={!canImport || importItems.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-50"
-            >
-              <Upload className="h-3.5 w-3.5" /> {importItems.isPending ? 'Importing…' : `Import ${parsed?.rows.length ?? 0} row${parsed?.rows.length === 1 ? '' : 's'}`}
-            </button>
-          )}
-        </div>
-      }
+      footer={footer}
     >
-      <DrawerSection title="File">
-        <div className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/50 p-3 text-xs text-gray-600">
-          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
-          <div>
-            Columns: <span className="font-mono">Code, Name, Category, Status, TAT</span>, then one column per service (the price). Services match by name; existing codes are updated. This is the same shape as <span className="font-medium">Export</span>.
-            <button type="button" onClick={downloadTemplate} className="ml-1 inline-flex items-center gap-1 font-medium text-lg-green hover:underline">
-              <Download className="h-3 w-3" /> Download template
-            </button>
-          </div>
-        </div>
+      {step === 'upload' && (
+        <UploadStep
+          fileInputRef={fileInputRef}
+          fileName={fileName}
+          parsing={parsing}
+          uploadPct={uploadPct}
+          dragging={dragging}
+          setDragging={setDragging}
+          onFile={handleFile}
+          onDownloadTemplate={downloadTemplate}
+        />
+      )}
 
-        <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => void pickFile(e.target.files?.[0] ?? null)} />
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 px-4 py-6 text-sm font-medium text-gray-600 hover:bg-gray-50"
-        >
-          <Upload className="h-4 w-4" /> {fileName || 'Choose a CSV file'}
-        </button>
+      {step === 'preview' && parsed && (
+        <PreviewStep
+          parsed={parsed}
+          autoCreateCategories={autoCreateCategories}
+          setAutoCreateCategories={setAutoCreateCategories}
+          targetPriceListId={targetPriceListId}
+          setTargetPriceListId={setTargetPriceListId}
+          draftLists={draftLists}
+        />
+      )}
+
+      {step === 'result' && result && <ResultStep result={result} />}
+    </FormDrawer>
+  )
+}
+
+// ── Step 1: Upload ────────────────────────────────────────────────────────────
+
+function UploadStep({
+  fileInputRef, fileName, parsing, uploadPct, dragging, setDragging, onFile, onDownloadTemplate,
+}: {
+  fileInputRef: React.RefObject<HTMLInputElement | null>
+  fileName: string
+  parsing: boolean
+  uploadPct: number | null
+  dragging: boolean
+  setDragging: (v: boolean) => void
+  onFile: (f: File | null) => void
+  onDownloadTemplate: (format: 'csv' | 'xlsx') => void
+}) {
+  return (
+    <>
+      <DrawerSection title="Start from a template">
+        <p className="text-sm text-gray-600">
+          Fill in one row per item with a price column per service. Existing item codes are updated;
+          new codes are created. Legacy rate-sheet workbooks are also accepted.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onDownloadTemplate('csv')} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
+            <Download className="h-4 w-4" /> CSV template
+          </button>
+          <button type="button" onClick={() => onDownloadTemplate('xlsx')} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
+            <Download className="h-4 w-4" /> Excel template
+          </button>
+        </div>
       </DrawerSection>
 
-      {parsed && !result && (
-        <DrawerSection title="Preview">
-          {parsed.warnings.length > 0 ? (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <div>{parsed.warnings.map((w) => <p key={w}>{w}</p>)}</div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-600">
-              <span className="font-medium text-gray-800">{parsed.rows.length}</span> item row{parsed.rows.length === 1 ? '' : 's'} ·{' '}
-              <span className="font-medium text-gray-800">{parsed.serviceNames.length}</span> service column{parsed.serviceNames.length === 1 ? '' : 's'} detected
-              {parsed.serviceNames.length > 0 && <span className="text-gray-400"> ({parsed.serviceNames.join(', ')})</span>}
-            </p>
+      <DrawerSection title="Upload your file">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPT}
+          className="hidden"
+          onChange={(e) => { onFile(e.target.files?.[0] ?? null); e.target.value = '' }}
+        />
+        <button
+          type="button"
+          disabled={parsing}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragging(false)
+            onFile(e.dataTransfer.files?.[0] ?? null)
+          }}
+          className={cn(
+            'flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-8 text-sm font-medium transition-colors',
+            dragging ? 'border-lg-green bg-lg-green/5 text-lg-green' : 'border-gray-300 text-gray-600 hover:bg-gray-50',
+            parsing && 'cursor-not-allowed opacity-70',
           )}
+        >
+          {parsing ? (
+            <>
+              <Loader2 className="h-6 w-6 animate-spin text-lg-green" />
+              <span>{uploadPct != null && uploadPct < 100 ? `Uploading… ${uploadPct}%` : 'Analysing your file…'}</span>
+            </>
+          ) : (
+            <>
+              <FileUp className="h-6 w-6 text-gray-400" />
+              <span>{fileName || 'Drag a .csv or .xlsx here, or click to browse'}</span>
+              <span className="text-xs font-normal text-gray-400">Up to 10 MB</span>
+            </>
+          )}
+        </button>
+      </DrawerSection>
+    </>
+  )
+}
+
+// ── Step 2: Preview ───────────────────────────────────────────────────────────
+
+function PreviewStep({
+  parsed, autoCreateCategories, setAutoCreateCategories, targetPriceListId, setTargetPriceListId, draftLists,
+}: {
+  parsed: ImportParseResult
+  autoCreateCategories: boolean
+  setAutoCreateCategories: (v: boolean) => void
+  targetPriceListId: string
+  setTargetPriceListId: (v: string) => void
+  draftLists: { id: string; name: string }[]
+}) {
+  const { report } = parsed
+  return (
+    <>
+      <DrawerSection>
+        <LayoutBadge layout={parsed.layout} />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <SummaryTile label="Total rows" value={report.totalRows} />
+          <SummaryTile label="To create" value={report.toCreate} tone="create" />
+          <SummaryTile label="To update" value={report.toUpdate} tone="update" />
+          <SummaryTile label="Prices changing" value={report.priceChanges.length} tone="price" />
+        </div>
+      </DrawerSection>
+
+      {report.rowErrors.length > 0 && (
+        <DrawerSection title={`Rows with problems (${report.rowErrors.length})`}>
+          <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {report.rowErrors.map((e, i) => (
+              <p key={i}>
+                <span className="font-medium">
+                  {e.sheet ? `${e.sheet} · line ${e.line}` : `Line ${e.line}`}:
+                </span>{' '}
+                {e.message}
+              </p>
+            ))}
+          </div>
         </DrawerSection>
       )}
 
-      {result && (
-        <DrawerSection title="Result">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            <span><b>{result.created}</b> created · <b>{result.updated}</b> updated · <b>{result.pricesSet}</b> prices set</span>
-          </div>
-          {result.errors.length > 0 && (
-            <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {result.errors.map((er, i) => <p key={i}>{er}</p>)}
+      {report.unknownServices.length > 0 && (
+        <DrawerSection>
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <div>
+              <p className="font-medium">Unrecognised services will be skipped</p>
+              <p className="mt-0.5">{report.unknownServices.join(', ')}</p>
             </div>
-          )}
+          </div>
         </DrawerSection>
       )}
-    </FormDrawer>
+
+      {report.unknownCategories.length > 0 && (
+        <DrawerSection title="Missing categories">
+          <p className="text-xs text-gray-500">
+            These categories don't exist yet: <span className="font-medium text-gray-700">{report.unknownCategories.join(', ')}</span>
+          </p>
+          <label className="flex items-start gap-2 rounded-lg border border-gray-200 px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={autoCreateCategories}
+              onChange={(e) => setAutoCreateCategories(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-lg-green focus:ring-lg-green/30"
+            />
+            <span className="text-sm text-gray-700">
+              Auto-create missing categories
+              <span className="mt-0.5 block text-xs text-gray-500">
+                {autoCreateCategories
+                  ? `${report.unknownCategories.length} categor${report.unknownCategories.length === 1 ? 'y' : 'ies'} will be created.`
+                  : 'Items in these categories will be created without a category.'}
+              </span>
+            </span>
+          </label>
+        </DrawerSection>
+      )}
+
+      <DrawerSection title="Target price list">
+        <select
+          value={targetPriceListId}
+          onChange={(e) => setTargetPriceListId(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15"
+        >
+          <option value="">Working list (default)</option>
+          {draftLists.map((pl) => (
+            <option key={pl.id} value={pl.id}>{pl.name}</option>
+          ))}
+        </select>
+        <p className="text-xs text-gray-500">Published lists are read-only, so only draft lists can receive imported prices.</p>
+      </DrawerSection>
+
+      <DrawerSection title="Price changes">
+        <PriceChangeTable changes={report.priceChanges} truncated={report.priceChangesTruncated} />
+      </DrawerSection>
+    </>
+  )
+}
+
+// ── Step 3: Result ────────────────────────────────────────────────────────────
+
+function ResultStep({ result }: { result: ImportItemsResult }) {
+  return (
+    <DrawerSection title="Import complete">
+      <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <b>{result.created}</b> created · <b>{result.updated}</b> updated · <b>{result.pricesSet}</b> price{result.pricesSet === 1 ? '' : 's'} set
+          {result.categoriesCreated > 0 && <> · <b>{result.categoriesCreated}</b> categor{result.categoriesCreated === 1 ? 'y' : 'ies'} created</>}
+        </div>
+      </div>
+      {result.errors.length > 0 && (
+        <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="font-medium">{result.errors.length} row{result.errors.length === 1 ? '' : 's'} could not be imported:</p>
+          {result.errors.map((e, i) => <p key={i}>{e}</p>)}
+        </div>
+      )}
+    </DrawerSection>
   )
 }

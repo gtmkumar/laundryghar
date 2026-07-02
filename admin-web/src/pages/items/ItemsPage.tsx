@@ -565,7 +565,7 @@ export function ItemsPage() {
                 onClick={() => setImporting(true)}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
               >
-                <Upload className="h-4 w-4" /> Import CSV
+                <Upload className="h-4 w-4" /> Import
               </button>
               <button
                 type="button"

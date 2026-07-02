@@ -42,6 +42,7 @@ import {
   getItemStats,
   saveItemPricing,
   importItems,
+  parseImportFile,
   createItemGroup,
 } from '@/api/catalog'
 import type {
@@ -174,13 +175,29 @@ export function useImportItems() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: ImportItemsPayload) => importItems(payload),
-    onSuccess: () => {
+    onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['catalog', 'managedItems'] })
       qc.invalidateQueries({ queryKey: ['catalog', 'itemStats'] })
       qc.invalidateQueries({ queryKey: ['catalog', 'items'] })
       qc.invalidateQueries({ queryKey: ['catalog', 'pricingMatrix'] })
       qc.invalidateQueries({ queryKey: ['catalog', 'pricingHistory'] })
+      // Auto-created categories add new item groups (the Items page category rail).
+      if (result.categoriesCreated > 0) {
+        qc.invalidateQueries({ queryKey: ['catalog', 'itemGroups'] })
+      }
     },
+  })
+}
+
+/**
+ * Dry-run parse of an upload — no cache invalidation (it doesn't write). Exposed
+ * as a mutation for the wizard's loading/progress/error state. The variables
+ * carry the file and an optional upload-progress callback.
+ */
+export function useParseImportFile() {
+  return useMutation({
+    mutationFn: (v: { file: File; onProgress?: (pct: number) => void }) =>
+      parseImportFile(v.file, v.onProgress),
   })
 }
 
