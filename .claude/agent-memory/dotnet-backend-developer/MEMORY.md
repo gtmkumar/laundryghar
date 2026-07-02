@@ -16,3 +16,5 @@
 - [Integration settings (Task #39)](project-integration-settings.md) — payment/whatsapp/sms schema, masking rule, IFieldCipher now a DI singleton, SettingsFirstPaymentGateway Scoped+TTL cache, Worker routing changes
 - [MCP service (Phase-1 spike)](project-mcp-service.md) — port 5009, SDK 1.4.0 attribute names, keyed HttpClient DI, CustomerOnly auth at MapMcp, no DB dependency
 - [OAuth 2.1 authorization-server facade](project-oauth-authz-server.md) — hand-rolled on Identity; atomic single-use code, port-agnostic loopback URIs, scope not in JWT, RFC 9728 WWW-Authenticate on MCP 401s
+- [RaaS partner billing (FULL-10)](project-raas-partner-billing.md) — paylink client/webhook duplicated per-BC (core cant be referenced by commerce); platform_gateway creds settings-first; system_settings has no RLS; dual idempotent reconcile
+- [Partner dispatch (FULL-11b)](project-partner-dispatch.md) — dual-visibility rls_partner_or_brand; assign handler server-verifies partner/brand via transaction-scoped SET LOCAL app.bypass_rls read (PR #16 fix); reusable HTTP bypass-read idiom

@@ -12,6 +12,7 @@ import type {
   RiderTrackPointDto,
   RiderStatsDto,
   RiderCodSummary,
+  CodOutstandingResponse,
   RiderCodDetail,
   RiderSettlement,
   SettleRiderPayload,
@@ -78,10 +79,11 @@ export async function getRiderStats(id: string, from?: string, to?: string): Pro
 
 /** Riders with uncleared COD cash (reconciliation list). */
 export async function getCodOutstanding(franchiseId?: string): Promise<RiderCodSummary[]> {
-  const { data } = await logisticsClient.get<ApiResponse<RiderCodSummary[]>>(`${RIDERS}/cod/outstanding`, {
+  // Backend returns the envelope { riders, totalCount, totalOutstanding }, not a bare array.
+  const { data } = await logisticsClient.get<ApiResponse<CodOutstandingResponse>>(`${RIDERS}/cod/outstanding`, {
     params: franchiseId ? { franchiseId } : undefined,
   })
-  return unwrap(data) ?? []
+  return unwrap(data)?.riders ?? []
 }
 
 /** One rider's outstanding collections. */

@@ -2675,15 +2675,25 @@ export interface RiderStatsDto {
 
 // ── Rider COD cash + settlement (Phase 3) ─────────────────────────────────────
 
-/** Per-rider uncleared COD cash (GET /admin/riders/cod/outstanding). */
+/** Per-rider uncleared COD cash (GET /admin/riders/cod/outstanding → `riders[]`). */
 export interface RiderCodSummary {
   riderId: string
-  riderCode: string
   riderName: string | null
-  franchiseName: string | null
+  /** Count of uncleared collections (backend: `unclearedCount`). */
+  unclearedCount: number
   outstandingAmount: number
-  outstandingCount: number
-  oldestCollectedAt: string | null
+  // Not (yet) provided by the backend outstanding-COD DTO. Optional so the list
+  // degrades gracefully (blank / '—') until these are added server-side.
+  riderCode?: string
+  franchiseName?: string | null
+  oldestCollectedAt?: string | null
+}
+
+/** Envelope for GET /admin/riders/cod/outstanding — per-rider breakdown + grand totals. */
+export interface CodOutstandingResponse {
+  riders: RiderCodSummary[]
+  totalCount: number
+  totalOutstanding: number
 }
 
 /** A single outstanding COD collection. */
