@@ -32,6 +32,7 @@ import type {
   ImportItemsPayload,
   ImportItemsResult,
   ImportParseResult,
+  ParseGoogleSheetPayload,
   CreateItemGroupPayload,
   CreatePriceListPayload,
   UpdatePriceListPayload,
@@ -186,6 +187,22 @@ export async function parseImportFile(
         if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
       },
     },
+  )
+  return unwrap(data)
+}
+
+/**
+ * Dry-run parse of a published Google Sheet (read via its CSV export). Returns
+ * the SAME ParseImportResult as the file endpoint (always layout 'flat'), with
+ * `sourceUrl` set to the sheet link. The sheet must be shared as "Anyone with
+ * the link can view" — otherwise the server returns a business error.
+ */
+export async function parseGoogleSheet(
+  payload: ParseGoogleSheetPayload,
+): Promise<ImportParseResult> {
+  const { data } = await catalogClient.post<ApiResponse<ImportParseResult>>(
+    `${ADMIN}/items/import/parse-google-sheet`,
+    payload,
   )
   return unwrap(data)
 }

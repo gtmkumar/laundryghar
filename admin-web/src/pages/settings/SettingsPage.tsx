@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Mail, UserCog, Loader2, Map as MapIcon, Coins, CreditCard, MessageCircle, Smartphone, Gauge, Radio, Banknote } from 'lucide-react'
+import { Mail, UserCog, Loader2, Map as MapIcon, Coins, CreditCard, MessageCircle, Smartphone, Gauge, Radio, Banknote, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettings } from '@/hooks/useSettings'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -13,8 +13,9 @@ import { WhatsAppPanel } from './WhatsAppPanel'
 import { SmsPanel } from './SmsPanel'
 import { FarePanel } from './FarePanel'
 import { DispatchPanel } from './DispatchPanel'
+import { BusinessRulesPanel } from './BusinessRulesPanel'
 
-type Key = 'email' | 'maps' | 'payout' | 'provisioning' | 'payments' | 'platform-payments' | 'whatsapp' | 'sms' | 'fare' | 'dispatch'
+type Key = 'email' | 'maps' | 'payout' | 'provisioning' | 'payments' | 'platform-payments' | 'whatsapp' | 'sms' | 'fare' | 'dispatch' | 'business-rules'
 
 type NavItem = { key: Key; label: string; icon: React.ElementType; platformOnly?: boolean }
 
@@ -35,6 +36,10 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { key: 'fare', label: 'Fare & pricing', icon: Gauge },
       { key: 'dispatch', label: 'Dispatch', icon: Radio },
     ],
+  },
+  {
+    section: 'Business rules',
+    items: [{ key: 'business-rules', label: 'Business rules', icon: SlidersHorizontal }],
   },
   { section: 'Operations', items: [{ key: 'payout', label: 'Rider payouts', icon: Coins }] },
   {
@@ -105,6 +110,8 @@ export function SettingsPage() {
             <FarePanel />
           ) : active === 'dispatch' ? (
             <DispatchPanel />
+          ) : active === 'business-rules' ? (
+            <BusinessRulesPanel />
           ) : active === 'platform-payments' ? (
             <PlatformPaymentsPanel />
           ) : settings.isLoading ? (

@@ -355,16 +355,22 @@ public sealed record ImportReport(
     IReadOnlyList<ImportRowError> RowErrors
 );
 
-/// <summary>Response of the parse endpoint: normalized rows + the diff report + the stored file key.</summary>
+/// <summary>Response of the parse endpoint: normalized rows + the diff report + the stored file key.
+/// <paramref name="SourceUrl"/> is set only for the Google Sheet flow (the sheet the CSV was fetched from).</summary>
 public sealed record ParseImportResult(
     string? FileRef,
     string Layout,
     IReadOnlyList<ImportItemRow> Rows,
-    ImportReport Report
+    ImportReport Report,
+    string? SourceUrl = null
 );
 
 /// <summary>A generated import template (CSV or XLSX bytes) for download.</summary>
 public sealed record ImportTemplateFile(byte[] Content, string ContentType, string FileName);
+
+/// <summary>Request for the Google Sheet parse endpoint. <paramref name="Gid"/> (the sheet-tab id) is
+/// optional and overrides any gid embedded in <paramref name="Url"/>.</summary>
+public sealed record ParseGoogleSheetRequest(string Url, string? Gid = null);
 
 // ── ItemVariant ───────────────────────────────────────────────────────────────
 

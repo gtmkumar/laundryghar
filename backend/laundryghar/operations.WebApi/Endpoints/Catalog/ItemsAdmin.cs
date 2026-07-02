@@ -32,6 +32,8 @@ public class ItemsAdmin : IEndpointGroup
             .RequireAuthorization("permission:catalog.item.create")
             .DisableAntiforgery()
             .WithMetadata(new RequestSizeLimitAttribute(10 * 1024 * 1024)); // 10 MB upload cap
+        group.MapPost(ImportParseGoogleSheet, "/import/parse-google-sheet")
+            .RequireAuthorization("permission:catalog.item.create");
         group.MapPost(Import, "/import").RequireAuthorization("permission:catalog.item.create");
         group.MapPost(Create, "/")
             .AddEndpointFilter<ValidationFilter<CreateItemRequest>>()
@@ -85,6 +87,14 @@ public class ItemsAdmin : IEndpointGroup
     public static async Task<IResult> ImportParse(IFormFile file, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
     {
         var r = await dispatcher.SendAsync(new ParseImportCommand(file, u.UserId), ct);
+        return Results.Ok(new SingleResponse<ParseImportResult> { Status = true, Data = r });
+    }
+
+    // Server-side dry-run from a shared Google Sheet: fetch as CSV, then the same parse+validate+diff
+    // path as the file upload. Returns the identical ParseImportResult contract (layout "flat").
+    public static async Task<IResult> ImportParseGoogleSheet(ParseGoogleSheetRequest req, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var r = await dispatcher.SendAsync(new ParseGoogleSheetImportCommand(req.Url, req.Gid, u.UserId), ct);
         return Results.Ok(new SingleResponse<ParseImportResult> { Status = true, Data = r });
     }
 

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using operations.Application.Common.Interfaces;
 using operations.Application.Logistics.Common;
+using operations.Application.Orders.Common;
 using operations.Application.Orders.Pickup.Dtos;
 
 namespace operations.Application.Orders.Pickup.Commands;
@@ -78,6 +79,20 @@ public sealed class CreatePickupRequestAdminHandler
         // Normalise idempotency key — trim whitespace; treat blank as null.
         var normKey = string.IsNullOrWhiteSpace(idempotencyKey) ? null : idempotencyKey.Trim();
 
+        // Estimated cart subtotal (client-supplied estimate, or derived from cart lines).
+        var estimatedAmount = req.EstimatedAmount ?? (cartItems.Length > 0
+            ? cartItems.Sum(i => (i.EstimatedUnitPrice ?? 0m) * i.Quantity)
+            : (decimal?)null);
+
+        // ── Minimum order value (hard block; unset ⇒ no restriction) ────────
+        // Mirrors the CreateOrder rule. Enforced against the customer's estimated cart
+        // subtotal when one is known; a request with no estimate (prices determined later
+        // at the store) is not blocked here. Franchise is unknown at request time, so this
+        // resolves at brand/store scope only.
+        if (estimatedAmount is > 0m)
+            await MinOrderValueRule.EnforceAsync(
+                db, brandId, franchiseId: null, storeId, estimatedAmount.Value, ct);
+
         var entity = new PickupRequest
         {
             Id = Guid.NewGuid(),
@@ -92,9 +107,7 @@ public sealed class CreatePickupRequestAdminHandler
             PickupWindowEnd = req.PickupWindowEnd,
             IsExpress = req.IsExpress,
             EstimatedItems = req.EstimatedItems ?? (cartItems.Length > 0 ? cartItems.Sum(i => i.Quantity) : null),
-            EstimatedAmount = req.EstimatedAmount ?? (cartItems.Length > 0
-                ? cartItems.Sum(i => (i.EstimatedUnitPrice ?? 0m) * i.Quantity)
-                : null),
+            EstimatedAmount = estimatedAmount,
             // JSON deserialization leaves the array null when the field is omitted
             // (the DTO type is non-nullable but STJ doesn't enforce it), and the
             // entity's primitive collection is required — default to empty.

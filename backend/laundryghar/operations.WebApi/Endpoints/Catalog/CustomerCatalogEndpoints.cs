@@ -33,6 +33,7 @@ public class CustomerCatalogEndpoints : IEndpointGroup
         group.MapGet(GetCategories, "/catalog/categories");
         group.MapGet(GetServices, "/catalog/services");
         group.MapGet(GetPriceList, "/catalog/price-list");
+        group.MapGet(GetCatalogConfig, "/catalog/config");
 
         // ── Profile ────────────────────────────────────────────────────────────
         group.MapGet(GetProfile, "/profile");
@@ -84,6 +85,18 @@ public class CustomerCatalogEndpoints : IEndpointGroup
     {
         var r = await dispatcher.QueryAsync(new GetPublishedPriceListQuery(), ct);
         return Results.Ok(new ListResponse<PriceListItemDto> { Status = true, Data = r.ToList() });
+    }
+
+    // GET /api/v1/customer/catalog/config?storeId=<guid?>
+    // Scope-resolved order/catalog rules the app needs before building a cart: minimum order
+    // value, currency, and the high-value garment threshold. Brand comes from the JWT; store is
+    // optional (its franchise is derived server-side). Null minimum/threshold ⇒ no restriction.
+    public static async Task<IResult> GetCatalogConfig(Guid? storeId, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var brandId = u.BrandId ?? Guid.Empty;
+        if (brandId == Guid.Empty) return Results.Unauthorized();
+        var r = await dispatcher.QueryAsync(new GetCustomerCatalogConfigQuery(brandId, storeId), ct);
+        return Results.Ok(new SingleResponse<CustomerCatalogConfigDto> { Status = true, Data = r });
     }
 
     // ── Profile ───────────────────────────────────────────────────────────────

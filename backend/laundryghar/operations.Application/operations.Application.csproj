@@ -26,6 +26,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Exposes internal helpers (e.g. the Google Sheet URL/SSRF validator) to the unit tests. -->
+        <InternalsVisibleTo Include="operations.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\operations.Domain\operations.Domain.csproj" />
         <!-- CQRS abstractions/dispatcher, ICurrentUser, Result, PaginatedList, response wrappers -->
         <ProjectReference Include="..\laundryghar.Utilities\laundryghar.Utilities.csproj" />

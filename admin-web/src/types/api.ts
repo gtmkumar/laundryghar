@@ -363,6 +363,80 @@ export interface ImportParseResult {
   layout: 'flat' | 'legacy_workbook'
   rows: ImportItemRowPayload[]
   report: ImportReport
+  /** Present when the rows were parsed from a Google Sheet — the source link. */
+  sourceUrl?: string | null
+}
+
+/** Body for the Google-Sheet parse endpoint (published-link CSV export). */
+export interface ParseGoogleSheetPayload {
+  url: string
+  /** Optional worksheet/tab id (the `gid` in the sheet URL). Defaults to the first tab. */
+  gid?: string
+}
+
+// ── Business rules settings (scoped, clamped key/value config) ─────────────────
+
+export type SettingScopeType = 'platform' | 'brand' | 'franchise' | 'store'
+export type SettingDataType = 'decimal' | 'int' | 'bool' | 'string'
+
+/** A stored setting row at one specific scope (raw override, before resolution). */
+export interface SettingRow {
+  id: string
+  category: string
+  key: string
+  scopeType: SettingScopeType
+  franchiseId: string | null
+  storeId: string | null
+  /** Decoded display value (already stringified for the input). */
+  value: string
+  dataType: SettingDataType
+  /** JSON clamp band (e.g. {"min":10,"max":20}) set at brand scope, else null. */
+  validationSchema: string | null
+  version: number
+  updatedAt: string
+}
+
+/** The resolved value for a key after walking store → franchise → brand → platform. */
+export interface EffectiveSetting {
+  key: string
+  value: string
+  dataType: SettingDataType
+  sourceScope: SettingScopeType
+}
+
+export interface SettingsListDto {
+  rows: SettingRow[]
+  effective: EffectiveSetting[]
+}
+
+/** Query params for the business-settings list (scope filters are optional). */
+export interface BusinessSettingsQuery {
+  category: string
+  franchiseId?: string
+  storeId?: string
+}
+
+/** Body for a business-settings upsert. `value: null` clears the row at this scope. */
+export interface UpsertSettingPayload {
+  category: string
+  key: string
+  /** Only brand/franchise/store are writable — platform defaults are code-owned. */
+  scopeType: 'brand' | 'franchise' | 'store'
+  franchiseId?: string
+  storeId?: string
+  value: string | null
+  dataType: SettingDataType
+  /** Clamp band JSON — accepted at BRAND scope only; a 403 otherwise. */
+  validationSchema?: string
+}
+
+/** Params identifying the scoped row to clear via DELETE. */
+export interface ClearSettingQuery {
+  category: string
+  key: string
+  scopeType: 'brand' | 'franchise' | 'store'
+  franchiseId?: string
+  storeId?: string
 }
 
 // ── Pricing ─────────────────────────────────────────────────────────────────

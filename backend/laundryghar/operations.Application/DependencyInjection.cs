@@ -22,6 +22,10 @@ public static class DependencyInjection
         services.AddCustomCQRS(assembly);
         services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
 
+        // Shared parse/validate/diff engine behind both import dry-run flows (file upload + Google Sheet).
+        // Not a CQRS handler, so it is registered explicitly. Scoped: it depends on the scoped DbContext.
+        services.AddScoped<operations.Application.Catalog.Catalog.Import.ImportParseService>();
+
         // Multi-vertical fulfilment seam (Phase 1). The order state machine now lives in
         // these strategies (keyed by FulfillmentMode); all OrderStateMachine call sites are
         // routed through IFulfillmentStrategyResolver. Add one IFulfillmentStrategy per mode

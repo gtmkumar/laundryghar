@@ -180,6 +180,19 @@ public sealed record WithdrawConsentRequest(
 /// <summary>Returns whether the given pincode is covered by any active store or territory in the brand.</summary>
 public sealed record ServiceabilityDto(bool Serviceable);
 
+// ── Customer catalog config ─────────────────────────────────────────────────────
+
+/// <summary>
+/// Scope-resolved catalog/order rules the customer app needs before building a cart.
+/// <paramref name="MinOrderValue"/> and <paramref name="HighValueGarmentThreshold"/> are
+/// null when unset at every scope (unset ⇒ no restriction). <paramref name="CurrencyCode"/>
+/// falls back to the Orders default when no setting row exists.
+/// </summary>
+public sealed record CustomerCatalogConfigDto(
+    decimal? MinOrderValue,
+    string CurrencyCode,
+    decimal? HighValueGarmentThreshold);
+
 // ── Account Deletion ──────────────────────────────────────────────────────────
 
 public sealed record AccountDeletionRequestDto(

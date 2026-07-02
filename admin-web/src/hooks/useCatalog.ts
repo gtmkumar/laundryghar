@@ -43,6 +43,7 @@ import {
   saveItemPricing,
   importItems,
   parseImportFile,
+  parseGoogleSheet,
   createItemGroup,
 } from '@/api/catalog'
 import type {
@@ -61,6 +62,7 @@ import type {
   UpdateItemPayload,
   SaveItemPricingPayload,
   ImportItemsPayload,
+  ParseGoogleSheetPayload,
   CreateItemGroupPayload,
   CreatePriceListPayload,
   UpdatePriceListPayload,
@@ -198,6 +200,16 @@ export function useParseImportFile() {
   return useMutation({
     mutationFn: (v: { file: File; onProgress?: (pct: number) => void }) =>
       parseImportFile(v.file, v.onProgress),
+  })
+}
+
+/**
+ * Dry-run parse of a published Google Sheet — like {@link useParseImportFile} but
+ * sourced from a link, so there's no upload progress and (again) no invalidation.
+ */
+export function useParseGoogleSheet() {
+  return useMutation({
+    mutationFn: (payload: ParseGoogleSheetPayload) => parseGoogleSheet(payload),
   })
 }
 

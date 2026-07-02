@@ -29,6 +29,7 @@ public static class FileStorageKeyGenerator
         ["image/webp"]  = "webp",
         ["image/gif"]   = "gif",
         ["application/pdf"] = "pdf",
+        ["text/csv"]    = "csv",
     };
 
     /// <summary>
