@@ -16,8 +16,9 @@ import { FabricMultipliersTab } from './FabricMultipliersTab'
 import { AddOnsTab } from './AddOnsTab'
 import { PriceMatrixTab } from './PriceMatrixTab'
 import { ChangeHistoryTab } from './ChangeHistoryTab'
+import { ValueSlabsTab } from './ValueSlabsTab'
 
-type Tab = 'priceMatrix' | 'fabricMultipliers' | 'addOns' | 'changeHistory' | 'priceLists'
+type Tab = 'priceMatrix' | 'fabricMultipliers' | 'addOns' | 'valueSlabs' | 'changeHistory' | 'priceLists'
 
 // ── Price Lists tab ─────────────────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ export function CatalogPage() {
     { id: 'priceMatrix', label: 'Price matrix' },
     { id: 'fabricMultipliers', label: 'Fabric multipliers' },
     { id: 'addOns', label: 'Surcharges & add-ons' },
+    { id: 'valueSlabs', label: 'Value slabs' },
     { id: 'changeHistory', label: 'Change history' },
     { id: 'priceLists', label: 'Price lists' },
   ]
@@ -135,6 +137,7 @@ export function CatalogPage() {
         {activeTab === 'priceMatrix' && <div className="p-5"><PriceMatrixTab /></div>}
         {activeTab === 'fabricMultipliers' && <div className="p-5"><FabricMultipliersTab /></div>}
         {activeTab === 'addOns' && <div className="p-5"><AddOnsTab /></div>}
+        {activeTab === 'valueSlabs' && <div className="p-5"><ValueSlabsTab /></div>}
         {activeTab === 'changeHistory' && <div className="p-5"><ChangeHistoryTab /></div>}
         {activeTab === 'priceLists' && <PriceListsTab />}
       </Card>

@@ -38,6 +38,9 @@ import type {
   UpdatePriceListPayload,
   CreatePriceListItemPayload,
   UpdatePriceListItemPayload,
+  ValueSlabDto,
+  CreateValueSlabPayload,
+  UpdateValueSlabPayload,
 } from '@/types/api'
 
 const ADMIN = '/api/v1/admin'
@@ -403,6 +406,61 @@ export async function updatePriceListItem(
     payload,
   )
   return unwrap(data)
+}
+
+/**
+ * Export a price list's rows as a downloadable file (CSV or Excel). Returns the
+ * raw blob plus the server-suggested filename parsed from Content-Disposition
+ * (falls back to a generated name when the header is absent).
+ */
+export async function exportPriceList(
+  id: string,
+  format: 'csv' | 'xlsx',
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await catalogClient.get<Blob>(`${ADMIN}/price-lists/${id}/export`, {
+    params: { format },
+    responseType: 'blob',
+  })
+  const disposition = res.headers?.['content-disposition'] as string | undefined
+  const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i)
+  const filename = match ? decodeURIComponent(match[1]) : `price-list-${id}.${format === 'xlsx' ? 'xlsx' : 'csv'}`
+  return { blob: res.data, filename }
+}
+
+// ── Value slabs (declared-garment-value pricing) ──────────────────────────────
+
+export async function getValueSlabs(
+  params: { serviceId?: string; includeArchived?: boolean } = {},
+): Promise<ValueSlabDto[]> {
+  const { data } = await catalogClient.get<ApiResponse<ValueSlabDto[]>>(
+    `${ADMIN}/pricing/value-slabs`,
+    { params },
+  )
+  return unwrap(data)
+}
+
+export async function createValueSlab(payload: CreateValueSlabPayload): Promise<ValueSlabDto> {
+  const { data } = await catalogClient.post<ApiResponse<ValueSlabDto>>(
+    `${ADMIN}/pricing/value-slabs`,
+    payload,
+  )
+  return unwrap(data)
+}
+
+export async function updateValueSlab(
+  id: string,
+  payload: UpdateValueSlabPayload,
+): Promise<ValueSlabDto> {
+  const { data } = await catalogClient.put<ApiResponse<ValueSlabDto>>(
+    `${ADMIN}/pricing/value-slabs/${id}`,
+    payload,
+  )
+  return unwrap(data)
+}
+
+/** DELETE archives the slab (soft delete) rather than removing the row. */
+export async function deleteValueSlab(id: string): Promise<void> {
+  await catalogClient.delete(`${ADMIN}/pricing/value-slabs/${id}`)
 }
 
 // ── Admin Customers ───────────────────────────────────────────────────────────

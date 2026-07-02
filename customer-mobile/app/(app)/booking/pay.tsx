@@ -38,7 +38,9 @@ import { useCatalogConfig } from '@/hooks/useCatalog';
 import { useSchedulePickup, useValidateCoupon } from '@/hooks/useOrders';
 import { localDateIso, rupees } from '@/lib/format';
 import { evaluateMinOrder, formatCurrency, parseMinOrderError } from '@/lib/minOrder';
+import { parseValueSlabError } from '@/lib/valueSlab';
 import { MinOrderSheet } from '@/components/ui/MinOrderSheet';
+import { DeclaredValueSheet } from '@/components/ui/DeclaredValueSheet';
 import { hapticError, hapticImpact, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { EXPRESS_SURCHARGE, FEATURES } from '@/constants/config';
 
@@ -48,6 +50,16 @@ interface MinOrderPrompt {
   minimum: number;
   shortfall: number;
   currencyCode: string;
+}
+
+/** State backing the declared-value re-prompt after a value-slab 422 (GH #22). */
+interface DeclaredValuePrompt {
+  /** Cart-line key (CartLine.id) to update. */
+  lineId: string;
+  itemName: string;
+  initial?: number;
+  /** Friendly server reason naming the item. */
+  message: string;
 }
 
 /** Only the two methods that are live today. */
@@ -214,6 +226,7 @@ export default function PayScreen() {
   // Select raw state scalars — never fresh objects/arrays from selector (zustand v5 rule).
   const lines = useCartStore((s) => s.lines);
   const clearCart = useCartStore((s) => s.clear);
+  const setDeclaredValue = useCartStore((s) => s.setDeclaredValue);
   const { express, slot, address, paymentMethod, setPaymentMethod, setConfirmed } = useBookingStore();
   const { data: wallet, isError: walletError } = useWallet();
   // #23: brand min-order config. Laundry flow has no store selection ⇒ brand default.
@@ -222,6 +235,8 @@ export default function PayScreen() {
   const [loading, setLoading] = useState(false);
   // #23: blocking minimum-order sheet (client gate or server 422 backstop).
   const [minOrderPrompt, setMinOrderPrompt] = useState<MinOrderPrompt | null>(null);
+  // GH #22: declared-value re-prompt after a value-slab 422 rejection.
+  const [declaredValuePrompt, setDeclaredValuePrompt] = useState<DeclaredValuePrompt | null>(null);
   // R3-BE-2: coupon state
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [couponDiscount, setCouponDiscount] = useState(0);
@@ -235,7 +250,13 @@ export default function PayScreen() {
   // Derive values with useMemo — no fresh objects from selectors (zustand v5 rule).
   const lineList = useMemo(() => Object.values(lines), [lines]);
   const count = useMemo(() => lineList.reduce((n, l) => n + l.qty, 0), [lineList]);
-  const subtotal = useMemo(() => lineList.reduce((sum, l) => sum + l.qty * l.unitPrice, 0), [lineList]);
+  // GH #22: value-slab lines carry a placeholder unitPrice (priced from the declared
+  // value server-side), so they are excluded from the money subtotal / display total.
+  const subtotal = useMemo(
+    () => lineList.reduce((sum, l) => (l.pricingMode === 'value_slab' ? sum : sum + l.qty * l.unitPrice), 0),
+    [lineList],
+  );
+  const hasValueSlab = useMemo(() => lineList.some((l) => l.pricingMode === 'value_slab'), [lineList]);
 
   const expressFee = express ? EXPRESS_SURCHARGE : 0;
   // R3-BE-2: coupon discount only (no fake wallet 10% any more — wallet is a payment method)
@@ -243,8 +264,11 @@ export default function PayScreen() {
 
   // #23: gate on the ITEM subtotal (pre-express, pre-coupon) — matches the
   // backend's min-order comparison basis. null ⇒ no restriction configured.
+  // GH #22: suppressed when value-slab lines are present — their price is unknown
+  // client-side so the true order total can't be evaluated here; the server 422
+  // backstop still enforces the minimum.
   const minGate = useMemo(() => evaluateMinOrder(subtotal, catalogConfig), [subtotal, catalogConfig]);
-  const minBlocked = minGate?.blocked ?? false;
+  const minBlocked = (minGate?.blocked ?? false) && !hasValueSlab;
 
   const walletBalance = wallet?.balance ?? 0;
   const walletInsufficient = liveMethod === 'wallet' && walletBalance < total;
@@ -322,7 +346,7 @@ export default function PayScreen() {
     }
 
     // #23: block below-minimum orders before any network call.
-    if (minGate?.blocked) {
+    if (minBlocked && minGate) {
       hapticWarning();
       setMinOrderPrompt({
         subtotal,
@@ -355,7 +379,10 @@ export default function PayScreen() {
         itemId: l.itemId,
         displayLabel: l.name,
         quantity: l.qty,
-        estimatedUnitPrice: l.unitPrice,
+        // GH #22: a value-slab line's unitPrice is a placeholder — send no estimate and
+        // the declared value instead, so the server resolves the real price from slabs.
+        estimatedUnitPrice: l.pricingMode === 'value_slab' ? null : l.unitPrice,
+        declaredValue: l.pricingMode === 'value_slab' ? l.declaredValue ?? null : null,
       }));
 
       setLoading(true);
@@ -401,6 +428,31 @@ export default function PayScreen() {
             shortfall: violation.shortfall || Math.max(0, violation.minimum - subtotal),
             currencyCode: catalogConfig?.currencyCode ?? '',
           });
+          return;
+        }
+        // GH #22: a value-slab rejection (missing/unmatched declared value) re-opens the
+        // declared-value prompt for the named item so the customer can fix it inline.
+        const slabError = parseValueSlabError(err);
+        if (slabError) {
+          hapticWarning();
+          const offending = lineList.find((l) => l.itemId != null && l.itemId === slabError.itemId);
+          if (offending) {
+            setDeclaredValuePrompt({
+              lineId: offending.id,
+              itemName: slabError.itemName ?? offending.name,
+              initial: offending.declaredValue,
+              message:
+                slabError.message ??
+                (slabError.code === 'no_value_slab_match'
+                  ? t('booking.valueSlab.errorNoMatch', { item: slabError.itemName ?? offending.name })
+                  : t('booking.valueSlab.errorRequired', { item: slabError.itemName ?? offending.name })),
+            });
+          } else {
+            Alert.alert(
+              t('booking.valueSlab.errorTitle'),
+              slabError.message ?? t('booking.valueSlab.errorRequired', { item: slabError.itemName ?? '' }),
+            );
+          }
           return;
         }
         hapticError();
@@ -469,6 +521,15 @@ export default function PayScreen() {
               <Text className="text-base font-extrabold text-ink">{t('booking.totalToPay')}</Text>
               <Text className="text-base font-extrabold text-ink">{rupees(total)}</Text>
             </View>
+            {/* GH #22: value-slab items aren't in the total — priced at pickup from declared value. */}
+            {hasValueSlab ? (
+              <View className="mt-2.5 flex-row items-start gap-1.5">
+                <Ionicons name="diamond-outline" size={13} color="#8A641D" style={{ marginTop: 1 }} />
+                <Text className="flex-1 text-[11px] leading-4 text-gold-700">
+                  {t('booking.valueSlab.paySummaryNote')}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {/* R3-BE-2: Coupon entry */}
@@ -601,6 +662,23 @@ export default function PayScreen() {
           shortfall={minOrderPrompt.shortfall}
           onAddMore={handleAddMore}
           onClose={() => setMinOrderPrompt(null)}
+        />
+      ) : null}
+
+      {/* GH #22: declared-value re-prompt after a value-slab 422 */}
+      {declaredValuePrompt ? (
+        <DeclaredValueSheet
+          visible
+          currencyCode={catalogConfig?.currencyCode ?? 'INR'}
+          itemName={declaredValuePrompt.itemName}
+          threshold={catalogConfig?.highValueGarmentThreshold ?? null}
+          initialValue={declaredValuePrompt.initial}
+          errorMessage={declaredValuePrompt.message}
+          onSubmit={(value) => {
+            setDeclaredValue(declaredValuePrompt.lineId, value);
+            setDeclaredValuePrompt(null);
+          }}
+          onClose={() => setDeclaredValuePrompt(null)}
         />
       ) : null}
     </SafeAreaView>

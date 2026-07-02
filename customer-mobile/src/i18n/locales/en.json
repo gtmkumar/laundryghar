@@ -158,6 +158,25 @@
       "cta": "Add more items",
       "hint": "Minimum order {{minimum}} — add {{shortfall}} more",
       "blockedCta": "Add {{shortfall}} more to continue"
+    },
+    "valueSlab": {
+      "badge": "Priced by garment value",
+      "question": "What is this garment's approximate value?",
+      "inputPlaceholder": "Enter value",
+      "helper": "Premium items are priced by the value you declare.",
+      "helperThreshold": "Branded/luxury items above {{threshold}} are priced by declared value.",
+      "note": "Final price is confirmed from your declared value at pickup.",
+      "invalidValue": "Enter a value greater than 0.",
+      "save": "Save value",
+      "declaredLine": "By declared value ({{value}} declared)",
+      "needsValue": "By declared value",
+      "change": "Change",
+      "changeValue": "Change declared value",
+      "estimateNote": "+ items priced by declared value at pickup",
+      "paySummaryNote": "Some items are priced by your declared value at pickup and aren't in this total.",
+      "errorTitle": "Declared value needed",
+      "errorRequired": "Please declare a value for {{item}} to price it.",
+      "errorNoMatch": "No pricing tier matches the declared value for {{item}}. Please enter a different value."
     }
   },
   "parcel": {

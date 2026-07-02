@@ -242,7 +242,10 @@ public sealed record UpdateItemRequest(
     bool ExpressEligible = false,
     decimal? ExpressSurcharge = null,
     // Pricing mode; null → leaves the item's current mode unchanged. GH #22.
-    string? PricingMode = null
+    string? PricingMode = null,
+    // Optional SKU/code change (GH #24). Null → leaves the code unchanged. A change must be unique
+    // among the brand's non-deleted items, else a structured 422 (code "item_code_taken").
+    string? Code = null
 );
 
 // ── Managed item (Items page aggregate: item + per-service base prices + fabrics) ─

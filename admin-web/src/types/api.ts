@@ -272,6 +272,13 @@ export interface ManagedItemDto {
   updatedAt: string
   fabricTypeIds: string[]
   servicePrices: ItemServicePrice[]
+  /**
+   * Pricing strategy for this item. `standard` uses the per-service base prices
+   * above; `value_slab` ignores them and prices by the customer's declared
+   * garment value against the value-slab lanes. Optional while the backend rolls
+   * the field out — treat a missing value as `standard`.
+   */
+  pricingMode?: 'standard' | 'value_slab'
 }
 
 export interface ItemStatsDto {
@@ -727,6 +734,13 @@ export interface UpdateItemPayload {
   tatHours?: number | null
   expressEligible?: boolean
   expressSurcharge?: number | null
+  /**
+   * SKU change. Omit to leave the code untouched; send a new value to rename it.
+   * A collision rejects with 422 code `item_code_taken`.
+   */
+  code?: string
+  /** Switch the item's pricing strategy. See {@link ManagedItemDto.pricingMode}. */
+  pricingMode?: 'standard' | 'value_slab'
 }
 
 // ── Pricing write payloads ────────────────────────────────────────────────────
@@ -780,6 +794,45 @@ export interface UpdatePriceListItemPayload {
   displayLabel: string | null
   notes: string | null
   isActive: boolean
+}
+
+// ── Value slabs (declared-garment-value pricing) ──────────────────────────────
+// A slab prices a garment by the customer's declared value, e.g. a garment worth
+// ₹10,000–₹30,000 is cleaned for ₹450. Lanes are keyed by service; a `serviceId`
+// of null is the brand-wide fallback lane. Boundaries are half-open [min, max):
+// a `maxValue` of null means "open-ended" (₹90,000 and above). Resolution prefers
+// the service-specific lane over the brand-wide one.
+
+export type ValueSlabStatus = 'active' | 'inactive' | 'archived'
+
+export interface ValueSlabDto {
+  id: string
+  brandId: string
+  /** null = brand-wide fallback lane (applies to any service without its own lane). */
+  serviceId: string | null
+  serviceName: string | null
+  minValue: number
+  /** null = open-ended (no upper bound). */
+  maxValue: number | null
+  price: number
+  status: ValueSlabStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateValueSlabPayload {
+  serviceId: string | null
+  minValue: number
+  maxValue: number | null
+  price: number
+}
+
+export interface UpdateValueSlabPayload {
+  serviceId: string | null
+  minValue: number
+  maxValue: number | null
+  price: number
+  status: ValueSlabStatus
 }
 
 // ── Orders ──────────────────────────────────────────────────────────────────

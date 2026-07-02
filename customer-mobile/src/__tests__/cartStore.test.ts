@@ -179,6 +179,50 @@ describe('cartStore — subtotal()', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Value-slab lines (GH #22)
+// ---------------------------------------------------------------------------
+
+describe('cartStore — value-slab pricing (GH #22)', () => {
+  beforeEach(resetStore);
+
+  test('subtotal() excludes value_slab lines (placeholder price ignored)', () => {
+    useCartStore.getState().setQty(line({ id: 'std', unitPrice: 100 }), 2); // 200
+    useCartStore
+      .getState()
+      .setQty(line({ id: 'slab', unitPrice: 999, pricingMode: 'value_slab' }), 1); // excluded
+    expect(useCartStore.getState().subtotal()).toBe(200);
+  });
+
+  test('count() still includes value_slab lines', () => {
+    useCartStore.getState().setQty(line({ id: 'std' }), 2);
+    useCartStore.getState().setQty(line({ id: 'slab', pricingMode: 'value_slab' }), 3);
+    expect(useCartStore.getState().count()).toBe(5);
+  });
+
+  test('setDeclaredValue sets the value on an existing line', () => {
+    useCartStore.getState().setQty(line({ id: 'slab', pricingMode: 'value_slab' }), 1);
+    useCartStore.getState().setDeclaredValue('slab', 4500);
+    expect(useCartStore.getState().list()[0].declaredValue).toBe(4500);
+  });
+
+  test('setDeclaredValue on a missing line is a no-op', () => {
+    useCartStore.getState().setDeclaredValue('ghost', 1000);
+    expect(useCartStore.getState().list()).toHaveLength(0);
+  });
+
+  test('a quantity change preserves a previously declared value', () => {
+    useCartStore
+      .getState()
+      .setQty({ ...line({ id: 'slab', pricingMode: 'value_slab' }), declaredValue: 3000 }, 1);
+    // Re-add via the picker path (meta carries no declaredValue key) to bump qty.
+    useCartStore.getState().setQty(line({ id: 'slab', pricingMode: 'value_slab' }), 2);
+    const l = useCartStore.getState().list()[0];
+    expect(l.qty).toBe(2);
+    expect(l.declaredValue).toBe(3000);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Selector stability regression
 // ---------------------------------------------------------------------------
 

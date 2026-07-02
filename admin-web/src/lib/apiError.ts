@@ -72,6 +72,31 @@ export function apiFieldErrors(error: unknown): Record<string, string[]> {
   return out
 }
 
+/**
+ * True when a rejected request carries a specific backend error code (e.g.
+ * `value_slab_overlap`, `item_code_taken`). The backend surfaces these either as
+ * the envelope's `responseMessage`, as an `errorMessage` key, or embedded in an
+ * `errorMessage` value — we check all three so a caller can branch on the code
+ * regardless of exactly where the backend put it. Case-insensitive.
+ */
+export function apiErrorHasCode(error: unknown, code: string): boolean {
+  const envelope = envelopeOf(error)
+  if (!envelope) return false
+  const needle = code.toLowerCase()
+  if (envelope.responseMessage?.toLowerCase() === needle) return true
+  const fieldErrors = envelope.errorMessage
+  if (fieldErrors && typeof fieldErrors === 'object') {
+    for (const key of Object.keys(fieldErrors)) {
+      if (key.toLowerCase() === needle) return true
+    }
+    for (const value of Object.values(fieldErrors)) {
+      const msgs = Array.isArray(value) ? value : [value]
+      if (msgs.some((m) => typeof m === 'string' && m.toLowerCase().includes(needle))) return true
+    }
+  }
+  return false
+}
+
 /** Pulls a human-readable message out of a rejected request. */
 export function apiErrorMessage(error: unknown, fallback = 'Something went wrong.'): string {
   const envelope = envelopeOf(error)

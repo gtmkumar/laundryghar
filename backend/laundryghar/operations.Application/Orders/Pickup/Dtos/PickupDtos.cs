@@ -18,7 +18,14 @@ public sealed record RequestedCartItemDto(
     /// <summary>Quantity >= 1.</summary>
     int Quantity,
     /// <summary>Estimated unit price from the price list; null when no price was available.</summary>
-    decimal? EstimatedUnitPrice
+    decimal? EstimatedUnitPrice,
+    /// <summary>
+    /// Declared garment value for value-slab (branded/luxury) items — GH #22/#24. Optional at booking:
+    /// the customer may enter it up front so the price estimate is right, but it is NOT enforced here —
+    /// the store confirms the value when the pickup converts to an order and it becomes the order line's
+    /// DeclaredValue. Null for standard-priced items.
+    /// </summary>
+    decimal? DeclaredValue = null
 );
 
 // ── Request / response records ────────────────────────────────────────────────

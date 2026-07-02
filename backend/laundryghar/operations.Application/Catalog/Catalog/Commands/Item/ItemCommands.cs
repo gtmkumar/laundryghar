@@ -1,9 +1,11 @@
 using FluentValidation;
 using LaundryGhar.Utilities.CQRS.Abstractions;
+using laundryghar.Utilities.Exceptions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Catalog.Catalog.Dtos;
 using operations.Application.Catalog.Common;
+using operations.Application.Catalog.Pricing.Common;
 using operations.Application.Common.Interfaces;
 
 namespace operations.Application.Catalog.Catalog.Commands.Item;
@@ -58,6 +60,15 @@ public sealed class CreateItemHandler : ICommandHandler<CreateItemCommand, ItemD
         };
 
         _db.Items.Add(e);
+
+        // Audit: a create carries no before-state; the after-state is the new item's editable fields.
+        // (GH #24 item audit — surfaces in the pricing Change history feed; create is not revertible.)
+        PricingChangeLogger.Add(_db, brandId, "item", e.Id,
+            $"Item created: {e.Name} ({e.Code})",
+            new ItemAuditEnvelope(ItemAudit.OpCreate, null),
+            new ItemAuditEnvelope(ItemAudit.OpCreate, ItemAudit.Capture(e)),
+            cmd.ActorId, _user.Email);
+
         await _db.SaveChangesAsync(ct);
         return ToDto(e);
     }
@@ -90,6 +101,29 @@ public sealed class UpdateItemHandler : ICommandHandler<UpdateItemCommand, ItemD
             throw new laundryghar.Utilities.Exceptions.BusinessRuleException(
                 $"PricingMode must be one of: {string.Join(", ", laundryghar.SharedDataModel.Enums.PricingMode.All)}.");
 
+        // Snapshot the before-state up front so the audit + revert can restore the exact prior values.
+        var before = ItemAudit.Capture(e);
+
+        // Optional SKU/code change (GH #24). Null → leave the code unchanged (partial PUT). A real
+        // change must stay unique among the brand's non-deleted items, else a structured 422 the
+        // client can branch on. Compared case-sensitively — codes are stored verbatim.
+        if (req.Code is not null && !string.Equals(req.Code, e.Code, StringComparison.Ordinal))
+        {
+            var newCode = req.Code.Trim();
+            if (newCode.Length == 0)
+                throw new BusinessRuleException("Item code cannot be blank.");
+
+            var taken = await _db.Items.AnyAsync(
+                x => x.BrandId == brandId && x.Id != e.Id && x.DeletedAt == null && x.Code == newCode, ct);
+            if (taken)
+                throw new StructuredBusinessRuleException(
+                    "item_code_taken",
+                    $"Another item already uses the code “{newCode}”. Choose a unique code.",
+                    new Dictionary<string, string> { ["code"] = newCode });
+
+            e.Code = newCode;
+        }
+
         e.ItemGroupId         = req.ItemGroupId;
         e.Name                = req.Name;
         e.NameLocalized       = req.NameLocalized;
@@ -112,6 +146,13 @@ public sealed class UpdateItemHandler : ICommandHandler<UpdateItemCommand, ItemD
         e.UpdatedBy           = cmd.ActorId;
         e.Version++;
 
+        // Audit the old→new editable fields. This UPDATE envelope is the one Revert can restore.
+        PricingChangeLogger.Add(_db, brandId, "item", e.Id,
+            $"Item updated: {e.Name} ({e.Code})",
+            new ItemAuditEnvelope(ItemAudit.OpUpdate, before),
+            new ItemAuditEnvelope(ItemAudit.OpUpdate, ItemAudit.Capture(e)),
+            cmd.ActorId, _user.Email);
+
         await _db.SaveChangesAsync(ct);
         return CreateItemHandler.ToDto(e);
     }
@@ -133,6 +174,9 @@ public sealed class DeleteItemHandler : ICommandHandler<DeleteItemCommand, bool>
             .FirstOrDefaultAsync(x => x.Id == cmd.Id && x.BrandId == brandId, ct);
         if (e is null || e.DeletedAt != null) return false;
 
+        // Snapshot before mutating so the audit records the item as it stood at delete time.
+        var before = ItemAudit.Capture(e);
+
         // Soft-delete must also move status off 'active' so status-keyed reports don't
         // miscount it. items CHECK is ('active','disabled','seasonal') — 'disabled' is
         // the archived/retired equivalent.
@@ -140,6 +184,14 @@ public sealed class DeleteItemHandler : ICommandHandler<DeleteItemCommand, bool>
         e.DeletedAt = DateTimeOffset.UtcNow;
         e.UpdatedAt = DateTimeOffset.UtcNow;
         e.UpdatedBy = cmd.ActorId;
+
+        // Audit: a delete carries the prior state as before, no after. Not revertible.
+        PricingChangeLogger.Add(_db, brandId, "item", e.Id,
+            $"Item deleted: {before.Name} ({before.Code})",
+            new ItemAuditEnvelope(ItemAudit.OpDelete, before),
+            new ItemAuditEnvelope(ItemAudit.OpDelete, null),
+            cmd.ActorId, _user.Email);
+
         await _db.SaveChangesAsync(ct);
         return true;
     }

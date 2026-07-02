@@ -11,6 +11,7 @@ import {
   useServicesInfinite,
   useServiceCategoriesInfinite,
   useSaveItemPricing,
+  useUpdateItem,
 } from '@/hooks/useCatalog'
 import { showToast } from '@/stores/toastStore'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
@@ -37,6 +38,15 @@ import { ImportCsvDrawer } from './ImportCsvDrawer'
 import type { ManagedItemDto, ServiceCategoryDto, ServiceDto } from '@/types/api'
 
 type Tab = 'items' | 'services' | 'categories'
+
+/** Per-row item-field overrides tracked during bulk edit (undefined = untouched). */
+interface ItemFieldEdit {
+  status?: string
+  tatHours?: string
+  itemGroupId?: string
+}
+
+const ITEM_STATUSES = ['active', 'draft', 'archived'] as const
 
 function StatusBadge({ status }: { status: string }) {
   const variant =
@@ -145,10 +155,16 @@ function ItemsTab({ canManage, creating, onCloseCreate }: { canManage: boolean; 
   const [deleting, setDeleting] = useState<{ id: string; name: string; code: string } | null>(null)
   const [newCategory, setNewCategory] = useState(false)
 
-  // Bulk edit: inline-editable per-service price cells, saved in one batch.
+  // Bulk edit v2: inline-editable per-service price cells PLUS per-row status /
+  // TAT / category, saved in one batch (prices via the pricing PUT, item fields
+  // via the item PUT). Price and field edits are tracked separately because they
+  // hit different endpoints.
   const savePricing = useSaveItemPricing()
+  const updateItemMut = useUpdateItem()
   const [bulkMode, setBulkMode] = useState(false)
   const [edits, setEdits] = useState<Record<string, Record<string, string>>>({})
+  const [fieldEdits, setFieldEdits] = useState<Record<string, ItemFieldEdit>>({})
+  const [bulkFailures, setBulkFailures] = useState<{ name: string; reason: string }[]>([])
   const [saving, setSaving] = useState(false)
 
   const allItems = useMemo(() => data?.list ?? [], [data])
@@ -183,8 +199,12 @@ function ItemsTab({ canManage, creating, onCloseCreate }: { canManage: boolean; 
   const setCell = (itemId: string, serviceId: string, value: string) =>
     setEdits((e) => ({ ...e, [itemId]: { ...e[itemId], [serviceId]: value } }))
 
-  // An item is "dirty" if any of its edited cells differ from the stored price.
-  const itemDirty = (item: ManagedItemDto) => {
+  const fieldEdit = (itemId: string) => fieldEdits[itemId]
+  const setField = (itemId: string, patch: ItemFieldEdit) =>
+    setFieldEdits((e) => ({ ...e, [itemId]: { ...e[itemId], ...patch } }))
+
+  // Any edited price cell differs from the stored price → the pricing PUT is needed.
+  const priceDirty = (item: ManagedItemDto) => {
     const e = edits[item.id]
     if (!e) return false
     return Object.entries(e).some(([sid, v]) => {
@@ -193,34 +213,86 @@ function ItemsTab({ canManage, creating, onCloseCreate }: { canManage: boolean; 
       return v.trim() !== curStr
     })
   }
-  const dirtyItems = useMemo(() => rows.filter(itemDirty), [rows, edits]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const exitBulk = () => { setBulkMode(false); setEdits({}) }
+  // Any edited item field differs from the stored value → the item PUT is needed.
+  const fieldsDirty = (item: ManagedItemDto) => {
+    const e = fieldEdits[item.id]
+    if (!e) return false
+    if (e.status !== undefined && e.status !== item.status) return true
+    if (e.tatHours !== undefined && e.tatHours.trim() !== (item.tatHours != null ? String(item.tatHours) : '')) return true
+    if (e.itemGroupId !== undefined && (e.itemGroupId || null) !== (item.itemGroupId ?? null)) return true
+    return false
+  }
+
+  const itemDirty = (item: ManagedItemDto) => priceDirty(item) || fieldsDirty(item)
+  const dirtyItems = useMemo(() => rows.filter(itemDirty), [rows, edits, fieldEdits]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const exitBulk = () => { setBulkMode(false); setEdits({}); setFieldEdits({}); setBulkFailures([]) }
+
+  // Full-replace item payload: echo the item's stored fields (mirroring the item
+  // drawer's shape) and override only the bulk-edited status / TAT / category.
+  const buildFieldPayload = (item: ManagedItemDto) => {
+    const e = fieldEdits[item.id] ?? {}
+    const tat = e.tatHours !== undefined ? (e.tatHours.trim() ? Number(e.tatHours) : null) : item.tatHours
+    return {
+      itemGroupId: e.itemGroupId !== undefined ? e.itemGroupId || null : item.itemGroupId ?? null,
+      name: item.name,
+      nameLocalized: item.nameLocalized,
+      description: item.description,
+      iconUrl: null,
+      imageUrl: null,
+      typicalWeightGrams: item.typicalWeightGrams,
+      requiresPerSidePrice: false,
+      aliases: item.aliases?.length ? item.aliases : null,
+      displayOrder: item.displayOrder,
+      status: e.status ?? item.status,
+      tatHours: tat,
+      expressEligible: item.expressEligible,
+      expressSurcharge: item.expressSurcharge,
+    }
+  }
 
   const saveBulk = async () => {
     if (dirtyItems.length === 0) { exitBulk(); return }
     setSaving(true)
-    try {
-      for (const item of dirtyItems) {
-        await savePricing.mutateAsync({
-          id: item.id,
-          payload: {
-            servicePrices: services.map((s) => {
-              const edited = edits[item.id]?.[s.id]
-              if (edited !== undefined) return { serviceId: s.id, basePrice: edited.trim() ? Number(edited) : null }
-              const cur = priceFor(item, s.id)
-              return { serviceId: s.id, basePrice: cur ?? null }
-            }),
-            fabricTypeIds: item.fabricTypeIds,
-          },
-        })
+    setBulkFailures([])
+    const failures: { name: string; reason: string }[] = []
+    let updated = 0
+    for (const item of dirtyItems) {
+      try {
+        // Item fields first, then prices — a failure on either is reported per row.
+        if (fieldsDirty(item)) {
+          await updateItemMut.mutateAsync({ id: item.id, payload: buildFieldPayload(item) })
+        }
+        if (priceDirty(item)) {
+          await savePricing.mutateAsync({
+            id: item.id,
+            payload: {
+              servicePrices: services.map((s) => {
+                const edited = edits[item.id]?.[s.id]
+                if (edited !== undefined) return { serviceId: s.id, basePrice: edited.trim() ? Number(edited) : null }
+                const cur = priceFor(item, s.id)
+                return { serviceId: s.id, basePrice: cur ?? null }
+              }),
+              fabricTypeIds: item.fabricTypeIds,
+            },
+          })
+        }
+        updated++
+      } catch (e) {
+        failures.push({ name: item.name, reason: apiErrorMessage(e, 'Save failed.') })
       }
-      showToast('success', `Updated ${dirtyItems.length} item${dirtyItems.length === 1 ? '' : 's'}.`)
+    }
+    setSaving(false)
+
+    if (updated > 0) showToast('success', `Updated ${updated} item${updated === 1 ? '' : 's'}.`)
+    if (failures.length > 0) {
+      // Keep the drawer open so the operator can see and retry the failed rows;
+      // successfully-saved rows re-render clean off the refetched data.
+      setBulkFailures(failures)
+      showToast('error', `${failures.length} item${failures.length === 1 ? '' : 's'} could not be saved.`)
+    } else {
       exitBulk()
-    } catch (e) {
-      showToast('error', e instanceof Error ? e.message : 'Bulk save failed.')
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -292,8 +364,87 @@ function ItemsTab({ canManage, creating, onCloseCreate }: { canManage: boolean; 
         return <span className="tabular-nums">{p != null ? `₹${p}` : <span className="text-gray-300">—</span>}</span>
       },
     })),
-    { header: 'TAT', accessor: (i) => (i.tatHours != null ? `${i.tatHours}h` : '—'), className: 'tabular-nums text-gray-500' },
-    { header: 'Status', accessor: (i) => <StatusBadge status={i.status} /> },
+    ...(bulkMode && canManage
+      ? [{
+          header: 'Category',
+          accessor: (i: ManagedItemDto) => {
+            const e = fieldEdit(i.id)
+            const value = e?.itemGroupId !== undefined ? e.itemGroupId : (i.itemGroupId ?? '')
+            const dirty = e?.itemGroupId !== undefined && (e.itemGroupId || null) !== (i.itemGroupId ?? null)
+            return (
+              <div onClick={(ev) => ev.stopPropagation()}>
+                <select
+                  value={value}
+                  onChange={(ev) => setField(i.id, { itemGroupId: ev.target.value })}
+                  className={cn(
+                    'max-w-[10rem] rounded-md border px-1.5 py-1 text-sm outline-none focus:border-lg-green',
+                    dirty ? 'border-lg-green bg-lg-green/5' : 'border-gray-200',
+                  )}
+                >
+                  <option value="">No category</option>
+                  {groups.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
+                </select>
+              </div>
+            )
+          },
+        }]
+      : []),
+    {
+      header: 'TAT',
+      className: 'tabular-nums text-gray-500',
+      accessor: (i) => {
+        if (bulkMode && canManage) {
+          const e = fieldEdit(i.id)
+          const value = e?.tatHours !== undefined ? e.tatHours : (i.tatHours != null ? String(i.tatHours) : '')
+          const dirty = e?.tatHours !== undefined && e.tatHours.trim() !== (i.tatHours != null ? String(i.tatHours) : '')
+          return (
+            <div onClick={(ev) => ev.stopPropagation()} className="inline-block w-16">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={value}
+                onChange={(ev) => setField(i.id, { tatHours: ev.target.value })}
+                className={cn(
+                  'w-full rounded-md border px-1.5 py-1 text-right text-sm tabular-nums outline-none focus:border-lg-green',
+                  dirty ? 'border-lg-green bg-lg-green/5' : 'border-gray-200',
+                )}
+                placeholder="—"
+              />
+            </div>
+          )
+        }
+        return i.tatHours != null ? `${i.tatHours}h` : '—'
+      },
+    },
+    {
+      header: 'Status',
+      accessor: (i) => {
+        if (bulkMode && canManage) {
+          const e = fieldEdit(i.id)
+          const value = e?.status ?? i.status
+          const dirty = e?.status !== undefined && e.status !== i.status
+          const options = ITEM_STATUSES.includes(i.status as (typeof ITEM_STATUSES)[number])
+            ? ITEM_STATUSES
+            : ([...ITEM_STATUSES, i.status] as readonly string[])
+          return (
+            <div onClick={(ev) => ev.stopPropagation()}>
+              <select
+                value={value}
+                onChange={(ev) => setField(i.id, { status: ev.target.value })}
+                className={cn(
+                  'rounded-md border px-1.5 py-1 text-sm capitalize outline-none focus:border-lg-green',
+                  dirty ? 'border-lg-green bg-lg-green/5' : 'border-gray-200',
+                )}
+              >
+                {options.map((s) => (<option key={s} value={s}>{s}</option>))}
+              </select>
+            </div>
+          )
+        }
+        return <StatusBadge status={i.status} />
+      },
+    },
     ...(canManage
       ? [{
           header: '',
@@ -382,20 +533,34 @@ function ItemsTab({ canManage, creating, onCloseCreate }: { canManage: boolean; 
           </button>
         </div>
         {bulkMode ? (
-          <div className="mb-2 flex items-center justify-between rounded-lg border border-lg-green/30 bg-lg-green/5 px-3 py-2">
-            <p className="text-sm text-gray-600">
-              Editing base prices inline — <span className="font-medium text-gray-800">{dirtyItems.length}</span> item{dirtyItems.length === 1 ? '' : 's'} changed.
-            </p>
-            <button
-              type="button"
-              onClick={() => void saveBulk()}
-              disabled={saving || dirtyItems.length === 0}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Save changes
-            </button>
-          </div>
+          <>
+            <div className="mb-2 flex items-center justify-between rounded-lg border border-lg-green/30 bg-lg-green/5 px-3 py-2">
+              <p className="text-sm text-gray-600">
+                Editing prices, status, TAT &amp; category inline — <span className="font-medium text-gray-800">{dirtyItems.length}</span> item{dirtyItems.length === 1 ? '' : 's'} changed.
+              </p>
+              <button
+                type="button"
+                onClick={() => void saveBulk()}
+                disabled={saving || dirtyItems.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Save changes
+              </button>
+            </div>
+            {bulkFailures.length > 0 && (
+              <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <p className="font-medium">These items could not be saved:</p>
+                <ul className="mt-1 space-y-0.5">
+                  {bulkFailures.map((f) => (
+                    <li key={f.name} className="text-xs">
+                      <span className="font-medium">{f.name}</span> — {f.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
         ) : (
           <p className="mb-2 text-sm text-gray-500">{rows.length} item{rows.length === 1 ? '' : 's'}</p>
         )}

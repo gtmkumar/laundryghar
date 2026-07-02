@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using operations.Application.Catalog.Pricing.Common;
 using operations.Application.Common.Interfaces;
 
@@ -43,91 +42,20 @@ public static class PriceResolver
         CancellationToken ct,
         decimal? declaredValue = null)
     {
-        // ── Value-slab items: price from declared value, not price lists (GH #22). ──
-        var itemInfo = await db.Items.AsNoTracking()
-            .Where(i => i.Id == itemId)
-            .Select(i => new { i.Name, i.PricingMode })
-            .FirstOrDefaultAsync(ct);
-        if (itemInfo is not null && itemInfo.PricingMode == laundryghar.SharedDataModel.Enums.PricingMode.ValueSlab)
-        {
-            ValueSlabResolver.RequireDeclaredValue(declaredValue, itemId, itemInfo.Name);
-            var slabPrice = await ValueSlabResolver.ResolveSlabPriceAsync(
-                db, brandId, serviceId, declaredValue!.Value, itemId, ct);
-            var svcName = await db.Services.AsNoTracking()
-                .Where(s => s.Id == serviceId).Select(s => s.Name).FirstOrDefaultAsync(ct) ?? "";
-            // Express handling: base stays the slab price; the express surcharge % from settings
-            // applies downstream unchanged (so ExpressPrice is left null here).
-            return new ResolvedPrice(null, slabPrice, null, 0m, true, svcName, itemInfo.Name, IsValueSlab: true);
-        }
+        // Delegates to the shared resolver (GH #24 dedupe) and maps to the order-path shape.
+        var r = await SharedPriceResolver.ResolveAsync(
+            db, brandId, storeId, itemId, serviceId, variantId, declaredValue, ct);
+        if (r is null) return null;
 
-        // Resolve franchise from store
-        var store = await db.Stores
-            .Where(s => s.Id == storeId)
-            .Select(s => new { s.FranchiseId })
-            .FirstOrDefaultAsync(ct);
-        var franchiseId = store?.FranchiseId;
-
-        // Load all published lists for this brand
-        var publishedLists = await db.PriceLists
-            .Where(pl => pl.BrandId == brandId
-                      && pl.IsPublished
-                      && pl.Status == "published"
-                      && pl.DeletedAt == null)
-            .Select(pl => new { pl.Id, pl.ScopeType, pl.FranchiseId, pl.StoreId, pl.PublishedAt })
-            .ToListAsync(ct);
-
-        // Priority: store(2) > franchise(1) > brand(0); most-recently-published within same scope
-        var scopedIds = publishedLists
-            .Where(pl =>
-                (pl.ScopeType == "store"     && pl.StoreId     == storeId)     ||
-                (pl.ScopeType == "franchise"  && franchiseId.HasValue && pl.FranchiseId == franchiseId) ||
-                pl.ScopeType == "brand")
-            .OrderByDescending(pl =>
-                pl.ScopeType == "store"     ? 2 :
-                pl.ScopeType == "franchise" ? 1 : 0)
-            .ThenByDescending(pl => pl.PublishedAt)
-            .Select(pl => pl.Id)
-            .ToList();
-
-        foreach (var listId in scopedIds)
-        {
-            // Fetch item + service snapshots alongside price row
-            var priceRow = await db.PriceListItems
-                .Where(pi =>
-                    pi.PriceListId == listId &&
-                    pi.ItemId     == itemId &&
-                    pi.ServiceId  == serviceId &&
-                    pi.IsActive   && pi.Status == "active" &&
-                    (variantId == null
-                        ? pi.ItemVariantId == null
-                        : (pi.ItemVariantId == variantId || pi.ItemVariantId == null)))
-                .OrderByDescending(pi => pi.ItemVariantId != null ? 1 : 0)
-                .Join(db.Items.Where(i => i.Id == itemId),
-                    pi => pi.ItemId, i => i.Id,
-                    (pi, i) => new { pi, ItemName = i.Name })
-                .Join(db.Services.Where(s => s.Id == serviceId),
-                    x => x.pi.ServiceId, s => s.Id,
-                    (x, s) => new
-                    {
-                        x.pi.Id, x.pi.BasePrice, x.pi.ExpressPrice,
-                        x.pi.TaxRatePercent, x.pi.IsTaxable,
-                        ItemName = x.ItemName,
-                        ServiceName = s.Name
-                    })
-                .FirstOrDefaultAsync(ct);
-
-            if (priceRow is null) continue;
-
-            return new ResolvedPrice(
-                priceRow.Id,
-                priceRow.BasePrice,
-                priceRow.ExpressPrice,
-                priceRow.TaxRatePercent,
-                priceRow.IsTaxable,
-                priceRow.ServiceName,
-                priceRow.ItemName);
-        }
-
-        return null;
+        // PriceListItemId is the matched row id for a standard price, null for a value slab.
+        return new ResolvedPrice(
+            r.PriceListItemId,
+            r.BasePrice,
+            r.ExpressPrice,
+            r.TaxRatePercent,
+            r.IsTaxable,
+            r.ServiceName,
+            r.ItemName,
+            r.IsValueSlab);
     }
 }
