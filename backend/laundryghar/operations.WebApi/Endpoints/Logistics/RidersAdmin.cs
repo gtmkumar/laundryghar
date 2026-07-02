@@ -4,6 +4,7 @@ using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 using laundryghar.Utilities.Validation;
 using Microsoft.AspNetCore.Mvc;
+using operations.Application.Logistics.Cod;
 using operations.Application.Logistics.RiderOps.Dtos;
 using operations.Application.Logistics.RiderOps.Queries.GetRiderStats;
 using operations.Application.Logistics.RiderOps.Queries.GetRiderTrack;
@@ -59,6 +60,11 @@ public class RidersAdmin : IEndpointGroup
         group.MapGet(GetLive, "/live").RequireAuthorization("permission:rider.read");
         group.MapGet(GetTrack, "/{id:guid}/track").RequireAuthorization("permission:rider.read");
         group.MapGet(GetStats, "/{id:guid}/stats").RequireAuthorization("permission:rider.read");
+
+        // Rider Cash / COD reconciliation — uncleared cash detail, settle-all, and history.
+        group.MapGet(GetCod, "/{id:guid}/cod").RequireAuthorization("permission:rider.read");
+        group.MapPost(Settle, "/{id:guid}/settle").RequireAuthorization("permission:rider.settle");
+        group.MapGet(GetSettlements, "/{id:guid}/settlements").RequireAuthorization("permission:rider.read");
     }
 
     public static async Task<IResult> GetAll(IDispatcher dispatcher, CancellationToken ct,
@@ -160,5 +166,29 @@ public class RidersAdmin : IEndpointGroup
         return s is null
             ? Results.NotFound()
             : Results.Ok(new SingleResponse<RiderStatsDto> { Status = true, Data = s });
+    }
+
+    public static async Task<IResult> GetCod(Guid id, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var r = await dispatcher.QueryAsync(new GetRiderCodDetailQuery(u.RequireBrandId(), id), ct);
+        return r is null
+            ? Results.NotFound()
+            : Results.Ok(new SingleResponse<RiderCodDetail> { Status = true, Data = r });
+    }
+
+    public static async Task<IResult> Settle(Guid id, SettleRiderPayload? req, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var r = await dispatcher.SendAsync(new SettleRiderCodCommand(u.RequireBrandId(), id, req, u.UserId), ct);
+        return r is null
+            ? Results.NotFound()
+            : Results.Ok(new SingleResponse<RiderSettlementDto> { Status = true, Data = r });
+    }
+
+    public static async Task<IResult> GetSettlements(Guid id, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct,
+        int page = 1, int pageSize = 20)
+    {
+        var r = await dispatcher.QueryAsync(new GetRiderSettlementsQuery(
+            u.RequireBrandId(), id, page < 1 ? 1 : page, pageSize < 1 ? 20 : pageSize), ct);
+        return Results.Ok(new PaginatedListResponse<RiderSettlementDto> { Status = true, Data = r });
     }
 }

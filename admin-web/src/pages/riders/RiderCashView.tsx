@@ -67,8 +67,8 @@ export function RiderCashView() {
                     <p className="text-xs text-gray-400">{r.riderCode}</p>
                   </td>
                   <td className="px-5 py-3 text-gray-600">{r.franchiseName ?? '—'}</td>
-                  <td className="px-5 py-3 text-right text-gray-600">{r.outstandingCount}</td>
-                  <td className="px-5 py-3 text-gray-500">{formatDate(r.oldestCollectedAt)}</td>
+                  <td className="px-5 py-3 text-right text-gray-600">{r.unclearedCount}</td>
+                  <td className="px-5 py-3 text-gray-500">{formatDate(r.oldestCollectedAt ?? null)}</td>
                   <td className="px-5 py-3 text-right font-bold text-gray-900">{inr(r.outstandingAmount)}</td>
                   <td className="px-5 py-3 text-right">
                     <button
@@ -105,7 +105,7 @@ function CashDrawer({ rider, onClose }: { rider: RiderCodSummary; onClose: () =>
   const [done, setDone] = useState(false)
 
   const outstanding = detail.data?.outstandingAmount ?? rider.outstandingAmount
-  const count = detail.data?.outstandingCount ?? rider.outstandingCount
+  const count = detail.data?.outstandingCount ?? rider.unclearedCount
 
   const submit = () => {
     setError(null)
