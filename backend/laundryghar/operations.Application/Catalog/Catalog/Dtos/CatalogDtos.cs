@@ -200,7 +200,9 @@ public sealed record ItemDto(
     int? TatHours = null,
     bool ExpressEligible = false,
     decimal? ExpressSurcharge = null,
-    string CatalogKind = "laundry_garment"
+    string CatalogKind = "laundry_garment",
+    // How the item is priced — 'standard' (price-list rows) or 'value_slab' (declared-value slabs). GH #22.
+    string PricingMode = "standard"
 );
 
 public sealed record CreateItemRequest(
@@ -219,7 +221,9 @@ public sealed record CreateItemRequest(
     bool ExpressEligible = false,
     decimal? ExpressSurcharge = null,
     // Vertical-neutral item-shape discriminator; null → defaults to laundry_garment.
-    string? CatalogKind = null
+    string? CatalogKind = null,
+    // Pricing mode; null → defaults to 'standard'. GH #22.
+    string? PricingMode = null
 );
 
 public sealed record UpdateItemRequest(
@@ -236,7 +240,12 @@ public sealed record UpdateItemRequest(
     string Status,
     int? TatHours = null,
     bool ExpressEligible = false,
-    decimal? ExpressSurcharge = null
+    decimal? ExpressSurcharge = null,
+    // Pricing mode; null → leaves the item's current mode unchanged. GH #22.
+    string? PricingMode = null,
+    // Optional SKU/code change (GH #24). Null → leaves the code unchanged. A change must be unique
+    // among the brand's non-deleted items, else a structured 422 (code "item_code_taken").
+    string? Code = null
 );
 
 // ── Managed item (Items page aggregate: item + per-service base prices + fabrics) ─
@@ -259,7 +268,9 @@ public sealed record ManagedItemDto(
     string Status,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<Guid> FabricTypeIds,
-    IReadOnlyList<ItemServicePriceDto> ServicePrices
+    IReadOnlyList<ItemServicePriceDto> ServicePrices,
+    // Pricing mode — 'standard' or 'value_slab' (GH #22). Lets the Items page flag slab items.
+    string PricingMode = "standard"
 );
 
 public sealed record ItemStatsDto(
@@ -355,16 +366,22 @@ public sealed record ImportReport(
     IReadOnlyList<ImportRowError> RowErrors
 );
 
-/// <summary>Response of the parse endpoint: normalized rows + the diff report + the stored file key.</summary>
+/// <summary>Response of the parse endpoint: normalized rows + the diff report + the stored file key.
+/// <paramref name="SourceUrl"/> is set only for the Google Sheet flow (the sheet the CSV was fetched from).</summary>
 public sealed record ParseImportResult(
     string? FileRef,
     string Layout,
     IReadOnlyList<ImportItemRow> Rows,
-    ImportReport Report
+    ImportReport Report,
+    string? SourceUrl = null
 );
 
 /// <summary>A generated import template (CSV or XLSX bytes) for download.</summary>
 public sealed record ImportTemplateFile(byte[] Content, string ContentType, string FileName);
+
+/// <summary>Request for the Google Sheet parse endpoint. <paramref name="Gid"/> (the sheet-tab id) is
+/// optional and overrides any gid embedded in <paramref name="Url"/>.</summary>
+public sealed record ParseGoogleSheetRequest(string Url, string? Gid = null);
 
 // ── ItemVariant ───────────────────────────────────────────────────────────────
 

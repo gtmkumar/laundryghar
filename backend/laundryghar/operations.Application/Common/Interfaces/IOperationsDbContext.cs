@@ -142,6 +142,7 @@ public interface IOperationsDbContext
     DbSet<PriceList> PriceLists { get; }
     DbSet<PriceListItem> PriceListItems { get; }
     DbSet<PricingChangeLog> PricingChangeLogs { get; }
+    DbSet<ValuePriceSlab> ValuePriceSlabs { get; }
 
     // ─── Tenancy: territories (serviceability pincode lookup) ────────────────
     DbSet<Territory> Territories { get; }

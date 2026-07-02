@@ -30,6 +30,7 @@ public class PriceListsAdmin : IEndpointGroup
             .RequireAuthorization("permission:pricing.pricelist.create");
         group.MapPut(Update, "/{id:guid}").RequireAuthorization("permission:pricing.pricelist.update");
         group.MapPost(Publish, "/{id:guid}/publish").RequireAuthorization("permission:pricing.pricelist.publish");
+        group.MapGet(Export, "/{id:guid}/export").RequireAuthorization("permission:pricing.read");
         group.MapDelete(Delete, "/{id:guid}").RequireAuthorization("permission:pricing.pricelist.update");
 
         // Price-list items
@@ -79,6 +80,13 @@ public class PriceListsAdmin : IEndpointGroup
     {
         var ok = await dispatcher.SendAsync(new DeletePriceListCommand(id, u.UserId), ct);
         return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
+    }
+
+    // Export the list to the flat import template (round-trips with the import pipeline). format=csv|xlsx.
+    public static async Task<IResult> Export(Guid id, IDispatcher dispatcher, CancellationToken ct, string format = "csv")
+    {
+        var r = await dispatcher.QueryAsync(new ExportPriceListQuery(id, format), ct);
+        return r is null ? Results.NotFound() : Results.File(r.Content, r.ContentType, r.FileName);
     }
 
     // ── Price-list items ──────────────────────────────────────────────────────

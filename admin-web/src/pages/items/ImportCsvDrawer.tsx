@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import {
   Upload, FileText, FileSpreadsheet, Download, CheckCircle2, AlertTriangle,
-  ArrowLeft, Loader2, FileUp,
+  ArrowLeft, Loader2, FileUp, Link2, Sheet,
 } from 'lucide-react'
-import { useImportItems, useParseImportFile, usePriceLists } from '@/hooks/useCatalog'
+import { useImportItems, useParseImportFile, useParseGoogleSheet, usePriceLists } from '@/hooks/useCatalog'
 import { downloadImportTemplate } from '@/api/catalog'
 import { FormDrawer, DrawerSection } from '@/components/shared/FormDrawer'
 import { apiErrorMessage } from '@/lib/apiError'
@@ -104,13 +104,17 @@ function PriceChangeTable({ changes, truncated }: { changes: ImportPriceChange[]
 
 export function ImportCsvDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const parseFile = useParseImportFile()
+  const parseSheet = useParseGoogleSheet()
   const importItems = useImportItems()
   const { data: priceListData } = usePriceLists()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [source, setSource] = useState<'file' | 'sheet'>('file')
   const [fileName, setFileName] = useState('')
   const [uploadPct, setUploadPct] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [sheetUrl, setSheetUrl] = useState('')
+  const [sheetGid, setSheetGid] = useState('')
   const [parsed, setParsed] = useState<ImportParseResult | null>(null)
   const [result, setResult] = useState<ImportItemsResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -123,7 +127,8 @@ export function ImportCsvDrawer({ open, onClose }: { open: boolean; onClose: () 
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      setFileName(''); setUploadPct(null); setDragging(false)
+      setSource('file'); setFileName(''); setUploadPct(null); setDragging(false)
+      setSheetUrl(''); setSheetGid('')
       setParsed(null); setResult(null); setError(null)
       setAutoCreateCategories(true); setTargetPriceListId('')
     }
@@ -155,6 +160,20 @@ export function ImportCsvDrawer({ open, onClose }: { open: boolean; onClose: () 
       setError(apiErrorMessage(e, 'Could not read that file.'))
     } finally {
       setUploadPct(null)
+    }
+  }
+
+  const parseFromSheet = async () => {
+    const url = sheetUrl.trim()
+    if (!url) return setError('Paste a Google Sheet link first.')
+    setError(null); setResult(null)
+    try {
+      const res = await parseSheet.mutateAsync({ url, gid: sheetGid.trim() || undefined })
+      setParsed(res)
+      setAutoCreateCategories(res.report.unknownCategories.length > 0)
+    } catch (e) {
+      // Surfaces the backend's "share the sheet as anyone-with-the-link" message.
+      setError(apiErrorMessage(e, 'Could not read that Google Sheet.'))
     }
   }
 
@@ -194,7 +213,7 @@ export function ImportCsvDrawer({ open, onClose }: { open: boolean; onClose: () 
     }
   }
 
-  const parsing = parseFile.isPending
+  const parsing = parseFile.isPending || parseSheet.isPending
 
   // ── Footer per step ──
   const footer =
@@ -240,6 +259,8 @@ export function ImportCsvDrawer({ open, onClose }: { open: boolean; onClose: () 
     >
       {step === 'upload' && (
         <UploadStep
+          source={source}
+          setSource={(s) => { setSource(s); setError(null) }}
           fileInputRef={fileInputRef}
           fileName={fileName}
           parsing={parsing}
@@ -247,6 +268,11 @@ export function ImportCsvDrawer({ open, onClose }: { open: boolean; onClose: () 
           dragging={dragging}
           setDragging={setDragging}
           onFile={handleFile}
+          sheetUrl={sheetUrl}
+          setSheetUrl={setSheetUrl}
+          sheetGid={sheetGid}
+          setSheetGid={setSheetGid}
+          onParseSheet={parseFromSheet}
           onDownloadTemplate={downloadTemplate}
         />
       )}
@@ -270,8 +296,11 @@ export function ImportCsvDrawer({ open, onClose }: { open: boolean; onClose: () 
 // ── Step 1: Upload ────────────────────────────────────────────────────────────
 
 function UploadStep({
-  fileInputRef, fileName, parsing, uploadPct, dragging, setDragging, onFile, onDownloadTemplate,
+  source, setSource, fileInputRef, fileName, parsing, uploadPct, dragging, setDragging, onFile,
+  sheetUrl, setSheetUrl, sheetGid, setSheetGid, onParseSheet, onDownloadTemplate,
 }: {
+  source: 'file' | 'sheet'
+  setSource: (s: 'file' | 'sheet') => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   fileName: string
   parsing: boolean
@@ -279,6 +308,11 @@ function UploadStep({
   dragging: boolean
   setDragging: (v: boolean) => void
   onFile: (f: File | null) => void
+  sheetUrl: string
+  setSheetUrl: (v: string) => void
+  sheetGid: string
+  setSheetGid: (v: string) => void
+  onParseSheet: () => void
   onDownloadTemplate: (format: 'csv' | 'xlsx') => void
 }) {
   return (
@@ -298,46 +332,120 @@ function UploadStep({
         </div>
       </DrawerSection>
 
-      <DrawerSection title="Upload your file">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ACCEPT}
-          className="hidden"
-          onChange={(e) => { onFile(e.target.files?.[0] ?? null); e.target.value = '' }}
-        />
-        <button
-          type="button"
-          disabled={parsing}
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setDragging(false)
-            onFile(e.dataTransfer.files?.[0] ?? null)
-          }}
-          className={cn(
-            'flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-8 text-sm font-medium transition-colors',
-            dragging ? 'border-lg-green bg-lg-green/5 text-lg-green' : 'border-gray-300 text-gray-600 hover:bg-gray-50',
-            parsing && 'cursor-not-allowed opacity-70',
-          )}
-        >
-          {parsing ? (
-            <>
-              <Loader2 className="h-6 w-6 animate-spin text-lg-green" />
-              <span>{uploadPct != null && uploadPct < 100 ? `Uploading… ${uploadPct}%` : 'Analysing your file…'}</span>
-            </>
-          ) : (
-            <>
-              <FileUp className="h-6 w-6 text-gray-400" />
-              <span>{fileName || 'Drag a .csv or .xlsx here, or click to browse'}</span>
-              <span className="text-xs font-normal text-gray-400">Up to 10 MB</span>
-            </>
-          )}
-        </button>
+      {/* Source toggle */}
+      <DrawerSection title="Where's your data?">
+        <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-0.5 text-sm font-medium">
+          <SourceToggleButton active={source === 'file'} onClick={() => setSource('file')} icon={FileUp} label="File" />
+          <SourceToggleButton active={source === 'sheet'} onClick={() => setSource('sheet')} icon={Sheet} label="Google Sheet" />
+        </div>
       </DrawerSection>
+
+      {source === 'file' ? (
+        <DrawerSection title="Upload your file">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPT}
+            className="hidden"
+            onChange={(e) => { onFile(e.target.files?.[0] ?? null); e.target.value = '' }}
+          />
+          <button
+            type="button"
+            disabled={parsing}
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragging(false)
+              onFile(e.dataTransfer.files?.[0] ?? null)
+            }}
+            className={cn(
+              'flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-8 text-sm font-medium transition-colors',
+              dragging ? 'border-lg-green bg-lg-green/5 text-lg-green' : 'border-gray-300 text-gray-600 hover:bg-gray-50',
+              parsing && 'cursor-not-allowed opacity-70',
+            )}
+          >
+            {parsing ? (
+              <>
+                <Loader2 className="h-6 w-6 animate-spin text-lg-green" />
+                <span>{uploadPct != null && uploadPct < 100 ? `Uploading… ${uploadPct}%` : 'Analysing your file…'}</span>
+              </>
+            ) : (
+              <>
+                <FileUp className="h-6 w-6 text-gray-400" />
+                <span>{fileName || 'Drag a .csv or .xlsx here, or click to browse'}</span>
+                <span className="text-xs font-normal text-gray-400">Up to 10 MB</span>
+              </>
+            )}
+          </button>
+        </DrawerSection>
+      ) : (
+        <DrawerSection title="Link a Google Sheet">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-gray-500">Sheet link</span>
+            <div className="relative">
+              <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="url"
+                value={sheetUrl}
+                onChange={(e) => setSheetUrl(e.target.value)}
+                disabled={parsing}
+                placeholder="https://docs.google.com/spreadsheets/d/…"
+                className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15 disabled:opacity-60"
+              />
+            </div>
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-gray-500">Tab id (gid) — optional</span>
+            <input
+              type="text"
+              value={sheetGid}
+              onChange={(e) => setSheetGid(e.target.value)}
+              disabled={parsing}
+              placeholder="e.g. 0 — leave blank for the first tab"
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-lg-green focus:ring-2 focus:ring-lg-green/15 disabled:opacity-60"
+            />
+          </label>
+
+          <div className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2 text-xs text-gray-500">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+            <span>Share the sheet as <b>“Anyone with the link can view”</b> so we can read it.</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={onParseSheet}
+            disabled={parsing || !sheetUrl.trim()}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-lg-green px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--lg-green-hover)] disabled:opacity-50"
+          >
+            {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sheet className="h-4 w-4" />}
+            {parsing ? 'Reading sheet…' : 'Parse sheet'}
+          </button>
+        </DrawerSection>
+      )}
     </>
+  )
+}
+
+function SourceToggleButton({ active, onClick, icon: Icon, label }: {
+  active: boolean
+  onClick: () => void
+  icon: React.ElementType
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors',
+        active ? 'bg-white text-lg-green shadow-sm' : 'text-gray-500 hover:text-gray-700',
+      )}
+    >
+      <Icon className="h-4 w-4" /> {label}
+    </button>
   )
 }
 
@@ -358,6 +466,17 @@ function PreviewStep({
     <>
       <DrawerSection>
         <LayoutBadge layout={parsed.layout} />
+        {parsed.sourceUrl && (
+          <a
+            href={parsed.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex max-w-full items-center gap-1.5 truncate text-xs font-medium text-lg-green hover:underline"
+          >
+            <Sheet className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{parsed.sourceUrl}</span>
+          </a>
+        )}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <SummaryTile label="Total rows" value={report.totalRows} />
           <SummaryTile label="To create" value={report.toCreate} tone="create" />

@@ -30,21 +30,28 @@ public static class InvoiceTaxCalculator
     /// Computes GST split for a given taxable total.
     /// Returns (cgstRate, cgstAmount, sgstRate, sgstAmount, igstRate, igstAmount).
     /// </summary>
+    /// <param name="taxRatePercent">
+    /// The total GST rate to apply. Defaults to <see cref="DefaultTaxRate"/> (18%) so existing
+    /// callers are unaffected, but new callers should pass the scope-resolved rate
+    /// (see <c>SettingsResolver</c> / order-stored rate) rather than relying on the constant —
+    /// an unregistered franchise or a per-scope override can make the effective rate 0 or non-18.
+    /// </param>
     public static (decimal cgstRate, decimal cgstAmount,
                    decimal sgstRate, decimal sgstAmount,
                    decimal igstRate, decimal igstAmount)
-        ComputeGst(decimal taxableTotal, bool isInterState = false)
+        ComputeGst(decimal taxableTotal, bool isInterState = false, decimal taxRatePercent = DefaultTaxRate)
     {
+        var halfRate = taxRatePercent / 2m;
         if (isInterState)
         {
-            var igst = Round(taxableTotal * DefaultTaxRate / 100m);
-            return (0m, 0m, 0m, 0m, DefaultTaxRate, igst);
+            var igst = Round(taxableTotal * taxRatePercent / 100m);
+            return (0m, 0m, 0m, 0m, taxRatePercent, igst);
         }
         else
         {
-            var cgst = Round(taxableTotal * DefaultHalfRate / 100m);
-            var sgst = Round(taxableTotal * DefaultHalfRate / 100m);
-            return (DefaultHalfRate, cgst, DefaultHalfRate, sgst, 0m, 0m);
+            var cgst = Round(taxableTotal * halfRate / 100m);
+            var sgst = Round(taxableTotal * halfRate / 100m);
+            return (halfRate, cgst, halfRate, sgst, 0m, 0m);
         }
     }
 

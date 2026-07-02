@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Save, Shirt } from 'lucide-react'
+import { Plus, Save, Shirt, Pencil, AlertTriangle, Layers, Ruler } from 'lucide-react'
 import {
   useCreateItem,
   useUpdateItem,
@@ -14,7 +14,7 @@ import {
   Field,
   drawerInputCls,
 } from '@/components/shared/FormDrawer'
-import { apiErrorMessage } from '@/lib/apiError'
+import { apiErrorMessage, apiErrorHasCode } from '@/lib/apiError'
 import { cn } from '@/lib/utils'
 import { useAutoCode } from '@/hooks/useAutoCode'
 import type { ManagedItemDto } from '@/types/api'
@@ -71,6 +71,10 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
   const [status, setStatus] = useState('active')
   const [fabricIds, setFabricIds] = useState<Set<string>>(new Set())
   const [prices, setPrices] = useState<Record<string, string>>({})
+  const [pricingMode, setPricingMode] = useState<'standard' | 'value_slab'>('standard')
+  // SKU is locked on edit — changing it can break imports/exports that reference
+  // the code — so it opens only behind an explicit unlock affordance.
+  const [codeUnlocked, setCodeUnlocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Seed on open / target change (adjust-state-while-rendering, not an effect).
@@ -78,10 +82,12 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
   if ((seededFor.open !== open || seededFor.id !== (item?.id ?? null)) && open) {
     setSeededFor({ open, id: item?.id ?? null })
     setError(null)
+    setCodeUnlocked(false)
     if (item) {
       const loc = parseNameLocalized(item.nameLocalized)
       setItemGroupId(item.itemGroupId ?? '')
       codeF.seed(item.code, true)
+      setPricingMode(item.pricingMode ?? 'standard')
       setName(item.name)
       setNameHi(loc.hi)
       setDescription(item.description ?? '')
@@ -96,6 +102,7 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
     } else {
       setItemGroupId('')
       codeF.seed('', false)
+      setPricingMode('standard')
       setName('')
       setNameHi('')
       setDescription('')
@@ -126,7 +133,12 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
   const submit = async () => {
     setError(null)
     if (!isEdit && !codeF.code.trim()) return setError('SKU code is required.')
+    if (isEdit && codeUnlocked && !codeF.code.trim()) return setError('SKU code cannot be empty.')
     if (!name.trim()) return setError('Item name is required.')
+
+    // Only send `code` on edit when it was unlocked AND actually changed — a
+    // no-op rename would needlessly risk the item_code_taken race.
+    const codeChanged = isEdit && codeUnlocked && codeF.code.trim() !== item!.code
 
     const aliasList = aliases.split(',').map((a) => a.trim()).filter(Boolean)
     const common = {
@@ -148,7 +160,10 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
     try {
       const saved =
         isEdit && item
-          ? await update.mutateAsync({ id: item.id, payload: { ...common, status } })
+          ? await update.mutateAsync({
+              id: item.id,
+              payload: { ...common, status, pricingMode, ...(codeChanged ? { code: codeF.code.trim() } : {}) },
+            })
           : await create.mutateAsync({ ...common, code: codeF.code.trim() })
 
       await savePricing.mutateAsync({
@@ -161,8 +176,18 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
           fabricTypeIds: [...fabricIds],
         },
       })
+
+      // Create can't carry pricingMode (only PUT accepts it) — persist a non-standard
+      // choice with a follow-up update on the freshly created item.
+      if (!isEdit && pricingMode !== 'standard') {
+        await update.mutateAsync({ id: saved.id, payload: { ...common, status, pricingMode } })
+      }
       onClose()
     } catch (e) {
+      if (apiErrorHasCode(e, 'item_code_taken')) {
+        setError('That SKU code is already used by another item. Choose a different code.')
+        return
+      }
       setError(apiErrorMessage(e, 'Could not save the item.'))
     }
   }
@@ -187,8 +212,40 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
           <input value={name} onChange={(e) => { setName(e.target.value); codeF.syncFromName(e.target.value) }} className={drawerInputCls} placeholder="e.g. Shirt" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="SKU code *" hint={isEdit ? 'Code cannot be changed.' : 'Auto-filled from the name; edit to override.'}>
-            <input value={codeF.code} onChange={(e) => codeF.setCode(e.target.value)} disabled={isEdit} className={`${drawerInputCls} font-mono`} placeholder="LG-SHRT" />
+          <Field
+            label="SKU code *"
+            hint={
+              !isEdit
+                ? 'Auto-filled from the name; edit to override.'
+                : codeUnlocked
+                ? undefined
+                : 'Locked — referenced by imports & exports.'
+            }
+          >
+            <div className="relative">
+              <input
+                value={codeF.code}
+                onChange={(e) => codeF.setCode(e.target.value)}
+                disabled={isEdit && !codeUnlocked}
+                className={cn(drawerInputCls, 'font-mono', isEdit && !codeUnlocked && 'pr-16')}
+                placeholder="LG-SHRT"
+              />
+              {isEdit && !codeUnlocked && (
+                <button
+                  type="button"
+                  onClick={() => setCodeUnlocked(true)}
+                  className="absolute right-1.5 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-lg-green hover:bg-lg-green/10"
+                >
+                  <Pencil className="h-3 w-3" /> Edit
+                </button>
+              )}
+            </div>
+            {isEdit && codeUnlocked && (
+              <p className="mt-1 flex items-start gap-1 text-xs text-amber-700">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                Changing the code affects imports and exports that reference it.
+              </p>
+            )}
           </Field>
           <Field label="Category">
             <select value={itemGroupId} onChange={(e) => setItemGroupId(e.target.value)} className={drawerInputCls}>
@@ -232,6 +289,37 @@ export function ItemManageDrawer({ open, item, onClose }: Props) {
             )
           })}
         </div>
+      </DrawerSection>
+
+      <DrawerSection title="Pricing mode">
+        <div className="inline-flex rounded-lg border border-gray-200 p-0.5">
+          {[
+            { value: 'standard' as const, label: 'Standard', icon: Ruler },
+            { value: 'value_slab' as const, label: 'By declared garment value', icon: Layers },
+          ].map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => setPricingMode(m.value)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                pricingMode === m.value ? 'bg-lg-green text-white' : 'text-gray-500 hover:text-gray-700',
+              )}
+            >
+              <m.icon className="h-3.5 w-3.5" />
+              {m.label}
+            </button>
+          ))}
+        </div>
+        {pricingMode === 'value_slab' && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              The per-service prices below are ignored for this item. Its price comes from the value slabs
+              configured on the Pricing page, matched against the customer’s declared garment value.
+            </span>
+          </div>
+        )}
       </DrawerSection>
 
       <DrawerSection title="Pricing per service">

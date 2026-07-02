@@ -78,7 +78,12 @@ public sealed record PriceListItemDto(
     // that don't project the joins (existing positional callers are unaffected:
     // both default to null).
     string? ItemName = null,
-    string? ServiceName = null
+    string? ServiceName = null,
+    // ── GH #22 (additive) — item pricing mode for the customer app ────────────────
+    // 'standard' or 'value_slab'. When 'value_slab', the app must ask the customer for
+    // a declared garment value before adding the line (the listed base price is a
+    // placeholder — the real price resolves from the value slab at order time).
+    string PricingMode = "standard"
 );
 
 public sealed record CreatePriceListItemRequest(

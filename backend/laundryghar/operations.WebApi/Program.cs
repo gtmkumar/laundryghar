@@ -53,6 +53,17 @@ builder.Services
     .AddOperationsApplication()                          // validators + command/query handlers (no mediator)
     .AddOperationsInfrastructure(builder.Configuration); // IOperationsDbContext + file storage over the shared context
 
+// ── Named HTTP client for the Google Sheet import (#21) ───────────────────────
+// Auto-redirect is DISABLED so the handler can vet every hop's host against an allow-list
+// (SSRF guard); a 15s timeout bounds a hung fetch. See ParseGoogleSheetImportHandler.
+builder.Services.AddHttpClient(
+        operations.Application.Catalog.Catalog.Commands.Item.ParseGoogleSheetImportHandler.HttpClientName,
+        c => c.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+    });
+
 // ── Orders sub-domain settings (tax/express/TAT/stuck thresholds) ──────────────
 // Bound from the "Orders" config section; defaults apply when the section is absent.
 builder.Services.Configure<operations.Application.Orders.Common.OrdersSettings>(

@@ -5,6 +5,7 @@
 import { catalogClient, unwrapList, unwrapSingle } from '@/api/client';
 import type {
   AccountDeletionRequestDto,
+  CatalogConfigDto,
   CreateAddressRequest,
   CreateDeletionRequestRequest,
   CustomerAddressDto,
@@ -38,6 +39,21 @@ export async function getServices(categoryId?: string): Promise<ServiceDto[]> {
     { params: categoryId ? { categoryId } : undefined },
   );
   return unwrapList(res.data);
+}
+
+/**
+ * GET /api/v1/customer/catalog/config
+ * Brand/store business rules (min order value, currency, high-value threshold).
+ * Pass storeId when the flow has a selected store; omit for the brand default.
+ */
+export async function getCatalogConfig(
+  storeId?: string,
+): Promise<CatalogConfigDto> {
+  const res = await catalogClient.get<SingleResponse<CatalogConfigDto>>(
+    '/customer/catalog/config',
+    { params: storeId ? { storeId } : undefined },
+  );
+  return unwrapSingle(res.data);
 }
 
 /** GET /api/v1/customer/catalog/price-list */

@@ -2,6 +2,7 @@ using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Catalog.Pricing.Commands.PriceListItem;
+using operations.Application.Catalog.Pricing.Common;
 using operations.Application.Catalog.Pricing.Dtos;
 using operations.Application.Common.Interfaces;
 
@@ -24,7 +25,9 @@ public sealed record ResolvePriceQuery(
     Guid ItemId,
     Guid ServiceId,
     Guid? VariantId,
-    Guid? StoreId
+    Guid? StoreId,
+    /// <summary>Declared garment value — required for value-slab items (GH #22), ignored otherwise.</summary>
+    decimal? DeclaredValue = null
 ) : IQuery<PriceResolutionDto?>;
 
 public sealed class ResolvePriceHandler : IQueryHandler<ResolvePriceQuery, PriceResolutionDto?>
@@ -37,73 +40,22 @@ public sealed class ResolvePriceHandler : IQueryHandler<ResolvePriceQuery, Price
     public async Task<PriceResolutionDto?> HandleAsync(ResolvePriceQuery q, CancellationToken ct)
     {
         var brandId = _user.RequireBrandId();
-        // Load candidate published price lists scoped to the caller's brand (defense-in-depth).
-        // Scope priority: store(2) > franchise(1) > brand(0).
-        // Within the same priority, most-recently published wins.
-        var publishedLists = await _db.PriceLists
-            .Where(pl => pl.IsPublished && pl.DeletedAt == null && pl.Status == "published" && pl.BrandId == brandId)
-            .Select(pl => new
-            {
-                pl.Id, pl.Code, pl.ScopeType, pl.FranchiseId, pl.StoreId,
-                pl.PublishedAt, pl.IsPublished
-            })
-            .ToListAsync(ct);
 
-        // Prioritise: store (if storeId given) → franchise → brand
-        // Resolve franchise from the store if needed
-        Guid? franchiseId = null;
-        if (q.StoreId.HasValue)
-        {
-            var store = await _db.Stores
-                .Where(s => s.Id == q.StoreId.Value)
-                .Select(s => new { s.FranchiseId })
-                .FirstOrDefaultAsync(ct);
-            franchiseId = store?.FranchiseId;
-        }
+        // Delegates to the shared resolver (GH #24 dedupe) and maps to the admin DTO. Value-slab items
+        // come back with PriceListId = Guid.Empty and code/scope "value_slab".
+        var r = await SharedPriceResolver.ResolveAsync(
+            _db, brandId, q.StoreId, q.ItemId, q.ServiceId, q.VariantId, q.DeclaredValue, ct);
+        if (r is null) return null;
 
-        var scopedList = publishedLists
-            .Where(pl =>
-                (q.StoreId.HasValue     && pl.ScopeType == "store"     && pl.StoreId     == q.StoreId)     ||
-                (franchiseId.HasValue   && pl.ScopeType == "franchise"  && pl.FranchiseId == franchiseId) ||
-                pl.ScopeType == "brand")
-            .OrderByDescending(pl =>
-                pl.ScopeType == "store"     ? 2 :
-                pl.ScopeType == "franchise" ? 1 : 0)
-            .ThenByDescending(pl => pl.PublishedAt)
-            .Select(pl => pl.Id)
-            .ToList();
-
-        foreach (var listId in scopedList)
-        {
-            // Match the most-specific price row: prefer variant-specific, fall back to non-variant
-            var priceItem = await _db.PriceListItems
-                .Where(pi =>
-                    pi.PriceListId == listId &&
-                    pi.ItemId     == q.ItemId &&
-                    pi.ServiceId  == q.ServiceId &&
-                    pi.IsActive   &&
-                    pi.Status     == "active" &&
-                    (q.VariantId == null ? pi.ItemVariantId == null
-                                        : (pi.ItemVariantId == q.VariantId || pi.ItemVariantId == null)))
-                .OrderByDescending(pi => pi.ItemVariantId != null ? 1 : 0) // variant-specific first
-                .Select(pi => new { pi.Id, pi.BasePrice, pi.ExpressPrice, pi.TaxRatePercent, pi.IsTaxable, pi.DisplayLabel })
-                .FirstOrDefaultAsync(ct);
-
-            if (priceItem is null) continue;
-
-            var list = publishedLists.First(pl => pl.Id == listId);
-            return new PriceResolutionDto(
-                listId,
-                list.Code,
-                list.ScopeType,
-                priceItem.BasePrice,
-                priceItem.ExpressPrice,
-                priceItem.TaxRatePercent,
-                priceItem.IsTaxable,
-                priceItem.DisplayLabel);
-        }
-
-        return null; // no published price found at any scope
+        return new PriceResolutionDto(
+            r.PriceListId,
+            r.PriceListCode,
+            r.ScopeType,
+            r.BasePrice,
+            r.ExpressPrice,
+            r.TaxRatePercent,
+            r.IsTaxable,
+            r.DisplayLabel);
     }
 }
 
@@ -144,6 +96,7 @@ public sealed class GetPublishedPriceListHandler : IQueryHandler<GetPublishedPri
                 Item = pi,
                 ItemName = pi.Item.Name,
                 ServiceName = pi.Service.Name,
+                PricingMode = pi.Item.PricingMode,
             })
             .ToListAsync(ct);
 
@@ -154,6 +107,7 @@ public sealed class GetPublishedPriceListHandler : IQueryHandler<GetPublishedPri
                 {
                     ItemName = r.ItemName,
                     ServiceName = r.ServiceName,
+                    PricingMode = r.PricingMode,
                 };
                 // Fill a sensible label when the authored one is blank.
                 var label = string.IsNullOrWhiteSpace(dto.DisplayLabel)

@@ -90,6 +90,20 @@ public class ExceptionHandler
                     ErrorMessageEnum.ValidationFailed, HttpStatusCode.UnprocessableEntity,
                     validation.Message, validation.ErrorsDictionary);
 
+            // A structured business-rule violation carries a machine-readable code + fields.
+            // Surface them in the errorMessage dictionary (code under "code", each field as a
+            // single-element array) so clients can branch programmatically. Checked before the
+            // plain BusinessRuleException case as it is a distinct (non-derived) type.
+            case StructuredBusinessRuleException structured:
+            {
+                var errors = new Dictionary<string, string[]> { ["code"] = new[] { structured.Code } };
+                foreach (var (field, value) in structured.Fields)
+                    errors[field] = new[] { value };
+                return new MappedError(
+                    ErrorMessageEnum.ValidationFailed, HttpStatusCode.UnprocessableEntity,
+                    structured.Message, errors);
+            }
+
             case BusinessRuleException:
                 return new MappedError(
                     ErrorMessageEnum.ValidationFailed, HttpStatusCode.UnprocessableEntity,

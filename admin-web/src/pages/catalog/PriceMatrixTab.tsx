@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePricingMatrix } from '@/hooks/useCatalog'
 
@@ -46,6 +46,22 @@ export function PriceMatrixTab() {
           {scopeType && <span className="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 capitalize">{scopeType}</span>}
         </p>
       )}
+
+      {/*
+        The matrix is a read-only projection of the effective (published) price
+        list: rows come from that list's priced items, and fabric columns are
+        computed from the base × each fabric multiplier. It carries no item /
+        service identity, so cells can't be edited in place — base rates are
+        edited on the Items page and store overrides through price lists.
+      */}
+      <div className="mb-3 flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-xs text-blue-800">
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          {storeId
+            ? 'Store overrides are edited via price lists — this view is read-only.'
+            : 'Base rates are edited on the Items page (Bulk edit). Fabric columns are computed from the base rate; store overrides are managed through price lists.'}
+        </span>
+      </div>
 
       {rows.length === 0 ? (
         <p className="py-12 text-center text-sm text-gray-400">No published prices for this scope yet.</p>

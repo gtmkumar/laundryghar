@@ -114,6 +114,27 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
         if (!customerInBrand)
             throw new KeyNotFoundException("Customer not found.");
 
+        // ── Resolve scope-aware order pricing rules (store→franchise→brand→platform) ──
+        // Falls back to the injected OrdersSettings when no system_settings row exists at any
+        // scope (belt & braces). An unregistered franchise (no GSTIN) charges no GST regardless
+        // of the configured rate.
+        var franchiseGstin = await _db.Franchises
+            .AsNoTracking()
+            .Where(f => f.Id == store.FranchiseId)
+            .Select(f => f.Gstin)
+            .FirstOrDefaultAsync(ct);
+        var orderSettings = await OrderSettingsResolver.ResolveAsync(
+            _db, brandId, store.FranchiseId, store.Id,
+            franchiseIsGstRegistered: !string.IsNullOrWhiteSpace(franchiseGstin),
+            _settings, ct);
+        // The TAT engine takes an OrdersSettings; build one carrying the resolved TAT hours so a
+        // scope-level override flows into the promised-delivery calculation.
+        var tatSettings = new OrdersSettings
+        {
+            DefaultTatHours = orderSettings.DefaultTatHours,
+            ExpressTatHours = orderSettings.ExpressTatHours,
+        };
+
         // ── Resolve prices for each line ────────────────────────────────────
         decimal subtotal = 0, addonTotal = 0;
         var itemEntities  = new List<OrderItem>();
@@ -128,7 +149,7 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             var line = req.Items[i];
             var resolved = await PriceResolver.ResolveAsync(
                 _db, brandId, req.StoreId,
-                line.ServiceId, line.ItemId, line.ItemVariantId, ct)
+                line.ServiceId, line.ItemId, line.ItemVariantId, ct, line.DeclaredValue)
                 ?? throw new BusinessRuleException(
                     $"No published price found for item {line.ItemId} / service {line.ServiceId}.");
 
@@ -165,6 +186,10 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
                 ItemNameSnapshot    = resolved.ItemNameSnapshot,
                 ServiceNameSnapshot = resolved.ServiceNameSnapshot,
                 UnitPrice           = unitPrice,
+                // Value-slab snapshot (GH #22): immutable record of what the customer declared and
+                // the slab price that resolved. Null for standard-priced lines.
+                DeclaredValue       = resolved.IsValueSlab ? line.DeclaredValue : null,
+                AppliedSlabPrice    = resolved.IsValueSlab ? resolved.BasePrice : null,
                 Quantity            = line.Quantity,
                 UnitOfMeasure       = "piece",
                 LineSubtotal        = lineSubtotal,
@@ -183,11 +208,19 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             });
         }
 
+        // ── Minimum order value (hard block; unset ⇒ no restriction) ────────
+        // Enforced on the pre-tax, pre-delivery item subtotal, per product decision.
+        // Parcel jobs carry no catalog items (their value is the fare), so the
+        // item-subtotal minimum does not apply to them.
+        if (!isParcel)
+            await MinOrderValueRule.EnforceAsync(
+                _db, brandId, store.FranchiseId, store.Id, subtotal, ct);
+
         // ── Compute promised delivery date (TAT engine) ─────────────────────
         // Uses MAX(service TAT hours) across all distinct services on the order.
         // Falls back to config defaults when catalog TAT is absent (see TatCalculator).
         var promisedDeliveryAt = TatCalculator.Compute(
-            now, req.IsExpress, [.. serviceTatMap.Values], _settings);
+            now, req.IsExpress, [.. serviceTatMap.Values], tatSettings);
 
         // ── Process add-ons ─────────────────────────────────────────────────
         foreach (var aReq in req.Addons)
@@ -229,7 +262,7 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
 
         // ── Totals ──────────────────────────────────────────────────────────
         var expressSurcharge = req.IsExpress
-            ? Math.Round(subtotal * (_settings.ExpressSurchargePercent / 100m), 2)
+            ? Math.Round(subtotal * (orderSettings.ExpressSurchargePercent / 100m), 2)
             : 0m;
 
         // ── Coupon resolution (server-side, mirrors Commerce ValidateApplyCouponHandler) ──
@@ -545,8 +578,8 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
                            - couponDiscount - loyaltyDiscount - packageDiscount - promotionDiscount;
         if (taxableAmount < 0m) taxableAmount = 0m;
 
-        var halfRate      = _settings.TaxRatePercent / 2m;
-        var taxTotal      = Math.Round(taxableAmount * (_settings.TaxRatePercent / 100m), 2);
+        var halfRate      = orderSettings.TaxRatePercent / 2m;
+        var taxTotal      = Math.Round(taxableAmount * (orderSettings.TaxRatePercent / 100m), 2);
         var cgst          = Math.Round(taxableAmount * (halfRate / 100m), 2);
         var sgst          = taxTotal - cgst;
 
@@ -574,7 +607,7 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
         // Update per-line tax proportionally
         foreach (var li in itemEntities)
         {
-            li.LineTax   = Math.Round(li.LineSubtotal * (_settings.TaxRatePercent / 100m), 2);
+            li.LineTax   = Math.Round(li.LineSubtotal * (orderSettings.TaxRatePercent / 100m), 2);
             li.LineTotal = li.LineSubtotal + li.LineAddonsTotal + li.LineTax;
         }
 
@@ -640,7 +673,7 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             GrandTotal       = grandTotal,
             AmountPaid       = 0,
             RefundedAmount   = 0,
-            CurrencyCode     = _settings.DefaultCurrencyCode,
+            CurrencyCode     = orderSettings.CurrencyCode,
             TotalItems       = req.Items.Length,
             TotalGarments    = 0,
             Status              = initialStatus,
@@ -707,7 +740,7 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
                 storeId            = req.StoreId,
                 customerId         = req.CustomerId,
                 grandTotal         = grandTotal,
-                currency           = _settings.DefaultCurrencyCode,
+                currency           = orderSettings.CurrencyCode,
                 placedAt           = now,
                 promisedDeliveryAt = promisedDeliveryAt,
                 promotionId        = appliedPromotion?.Id,

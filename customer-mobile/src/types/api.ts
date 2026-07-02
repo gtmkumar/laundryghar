@@ -131,6 +131,14 @@ export interface PriceListItemDto {
   itemName?: string;
   /** Resolved catalog service name, e.g. "Wash & Iron" (added alongside displayLabel). */
   serviceName?: string;
+  /**
+   * How the item is priced (GH #22). 'standard' ⇒ basePrice is the real unit price.
+   * 'value_slab' ⇒ basePrice is a PLACEHOLDER; the real price is resolved server-side
+   * from the customer's declared garment value against the brand's value slabs, so the
+   * app must collect a `declaredValue` before ordering. Optional/defaulted to 'standard'
+   * so older servers that omit the field behave as standard pricing.
+   */
+  pricingMode?: 'standard' | 'value_slab';
   notes?: string;
   isActive: boolean;
   status: string;
@@ -202,6 +210,16 @@ export type UpdateAddressRequest = CreateAddressRequest;
 
 export interface ServiceabilityDto {
   serviceable: boolean;
+}
+
+/**
+ * GET /customer/catalog/config — brand/store business rules that gate the
+ * booking flow. `minOrderValue === null` ⇒ NO minimum-order restriction.
+ */
+export interface CatalogConfigDto {
+  minOrderValue: number | null;
+  currencyCode: string;
+  highValueGarmentThreshold: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -451,8 +469,14 @@ export interface RequestedCartItemDto {
   displayLabel: string;
   /** Quantity >= 1. */
   quantity: number;
-  /** Estimated unit price from price list; null when unavailable. */
+  /** Estimated unit price from price list; null when unavailable (e.g. value-slab items). */
   estimatedUnitPrice?: number | null;
+  /**
+   * Customer-declared garment value for value-slab items (GH #22). Required by the
+   * server to resolve the real price for a value_slab item; null/omitted for standard
+   * items. Additive & optional — older servers ignore it.
+   */
+  declaredValue?: number | null;
 }
 
 export type PickupRequestStatus =

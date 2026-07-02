@@ -17,11 +17,21 @@ export interface CartLine {
   service: string;
   unitPrice: number;
   qty: number;
+  /**
+   * Pricing mode from the catalog (GH #22). 'value_slab' items are priced from a
+   * customer-declared value at order time — their `unitPrice` is a placeholder and
+   * is excluded from {@link CartState.subtotal}. Undefined ⇒ standard pricing.
+   */
+  pricingMode?: 'standard' | 'value_slab';
+  /** Customer-declared garment value for a value_slab line (GH #22). Undefined until set. */
+  declaredValue?: number;
 }
 
 interface CartState {
   lines: Record<string, CartLine>;
   setQty: (line: Omit<CartLine, 'qty'>, qty: number) => void;
+  /** Set/replace the declared garment value for an existing value_slab line (GH #22). */
+  setDeclaredValue: (id: string, declaredValue: number) => void;
   remove: (id: string) => void;
   clear: () => void;
   // selectors
@@ -39,9 +49,19 @@ export const useCartStore = create<CartState>()((set, get) => ({
       if (qty <= 0) {
         delete next[line.id];
       } else {
-        next[line.id] = { ...line, qty };
+        // Merge over any existing line so a plain quantity change (the incoming
+        // `line` meta carries no declaredValue key) preserves a previously
+        // declared garment value; an explicit declaredValue in `line` still wins.
+        next[line.id] = { ...state.lines[line.id], ...line, qty };
       }
       return { lines: next };
+    }),
+
+  setDeclaredValue: (id, declaredValue) =>
+    set((state) => {
+      const existing = state.lines[id];
+      if (!existing) return state;
+      return { lines: { ...state.lines, [id]: { ...existing, declaredValue } } };
     }),
 
   remove: (id) =>
@@ -55,5 +75,11 @@ export const useCartStore = create<CartState>()((set, get) => ({
 
   list: () => Object.values(get().lines),
   count: () => Object.values(get().lines).reduce((n, l) => n + l.qty, 0),
-  subtotal: () => Object.values(get().lines).reduce((sum, l) => sum + l.qty * l.unitPrice, 0),
+  // value_slab lines carry a placeholder unitPrice (priced from the declared value
+  // server-side), so they are excluded from the money subtotal — see GH #22.
+  subtotal: () =>
+    Object.values(get().lines).reduce(
+      (sum, l) => (l.pricingMode === 'value_slab' ? sum : sum + l.qty * l.unitPrice),
+      0,
+    ),
 }));

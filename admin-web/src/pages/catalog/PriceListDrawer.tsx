@@ -9,6 +9,9 @@ import {
   Check,
   X,
   Info,
+  Download,
+  FileSpreadsheet,
+  Loader2,
 } from 'lucide-react'
 import {
   useCreatePriceList,
@@ -19,6 +22,7 @@ import {
   useUpdatePriceListItem,
   useServicesInfinite,
   useItemsInfinite,
+  useExportPriceList,
 } from '@/hooks/useCatalog'
 import { useFranchises, useStores } from '@/hooks/useTenancy'
 import {
@@ -265,6 +269,7 @@ export function PriceListDetailDrawer({
 
   const update = useUpdatePriceList()
   const publish = usePublishPriceList()
+  const exportList = useExportPriceList()
   const { data: itemsData, isLoading: itemsLoading } = usePriceListItems(id)
   const createItem = useCreatePriceListItem(id ?? '')
   const updateItem = useUpdatePriceListItem(id ?? '')
@@ -470,6 +475,14 @@ export function PriceListDetailDrawer({
     }
   }
 
+  const doExport = (format: 'csv' | 'xlsx') => {
+    if (!priceList) return
+    exportList.mutate(
+      { id: priceList.id, format },
+      { onError: (e) => setHeaderError(apiErrorMessage(e, 'Could not export the price list.')) },
+    )
+  }
+
   if (!priceList) return null
 
   return (
@@ -480,6 +493,38 @@ export function PriceListDetailDrawer({
       eyebrow={<>Price list · <span className="font-mono">{priceList.code}</span></>}
       title={priceList.name}
       width="lg"
+      headerAction={
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => doExport('csv')}
+            disabled={exportList.isPending}
+            title="Export as CSV"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+          >
+            {exportList.isPending && exportList.variables?.format === 'csv' ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => doExport('xlsx')}
+            disabled={exportList.isPending}
+            title="Export as Excel"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+          >
+            {exportList.isPending && exportList.variables?.format === 'xlsx' ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+            )}
+            Excel
+          </button>
+        </div>
+      }
       headerExtra={
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="capitalize">{priceList.scopeType}</Badge>

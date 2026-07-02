@@ -1,31 +1,31 @@
 using System.Text.Json;
 using laundryghar.SharedDataModel.Common;
-using Microsoft.EntityFrameworkCore;
 using operations.Application.Common.Interfaces;
+using operations.Application.Common.Settings;
 
 namespace operations.Application.Orders.Fare;
 
 /// <summary>
-/// Reads the brand's delivery fare configuration from the shared kernel.system_settings
-/// table (category 'fare', key 'quote') — the same mechanism the Identity Settings panel
-/// uses for rider payout. Returns sensible defaults when no row exists. Deserialized with
-/// web (camelCase) options to match the stored JSON.
+/// Reads the delivery fare configuration from the shared kernel.system_settings table
+/// (category 'fare', key 'quote') — the same mechanism the Identity Settings panel uses for
+/// rider payout. Resolution follows the scope precedence store → franchise → brand → platform
+/// via <see cref="SettingsResolver"/>, so a store or franchise can override the brand's matrix.
+/// Returns sensible defaults when no row exists. Deserialized with web (camelCase) options to
+/// match the stored JSON.
 /// </summary>
 internal static class FareConfig
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    internal static async Task<FareSettings> LoadAsync(IOperationsDbContext db, Guid brandId, CancellationToken ct)
+    internal static async Task<FareSettings> LoadAsync(
+        IOperationsDbContext db, Guid brandId, CancellationToken ct,
+        Guid? franchiseId = null, Guid? storeId = null)
     {
-        var raw = await db.SystemSettings.AsNoTracking()
-            .Where(s => s.Category == "fare" && s.SettingKey == "quote" && s.Status == "active"
-                     && (s.BrandId == brandId || s.BrandId == null))
-            .OrderBy(s => s.BrandId == null)   // brand-specific row wins over a platform default
-            .Select(s => s.SettingValue)
-            .FirstOrDefaultAsync(ct);
+        var eff = await SettingsResolver.GetEffectiveAsync(
+            db, brandId, franchiseId, storeId, "fare", "quote", ct);
 
-        if (raw is null) return new FareSettings();
-        try { return JsonSerializer.Deserialize<FareSettings>(raw, Json) ?? new FareSettings(); }
+        if (eff is null) return new FareSettings();
+        try { return JsonSerializer.Deserialize<FareSettings>(eff.Value, Json) ?? new FareSettings(); }
         catch (JsonException) { return new FareSettings(); }
     }
 }

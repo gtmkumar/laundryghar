@@ -43,7 +43,13 @@ import {
   saveItemPricing,
   importItems,
   parseImportFile,
+  parseGoogleSheet,
   createItemGroup,
+  exportPriceList,
+  getValueSlabs,
+  createValueSlab,
+  updateValueSlab,
+  deleteValueSlab,
 } from '@/api/catalog'
 import type {
   PaginationParams,
@@ -61,11 +67,14 @@ import type {
   UpdateItemPayload,
   SaveItemPricingPayload,
   ImportItemsPayload,
+  ParseGoogleSheetPayload,
   CreateItemGroupPayload,
   CreatePriceListPayload,
   UpdatePriceListPayload,
   CreatePriceListItemPayload,
   UpdatePriceListItemPayload,
+  CreateValueSlabPayload,
+  UpdateValueSlabPayload,
 } from '@/types/api'
 
 export const catalogKeys = {
@@ -83,6 +92,7 @@ export const catalogKeys = {
   priceListItems: (priceListId: string) => ['catalog', 'priceListItems', priceListId] as const,
   addOns: (params?: object) => ['catalog', 'addOns', params] as const,
   adminCustomers: (params?: object) => ['catalog', 'adminCustomers', params] as const,
+  valueSlabs: (params?: object) => ['catalog', 'valueSlabs', params] as const,
 }
 
 const CATALOG_PAGE_SIZE = 100
@@ -201,6 +211,16 @@ export function useParseImportFile() {
   })
 }
 
+/**
+ * Dry-run parse of a published Google Sheet — like {@link useParseImportFile} but
+ * sourced from a link, so there's no upload progress and (again) no invalidation.
+ */
+export function useParseGoogleSheet() {
+  return useMutation({
+    mutationFn: (payload: ParseGoogleSheetPayload) => parseGoogleSheet(payload),
+  })
+}
+
 /** Flat fabric-type lookup (first 100) — feeds the price-list item editor. */
 export function useFabricTypes() {
   return useQuery({
@@ -271,6 +291,61 @@ export function useDeleteAddOn() {
   return useMutation({
     mutationFn: (id: string) => deleteAddOn(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'addOns'] }),
+  })
+}
+
+// ── Value slabs (declared-garment-value pricing) ──────────────────────────────
+
+export function useValueSlabs(params: { serviceId?: string; includeArchived?: boolean } = {}) {
+  return useQuery({
+    queryKey: catalogKeys.valueSlabs(params),
+    queryFn: () => getValueSlabs(params),
+    staleTime: 30_000,
+  })
+}
+
+export function useCreateValueSlab() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateValueSlabPayload) => createValueSlab(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'valueSlabs'] }),
+  })
+}
+
+export function useUpdateValueSlab() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { id: string; payload: UpdateValueSlabPayload }) => updateValueSlab(v.id, v.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'valueSlabs'] }),
+  })
+}
+
+export function useDeleteValueSlab() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteValueSlab(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'valueSlabs'] }),
+  })
+}
+
+// ── Price-list export ─────────────────────────────────────────────────────────
+
+/**
+ * Downloads a price list as CSV/Excel and triggers a browser save. Exposed as a
+ * mutation (no cache writes) purely for its pending/error state on the export
+ * buttons; the blob→anchor download side-effect lives in onSuccess.
+ */
+export function useExportPriceList() {
+  return useMutation({
+    mutationFn: (v: { id: string; format: 'csv' | 'xlsx' }) => exportPriceList(v.id, v.format),
+    onSuccess: ({ blob, filename }) => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    },
   })
 }
 

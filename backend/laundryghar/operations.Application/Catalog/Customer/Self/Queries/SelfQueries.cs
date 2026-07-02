@@ -1,8 +1,11 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.CustomerCatalog;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using operations.Application.Catalog.Customer.Self.Dtos;
 using operations.Application.Common.Interfaces;
+using operations.Application.Common.Settings;
+using operations.Application.Orders.Common;
 
 namespace operations.Application.Catalog.Customer.Self.Queries;
 
@@ -109,6 +112,71 @@ public sealed class CheckServiceabilityHandler : IQueryHandler<CheckServiceabili
                         && t.Pincodes.Contains(q.Pincode), ct);
 
         return new ServiceabilityDto(territoryMatch);
+    }
+}
+
+// ── Customer catalog config ─────────────────────────────────────────────────────
+
+/// <summary>
+/// Resolves the scope-aware order/catalog rules the customer app needs up front:
+/// the effective minimum order value (orders/min_order_value), the effective currency
+/// (orders/currency_code, falling back to the Orders default), and the high-value garment
+/// threshold (catalog/high_value_garment_threshold). Scope is the caller's brand plus an
+/// optional store; the store's franchise is derived from the store row. An unknown/foreign
+/// store falls back to brand-level resolution (no error).
+/// </summary>
+public sealed record GetCustomerCatalogConfigQuery(Guid BrandId, Guid? StoreId)
+    : IQuery<CustomerCatalogConfigDto>;
+
+public sealed class GetCustomerCatalogConfigHandler
+    : IQueryHandler<GetCustomerCatalogConfigQuery, CustomerCatalogConfigDto>
+{
+    private readonly IOperationsDbContext _db;
+    private readonly OrdersSettings _orders;
+
+    public GetCustomerCatalogConfigHandler(IOperationsDbContext db, IOptions<OrdersSettings> orders)
+    {
+        _db = db;
+        _orders = orders.Value;
+    }
+
+    public async Task<CustomerCatalogConfigDto> HandleAsync(GetCustomerCatalogConfigQuery q, CancellationToken ct)
+    {
+        // Derive the store's franchise for franchise-scope precedence. A store id that is not
+        // found in the caller's brand is ignored (resolve at brand scope) rather than erroring —
+        // this is a read-only config lookup.
+        Guid? franchiseId = null;
+        Guid? storeId = null;
+        if (q.StoreId is { } sid)
+        {
+            var store = await _db.Stores
+                .AsNoTracking()
+                .Where(s => s.Id == sid && s.BrandId == q.BrandId)
+                .Select(s => new { s.Id, s.FranchiseId })
+                .FirstOrDefaultAsync(ct);
+            if (store is not null)
+            {
+                storeId = store.Id;
+                franchiseId = store.FranchiseId;
+            }
+        }
+
+        var minOrderValue = await SettingsResolver.GetDecimalAsync(
+            _db, q.BrandId, franchiseId, storeId,
+            SettingCategories.Orders, SettingKeys.MinOrderValue, ct);
+
+        var currency = await SettingsResolver.GetStringAsync(
+            _db, q.BrandId, franchiseId, storeId,
+            SettingCategories.Orders, SettingKeys.CurrencyCode, ct);
+
+        var highValueThreshold = await SettingsResolver.GetDecimalAsync(
+            _db, q.BrandId, franchiseId, storeId,
+            SettingCategories.Catalog, SettingKeys.HighValueGarmentThreshold, ct);
+
+        return new CustomerCatalogConfigDto(
+            MinOrderValue: minOrderValue,
+            CurrencyCode: currency ?? _orders.DefaultCurrencyCode,
+            HighValueGarmentThreshold: highValueThreshold);
     }
 }
 
