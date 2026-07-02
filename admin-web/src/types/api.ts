@@ -291,7 +291,8 @@ export interface ItemStatsDto {
 
 export interface SaveItemPricingPayload {
   servicePrices: { serviceId: string; basePrice: number | null }[]
-  fabricTypeIds: string[]
+  /** Omit to leave the item's fabric set unchanged (single-cell edits); an explicit list replaces it. */
+  fabricTypeIds?: string[]
 }
 
 export interface ImportFabricPrice {
@@ -595,7 +596,14 @@ export interface UpdateAddOnPayload {
 
 // ── Price matrix ─────────────────────────────────────────────────────────────
 export interface PricingMatrixFabric { code: string; name: string; multiplier: number }
-export interface PricingMatrixRow { label: string; basePrice: number }
+export interface PricingMatrixRow {
+  label: string
+  basePrice: number
+  itemId: string
+  serviceId: string
+  /** True only for fabric-null rows of the brand working list — the surface SaveItemPricing edits. */
+  editable: boolean
+}
 export interface PricingMatrixStore { id: string; name: string }
 export interface PricingMatrix {
   priceListName: string | null
@@ -603,6 +611,8 @@ export interface PricingMatrix {
   fabrics: PricingMatrixFabric[]
   rows: PricingMatrixRow[]
   stores: PricingMatrixStore[]
+  priceListId: string | null
+  isWorkingList: boolean
 }
 
 export interface PricingHistoryEntry {

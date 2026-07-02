@@ -1,6 +1,7 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
+using operations.Application.Catalog.Pricing.Common;
 using operations.Application.Catalog.Pricing.Dtos;
 using operations.Application.Common.Interfaces;
 
@@ -56,20 +57,28 @@ public sealed class GetPricingMatrixHandler : IQueryHandler<GetPricingMatrixQuer
             .FirstOrDefault();
 
         if (chosen is null)
-            return new PricingMatrixDto(null, null, fabrics, [], stores);
+            return new PricingMatrixDto(null, null, fabrics, [], stores, null, false);
+
+        // Cell edits write through SaveItemPricing, which only ever touches the brand
+        // working list's fabric-null rows — so only those rows may be marked editable.
+        var workingId = await WorkingPriceList.ResolveIdAsync(_db, brandId, ct);
+        var isWorkingList = workingId is { } wid && wid == chosen.Id;
 
         var raw = await _db.PriceListItems.AsNoTracking()
             .Where(pi => pi.PriceListId == chosen.Id && pi.IsActive && pi.Status == "active")
             .OrderBy(pi => pi.CreatedAt)
-            .Select(pi => new { pi.BasePrice, pi.DisplayLabel, ItemName = pi.Item.Name, ServiceName = pi.Service.Name })
+            .Select(pi => new { pi.BasePrice, pi.DisplayLabel, pi.ItemId, pi.ServiceId, pi.FabricTypeId, ItemName = pi.Item.Name, ServiceName = pi.Service.Name })
             .ToListAsync(ct);
 
         var rows = raw.Select(r => new PricingMatrixRowDto(
             string.IsNullOrWhiteSpace(r.DisplayLabel)
                 ? string.Join(" · ", new[] { r.ItemName, r.ServiceName }.Where(s => !string.IsNullOrWhiteSpace(s)))
                 : r.DisplayLabel!,
-            r.BasePrice)).ToList();
+            r.BasePrice,
+            r.ItemId,
+            r.ServiceId,
+            isWorkingList && r.FabricTypeId == null)).ToList();
 
-        return new PricingMatrixDto(chosen.Name, chosen.ScopeType, fabrics, rows, stores);
+        return new PricingMatrixDto(chosen.Name, chosen.ScopeType, fabrics, rows, stores, chosen.Id, isWorkingList);
     }
 }

@@ -282,11 +282,13 @@ public sealed record ItemStatsDto(
 );
 
 // Inline pricing + fabric save from the Items drawer/table. A null price for a
-// service removes that service's row; fabric ids replace the item's fabric set.
+// service removes that service's row. An explicit fabric-id list (even empty)
+// replaces the item's fabric set; null leaves fabrics unchanged so single-cell
+// edits (price matrix) can't wipe them.
 public sealed record SaveItemServicePrice(Guid ServiceId, decimal? BasePrice);
 public sealed record SaveItemPricingRequest(
     IReadOnlyList<SaveItemServicePrice> ServicePrices,
-    IReadOnlyList<Guid> FabricTypeIds
+    IReadOnlyList<Guid>? FabricTypeIds = null
 );
 
 // ── CSV / XLSX import (round-trips the Items Export format) ─────────────────────
