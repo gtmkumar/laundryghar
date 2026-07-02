@@ -31,6 +31,7 @@ import type {
   SaveItemPricingPayload,
   ImportItemsPayload,
   ImportItemsResult,
+  ImportParseResult,
   CreateItemGroupPayload,
   CreatePriceListPayload,
   UpdatePriceListPayload,
@@ -163,6 +164,39 @@ export async function saveItemPricing(id: string, payload: SaveItemPricingPayloa
 export async function importItems(payload: ImportItemsPayload): Promise<ImportItemsResult> {
   const { data } = await catalogClient.post<ApiResponse<ImportItemsResult>>(`${ADMIN}/items/import`, payload)
   return unwrap(data)
+}
+
+/**
+ * Dry-run parse of an uploaded .csv/.xlsx (≤10MB). The server detects the layout,
+ * normalizes rows, and returns a preview report (no writes). `onProgress` reports
+ * upload percentage for the file transfer.
+ */
+export async function parseImportFile(
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<ImportParseResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await catalogClient.post<ApiResponse<ImportParseResult>>(
+    `${ADMIN}/items/import/parse`,
+    form,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+      },
+    },
+  )
+  return unwrap(data)
+}
+
+/** Downloads the import template (blob) in the requested format for the user to save. */
+export async function downloadImportTemplate(format: 'csv' | 'xlsx'): Promise<Blob> {
+  const { data } = await catalogClient.get<Blob>(`${ADMIN}/items/import/template`, {
+    params: { format },
+    responseType: 'blob',
+  })
+  return data
 }
 
 // ── Item image ────────────────────────────────────────────────────────────────

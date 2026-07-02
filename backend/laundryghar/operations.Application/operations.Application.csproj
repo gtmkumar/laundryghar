@@ -17,6 +17,9 @@
         <PackageReference Include="Scrutor" Version="5.0.2" />
         <!-- GST tax-invoice PDF rendering (InvoicePdfRenderer, Orders/Invoices sub-area). -->
         <PackageReference Include="QuestPDF" Version="2025.4.0" />
+        <!-- Catalog bulk-import (#20): CSV parsing + XLSX read/write (legacy rate-list workbooks + templates). -->
+        <PackageReference Include="CsvHelper" Version="33.0.1" />
+        <PackageReference Include="ClosedXML" Version="0.104.2" />
         <!-- Pickup slot-booking handlers inspect PostgresException (23505) for idempotency-key races.
              Pinned to the transitive Npgsql version (via SharedDataModel) to avoid a downgrade. -->
         <PackageReference Include="Npgsql" Version="10.0.3" />

@@ -27,6 +27,11 @@ public class ItemsAdmin : IEndpointGroup
         group.MapGet(GetStats, "/stats").RequireAuthorization("permission:catalog.read");
         group.MapGet(GetById, "/{id:guid}").RequireAuthorization("permission:catalog.read");
         group.MapPut(SavePricing, "/{id:guid}/pricing").RequireAuthorization("permission:pricing.item.manage");
+        group.MapGet(ImportTemplate, "/import/template").RequireAuthorization("permission:catalog.item.create");
+        group.MapPost(ImportParse, "/import/parse")
+            .RequireAuthorization("permission:catalog.item.create")
+            .DisableAntiforgery()
+            .WithMetadata(new RequestSizeLimitAttribute(10 * 1024 * 1024)); // 10 MB upload cap
         group.MapPost(Import, "/import").RequireAuthorization("permission:catalog.item.create");
         group.MapPost(Create, "/")
             .AddEndpointFilter<ValidationFilter<CreateItemRequest>>()
@@ -74,6 +79,20 @@ public class ItemsAdmin : IEndpointGroup
     {
         var r = await dispatcher.SendAsync(new ImportItemsCommand(req, u.UserId), ct);
         return Results.Ok(new SingleResponse<ImportItemsResult> { Status = true, Data = r });
+    }
+
+    // Server-side dry-run: parse + validate the uploaded file, store it, and return a diff report.
+    public static async Task<IResult> ImportParse(IFormFile file, ICurrentUser u, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var r = await dispatcher.SendAsync(new ParseImportCommand(file, u.UserId), ct);
+        return Results.Ok(new SingleResponse<ParseImportResult> { Status = true, Data = r });
+    }
+
+    // Downloadable flat template (one column per active brand service). format=csv|xlsx (default csv).
+    public static async Task<IResult> ImportTemplate(IDispatcher dispatcher, CancellationToken ct, string format = "csv")
+    {
+        var r = await dispatcher.QueryAsync(new GetImportTemplateQuery(format), ct);
+        return Results.File(r.Content, r.ContentType, r.FileName);
     }
 
     public static async Task<IResult> GetById(Guid id, IDispatcher dispatcher, CancellationToken ct)

@@ -287,24 +287,82 @@ export interface SaveItemPricingPayload {
   fabricTypeIds: string[]
 }
 
+export interface ImportFabricPrice {
+  fabricName: string
+  price: number | null
+}
+
+export interface ImportServicePrice {
+  serviceName: string
+  basePrice: number | null
+  /** Legacy rate-sheet workbooks carry a price per fabric under each service. */
+  fabricPrices?: ImportFabricPrice[]
+}
+
 export interface ImportItemRowPayload {
   code: string
   name: string
   category: string | null
   status: string | null
   tatHours: number | null
-  servicePrices: { serviceName: string; basePrice: number | null }[]
+  taxRatePercent?: number | null
+  servicePrices: ImportServicePrice[]
+}
+
+export interface ImportOptions {
+  autoCreateCategories?: boolean
+  targetPriceListId?: string
+  /** Echoes the fileRef from a prior parse so the backend can correlate the import. */
+  fileRef?: string
 }
 
 export interface ImportItemsPayload {
   rows: ImportItemRowPayload[]
+  options?: ImportOptions
 }
 
 export interface ImportItemsResult {
   created: number
   updated: number
   pricesSet: number
+  categoriesCreated: number
   errors: string[]
+}
+
+/** One projected price change from a dry-run parse. */
+export interface ImportPriceChange {
+  code: string
+  itemName: string
+  serviceName: string
+  fabricName?: string | null
+  oldPrice?: number | null
+  newPrice: number
+}
+
+export interface ImportRowError {
+  line: number
+  sheet?: string | null
+  message: string
+}
+
+export interface ImportReport {
+  totalRows: number
+  toCreate: number
+  toUpdate: number
+  /** Capped at 500 by the server; `priceChangesTruncated` flags when more were elided. */
+  priceChanges: ImportPriceChange[]
+  priceChangesTruncated?: boolean
+  unknownServices: string[]
+  unknownCategories: string[]
+  rowErrors: ImportRowError[]
+}
+
+/** Result of the dry-run parse endpoint — rows to submit plus a preview report. */
+export interface ImportParseResult {
+  fileRef: string
+  layout: 'flat' | 'legacy_workbook'
+  rows: ImportItemRowPayload[]
+  report: ImportReport
 }
 
 // ── Pricing ─────────────────────────────────────────────────────────────────
