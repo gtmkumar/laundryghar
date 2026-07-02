@@ -6,6 +6,7 @@ import {
   deleteAddress,
   getAccountDeletionRequest,
   getAddresses,
+  getCatalogConfig,
   getCategories,
   getMyConsents,
   getPriceList,
@@ -26,9 +27,23 @@ export const catalogKeys = {
   categories:   ['catalog', 'categories'] as const,
   services:     (categoryId?: string) => ['catalog', 'services', categoryId ?? 'all'] as const,
   priceList:    ['catalog', 'price-list'] as const,
+  config:       (storeId?: string) => ['catalog', 'config', storeId ?? 'brand'] as const,
   addresses:    ['catalog', 'addresses'] as const,
   profile:      ['customer', 'profile'] as const,
 };
+
+/**
+ * Brand/store business rules that gate the booking flow (min order value,
+ * currency, high-value threshold). Cached per store; changing storeId refetches.
+ * Config changes rarely, so it is cached aggressively.
+ */
+export function useCatalogConfig(storeId?: string) {
+  return useQuery({
+    queryKey: catalogKeys.config(storeId),
+    queryFn:  () => getCatalogConfig(storeId),
+    staleTime: 10 * 60_000,
+  });
+}
 
 export function useCustomerProfile() {
   return useQuery({

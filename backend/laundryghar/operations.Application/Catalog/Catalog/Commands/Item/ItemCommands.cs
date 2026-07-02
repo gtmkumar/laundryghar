@@ -34,6 +34,7 @@ public sealed class CreateItemHandler : ICommandHandler<CreateItemCommand, ItemD
             ItemGroupId           = req.ItemGroupId,
             // Vertical-neutral discriminator; defaults to laundry until brand-vertical resolution lands.
             CatalogKind           = req.CatalogKind ?? laundryghar.SharedDataModel.Enums.CatalogKind.LaundryGarment,
+            PricingMode           = req.PricingMode ?? laundryghar.SharedDataModel.Enums.PricingMode.Standard,
             Code                  = req.Code,
             Name                  = req.Name,
             NameLocalized         = req.NameLocalized,
@@ -65,7 +66,7 @@ public sealed class CreateItemHandler : ICommandHandler<CreateItemCommand, ItemD
         e.Id, e.BrandId, e.ItemGroupId, e.Code, e.Name, e.NameLocalized,
         e.Description, e.IconUrl, e.ImageUrl, e.TypicalWeightGrams,
         e.RequiresPerSidePrice, e.Aliases, e.DisplayOrder, e.Status, e.CreatedAt, e.UpdatedAt,
-        e.TatHours, e.ExpressEligible, e.ExpressSurcharge, e.CatalogKind);
+        e.TatHours, e.ExpressEligible, e.ExpressSurcharge, e.CatalogKind, e.PricingMode);
 }
 
 public sealed record UpdateItemCommand(Guid Id, UpdateItemRequest Request, Guid? ActorId) : ICommand<ItemDto?>;
@@ -85,6 +86,10 @@ public sealed class UpdateItemHandler : ICommandHandler<UpdateItemCommand, ItemD
         if (e is null || e.DeletedAt != null) return null;
 
         var req = cmd.Request;
+        if (req.PricingMode is not null && !laundryghar.SharedDataModel.Enums.PricingMode.IsValid(req.PricingMode))
+            throw new laundryghar.Utilities.Exceptions.BusinessRuleException(
+                $"PricingMode must be one of: {string.Join(", ", laundryghar.SharedDataModel.Enums.PricingMode.All)}.");
+
         e.ItemGroupId         = req.ItemGroupId;
         e.Name                = req.Name;
         e.NameLocalized       = req.NameLocalized;
@@ -98,6 +103,8 @@ public sealed class UpdateItemHandler : ICommandHandler<UpdateItemCommand, ItemD
         e.TatHours            = req.TatHours;
         e.ExpressEligible     = req.ExpressEligible;
         e.ExpressSurcharge    = req.ExpressSurcharge;
+        // Null → leave the item's current pricing mode unchanged (partial PUTs must not reset it).
+        e.PricingMode         = req.PricingMode ?? e.PricingMode;
         e.Aliases             = req.Aliases ?? [];
         e.DisplayOrder        = req.DisplayOrder;
         e.Status              = req.Status;
@@ -149,5 +156,9 @@ public sealed class CreateItemValidator : AbstractValidator<CreateItemRequest>
             .Must(laundryghar.SharedDataModel.Enums.CatalogKind.IsValid)
             .When(x => x.CatalogKind is not null)
             .WithMessage($"CatalogKind must be one of: {string.Join(", ", laundryghar.SharedDataModel.Enums.CatalogKind.All)}.");
+        RuleFor(x => x.PricingMode!)
+            .Must(laundryghar.SharedDataModel.Enums.PricingMode.IsValid)
+            .When(x => x.PricingMode is not null)
+            .WithMessage($"PricingMode must be one of: {string.Join(", ", laundryghar.SharedDataModel.Enums.PricingMode.All)}.");
     }
 }

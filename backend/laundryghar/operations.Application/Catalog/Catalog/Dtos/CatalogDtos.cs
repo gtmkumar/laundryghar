@@ -200,7 +200,9 @@ public sealed record ItemDto(
     int? TatHours = null,
     bool ExpressEligible = false,
     decimal? ExpressSurcharge = null,
-    string CatalogKind = "laundry_garment"
+    string CatalogKind = "laundry_garment",
+    // How the item is priced — 'standard' (price-list rows) or 'value_slab' (declared-value slabs). GH #22.
+    string PricingMode = "standard"
 );
 
 public sealed record CreateItemRequest(
@@ -219,7 +221,9 @@ public sealed record CreateItemRequest(
     bool ExpressEligible = false,
     decimal? ExpressSurcharge = null,
     // Vertical-neutral item-shape discriminator; null → defaults to laundry_garment.
-    string? CatalogKind = null
+    string? CatalogKind = null,
+    // Pricing mode; null → defaults to 'standard'. GH #22.
+    string? PricingMode = null
 );
 
 public sealed record UpdateItemRequest(
@@ -236,7 +240,9 @@ public sealed record UpdateItemRequest(
     string Status,
     int? TatHours = null,
     bool ExpressEligible = false,
-    decimal? ExpressSurcharge = null
+    decimal? ExpressSurcharge = null,
+    // Pricing mode; null → leaves the item's current mode unchanged. GH #22.
+    string? PricingMode = null
 );
 
 // ── Managed item (Items page aggregate: item + per-service base prices + fabrics) ─
@@ -259,7 +265,9 @@ public sealed record ManagedItemDto(
     string Status,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<Guid> FabricTypeIds,
-    IReadOnlyList<ItemServicePriceDto> ServicePrices
+    IReadOnlyList<ItemServicePriceDto> ServicePrices,
+    // Pricing mode — 'standard' or 'value_slab' (GH #22). Lets the Items page flag slab items.
+    string PricingMode = "standard"
 );
 
 public sealed record ItemStatsDto(

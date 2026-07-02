@@ -21,6 +21,7 @@ public sealed class RevertPricingChangeHandler : ICommandHandler<RevertPricingCh
         decimal PriceMultiplier, bool RequiresSpecialCare, short DisplayOrder, string Status);
     private sealed record ItemSnap(decimal BasePrice, decimal? ExpressPrice, int MinimumQuantity,
         decimal TaxRatePercent, bool IsTaxable, string? DisplayLabel, string? Notes, bool IsActive);
+    private sealed record SlabSnap(Guid? ServiceId, decimal MinValue, decimal? MaxValue, decimal Price, string? Status);
 
     public async Task<bool> HandleAsync(RevertPricingChangeCommand cmd, CancellationToken ct)
     {
@@ -57,6 +58,26 @@ public sealed class RevertPricingChangeHandler : ICommandHandler<RevertPricingCh
                 e.TaxRatePercent = s.TaxRatePercent; e.IsTaxable = s.IsTaxable; e.DisplayLabel = s.DisplayLabel;
                 e.Notes = s.Notes; e.IsActive = s.IsActive;
                 e.UpdatedAt = DateTimeOffset.UtcNow; e.UpdatedBy = cmd.ActorId;
+                break;
+            }
+            case "value_price_slab":
+            {
+                var s = JsonSerializer.Deserialize<SlabSnap>(log.BeforeJson)
+                    ?? throw new BusinessRuleException("Corrupt snapshot.");
+                var e = await _db.ValuePriceSlabs.FirstOrDefaultAsync(x => x.Id == log.TargetId && x.BrandId == brandId, ct);
+                if (e is null) throw new BusinessRuleException("Value slab no longer exists.");
+                // A create logs an empty before-state ({}) → snapshot Status is null; reverting a
+                // create means archiving the slab. Otherwise restore the captured prior fields.
+                if (string.IsNullOrEmpty(s.Status))
+                {
+                    e.Status = "archived";
+                }
+                else
+                {
+                    e.ServiceId = s.ServiceId; e.MinValue = s.MinValue; e.MaxValue = s.MaxValue;
+                    e.Price = s.Price; e.Status = s.Status;
+                }
+                e.UpdatedAt = DateTimeOffset.UtcNow; e.UpdatedBy = cmd.ActorId; e.Version++;
                 break;
             }
             default:

@@ -19,6 +19,11 @@ public class Item : IAuditableEntity, ISoftDeletable
     /// laundry/salon/parcel-specific attributes are demoted off first-class columns.</summary>
     public string Attributes { get; set; } = "{}";
 
+    /// <summary>How this item is priced — see <see cref="Enums.PricingMode"/>. Defaults to
+    /// 'standard' (published price-list rows); 'value_slab' prices by declared garment value
+    /// against per-brand <see cref="ValuePriceSlab"/>s. (GH #22.)</summary>
+    public string PricingMode { get; set; } = Enums.PricingMode.Standard;
+
     public string Code { get; set; } = null!;
     public string Name { get; set; } = null!;
     public string NameLocalized { get; set; } = null!;

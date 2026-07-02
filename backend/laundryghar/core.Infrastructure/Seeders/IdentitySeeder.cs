@@ -165,6 +165,7 @@ public sealed class IdentitySeeder
         ("pricing.pricelist.update",     "pricing","pricelist.update","Update price list",             "normal"),
         ("pricing.pricelist.publish",    "pricing","pricelist.publish","Publish price list",           "high"),
         ("pricing.item.manage",          "pricing","item.manage",     "Manage price list items",       "normal"),
+        ("pricing.slab.manage",          "pricing","slab.manage",     "Manage value-price slabs",      "normal"),
         // customer — admin-side customer management
         ("customer.read",                "customer","read",           "Read customer",                 "normal"),
         ("customer.update",              "customer","update",         "Update customer",               "normal"),
@@ -512,7 +513,7 @@ public sealed class IdentitySeeder
             "catalog.item.create","catalog.item.update","catalog.item.delete",
             "catalog.variant.manage","catalog.addon.manage",
             "pricing.read","pricing.pricelist.create","pricing.pricelist.update","pricing.pricelist.publish",
-            "pricing.item.manage",
+            "pricing.item.manage","pricing.slab.manage",
             "customer.read","customer.update","customer.delete",
             // BC-4: order lifecycle + pickup/delivery + warehouse/garments
             "orders.read","orders.status.update","orders.notes.manage",

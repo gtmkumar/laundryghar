@@ -25,6 +25,8 @@ public sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         b.Property(e => e.ItemNameSnapshot).HasColumnName("item_name_snapshot").HasMaxLength(200).IsRequired();
         b.Property(e => e.ServiceNameSnapshot).HasColumnName("service_name_snapshot").HasMaxLength(200).IsRequired();
         b.Property(e => e.UnitPrice).HasColumnName("unit_price").HasColumnType("numeric(14,2)").IsRequired();
+        b.Property(e => e.DeclaredValue).HasColumnName("declared_value").HasColumnType("numeric(14,2)");
+        b.Property(e => e.AppliedSlabPrice).HasColumnName("applied_slab_price").HasColumnType("numeric(14,2)");
         b.Property(e => e.Quantity).HasColumnName("quantity").HasColumnType("numeric(10,2)").IsRequired();
         b.Property(e => e.UnitOfMeasure).HasColumnName("unit_of_measure").HasMaxLength(10).IsRequired();
         b.Property(e => e.LineSubtotal).HasColumnName("line_subtotal").HasColumnType("numeric(14,2)").IsRequired();

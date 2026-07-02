@@ -148,6 +148,16 @@
       "invalid": "This coupon is not valid.",
       "validationFailed": "Could not validate coupon. Try again.",
       "discountLine": "Coupon {{code}}"
+    },
+    "minOrder": {
+      "title": "A little more to go",
+      "message": "Add {{shortfall}} more to place this order.",
+      "yourTotal": "Your items",
+      "minimum": "Minimum order",
+      "shortfall": "Add",
+      "cta": "Add more items",
+      "hint": "Minimum order {{minimum}} — add {{shortfall}} more",
+      "blockedCta": "Add {{shortfall}} more to continue"
     }
   },
   "parcel": {

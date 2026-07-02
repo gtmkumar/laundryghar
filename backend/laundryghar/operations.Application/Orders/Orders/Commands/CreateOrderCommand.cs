@@ -149,7 +149,7 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
             var line = req.Items[i];
             var resolved = await PriceResolver.ResolveAsync(
                 _db, brandId, req.StoreId,
-                line.ServiceId, line.ItemId, line.ItemVariantId, ct)
+                line.ServiceId, line.ItemId, line.ItemVariantId, ct, line.DeclaredValue)
                 ?? throw new BusinessRuleException(
                     $"No published price found for item {line.ItemId} / service {line.ServiceId}.");
 
@@ -186,6 +186,10 @@ public sealed class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Ord
                 ItemNameSnapshot    = resolved.ItemNameSnapshot,
                 ServiceNameSnapshot = resolved.ServiceNameSnapshot,
                 UnitPrice           = unitPrice,
+                // Value-slab snapshot (GH #22): immutable record of what the customer declared and
+                // the slab price that resolved. Null for standard-priced lines.
+                DeclaredValue       = resolved.IsValueSlab ? line.DeclaredValue : null,
+                AppliedSlabPrice    = resolved.IsValueSlab ? resolved.BasePrice : null,
                 Quantity            = line.Quantity,
                 UnitOfMeasure       = "piece",
                 LineSubtotal        = lineSubtotal,

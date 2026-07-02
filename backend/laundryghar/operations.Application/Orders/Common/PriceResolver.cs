@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using operations.Application.Catalog.Pricing.Common;
 using operations.Application.Common.Interfaces;
 
 namespace operations.Application.Orders.Common;
@@ -12,17 +13,24 @@ namespace operations.Application.Orders.Common;
 /// Within a scope, the most-recently-published list wins.
 /// Row match: brandId + serviceId + itemId. VariantId preference: variant-specific row > null-variant row.
 /// Returns null if no published price found at any scope.
+///
+/// <para>Value-slab items (GH #22): when the item's <c>PricingMode == value_slab</c>, the base price
+/// comes from the brand's <see cref="ValueSlabResolver">value slabs</see> keyed on the caller's
+/// declared value (price lists are bypassed). A missing/non-positive declared value or an
+/// uncovered value throws a structured 422.</para>
 /// </summary>
 public static class PriceResolver
 {
     public sealed record ResolvedPrice(
-        Guid PriceListItemId,
+        Guid? PriceListItemId,
         decimal BasePrice,
         decimal? ExpressPrice,
         decimal TaxRatePercent,
         bool IsTaxable,
         string ServiceNameSnapshot,
-        string ItemNameSnapshot
+        string ItemNameSnapshot,
+        /// <summary>True when the base price came from a value slab (no price-list row). GH #22.</summary>
+        bool IsValueSlab = false
     );
 
     public static async Task<ResolvedPrice?> ResolveAsync(
@@ -32,8 +40,26 @@ public static class PriceResolver
         Guid serviceId,
         Guid itemId,
         Guid? variantId,
-        CancellationToken ct)
+        CancellationToken ct,
+        decimal? declaredValue = null)
     {
+        // ── Value-slab items: price from declared value, not price lists (GH #22). ──
+        var itemInfo = await db.Items.AsNoTracking()
+            .Where(i => i.Id == itemId)
+            .Select(i => new { i.Name, i.PricingMode })
+            .FirstOrDefaultAsync(ct);
+        if (itemInfo is not null && itemInfo.PricingMode == laundryghar.SharedDataModel.Enums.PricingMode.ValueSlab)
+        {
+            ValueSlabResolver.RequireDeclaredValue(declaredValue, itemId, itemInfo.Name);
+            var slabPrice = await ValueSlabResolver.ResolveSlabPriceAsync(
+                db, brandId, serviceId, declaredValue!.Value, itemId, ct);
+            var svcName = await db.Services.AsNoTracking()
+                .Where(s => s.Id == serviceId).Select(s => s.Name).FirstOrDefaultAsync(ct) ?? "";
+            // Express handling: base stays the slab price; the express surcharge % from settings
+            // applies downstream unchanged (so ExpressPrice is left null here).
+            return new ResolvedPrice(null, slabPrice, null, 0m, true, svcName, itemInfo.Name, IsValueSlab: true);
+        }
+
         // Resolve franchise from store
         var store = await db.Stores
             .Where(s => s.Id == storeId)

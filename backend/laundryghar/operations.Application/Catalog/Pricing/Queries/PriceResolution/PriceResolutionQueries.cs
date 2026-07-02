@@ -2,6 +2,7 @@ using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 using operations.Application.Catalog.Pricing.Commands.PriceListItem;
+using operations.Application.Catalog.Pricing.Common;
 using operations.Application.Catalog.Pricing.Dtos;
 using operations.Application.Common.Interfaces;
 
@@ -24,7 +25,9 @@ public sealed record ResolvePriceQuery(
     Guid ItemId,
     Guid ServiceId,
     Guid? VariantId,
-    Guid? StoreId
+    Guid? StoreId,
+    /// <summary>Declared garment value — required for value-slab items (GH #22), ignored otherwise.</summary>
+    decimal? DeclaredValue = null
 ) : IQuery<PriceResolutionDto?>;
 
 public sealed class ResolvePriceHandler : IQueryHandler<ResolvePriceQuery, PriceResolutionDto?>
@@ -37,6 +40,28 @@ public sealed class ResolvePriceHandler : IQueryHandler<ResolvePriceQuery, Price
     public async Task<PriceResolutionDto?> HandleAsync(ResolvePriceQuery q, CancellationToken ct)
     {
         var brandId = _user.RequireBrandId();
+
+        // ── Value-slab items: price from declared value, not price lists (GH #22). ──
+        var itemInfo = await _db.Items.AsNoTracking()
+            .Where(i => i.Id == q.ItemId && i.BrandId == brandId)
+            .Select(i => new { i.Name, i.PricingMode })
+            .FirstOrDefaultAsync(ct);
+        if (itemInfo is not null && itemInfo.PricingMode == laundryghar.SharedDataModel.Enums.PricingMode.ValueSlab)
+        {
+            ValueSlabResolver.RequireDeclaredValue(q.DeclaredValue, q.ItemId, itemInfo.Name);
+            var slabPrice = await ValueSlabResolver.ResolveSlabPriceAsync(
+                _db, brandId, q.ServiceId, q.DeclaredValue!.Value, q.ItemId, ct);
+            return new PriceResolutionDto(
+                PriceListId: Guid.Empty,
+                PriceListCode: "value_slab",
+                ScopeType: "value_slab",
+                BasePrice: slabPrice,
+                ExpressPrice: null,
+                TaxRatePercent: 0m,
+                IsTaxable: true,
+                DisplayLabel: $"Declared value {q.DeclaredValue.Value:0.##}");
+        }
+
         // Load candidate published price lists scoped to the caller's brand (defense-in-depth).
         // Scope priority: store(2) > franchise(1) > brand(0).
         // Within the same priority, most-recently published wins.
@@ -144,6 +169,7 @@ public sealed class GetPublishedPriceListHandler : IQueryHandler<GetPublishedPri
                 Item = pi,
                 ItemName = pi.Item.Name,
                 ServiceName = pi.Service.Name,
+                PricingMode = pi.Item.PricingMode,
             })
             .ToListAsync(ct);
 
@@ -154,6 +180,7 @@ public sealed class GetPublishedPriceListHandler : IQueryHandler<GetPublishedPri
                 {
                     ItemName = r.ItemName,
                     ServiceName = r.ServiceName,
+                    PricingMode = r.PricingMode,
                 };
                 // Fill a sensible label when the authored one is blank.
                 var label = string.IsNullOrWhiteSpace(dto.DisplayLabel)

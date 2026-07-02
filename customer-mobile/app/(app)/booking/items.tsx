@@ -10,13 +10,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { usePriceList } from '@/hooks/useCatalog';
+import { useCatalogConfig, usePriceList } from '@/hooks/useCatalog';
 import { useCartStore } from '@/store/cartStore';
 import { useBookingStore } from '@/store/bookingStore';
 import { Stepper } from '@/components/ui/Stepper';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { rupees } from '@/lib/format';
+import { evaluateMinOrder, formatCurrency } from '@/lib/minOrder';
 import { DEMO_ITEMS } from '@/data/demoItems';
 
 interface PickerItem {
@@ -75,6 +76,7 @@ export default function ItemsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { data: priceList, isLoading } = usePriceList();
+  const { data: catalogConfig } = useCatalogConfig();
   const count = useCartStore((s) => s.count());
   const subtotal = useCartStore((s) => s.subtotal());
   const clearCart = useCartStore((s) => s.clear);
@@ -123,6 +125,9 @@ export default function ItemsScreen() {
   // tag the booking. Estimate total = subtotal (+ express handled at payment).
   const estimate = subtotal;
 
+  // #23: slim min-order progress hint so the blocking sheet at Pay isn't a surprise.
+  const minGate = useMemo(() => evaluateMinOrder(subtotal, catalogConfig), [subtotal, catalogConfig]);
+
   if (isLoading) return <ScreenLoader />;
 
   return (
@@ -162,26 +167,39 @@ export default function ItemsScreen() {
 
       {/* Total bar */}
       <View
-        className="absolute inset-x-0 bottom-0 flex-row items-center justify-between border-t border-cream-200 bg-white px-6 pb-8 pt-4"
+        className="absolute inset-x-0 bottom-0 border-t border-cream-200 bg-white px-6 pb-8 pt-4"
         style={{ borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
       >
-        <View>
-          <Text className="text-xs text-ink-muted">
-            {t('booking.itemCount', { count, plural: count !== 1 ? 's' : '' })}{express ? ` · ${t('booking.express')}` : ''}
-          </Text>
-          <Text className="text-2xl font-extrabold text-ink">{rupees(estimate)}</Text>
+        {minGate?.blocked && count > 0 ? (
+          <View className="mb-3 flex-row items-center gap-2 rounded-xl bg-gold-100 px-3 py-2">
+            <Ionicons name="information-circle-outline" size={15} color="#8A641D" />
+            <Text className="flex-1 text-xs font-semibold text-gold-700">
+              {t('booking.minOrder.hint', {
+                minimum: formatCurrency(minGate.minOrderValue, minGate.currencyCode),
+                shortfall: formatCurrency(minGate.shortfall, minGate.currencyCode),
+              })}
+            </Text>
+          </View>
+        ) : null}
+        <View className="flex-row items-center justify-between">
+          <View>
+            <Text className="text-xs text-ink-muted">
+              {t('booking.itemCount', { count, plural: count !== 1 ? 's' : '' })}{express ? ` · ${t('booking.express')}` : ''}
+            </Text>
+            <Text className="text-2xl font-extrabold text-ink">{rupees(estimate)}</Text>
+          </View>
+          <Pressable
+            disabled={count === 0}
+            onPress={() => router.push('/(app)/booking/pickup')}
+            className={`flex-row items-center gap-2 rounded-2xl px-6 py-4 ${count === 0 ? 'bg-cream-300' : 'bg-gold-400'}`}
+            accessibilityLabel={t('booking.continueToPickup')}
+          >
+            <Text className={`text-base font-extrabold ${count === 0 ? 'text-ink-faint' : 'text-olive-900'}`}>
+              {t('common.continue')}
+            </Text>
+            <Ionicons name="arrow-forward" size={18} color={count === 0 ? '#A8A493' : '#2E351C'} />
+          </Pressable>
         </View>
-        <Pressable
-          disabled={count === 0}
-          onPress={() => router.push('/(app)/booking/pickup')}
-          className={`flex-row items-center gap-2 rounded-2xl px-6 py-4 ${count === 0 ? 'bg-cream-300' : 'bg-gold-400'}`}
-          accessibilityLabel={t('booking.continueToPickup')}
-        >
-          <Text className={`text-base font-extrabold ${count === 0 ? 'text-ink-faint' : 'text-olive-900'}`}>
-            {t('common.continue')}
-          </Text>
-          <Ionicons name="arrow-forward" size={18} color={count === 0 ? '#A8A493' : '#2E351C'} />
-        </Pressable>
       </View>
     </SafeAreaView>
   );

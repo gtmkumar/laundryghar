@@ -27,6 +27,15 @@ public class OrderItem
     public string ItemNameSnapshot { get; set; } = null!;
     public string ServiceNameSnapshot { get; set; } = null!;
     public decimal UnitPrice { get; set; }
+
+    /// <summary>Value the customer declared for a value-slab garment (GH #22). Null for
+    /// standard-priced lines. Immutable snapshot — survives later slab edits.</summary>
+    public decimal? DeclaredValue { get; set; }
+
+    /// <summary>The value-slab price that resolved to this line's <see cref="UnitPrice"/> base
+    /// (GH #22). Null for standard-priced lines.</summary>
+    public decimal? AppliedSlabPrice { get; set; }
+
     public decimal Quantity { get; set; }
     public string UnitOfMeasure { get; set; } = null!;
     public decimal LineSubtotal { get; set; }

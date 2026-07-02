@@ -122,6 +122,7 @@ public sealed class OperationsDbContext : IOperationsDbContext
     public DbSet<PriceList> PriceLists => _db.PriceLists;
     public DbSet<PriceListItem> PriceListItems => _db.PriceListItems;
     public DbSet<PricingChangeLog> PricingChangeLogs => _db.PricingChangeLogs;
+    public DbSet<ValuePriceSlab> ValuePriceSlabs => _db.ValuePriceSlabs;
 
     // ─── Tenancy: territories (serviceability) ────────────────────────────────
     public DbSet<Territory> Territories => _db.Territories;

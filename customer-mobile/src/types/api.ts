@@ -204,6 +204,16 @@ export interface ServiceabilityDto {
   serviceable: boolean;
 }
 
+/**
+ * GET /customer/catalog/config — brand/store business rules that gate the
+ * booking flow. `minOrderValue === null` ⇒ NO minimum-order restriction.
+ */
+export interface CatalogConfigDto {
+  minOrderValue: number | null;
+  currencyCode: string;
+  highValueGarmentThreshold: number | null;
+}
+
 // ---------------------------------------------------------------------------
 // Orders DTOs — mirrors CustomerOrderEndpoints shapes
 // ---------------------------------------------------------------------------

@@ -138,7 +138,17 @@
     "noAddress": "कोई पता नहीं",
     "noAddressMessage": "कृपया वापस जाकर पिकअप पता चुनें।",
     "bookingFailed": "बुकिंग विफल",
-    "bookingFailedMessage": "बुकिंग विफल हुई। कृपया पुनः प्रयास करें।"
+    "bookingFailedMessage": "बुकिंग विफल हुई। कृपया पुनः प्रयास करें।",
+    "minOrder": {
+      "title": "बस थोड़ा और",
+      "message": "यह ऑर्डर देने के लिए {{shortfall}} और जोड़ें।",
+      "yourTotal": "आपके आइटम",
+      "minimum": "न्यूनतम ऑर्डर",
+      "shortfall": "जोड़ें",
+      "cta": "और आइटम जोड़ें",
+      "hint": "न्यूनतम ऑर्डर {{minimum}} — {{shortfall}} और जोड़ें",
+      "blockedCta": "जारी रखने के लिए {{shortfall}} और जोड़ें"
+    }
   },
   "parcel": {
     "sendParcel": "पार्सल भेजें",

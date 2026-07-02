@@ -78,7 +78,8 @@ public sealed class GetManagedItemsHandler : IQueryHandler<GetManagedItemsQuery,
             i.Code, i.Name, i.NameLocalized, i.Description, i.TypicalWeightGrams, i.TatHours,
             i.ExpressEligible, i.ExpressSurcharge, i.Aliases, i.DisplayOrder, i.Status, i.UpdatedAt,
             fabricsByItem.TryGetValue(i.Id, out var fids) ? fids : [],
-            servicePrices.TryGetValue(i.Id, out var sp) ? sp : []));
+            servicePrices.TryGetValue(i.Id, out var sp) ? sp : [],
+            i.PricingMode));
     }
 }
 

@@ -46,9 +46,9 @@ public class PricingResolveAdmin : IEndpointGroup
     }
 
     public static async Task<IResult> Resolve(Guid itemId, Guid serviceId, Guid? variantId, Guid? storeId,
-        IDispatcher dispatcher, CancellationToken ct)
+        decimal? declaredValue, IDispatcher dispatcher, CancellationToken ct)
     {
-        var r = await dispatcher.QueryAsync(new ResolvePriceQuery(itemId, serviceId, variantId, storeId), ct);
+        var r = await dispatcher.QueryAsync(new ResolvePriceQuery(itemId, serviceId, variantId, storeId, declaredValue), ct);
         return r is null
             ? Results.NotFound(new Response { Status = false })
             : Results.Ok(new SingleResponse<PriceResolutionDto> { Status = true, Data = r });

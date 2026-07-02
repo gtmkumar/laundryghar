@@ -60,7 +60,10 @@ public sealed record CreateOrderItemRequest(
     Guid? ItemVariantId,
     Guid ServiceId,
     decimal Quantity,
-    string? Notes
+    string? Notes,
+    /// <summary>Declared garment value for value-slab (branded/luxury) items — GH #22. Required
+    /// (positive) when the item's PricingMode is 'value_slab'; ignored for standard items.</summary>
+    decimal? DeclaredValue = null
 );
 
 public sealed record CreateOrderAddonRequest(
