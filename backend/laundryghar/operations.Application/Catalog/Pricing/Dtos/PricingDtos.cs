@@ -127,7 +127,13 @@ public sealed record PriceResolutionDto(
 
 // ── Price matrix (items × fabric columns) ─────────────────────────────────────
 public sealed record PricingMatrixFabricDto(string Code, string Name, decimal Multiplier);
-public sealed record PricingMatrixRowDto(string Label, decimal BasePrice);
+
+/// <summary>
+/// Editable is true only for fabric-null rows of the brand working list — the one
+/// surface SaveItemPricing writes to. Fabric-specific rows and rows from published
+/// franchise/store override lists must be edited via the Price-lists tab instead.
+/// </summary>
+public sealed record PricingMatrixRowDto(string Label, decimal BasePrice, Guid ItemId, Guid ServiceId, bool Editable);
 public sealed record PricingMatrixStoreDto(Guid Id, string Name);
 
 public sealed record PricingMatrixDto(
@@ -135,7 +141,9 @@ public sealed record PricingMatrixDto(
     string? ScopeType,
     IReadOnlyList<PricingMatrixFabricDto> Fabrics,
     IReadOnlyList<PricingMatrixRowDto> Rows,
-    IReadOnlyList<PricingMatrixStoreDto> Stores
+    IReadOnlyList<PricingMatrixStoreDto> Stores,
+    Guid? PriceListId,
+    bool IsWorkingList
 );
 
 // ── Change history ────────────────────────────────────────────────────────────

@@ -106,7 +106,16 @@ public sealed class SaveItemPricingHandler : ICommandHandler<SaveItemPricingComm
         }
 
         // ── Fabric variants (replace the item's fabric set) ───────────────────
-        var desired = (cmd.Request.FabricTypeIds ?? []).Distinct().ToHashSet();
+        // Null means "leave the fabric set unchanged" — single-cell price edits
+        // (e.g. from the price matrix) send only ServicePrices. Only an explicit
+        // (possibly empty) list replaces the set.
+        if (cmd.Request.FabricTypeIds is null)
+        {
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+
+        var desired = cmd.Request.FabricTypeIds.Distinct().ToHashSet();
         var allVariants = await _db.ItemVariants
             .Where(v => v.BrandId == brandId && v.ItemId == cmd.ItemId && v.FabricTypeId != null)
             .ToListAsync(ct);
