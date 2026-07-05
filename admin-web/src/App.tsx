@@ -8,12 +8,14 @@ import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { showToast } from '@/stores/toastStore'
 import { apiErrorMessage, apiErrorStatus } from '@/lib/apiError'
+import { initWebMCP } from '@/lib/webmcp'
 
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { RequirePermission } from '@/components/layout/RequirePermission'
 import { Toaster } from '@/components/shared/Toaster'
 import { StepUpDialog } from '@/components/shared/StepUpDialog'
+import { Agentation } from 'agentation'
 
 // Route-level code splitting: each page is its own chunk, loaded on first
 // visit instead of shipping every page in the startup bundle. Pages use
@@ -115,13 +117,20 @@ const router = createBrowserRouter([
   },
 ])
 
+// WebMCP (experimental, Chrome 149+ behind a flag): expose admin tools to
+// in-browser AI agents. No-op in browsers without the API.
+initWebMCP(router)
+
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-      <Toaster />
-      <StepUpDialog />
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+    <>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+        <Toaster />
+        <StepUpDialog />
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
+      {import.meta.env.DEV && <Agentation />}
+    </>
   )
 }

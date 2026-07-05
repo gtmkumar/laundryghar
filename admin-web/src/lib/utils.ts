@@ -40,16 +40,22 @@ export function formatCurrency(amount: number, currency = 'INR'): string {
   }
 }
 
-export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-IN', {
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   })
 }
 
-export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-IN', {
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',

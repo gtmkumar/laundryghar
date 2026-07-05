@@ -11,7 +11,7 @@ import type { ApiResponse, FulfillmentConfigDto } from '@/types/api'
 /** GET /api/v1/fulfillment-config — config for every registered fulfilment mode. */
 export async function getFulfillmentConfig(): Promise<FulfillmentConfigDto[]> {
   const { data } = await ordersClient.get<ApiResponse<FulfillmentConfigDto[]>>(
-    '/fulfillment-config/',
+    '/api/v1/fulfillment-config/',
   )
   return unwrap(data)
 }
@@ -21,7 +21,7 @@ export async function getFulfillmentConfigForMode(
   mode: string,
 ): Promise<FulfillmentConfigDto> {
   const { data } = await ordersClient.get<ApiResponse<FulfillmentConfigDto>>(
-    `/fulfillment-config/${encodeURIComponent(mode)}`,
+    `/api/v1/fulfillment-config/${encodeURIComponent(mode)}`,
   )
   return unwrap(data)
 }

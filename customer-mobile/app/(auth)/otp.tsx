@@ -157,6 +157,18 @@ export default function OtpScreen() {
     return () => clearTimeout(timer);
   }, [seconds]);
 
+  // DEV convenience: the non-prod backend accepts a master OTP of 123456
+  // (see WhatsApp/SMS OTP routing). Prefill it and auto-verify so testers skip
+  // manual entry. Guarded by __DEV__ so it is stripped from production builds.
+  const devAutofilled = React.useRef(false);
+  useEffect(() => {
+    if (!__DEV__ || devAutofilled.current || !phone) return;
+    devAutofilled.current = true;
+    setCode('123456');
+    void verify('123456');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone]);
+
   // Mask derived from the number the user actually entered — no hardcoded prefix.
   const masked = raw ? maskPhone(raw) : (phone ?? '');
 

@@ -8,15 +8,6 @@ import { loginSchema, type LoginFormValues } from '@/types/schemas'
 import { passwordLogin } from '@/api/auth'
 import { useAuthStore } from '@/stores/authStore'
 
-// ── Role cards ────────────────────────────────────────────────────────────────
-type RoleKey = 'super_admin' | 'store_admin' | 'warehouse'
-
-const ROLES: { key: RoleKey; label: string; sub: string }[] = [
-  { key: 'super_admin',  label: 'Super Admin',  sub: 'All stores · system config' },
-  { key: 'store_admin',  label: 'Store Admin',  sub: 'Single store · staff & reports' },
-  { key: 'warehouse',    label: 'Warehouse',    sub: 'Check-in · QC · reconciliation' },
-]
-
 // Left panel stats — pre-auth so these are static/illustrative
 const HERO_STATS = [
   { value: '6',   label: 'stores' },
@@ -44,7 +35,6 @@ export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [serverError, setServerError] = useState<string | null>(null)
-  const [selectedRole, setSelectedRole] = useState<RoleKey>('super_admin')
   const [rememberDevice, setRememberDevice] = useState(false)
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/'
@@ -162,45 +152,6 @@ export function LoginPage() {
               <p className="text-xs font-semibold tracking-widest uppercase text-lg-green">{t('auth.welcomeBack')}</p>
               <h2 className="text-2xl font-bold text-gray-900">{t('auth.signInConsole')}</h2>
               <p className="text-sm text-gray-500">{t('auth.useCredentials')}</p>
-            </div>
-
-            {/* Role selector */}
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{t('auth.yourRole')}</p>
-              <div className="flex flex-col gap-2">
-                {ROLES.map((role) => {
-                  const active = selectedRole === role.key
-                  return (
-                    <button
-                      key={role.key}
-                      type="button"
-                      onClick={() => setSelectedRole(role.key)}
-                      className="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all"
-                      style={{
-                        borderColor: active ? 'var(--lg-green)' : '#e0dcd2',
-                        background: active ? 'rgba(92,110,46,0.06)' : 'white',
-                      }}
-                    >
-                      {/* Radio indicator */}
-                      <span
-                        className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                        style={{ borderColor: active ? 'var(--lg-green)' : '#c0bab0' }}
-                      >
-                        {active && (
-                          <span
-                            className="w-2 h-2 rounded-full"
-                            style={{ background: 'var(--lg-green)' }}
-                          />
-                        )}
-                      </span>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{role.label}</p>
-                        <p className="text-xs text-gray-400">{role.sub}</p>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
             </div>
 
             {/* Login form */}

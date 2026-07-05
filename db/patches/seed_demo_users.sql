@@ -26,18 +26,25 @@ VALUES
    'store_admin', 'en-IN', 'Asia/Kolkata', 'active', false, false, 0, 1, now(), now())
 ON CONFLICT (id) DO NOTHING;
 
+-- scope_id is polymorphic (store|warehouse|brand) and NOT FK-constrained, so a hardcoded
+-- id silently goes stale after a DB reseed → ScopeResolver can't resolve brand_id → the user
+-- is locked out (brand-scoped reads 401). Resolve the node by CODE so this survives reseeds,
+-- and DO UPDATE so re-running repoints an already-stale membership.
 INSERT INTO identity_access.user_scope_memberships
   (id, user_id, scope_type, scope_id, role_id, is_primary, granted_at, metadata, created_at)
 VALUES
-  -- warehouse@ → warehouse_supervisor @ Mumbai Central Warehouse
+  -- warehouse@ → warehouse_supervisor @ first active warehouse
   ('46e49da5-a18a-4b83-87ac-8b7477f846bb', '0bf0de2e-e57d-4ef8-8473-99ccfa254d38',
-   'warehouse', 'a6c735c1-51df-47a3-aee8-5972edfa3e5b',
+   'warehouse',
+   (SELECT id FROM tenancy_org.warehouses ORDER BY (code = 'WH-QA-01') DESC, created_at LIMIT 1),
    '0b8572c1-f674-46ca-92ba-bc0ebae1c9c4', true, now(), '{}'::jsonb, now()),
-  -- storeadmin@ → store_admin @ Laundry Ghar Sector 45
+  -- storeadmin@ → store_admin @ first active store
   ('2060e2c0-80fd-4c3b-b8bd-2aa4812e840b', 'a6e82798-3d0d-434d-aca8-780b26d89242',
-   'store', '60e5bb20-8e4e-4892-a85e-449402463cf9',
+   'store',
+   (SELECT id FROM tenancy_org.stores ORDER BY (code = 'LGS-MUM-001') DESC, created_at LIMIT 1),
    '03357e78-a53e-4009-938e-f036dc0de3bc', true, now(), '{}'::jsonb, now())
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE
+  SET scope_id = EXCLUDED.scope_id, is_primary = true;
 
 COMMIT;
 

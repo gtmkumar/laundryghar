@@ -21,7 +21,7 @@ import type {
   UpdateNotificationTemplateRequest,
 } from '@/types/api'
 import { formatDate } from '@/lib/utils'
-import { parseJsonObject } from '@/lib/validation'
+import { isJsonContainer } from '@/lib/validation'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -118,10 +118,10 @@ function FormModal({ initial, onClose }: FormModalProps) {
     e.preventDefault()
     setError(null)
 
-    // `variables` is a jsonb column — it must parse to a plain object, not an
-    // array or scalar, or Postgres rejects the write.
-    if (parseJsonObject(fields.variables) === null) {
-      setError('Variables must be a valid JSON object, e.g. {"order_number":"string"}.')
+    // `variables` is a jsonb descriptor — it must parse to a JSON object or array
+    // (the backend default is `[]`); scalars/invalid JSON are rejected.
+    if (!isJsonContainer(fields.variables)) {
+      setError('Variables must be valid JSON, e.g. {"order_number":"string"} or [].')
       return
     }
 

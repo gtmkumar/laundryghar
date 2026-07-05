@@ -1,0 +1,1 @@
+- [Admin API auth/tenancy model](reference_admin-api-auth-model.md) — X-Brand-Id mandatory for platform_admin on brand-scoped routes; data.list pagination; 401-vs-403 semantics; step-up gating; known missing routes

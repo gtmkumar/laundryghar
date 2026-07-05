@@ -140,6 +140,22 @@ export function parseJsonObject(v: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * Parses `v` as a JSON object OR array (jsonb container), rejecting scalars/null.
+ * Notification-template `variables` is stored as a jsonb descriptor that may be an
+ * array (the backend's own default is `"[]"`) or an object, so both are valid.
+ * Returns `false` only when `v` is non-empty but not valid JSON container.
+ */
+export function isJsonContainer(v: string): boolean {
+  if (!v || !v.trim()) return true
+  try {
+    const parsed: unknown = JSON.parse(v)
+    return typeof parsed === 'object' && parsed !== null
+  } catch {
+    return false
+  }
+}
+
 /** Absolute http(s) URL. Optional; validates format only when non-empty. */
 export const optionalUrl = z
   .string()
