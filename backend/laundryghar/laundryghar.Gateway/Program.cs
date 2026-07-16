@@ -17,10 +17,12 @@
 // Clients can switch from per-service base URLs to a single http://localhost:8080
 // without any URL-path changes — the first path segment selects the upstream.
 
+using System.IO.Compression;
 using System.Net;
 using System.Threading.RateLimiting;
 using laundryghar.Gateway;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
 using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -117,6 +119,36 @@ var clusters = new[]
 builder.Services
     .AddReverseProxy()
     .LoadFromMemory(routes, clusters);
+
+// ── Response compression — single point for all gateway-routed responses ─────
+//
+// The gateway is the only public entry point (the 3 direct backend ports are
+// dev/internal-only per the ADDITIVE note above), so compression is enabled
+// here ONLY — not in ServiceDefaults — to avoid double-compressing responses
+// that already pass through this proxy. Brotli is preferred (better ratio);
+// Gzip is the fallback for clients that only send "Accept-Encoding: gzip".
+// EnableForHttps is on: these are JSON API responses (no per-user secrets
+// reflected alongside attacker-controlled input), so the BREACH-style risk
+// that motivates the framework's HTTPS-off default does not apply here.
+// MIME types: framework defaults already include application/json; RFC7807
+// problem-details responses (application/problem+json, used by our shared
+// ExceptionHandler middleware) are added explicitly since they're not in the
+// default list. Already-compressed media (images, etc.) stays untouched —
+// those content types aren't in the compressed set.
+
+builder.Services.AddResponseCompression(opts =>
+{
+    opts.EnableForHttps = true;
+    opts.Providers.Add<BrotliCompressionProvider>();
+    opts.Providers.Add<GzipCompressionProvider>();
+    opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+    [
+        "application/problem+json",
+        "application/problem+xml",
+    ]);
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
 // ── CORS — single central policy for all gateway-routed clients ───────────────
 //
@@ -221,11 +253,13 @@ var app = builder.Build();
 // ── Middleware pipeline ────────────────────────────────────────────────────────
 //
 // Ordering rationale:
-//   1. Security headers — added to every response including preflight rejections.
-//   2. CORS — must run before rate limiting so OPTIONS preflight is not counted
+//   1. Response compression — must wrap the response stream before anything
+//      else writes to it.
+//   2. Security headers — added to every response including preflight rejections.
+//   3. CORS — must run before rate limiting so OPTIONS preflight is not counted
 //      against the per-IP quota and returns correct headers even on rejection.
-//   3. Rate limiting — after CORS so preflight never burns the caller's quota.
-//   4. YARP proxy — terminal; routes matched requests to upstream services.
+//   4. Rate limiting — after CORS so preflight never burns the caller's quota.
+//   5. YARP proxy — terminal; routes matched requests to upstream services.
 //      YARP by default forwards X-Forwarded-For, X-Forwarded-Proto,
 //      X-Forwarded-Host and passes through Authorization and X-Brand-Id untouched.
 
@@ -233,6 +267,9 @@ var app = builder.Build();
 // Must run first so the per-IP rate limiter and security headers see the real client.
 // No-op unless ForwardedHeaders:Enabled = true.
 app.UseForwardedHeadersIfEnabled();
+
+// Response compression — must run early, before anything writes the response body.
+app.UseResponseCompression();
 
 // No-op in Development (mirrors ServiceDefaults.UseSecurityHeaders behaviour).
 app.UseSecurityHeaders();
