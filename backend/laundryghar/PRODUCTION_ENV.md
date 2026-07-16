@@ -36,9 +36,30 @@ other services verify by fetching Identity's public key from its JWKS endpoint.
 |---|---|---|
 | `Jwt__PrivateKey` | **Identity only** | RSA private key **PEM** used to sign RS256 tokens. Inject from Key Vault / secret store. (`Jwt__PrivateKeyPath` to a mounted PEM file is the alternative.) Identity throws on startup if neither is set outside Development. |
 | `Jwt__Authority` | **the 8 verifying services** | Base URL of Identity (e.g. `https://identity.internal`); its `/.well-known/openid-configuration` → JWKS supplies the RS256 public key. Required in all environments (services throw if unset). Use HTTPS in production (`RequireHttpsMetadata` is on outside Development). |
+| `Jwt__RequireHttpsMetadata` | verifying services (optional) | Set `false` ONLY for private-network deployments (docker compose) where the JWKS fetch goes to `http://core:8080` on an internal network. Default: `true` outside Development. |
+| `HealthChecks__Expose` | any service (optional) | Set `true` to map `/health` + `/alive` outside Development (needed for Docker HEALTHCHECK / k8s probes). Endpoints are unauthenticated — only enable when service ports are not internet-reachable. Set automatically by the Dockerfile. |
 
 The public key is served at `GET {Identity}/.well-known/jwks.json`; rotating the private key
 is picked up automatically by each service's cached JWKS (no redeploy of verifiers needed).
+
+## Error tracking (Sentry — optional, recommended in Production)
+
+Wired centrally in `laundryghar.ServiceDefaults` (`AddSentryIfConfigured`), so every host
+(core, operations, commerce, gateway) picks it up. **Complete no-op when no DSN is set** —
+nothing to configure for local dev.
+
+| Env var | Purpose | Default |
+|---|---|---|
+| `SENTRY_DSN` (or `Sentry__Dsn`) | Enables Sentry when set | unset → disabled |
+| `Sentry__Environment` | Sentry environment tag | `ASPNETCORE_ENVIRONMENT` |
+| `Sentry__Release` | Release tag for regression tracking | assembly informational version |
+| `Sentry__TracesSampleRate` | Performance-trace sampling (0–1) | `0.1` |
+
+Capture path: the shared `ExceptionHandler` middleware logs every unhandled exception at
+Error level; Sentry's logging integration turns those into events. Expected business
+exceptions (validation / business-rule / auth / not-found / cancellation) are filtered out
+before send so 4xx noise never reaches Sentry. `SendDefaultPii` is off — no user PII leaves
+the platform.
 
 ## Do NOT set in Production
 

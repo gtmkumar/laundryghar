@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd agent: daily database backup at 02:00 local time
+  (before partman maintenance at 02:30 — see db/tools/com.laundryghar.partman.plist).
+
+  ENABLE:
+    cp ops/backup/com.laundryghar.backup.plist ~/Library/LaunchAgents/
+    launchctl load -w ~/Library/LaunchAgents/com.laundryghar.backup.plist
+
+  DISABLE:
+    launchctl unload -w ~/Library/LaunchAgents/com.laundryghar.backup.plist
+    rm ~/Library/LaunchAgents/com.laundryghar.backup.plist
+
+  RUN ONCE NOW (test):
+    launchctl start com.laundryghar.backup
+
+  Backups land in ~/laundryghar-backups (BACKUP_DIR). Set offsite upload +
+  retention via EnvironmentVariables below. Linux servers: use the crontab
+  lines in ops/backup/README.md instead.
+
+  Note: hard-codes the repo path — re-copy + re-load if you move the repo.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.laundryghar.backup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/gtmkumar/Documents/source/laundryghar/ops/backup/backup.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- postgresql@18 client tools (pg_dump must match server major) -->
+        <key>PATH</key>
+        <string>/opt/homebrew/opt/postgresql@18/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>BACKUP_RETENTION_DAYS</key>
+        <string>14</string>
+        <!-- offsite: uncomment ONE and configure the tool
+        <key>BACKUP_S3_URI</key>
+        <string>s3://laundryghar-backups/db</string>
+        <key>RCLONE_REMOTE</key>
+        <string>gdrive:laundryghar-backups</string>
+        -->
+    </dict>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/laundryghar-backup.stdout</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/laundryghar-backup.stderr</string>
+</dict>
+</plist>

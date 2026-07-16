@@ -1,0 +1,140 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LaundryGhar — production docker-compose topology.
+#
+#   gateway (:8080 public) ──► core / operations / commerce (internal :8080)
+#   admin-web (:80 public)     PostgreSQL is EXTERNAL by default (managed DB);
+#                              `--profile local-db` adds a postgres container
+#                              for staging / fresh environments.
+#
+# Configuration comes from a .env file next to this compose file —
+# copy .env.example to .env and fill in the secrets. See ../backend/laundryghar/
+# PRODUCTION_ENV.md for the full env-var reference, and README.md here for
+# bring-up, migrations, and backup wiring.
+#
+#   docker compose build
+#   docker compose up -d
+#   docker compose --profile local-db up -d     # staging with bundled postgres
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: laundryghar
+
+x-service-env: &service-env
+  ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+  ConnectionStrings__Default: ${DB_CONNECTION_STRING:?set DB_CONNECTION_STRING in .env}
+  Pii__EncryptionKey: ${PII_ENCRYPTION_KEY:?set PII_ENCRYPTION_KEY in .env}
+  # ForwardedHeaders stays OFF on the services — the gateway is the trusted edge.
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  Sentry__Environment: ${SENTRY_ENVIRONMENT:-production}
+
+x-verifier-env: &verifier-env
+  # JWKS fetch from the Identity host over the private compose network (plain http).
+  Jwt__Authority: http://core:8080
+  Jwt__RequireHttpsMetadata: "false"
+
+services:
+  core:
+    build:
+      context: ../backend/laundryghar
+      args: { PROJECT: core.WebApi }
+    image: laundryghar-core
+    restart: unless-stopped
+    environment:
+      <<: *service-env
+      # RSA private key PEM used to sign RS256 tokens (Identity is the issuer).
+      Jwt__PrivateKey: ${JWT_PRIVATE_KEY:?set JWT_PRIVATE_KEY in .env}
+    expose: ["8080"]
+    networks: [backend]
+
+  operations:
+    build:
+      context: ../backend/laundryghar
+      args: { PROJECT: operations.WebApi }
+    image: laundryghar-operations
+    restart: unless-stopped
+    environment:
+      <<: [*service-env, *verifier-env]
+    expose: ["8080"]
+    networks: [backend]
+    depends_on: [core]
+
+  commerce:
+    build:
+      context: ../backend/laundryghar
+      args: { PROJECT: commerce.WebApi }
+    image: laundryghar-commerce
+    restart: unless-stopped
+    environment:
+      <<: [*service-env, *verifier-env]
+    expose: ["8080"]
+    networks: [backend]
+    depends_on: [core]
+
+  gateway:
+    build:
+      context: ../backend/laundryghar
+      args: { PROJECT: laundryghar.Gateway }
+    image: laundryghar-gateway
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      HealthChecks__Expose: "true"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      Sentry__Environment: ${SENTRY_ENVIRONMENT:-production}
+      # Behind a TLS-terminating proxy / load balancer, also set:
+      #   ForwardedHeaders__Enabled: "true"
+      Cors__AllowedOrigins__0: ${ADMIN_WEB_ORIGIN:?set ADMIN_WEB_ORIGIN in .env}
+      # Path-prefix → upstream host mapping (fan-in to the 3 consolidated hosts).
+      Gateway__Clusters__identity__Destinations__primary__Address: http://core:8080
+      Gateway__Clusters__engagement__Destinations__primary__Address: http://core:8080
+      Gateway__Clusters__mcp__Destinations__primary__Address: http://core:8080
+      Gateway__Clusters__catalog__Destinations__primary__Address: http://operations:8080
+      Gateway__Clusters__orders__Destinations__primary__Address: http://operations:8080
+      Gateway__Clusters__warehouse__Destinations__primary__Address: http://operations:8080
+      Gateway__Clusters__logistics__Destinations__primary__Address: http://operations:8080
+      Gateway__Clusters__commerce__Destinations__primary__Address: http://commerce:8080
+      Gateway__Clusters__finance__Destinations__primary__Address: http://commerce:8080
+      Gateway__Clusters__analytics__Destinations__primary__Address: http://commerce:8080
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    networks: [backend]
+    depends_on: [core, operations, commerce]
+
+  admin-web:
+    build:
+      context: ../admin-web
+      args:
+        # Baked into the JS bundle at build time — must be the PUBLIC gateway URL.
+        VITE_IDENTITY_URL: ${PUBLIC_API_URL:?set PUBLIC_API_URL in .env}/identity
+        VITE_CATALOG_URL: ${PUBLIC_API_URL}/catalog
+        VITE_ORDERS_URL: ${PUBLIC_API_URL}/orders
+    image: laundryghar-admin-web
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_WEB_PORT:-8081}:80"
+    networks: [backend]
+
+  # Optional bundled PostgreSQL for staging / fresh environments.
+  # Production should use a managed database and omit this profile.
+  postgres:
+    image: postgres:18
+    profiles: [local-db]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-laundry_ghar_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD to use local-db}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    expose: ["5432"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  backend:
+
+volumes:
+  pgdata:

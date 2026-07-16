@@ -88,7 +88,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opts =>
     {
         opts.Authority            = jwtAuthority;
-        opts.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        // Default: require https for the JWKS fetch outside Development. Overridable via
+        // Jwt:RequireHttpsMetadata=false for private-network deployments (docker compose)
+        // where the Identity host is reached over plain http on an internal network.
+        opts.RequireHttpsMetadata = builder.Configuration.GetValue(
+            "Jwt:RequireHttpsMetadata", !builder.Environment.IsDevelopment());
 
         opts.TokenValidationParameters = new TokenValidationParameters
         {

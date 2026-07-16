@@ -1,5 +1,7 @@
+using System.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +11,7 @@ using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Sentry.AspNetCore;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -22,6 +25,8 @@ public static class Extensions
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
+        builder.AddSentryIfConfigured();
+
         builder.ConfigureOpenTelemetry();
 
         builder.AddDefaultHealthChecks();
@@ -42,6 +47,71 @@ public static class Extensions
         // {
         //     options.AllowedSchemes = ["https"];
         // });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Enables Sentry error tracking when a DSN is configured (<c>Sentry:Dsn</c> or the
+    /// <c>SENTRY_DSN</c> environment variable). Complete no-op otherwise, so local dev and
+    /// test hosts boot with zero Sentry involvement.
+    ///
+    /// <para>
+    /// Capture path: the shared <c>ExceptionHandler</c> middleware swallows every exception
+    /// and logs it via <c>ILogger.LogError</c> — Sentry's logging integration turns those
+    /// Error-level records into events, so no middleware changes are needed. Expected
+    /// business exceptions (validation, business-rule, auth, not-found) are dropped in
+    /// <c>SetBeforeSend</c> by type name — type name rather than type reference so
+    /// ServiceDefaults keeps no dependency on laundryghar.Utilities.
+    /// </para>
+    /// </summary>
+    public static TBuilder AddSentryIfConfigured<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    {
+        var dsn = builder.Configuration["Sentry:Dsn"]
+                  ?? Environment.GetEnvironmentVariable("SENTRY_DSN");
+        if (string.IsNullOrWhiteSpace(dsn) || builder is not WebApplicationBuilder webBuilder)
+            return builder;
+
+        // Expected request-level failures already surfaced to clients as 4xx envelopes —
+        // tracking them as errors would drown real defects. Names mirror the cases in
+        // laundryghar.Utilities ExceptionHandler.Classify (DbUpdateException deliberately
+        // kept: data errors are worth tracking).
+        string[] expectedExceptions =
+        [
+            "ValidationException",
+            "StructuredBusinessRuleException",
+            "BusinessRuleException",
+            "ForbiddenException",
+            "KeyNotFoundException",
+            "BadHttpRequestException",
+            "UnauthorizedAccessException",
+            "OperationCanceledException",
+            "TaskCanceledException",
+        ];
+
+        webBuilder.WebHost.UseSentry(options =>
+        {
+            options.Dsn = dsn;
+            options.Environment = builder.Configuration["Sentry:Environment"]
+                                  ?? builder.Environment.EnvironmentName;
+            options.Release = builder.Configuration["Sentry:Release"]
+                              ?? Assembly.GetEntryAssembly()
+                                  ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                                  ?.InformationalVersion;
+            options.TracesSampleRate = builder.Configuration.GetValue("Sentry:TracesSampleRate", 0.1);
+            options.MinimumEventLevel = LogLevel.Error;
+            options.SendDefaultPii = false; // tenant PII is AES-encrypted at rest; never ship it to a third party
+
+            options.SetBeforeSend(evt =>
+            {
+                for (var ex = evt.Exception; ex is not null; ex = ex.InnerException)
+                {
+                    if (expectedExceptions.Contains(ex.GetType().Name, StringComparer.Ordinal))
+                        return null;
+                }
+                return evt;
+            });
+        });
 
         return builder;
     }
@@ -112,7 +182,12 @@ public static class Extensions
     {
         // Adding health checks endpoints to applications in non-development environments has security implications.
         // See https://aka.ms/aspire/healthchecks for details before enabling these endpoints in non-development environments.
-        if (app.Environment.IsDevelopment())
+        //
+        // HealthChecks:Expose=true opts in outside Development — required for container
+        // orchestrators (Docker HEALTHCHECK, k8s probes). The endpoints are unauthenticated,
+        // so only enable when the service port is not directly internet-reachable (behind
+        // the gateway / private network), which is the deploy/docker-compose.yml topology.
+        if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("HealthChecks:Expose"))
         {
             // All health checks must pass for app to be considered ready to accept traffic after starting
             app.MapHealthChecks(HealthEndpointPath);

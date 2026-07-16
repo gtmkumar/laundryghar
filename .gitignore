@@ -71,3 +71,5 @@ tmp/
 # Secrets — never commit
 Keys/
 *rzp*key*.csv
+.dbmigrate/
+*.dump

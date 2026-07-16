@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend build + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore laundryghar.slnx
+        working-directory: backend/laundryghar
+
+      - name: Build
+        run: dotnet build laundryghar.slnx --no-restore -c Release
+        working-directory: backend/laundryghar
+
+      # Includes operations.IntegrationTests, which self-provision
+      # postgres:16-alpine via Testcontainers (Docker is preinstalled
+      # on ubuntu runners).
+      - name: Test
+        run: dotnet test laundryghar.slnx --no-build -c Release --logger "trx;LogFileName=results.trx"
+        working-directory: backend/laundryghar
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/laundryghar/**/TestResults/*.trx
+          if-no-files-found: ignore
+
+  admin-web:
+    name: admin-web lint + build
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: admin-web }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin-web/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  mobile:
+    name: ${{ matrix.app }} typecheck + tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [customer-mobile, rider-mobile]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  migrations:
+    name: Migration lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Every migration must ship a rollback, with unique sequential numbering.
+      - name: Every .up.sql has a .down.sql (and vice versa)
+        run: |
+          set -euo pipefail
+          cd db/migrations
+          bad=0
+          for f in *.up.sql; do
+            [ -e "$f" ] || continue   # empty dir
+            [ -f "${f%.up.sql}.down.sql" ] || { echo "MISSING rollback for $f"; bad=1; }
+          done
+          for f in *.down.sql; do
+            [ -e "$f" ] || continue
+            [ -f "${f%.down.sql}.up.sql" ] || { echo "ORPHAN rollback $f (no .up.sql)"; bad=1; }
+          done
+          versions=$( (ls *.up.sql 2>/dev/null || true) | sed 's/_.*//' | sort)
+          dupes=$(echo "$versions" | uniq -d)
+          [ -z "$dupes" ] || { echo "DUPLICATE version number(s): $dupes"; bad=1; }
+          exit $bad
