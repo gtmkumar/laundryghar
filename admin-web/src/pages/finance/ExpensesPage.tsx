@@ -14,7 +14,6 @@ import { type Column } from '@/components/shared/DataTable'
 import { FilterableTable, type FilterDef } from '@/components/shared/FilterableTable'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { useConfirm } from '@/components/shared/useConfirm'
-import { showToast } from '@/stores/toastStore'
 import type { ExpenseDto } from '@/types/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
@@ -96,12 +95,14 @@ export function ExpensesPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const gate = useConfirm()
 
+  // The status flip is optimistic; useExpenseAction rolls back and toasts on
+  // failure, so this only swallows the rejection and tracks the busy row.
   const runAction = async (id: string, fn: () => Promise<unknown>) => {
     setBusyId(id)
     try {
       await fn()
-    } catch (e) {
-      showToast('error', e instanceof Error ? e.message : 'Could not complete the action.')
+    } catch {
+      // handled by the mutation's onError
     } finally {
       setBusyId(null)
     }

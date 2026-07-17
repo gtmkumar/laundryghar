@@ -12,11 +12,14 @@ import {
 } from '@/api/tenancy'
 import type {
   PaginationParams,
+  StoreDto,
+  WarehouseDto,
   CreateStorePayload,
   UpdateStorePayload,
   CreateWarehousePayload,
   UpdateWarehousePayload,
 } from '@/types/api'
+import { patchListItem, rollbackWithToast } from '@/lib/optimistic'
 
 export const tenancyKeys = {
   brands: (params?: object) => ['brands', params] as const,
@@ -100,9 +103,16 @@ export function useUpdateStore() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateStorePayload }) =>
       updateStore(id, payload),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['stores'] })
+    // Optimistic: patch the fields the StoreDto row renders (name, status) into
+    // the plain + infinite store lists. contactPhone isn't on the DTO, so skip it.
+    onMutate: ({ id, payload }) => {
+      const patch: Partial<StoreDto> = {}
+      if (payload.name !== undefined) patch.name = payload.name
+      if (payload.status !== undefined) patch.status = payload.status
+      return patchListItem<StoreDto>(qc, [['stores']], id, patch)
     },
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['stores'] }),
   })
 }
 
@@ -128,8 +138,15 @@ export function useUpdateWarehouse() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateWarehousePayload }) =>
       updateWarehouse(id, payload),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['warehouses'] })
+    // Optimistic: patch the fields the WarehouseDto row renders (name, status).
+    // contactPhone isn't on the DTO, so skip it.
+    onMutate: ({ id, payload }) => {
+      const patch: Partial<WarehouseDto> = {}
+      if (payload.name !== undefined) patch.name = payload.name
+      if (payload.status !== undefined) patch.status = payload.status
+      return patchListItem<WarehouseDto>(qc, [['warehouses']], id, patch)
     },
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['warehouses'] }),
   })
 }

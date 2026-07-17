@@ -33,7 +33,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import { useRiderTask, taskKeys } from '@/hooks/useRiderTasks';
+import { useRiderTask, taskKeys, setTaskStatusInCache } from '@/hooks/useRiderTasks';
 import { useTaskRequiresStoreDrop } from '@/hooks/useFulfillmentConfig';
 import { itemSummaryLabel } from '@/lib/fulfillmentTracking';
 import { useTaskOverrideStore } from '@/store/taskOverrideStore';
@@ -323,17 +323,27 @@ export default function TaskDetailScreen() {
    * Record arrival at the customer (PATCH status → arrived). Shown before the
    * inspection/collect (pickup) or OTP handover (delivery) step. The API also
    * accepts started → we backfill it when the rider skipped the list "Start".
+   *
+   * Optimistic: we flip the task to "arrived" in the query cache and fire the
+   * success haptic at once — the "I've arrived" row hides immediately. The one
+   * or two status PATCHes (backfill started, then arrived) run in the
+   * background; success invalidates to reconcile, failure keeps the optimistic
+   * state and queues arrival for replay (idempotent server-side; the 30 s poll
+   * re-syncs).
    */
   async function markArrived() {
     if (!task || arriveBusy) return;
     setArriveBusy(true);
+    // Cancel any in-flight refetch so it can't clobber the optimistic flip.
+    await queryClient.cancelQueries({ queryKey: taskKeys.today() });
+    setTaskStatusInCache(queryClient, task.id, 'arrived');
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
       if (task.status === 'assigned') {
         await updateTaskStatus(task.id, 'started');
       }
       await updateTaskStatus(task.id, 'arrived');
       await queryClient.invalidateQueries({ queryKey: taskKeys.today() });
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       // Network failure — queue for replay; the server accepts late arrivals.
       await enqueue({ taskId: task.id, status: 'arrived' });

@@ -13,7 +13,10 @@ import type {
   CreateSubscriptionPlanPayload,
   UpdateSubscriptionPlanPayload,
   CustomerSubscriptionListParams,
+  SubscriptionPlanDto,
+  CustomerSubscriptionDto,
 } from '@/types/api'
+import { patchListItem, removeListItem, rollbackWithToast } from '@/lib/optimistic'
 
 export const subscriptionKeys = {
   plans: (params?: object) => ['subscriptions', 'plans', params] as const,
@@ -55,7 +58,10 @@ export function usePatchSubscriptionPlanStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       patchSubscriptionPlanStatus(id, status),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['subscriptions', 'plans'] }),
+    onMutate: ({ id, status }) =>
+      patchListItem<SubscriptionPlanDto>(qc, [['subscriptions', 'plans']], id, { status }),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['subscriptions', 'plans'] }),
   })
 }
 
@@ -63,7 +69,9 @@ export function useDeleteSubscriptionPlan() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteSubscriptionPlan(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['subscriptions', 'plans'] }),
+    onMutate: (id) => removeListItem(qc, [['subscriptions', 'plans']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['subscriptions', 'plans'] }),
   })
 }
 
@@ -108,6 +116,11 @@ export function usePatchCustomerSubscriptionStatus() {
   return useMutation({
     mutationFn: (v: { id: string; status: CustomerSubscriptionStatus; expectedUpdatedAt?: string }) =>
       patchCustomerSubscriptionStatus(v.id, v.status, v.expectedUpdatedAt),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['subscriptions', 'customers'] }),
+    // Prefix covers both the plain and infinite customer-subscription lists. A
+    // stale expectedUpdatedAt 409s; rollbackWithToast reverts and surfaces it.
+    onMutate: ({ id, status }) =>
+      patchListItem<CustomerSubscriptionDto>(qc, [['subscriptions', 'customers']], id, { status }),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['subscriptions', 'customers'] }),
   })
 }

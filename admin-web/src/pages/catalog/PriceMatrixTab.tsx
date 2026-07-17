@@ -56,22 +56,17 @@ function EditableBase({ row, onError }: { row: PricingMatrixRow; onError: (m: st
     )
   }
 
+  // The save is optimistic (the hook patches the cached matrix in onMutate),
+  // so the new base renders immediately — no pending spinner or disable.
   return (
     <button
       type="button"
       onClick={start}
-      disabled={save.isPending}
       title="Edit base rate"
       className="group ml-2 inline-flex items-center gap-1 rounded px-1 text-xs font-normal text-gray-400 hover:bg-lg-green/5 hover:text-lg-green"
     >
-      {save.isPending ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : (
-        <>
-          base ₹{row.basePrice}
-          <Pencil className="h-2.5 w-2.5 opacity-0 transition-opacity group-hover:opacity-100" />
-        </>
-      )}
+      base ₹{row.basePrice}
+      <Pencil className="h-2.5 w-2.5 opacity-0 transition-opacity group-hover:opacity-100" />
     </button>
   )
 }

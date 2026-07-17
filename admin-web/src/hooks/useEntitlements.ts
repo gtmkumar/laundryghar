@@ -11,6 +11,8 @@ import {
   createBrandPlatformInvoicePaymentLink,
   syncBrandPlatformInvoicePayment,
 } from '@/api/entitlements'
+import { rollbackWithToast, snapshotAndSet } from '@/lib/optimistic'
+import type { BrandEntitlements } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
 
 export function usePlatformBillingSummary() {
@@ -98,7 +100,22 @@ export function useSetBrandModule() {
   return useMutation({
     mutationFn: (v: { moduleKey: string; enabled: boolean; validUntil?: string | null }) =>
       setBrandModule(brandId!, v.moduleKey, v.enabled, v.validUntil),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['entitlements', 'brand', brandId] }),
+    // Optimistic: flip the module switch in the cached entitlements instantly.
+    onMutate: (v) =>
+      snapshotAndSet(qc, [['entitlements', 'brand', brandId]], (data) => {
+        const entitlements = data as BrandEntitlements
+        if (!Array.isArray(entitlements?.modules)) return data
+        return {
+          ...entitlements,
+          modules: entitlements.modules.map((m) =>
+            m.key === v.moduleKey
+              ? { ...m, entitled: v.enabled, validUntil: v.validUntil ?? m.validUntil }
+              : m,
+          ),
+        }
+      }),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['entitlements', 'brand', brandId] }),
   })
 }
 

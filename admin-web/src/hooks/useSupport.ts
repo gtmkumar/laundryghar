@@ -5,7 +5,13 @@ import {
   replyToTicket,
   updateTicket,
 } from '@/api/support'
-import type { SupportTicketStatus, UpdateTicketPayload } from '@/types/api'
+import type {
+  SupportTicketStatus,
+  SupportTicketDto,
+  SupportTicketDetailDto,
+  UpdateTicketPayload,
+} from '@/types/api'
+import { patchListItem, rollbackWithToast, snapshotAndSet } from '@/lib/optimistic'
 import { useEffectiveBrandId } from './useBrandContext'
 
 /**
@@ -45,12 +51,38 @@ export function useReplyTicket() {
   })
 }
 
-/** Change status / priority / assignee on a ticket, then refresh everything. */
+/**
+ * Change status / priority / assignee on a ticket. Optimistic: the changed
+ * fields flip in the cached inbox list and the open ticket detail immediately
+ * (only status/priority are rendered, so assignee patches are a no-op until the
+ * refetch). onSettled invalidates every support cache to reconcile.
+ */
 export function useUpdateTicket() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateTicketPayload }) =>
       updateTicket(id, payload),
-    onSuccess: () => invalidateSupport(qc),
+    onMutate: async ({ id, payload }) => {
+      // Patch only the fields the list DTO actually carries (status, priority).
+      const patch: Partial<SupportTicketDto> = {}
+      if (payload.status !== undefined) patch.status = payload.status
+      if (payload.priority !== undefined) patch.priority = payload.priority
+      // List: bare SupportTicketDto[] under ['support','tickets',...].
+      const listCtx = await patchListItem<SupportTicketDto>(qc, [['support', 'tickets']], id, patch)
+      // Detail: { ticket, messages } under ['support','ticket',id] — patch the nested ticket.
+      const detailCtx = await snapshotAndSet(qc, [['support', 'ticket', id]], (data) => {
+        const detail = data as SupportTicketDetailDto
+        if (!detail?.ticket) return data
+        return { ...detail, ticket: { ...detail.ticket, ...patch } }
+      })
+      return {
+        rollback: () => {
+          listCtx.rollback()
+          detailCtx.rollback()
+        },
+      }
+    },
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => invalidateSupport(qc),
   })
 }

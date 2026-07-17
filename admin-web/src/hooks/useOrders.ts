@@ -12,6 +12,7 @@ import {
   getOpsQueues,
 } from '@/api/orders'
 import type { CreateOrderNoteRequest, OrderListParams, OpsQueuesParams } from '@/types/api'
+import { removeListItem, rollbackWithToast } from '@/lib/optimistic'
 
 export const orderKeys = {
   list: (params?: object) => ['orders', 'list', params] as const,
@@ -110,7 +111,10 @@ export function useDeleteOrderNote(id: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (noteId: string) => deleteOrderNote(id, noteId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: orderKeys.notes(id) }),
+    // Notes are a bare array under orderKeys.notes(id); remove the row on click.
+    onMutate: (noteId) => removeListItem(qc, [orderKeys.notes(id)], noteId),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: orderKeys.notes(id) }),
   })
 }
 

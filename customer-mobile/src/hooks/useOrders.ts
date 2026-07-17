@@ -23,6 +23,7 @@ import type {
   FareQuoteDto,
   FareQuoteRequest,
   OrderDto,
+  PaginatedData,
   RateOrderRequest,
   RateRiderRequest,
   RateRiderResult,
@@ -116,9 +117,40 @@ export function useCancelOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => cancelOrder(id),
-    onSuccess: (updated) => {
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: orderKeys.detail(id) });
+      await qc.cancelQueries({ queryKey: ['orders', 'list'] });
+      const previousDetail = qc.getQueryData<OrderDto>(orderKeys.detail(id));
+      const previousLists = qc.getQueriesData<PaginatedData<OrderDto>>({
+        queryKey: ['orders', 'list'],
+      });
+      qc.setQueryData<OrderDto>(orderKeys.detail(id), (prev) =>
+        prev ? { ...prev, status: 'cancelled' } : prev,
+      );
+      qc.setQueriesData<PaginatedData<OrderDto>>(
+        { queryKey: ['orders', 'list'] },
+        (prev) =>
+          prev
+            ? {
+                ...prev,
+                list: prev.list.map((o) =>
+                  o.id === id ? { ...o, status: 'cancelled' } : o,
+                ),
+              }
+            : prev,
+      );
+      return { previousDetail, previousLists };
+    },
+    // Consumer (order detail) surfaces the rollback Alert; here we only restore.
+    onError: (_err, id, ctx) => {
+      if (ctx?.previousDetail) {
+        qc.setQueryData(orderKeys.detail(id), ctx.previousDetail);
+      }
+      ctx?.previousLists?.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
+    onSettled: (_data, _err, id) => {
+      void qc.invalidateQueries({ queryKey: orderKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: ['orders', 'list'] });
-      qc.setQueryData(orderKeys.detail(updated.id), updated);
     },
   });
 }

@@ -1,4 +1,6 @@
+import { Alert } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import i18n from '@/i18n';
 import {
   cancelAccountDeletion,
   checkServiceability,
@@ -19,6 +21,8 @@ import {
 import type {
   CreateAddressRequest,
   CreateDeletionRequestRequest,
+  CustomerAddressDto,
+  DpdpConsentDto,
   GrantConsentRequest,
   UpdateAddressRequest,
 } from '@/types/api';
@@ -111,11 +115,55 @@ export function useUpdateAddress() {
   });
 }
 
+/**
+ * Set an address as the default. Optimistically flips isDefault on the target
+ * (and off every other address) so the picker updates instantly. Dedicated hook
+ * — kept separate from useUpdateAddress so the full-edit path (which the edit
+ * form already error-Alerts) doesn't double-Alert on rollback.
+ */
+export function useSetDefaultAddress() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateAddressRequest }) =>
+      updateAddress(id, body),
+    onMutate: async ({ id }) => {
+      await qc.cancelQueries({ queryKey: catalogKeys.addresses });
+      const previous = qc.getQueryData<CustomerAddressDto[]>(catalogKeys.addresses);
+      qc.setQueryData<CustomerAddressDto[]>(catalogKeys.addresses, (prev) =>
+        prev?.map((a) => ({ ...a, isDefault: a.id === id })),
+      );
+      return { previous };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(catalogKeys.addresses, ctx.previous);
+      Alert.alert(
+        i18n.t('error.generic'),
+        err instanceof Error ? err.message : i18n.t('error.tryAgain'),
+      );
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: catalogKeys.addresses });
+    },
+  });
+}
+
 export function useDeleteAddress() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteAddress(id),
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: catalogKeys.addresses });
+      const previous = qc.getQueryData<CustomerAddressDto[]>(catalogKeys.addresses);
+      qc.setQueryData<CustomerAddressDto[]>(catalogKeys.addresses, (prev) =>
+        prev?.filter((a) => a.id !== id),
+      );
+      return { previous };
+    },
+    // Consumer (addresses screen) surfaces the rollback Alert; here we only restore.
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous) qc.setQueryData(catalogKeys.addresses, ctx.previous);
+    },
+    onSettled: () => {
       void qc.invalidateQueries({ queryKey: catalogKeys.addresses });
     },
   });
@@ -174,7 +222,31 @@ export function useGrantConsent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (req: GrantConsentRequest) => grantConsent(req),
-    onSuccess: () => {
+    onMutate: async (req) => {
+      await qc.cancelQueries({ queryKey: ['customer', 'consents'] });
+      const previous = qc.getQueryData<DpdpConsentDto[]>(['customer', 'consents']);
+      qc.setQueryData<DpdpConsentDto[]>(['customer', 'consents'], (prev) =>
+        prev?.map((c) =>
+          c.purpose === req.purpose
+            ? {
+                ...c,
+                consentStatus: 'granted',
+                grantedAt: new Date().toISOString(),
+                withdrawnAt: null,
+              }
+            : c,
+        ),
+      );
+      return { previous };
+    },
+    onError: (err, _req, ctx) => {
+      if (ctx?.previous) qc.setQueryData(['customer', 'consents'], ctx.previous);
+      Alert.alert(
+        i18n.t('error.generic'),
+        err instanceof Error ? err.message : i18n.t('error.tryAgain'),
+      );
+    },
+    onSettled: () => {
       void qc.invalidateQueries({ queryKey: ['customer', 'consents'] });
     },
   });

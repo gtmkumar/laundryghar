@@ -10,6 +10,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { RequirePermission } from '@/components/layout/RequirePermission'
+import { Toaster } from '@/components/shared/Toaster'
 import { usePermissions } from '@/hooks/usePermissions'
 
 // R3-NAV-1: thin permission gates for the route tree. Each reads the JWT-derived
@@ -93,6 +94,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <Toaster />
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   )

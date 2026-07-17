@@ -36,6 +36,7 @@ import type {
   CreateMobileAppConfigRequest,
   UpdateMobileAppConfigRequest,
 } from '@/types/api'
+import { removeListItem, rollbackWithToast } from '@/lib/optimistic'
 
 // ── Query key factory ─────────────────────────────────────────────────────────
 
@@ -116,9 +117,10 @@ export function useDeleteNotificationTemplate() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteNotificationTemplate(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['cms', 'templates'] })
-    },
+    // Prefix covers the plain + infinite template lists (both under ['cms','templates']).
+    onMutate: (id) => removeListItem(qc, [['cms', 'templates']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['cms', 'templates'] }),
   })
 }
 
@@ -175,9 +177,10 @@ export function useDeleteOnboardingSlide() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteOnboardingSlide(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['cms', 'slides'] })
-    },
+    // Prefix covers the plain + infinite slide lists (both under ['cms','slides']).
+    onMutate: (id) => removeListItem(qc, [['cms', 'slides']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['cms', 'slides'] }),
   })
 }
 
@@ -233,9 +236,10 @@ export function useDeleteAppBanner() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteAppBanner(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['cms', 'banners'] })
-    },
+    // Prefix covers the plain + infinite banner lists (both under ['cms','banners']).
+    onMutate: (id) => removeListItem(qc, [['cms', 'banners']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['cms', 'banners'] }),
   })
 }
 
@@ -292,9 +296,10 @@ export function useDeleteMobileAppConfig() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteMobileAppConfig(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['cms', 'appConfigs'] })
-    },
+    // Prefix covers the plain + infinite app-config lists (both under ['cms','appConfigs']).
+    onMutate: (id) => removeListItem(qc, [['cms', 'appConfigs']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['cms', 'appConfigs'] }),
   })
 }
 

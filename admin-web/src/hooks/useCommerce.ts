@@ -21,6 +21,7 @@ import type {
   CreatePackagePayload,
   UpdatePackagePayload,
 } from '@/types/api'
+import { removeListItem, rollbackWithToast } from '@/lib/optimistic'
 
 // ── Query key factory ─────────────────────────────────────────────────────────
 
@@ -61,7 +62,9 @@ export function useDeletePromotion() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deletePromotion(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: commerceKeys.promotions() }),
+    onMutate: (id) => removeListItem(qc, [commerceKeys.promotions()], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: commerceKeys.promotions() }),
   })
 }
 
@@ -96,7 +99,9 @@ export function useDeleteCoupon() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteCoupon(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: commerceKeys.coupons() }),
+    onMutate: (id) => removeListItem(qc, [commerceKeys.coupons()], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: commerceKeys.coupons() }),
   })
 }
 
@@ -131,6 +136,8 @@ export function useDeletePackage() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deletePackage(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: commerceKeys.packages() }),
+    onMutate: (id) => removeListItem(qc, [commerceKeys.packages()], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: commerceKeys.packages() }),
   })
 }

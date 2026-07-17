@@ -26,8 +26,10 @@ import {
   assignFranchisePlan,
   cancelFranchiseSubscription,
 } from '@/api/finance'
+import { patchListItem, rollbackWithToast } from '@/lib/optimistic'
 import type {
   CashBookListParams,
+  ExpenseDto,
   CloseCashBookPayload,
   ShiftHandoverListParams,
   CreateShiftHandoverPayload,
@@ -38,6 +40,7 @@ import type {
   GenerateRoyaltyInvoicePayload,
   IssueRoyaltyInvoicePayload,
   RecordRoyaltyPaymentPayload,
+  PlatformPlanDto,
   PlatformPlanListParams,
   CreatePlatformPlanPayload,
   UpdatePlatformPlanPayload,
@@ -130,22 +133,34 @@ export function useCreateExpense() {
   })
 }
 
-/** Approve / reject / mark-paid all refresh the expense list. */
+/**
+ * Approve / reject / mark-paid. Optimistic: the status badge flips in the
+ * cached expense list on click; a failure rolls it back with an error toast,
+ * and onSettled re-fetches the authoritative list either way.
+ */
 export function useExpenseAction() {
   const qc = useQueryClient()
   const refresh = () => void qc.invalidateQueries({ queryKey: ['finance', 'expenses'] })
+  const flipStatus = (id: string, patch: Partial<ExpenseDto>) =>
+    patchListItem<ExpenseDto>(qc, [['finance', 'expenses']], id, patch)
   return {
     approve: useMutation({
       mutationFn: ({ id, notes }: { id: string; notes?: string }) => approveExpense(id, notes),
-      onSuccess: refresh,
+      onMutate: ({ id }) => flipStatus(id, { status: 'approved' }),
+      onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+      onSettled: refresh,
     }),
     reject: useMutation({
       mutationFn: ({ id, reason }: { id: string; reason: string }) => rejectExpense(id, reason),
-      onSuccess: refresh,
+      onMutate: ({ id, reason }) => flipStatus(id, { status: 'rejected', rejectionReason: reason }),
+      onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+      onSettled: refresh,
     }),
     markPaid: useMutation({
       mutationFn: ({ id, notes }: { id: string; notes?: string }) => markExpensePaid(id, notes),
-      onSuccess: refresh,
+      onMutate: ({ id }) => flipStatus(id, { status: 'paid' }),
+      onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+      onSettled: refresh,
     }),
   }
 }
@@ -234,7 +249,10 @@ export function usePatchPlatformPlanStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       patchPlatformPlanStatus(id, status),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['finance', 'platformPlans'] }),
+    onMutate: ({ id, status }) =>
+      patchListItem<PlatformPlanDto>(qc, [['finance', 'platformPlans']], id, { status }),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['finance', 'platformPlans'] }),
   })
 }
 

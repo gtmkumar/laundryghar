@@ -6,6 +6,7 @@ import {
   deleteIncentiveRule,
 } from '@/api/incentives'
 import type { CreateIncentiveRulePayload, UpdateIncentiveRulePayload } from '@/types/api'
+import { removeListItem, rollbackWithToast } from '@/lib/optimistic'
 import { useEffectiveBrandId } from './useBrandContext'
 
 /** All incentive rules; pass `activeOnly` to hide inactive/expired ones. */
@@ -43,6 +44,8 @@ export function useDeleteIncentiveRule() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteIncentiveRule(id),
-    onSuccess: () => invalidateRules(qc),
+    onMutate: (id) => removeListItem(qc, [['incentive-rules']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => invalidateRules(qc),
   })
 }

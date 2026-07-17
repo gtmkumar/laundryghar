@@ -126,10 +126,11 @@ export default function TicketDetailScreen() {
   const handleSend = () => {
     const body = draft.trim();
     if (!body || postMessage.isPending) return;
+    // Clear the composer immediately — the optimistic bubble now carries the text.
+    setDraft('');
     postMessage.mutate(
       { body },
       {
-        onSuccess: () => setDraft(''),
         onError: () => Alert.alert(t('error.generic'), t('support.sendError')),
       },
     );

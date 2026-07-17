@@ -30,7 +30,7 @@ export function OrderDetailPage() {
   const [printMode, setPrintMode] = useState<'receipt' | 'tags' | null>(null)
 
   const { data: order, isLoading, isError, refetch } = useOrder(id ?? '')
-  const { mutate: updateStatus, isPending } = useUpdateOrderStatus()
+  const { mutate: updateStatus } = useUpdateOrderStatus()
   const { mutate: openInvoice, isPending: invoicePending, isError: invoiceError } =
     useOpenInvoicePdf()
   // Backend-driven status labels (multi-vertical Phase 3): label statuses per the order's
@@ -126,7 +126,6 @@ export function OrderDetailPage() {
                         ? 'success'
                         : 'default'
                 }
-                disabled={isPending}
                 onClick={() => handleStatusChange(status)}
                 className={`capitalize ${
                   status === 'disputed' || status === 'returned'
@@ -134,7 +133,6 @@ export function OrderDetailPage() {
                     : ''
                 }`}
               >
-                {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {labelStatus(status)}
               </Button>
             ))}

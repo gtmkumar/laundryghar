@@ -11,6 +11,7 @@ import type {
   PostTicketMessageRequest,
   SupportTicketDetailDto,
   SupportTicketDto,
+  TicketMessageDto,
 } from '@/types/api';
 
 export const supportKeys = {
@@ -61,16 +62,48 @@ export function useCreateTicket() {
   });
 }
 
-/** Append a reply to a ticket. Optimistically merges the new message in. */
+/**
+ * Append a reply to a ticket. The message is added to the thread optimistically
+ * (under a temp id) so it appears the instant the user hits send; onSuccess swaps
+ * in the server message, and onError removes the temp bubble (the composer screen
+ * surfaces the failure Alert).
+ */
 export function usePostTicketMessage(ticketId: string) {
   const qc = useQueryClient();
   return useMutation<
     Awaited<ReturnType<typeof postTicketMessage>>,
     Error,
-    PostTicketMessageRequest
+    PostTicketMessageRequest,
+    { previous?: SupportTicketDetailDto; tempId: string }
   >({
     mutationFn: (body) => postTicketMessage(ticketId, body),
-    onSuccess: (message) => {
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey: supportKeys.detail(ticketId) });
+      const previous = qc.getQueryData<SupportTicketDetailDto>(
+        supportKeys.detail(ticketId),
+      );
+      const now = new Date().toISOString();
+      const tempId = `temp-${Date.now()}`;
+      const optimistic: TicketMessageDto = {
+        id: tempId,
+        senderType: 'customer',
+        body: body.body,
+        createdAt: now,
+      };
+      qc.setQueryData<SupportTicketDetailDto>(
+        supportKeys.detail(ticketId),
+        (prev) =>
+          prev
+            ? {
+                ...prev,
+                ticket: { ...prev.ticket, lastMessageAt: now },
+                messages: [...prev.messages, optimistic],
+              }
+            : prev,
+      );
+      return { previous, tempId };
+    },
+    onSuccess: (message, _body, ctx) => {
       qc.setQueryData<SupportTicketDetailDto>(
         supportKeys.detail(ticketId),
         (prev) =>
@@ -78,10 +111,20 @@ export function usePostTicketMessage(ticketId: string) {
             ? {
                 ...prev,
                 ticket: { ...prev.ticket, lastMessageAt: message.createdAt },
-                messages: [...prev.messages, message],
+                messages: prev.messages.map((m) =>
+                  m.id === ctx?.tempId ? message : m,
+                ),
               }
             : prev,
       );
+    },
+    // Consumer (ticket detail) surfaces the failure Alert; here we drop the temp bubble.
+    onError: (_err, _body, ctx) => {
+      if (ctx?.previous) {
+        qc.setQueryData(supportKeys.detail(ticketId), ctx.previous);
+      }
+    },
+    onSettled: () => {
       void qc.invalidateQueries({ queryKey: supportKeys.list });
     },
   });

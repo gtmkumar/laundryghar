@@ -252,7 +252,7 @@ export function EntitlementsTab() {
                   ) : (
                     <button
                       type="button"
-                      disabled={!canManage || setModule.isPending}
+                      disabled={!canManage}
                       onClick={() => toggle(m.key, !m.entitled)}
                       aria-pressed={m.entitled}
                       className={cn(

@@ -51,7 +51,9 @@ import {
   updateValueSlab,
   deleteValueSlab,
 } from '@/api/catalog'
+import { removeListItem, rollbackWithToast, snapshotAndSet } from '@/lib/optimistic'
 import type {
+  PricingMatrix,
   PaginationParams,
   CreateFabricTypePayload,
   UpdateFabricTypePayload,
@@ -171,7 +173,31 @@ export function useSaveItemPricing() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (v: { id: string; payload: SaveItemPricingPayload }) => saveItemPricing(v.id, v.payload),
-    onSuccess: () => {
+    // Optimistic: write the new base prices straight into every cached pricing
+    // matrix so the inline matrix edit (and its fabric columns, computed
+    // client-side from base × multiplier) updates on commit, not on response.
+    onMutate: async ({ id, payload }) => {
+      const priceByService = new Map(
+        payload.servicePrices
+          .filter((sp): sp is { serviceId: string; basePrice: number } => sp.basePrice != null)
+          .map((sp) => [sp.serviceId, sp.basePrice]),
+      )
+      if (priceByService.size === 0) return undefined
+      return snapshotAndSet(qc, [['catalog', 'pricingMatrix']], (data) => {
+        const matrix = data as PricingMatrix
+        if (!Array.isArray(matrix?.rows)) return data
+        return {
+          ...matrix,
+          rows: matrix.rows.map((row) =>
+            row.itemId === id && priceByService.has(row.serviceId)
+              ? { ...row, basePrice: priceByService.get(row.serviceId)! }
+              : row,
+          ),
+        }
+      })
+    },
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ['catalog', 'managedItems'] })
       qc.invalidateQueries({ queryKey: ['catalog', 'itemStats'] })
       qc.invalidateQueries({ queryKey: ['catalog', 'pricingMatrix'] })
@@ -290,7 +316,9 @@ export function useDeleteAddOn() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteAddOn(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'addOns'] }),
+    onMutate: (id) => removeListItem(qc, [['catalog', 'addOns']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['catalog', 'addOns'] }),
   })
 }
 
@@ -324,7 +352,11 @@ export function useDeleteValueSlab() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteValueSlab(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['catalog', 'valueSlabs'] }),
+    // DELETE archives the slab; the default (non-archived) view drops the row,
+    // so optimistic removal matches. onSettled reconciles the includeArchived view.
+    onMutate: (id) => removeListItem(qc, [['catalog', 'valueSlabs']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['catalog', 'valueSlabs'] }),
   })
 }
 
@@ -423,7 +455,10 @@ export function useDeleteServiceCategory() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteServiceCategory(id),
-    onSuccess: () => invalidate(qc, ['catalog', 'categories']),
+    // Prefix covers the plain + infinite category lists (both under ['catalog','categories']).
+    onMutate: (id) => removeListItem(qc, [['catalog', 'categories']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => invalidate(qc, ['catalog', 'categories']),
   })
 }
 
@@ -448,7 +483,10 @@ export function useDeleteService() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteService(id),
-    onSuccess: () => invalidate(qc, ['catalog', 'services']),
+    // Prefix covers the plain + infinite service lists (both under ['catalog','services']).
+    onMutate: (id) => removeListItem(qc, [['catalog', 'services']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => invalidate(qc, ['catalog', 'services']),
   })
 }
 
@@ -473,7 +511,11 @@ export function useDeleteItem() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteItem(id),
-    onSuccess: () => invalidate(qc, ['catalog', 'items'], ['catalog', 'managedItems'], ['catalog', 'itemStats']),
+    // The Items page renders managedItems, so remove from both that list and the
+    // plain/infinite items lists (all keyed by a shared id).
+    onMutate: (id) => removeListItem(qc, [['catalog', 'items'], ['catalog', 'managedItems']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => invalidate(qc, ['catalog', 'items'], ['catalog', 'managedItems'], ['catalog', 'itemStats']),
   })
 }
 
@@ -548,7 +590,10 @@ export function useDeletePriceList() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deletePriceList(id),
-    onSuccess: () => invalidate(qc, ['catalog', 'priceLists']),
+    // Prefix covers the plain + infinite price-list caches (both under ['catalog','priceLists']).
+    onMutate: (id) => removeListItem(qc, [['catalog', 'priceLists']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => invalidate(qc, ['catalog', 'priceLists']),
   })
 }
 
@@ -621,9 +666,10 @@ export function useDeleteAdminCustomer() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteAdminCustomer(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['catalog', 'adminCustomers'] })
-    },
+    // Prefix covers the plain + infinite customer lists (both under ['catalog','adminCustomers']).
+    onMutate: (id) => removeListItem(qc, [['catalog', 'adminCustomers']], id),
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['catalog', 'adminCustomers'] }),
   })
 }
 

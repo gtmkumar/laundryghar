@@ -7,7 +7,14 @@ import {
   generateInvoice,
   getInvoicePdf,
 } from '@/api/orders'
-import type { OrderListParams, CreateOrderRequest, UpdateOrderStatusRequest } from '@/types/api'
+import { showToast } from '@/stores/toastStore'
+import type {
+  OrderListParams,
+  CreateOrderRequest,
+  UpdateOrderStatusRequest,
+  OrderDto,
+  PaginatedList,
+} from '@/types/api'
 
 export const orderKeys = {
   list: (params?: object) => ['orders', 'list', params] as const,
@@ -54,9 +61,66 @@ export function useUpdateOrderStatus() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateOrderStatusRequest }) =>
       updateOrderStatus(id, payload),
+    // Optimistic advance: flip the status the instant the button is pressed so
+    // the detail screen (and any cached list rows) reflect the new stage without
+    // waiting on the PATCH round-trip. We roll back on error.
+    onMutate: async ({ id, payload }) => {
+      const detailKey = orderKeys.detail(id)
+      const listPrefix = ['orders', 'list'] as const
+
+      // Stop any in-flight refetches from clobbering the optimistic write.
+      await Promise.all([
+        qc.cancelQueries({ queryKey: detailKey }),
+        qc.cancelQueries({ queryKey: listPrefix }),
+      ])
+
+      // Snapshot for rollback.
+      const prevDetail = qc.getQueryData<OrderDto>(detailKey)
+      const prevLists = qc.getQueriesData<PaginatedList<OrderDto>>({ queryKey: listPrefix })
+
+      // Detail cache: set the target status and clear allowedTransitions so the
+      // advance buttons don't offer stale next-steps until onSettled reconciles
+      // with the backend's authoritative transition list.
+      if (prevDetail) {
+        qc.setQueryData<OrderDto>(detailKey, {
+          ...prevDetail,
+          status: payload.toStatus,
+          allowedTransitions: [],
+        })
+      }
+
+      // List caches: flip the matching row's status in every cached page.
+      for (const [key, page] of prevLists) {
+        if (!page) continue
+        qc.setQueryData<PaginatedList<OrderDto>>(key, {
+          ...page,
+          list: page.list.map((o) =>
+            o.id === id ? { ...o, status: payload.toStatus } : o,
+          ),
+        })
+      }
+
+      return { detailKey, prevDetail, prevLists }
+    },
     onSuccess: (updatedOrder) => {
-      // Update the cached detail and invalidate list
+      // Replace the optimistic write with the server's authoritative order
+      // (real allowedTransitions + statusHistory row).
       qc.setQueryData(orderKeys.detail(updatedOrder.id), updatedOrder)
+    },
+    onError: (err, _vars, ctx) => {
+      // Roll back both caches to their pre-mutation snapshots.
+      if (ctx?.prevDetail) qc.setQueryData(ctx.detailKey, ctx.prevDetail)
+      if (ctx?.prevLists) {
+        for (const [key, page] of ctx.prevLists) {
+          qc.setQueryData(key, page)
+        }
+      }
+      showToast('error', err instanceof Error ? err.message : 'Status update failed.')
+    },
+    onSettled: (_data, _err, { id }) => {
+      // Reconcile: refetch the detail and lists so status, allowedTransitions,
+      // and statusHistory match the backend.
+      void qc.invalidateQueries({ queryKey: orderKeys.detail(id) })
       void qc.invalidateQueries({ queryKey: ['orders', 'list'] })
     },
   })

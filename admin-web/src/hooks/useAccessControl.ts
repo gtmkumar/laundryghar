@@ -25,10 +25,19 @@ import type {
   SetUserPermissionOverridePayload,
   GrantMembershipPayload,
   RevokeMembershipPayload,
+  AccessPeoplePage,
 } from '@/types/api'
+import { rollbackWithToast, snapshotAndSet } from '@/lib/optimistic'
 import { useEffectiveBrandId } from './useBrandContext'
 
 const PEOPLE_PAGE_SIZE = 100
+
+/** The row status each person-status action lands on, for the optimistic flip. */
+const PERSON_STATUS_BY_ACTION: Record<PersonStatusAction, string> = {
+  activate: 'active',
+  reactivate: 'active',
+  suspend: 'suspended',
+}
 
 export function useAccessPeople(search?: string, sort?: string) {
   const brandId = useEffectiveBrandId()
@@ -85,7 +94,30 @@ export function useSetPersonStatus() {
   return useMutation({
     mutationFn: (v: { userId: string; action: PersonStatusAction; password?: string }) =>
       setPersonStatus(v.userId, v.action, v.password),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['access', 'people'] }),
+    // Optimistic: flip the person's status badge in the cached infinite people
+    // list. The pages are shaped { counts, people: { list } }, not the standard
+    // { list } the list helpers understand, so patch through snapshotAndSet.
+    onMutate: (v) => {
+      const nextStatus = PERSON_STATUS_BY_ACTION[v.action]
+      return snapshotAndSet(qc, [['access', 'people']], (data) => {
+        const page = data as { pages?: AccessPeoplePage[] }
+        if (!Array.isArray(page?.pages)) return data
+        return {
+          ...page,
+          pages: page.pages.map((pg) => ({
+            ...pg,
+            people: {
+              ...pg.people,
+              list: pg.people.list.map((person) =>
+                person.id === v.userId ? { ...person, status: nextStatus } : person,
+              ),
+            },
+          })),
+        }
+      })
+    },
+    onError: (error, _v, ctx) => rollbackWithToast(ctx, error),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['access', 'people'] }),
   })
 }
 

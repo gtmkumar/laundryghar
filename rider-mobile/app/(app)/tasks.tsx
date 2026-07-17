@@ -20,7 +20,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRiderTasks, taskKeys } from '@/hooks/useRiderTasks';
+import { useRiderTasks, taskKeys, setTaskStatusInCache } from '@/hooks/useRiderTasks';
 import { useMyRiderProfile } from '@/hooks/useRider';
 import { useAuthStore } from '@/store/authStore';
 import { useDutyStore } from '@/store/dutyStore';
@@ -241,12 +241,22 @@ export default function TasksScreen() {
   /**
    * "Start" = tell the server the rider is en route (PATCH status → started),
    * THEN open the task detail. Previously this only navigated, so started/
-   * arrived timestamps never reached dispatch. Offline → queued for replay.
+   * arrived timestamps never reached dispatch.
+   *
+   * Optimistic: we flip the card to "started" in the query cache and open the
+   * detail immediately — the tap never waits on the network round-trip. The
+   * PATCH fires in the background; on success we invalidate to reconcile, and on
+   * failure we keep the optimistic state and queue for replay (the status PATCH
+   * is idempotent server-side, and the 30 s poll re-syncs against the server).
    */
   async function startTask(task: RiderTask) {
     if (startingId) return;
     if (FEATURES.riderTasksApi && task.status === 'assigned') {
       setStartingId(task.id);
+      // Cancel any in-flight refetch so it can't clobber the optimistic flip.
+      await queryClient.cancelQueries({ queryKey: taskKeys.today() });
+      setTaskStatusInCache(queryClient, task.id, 'started');
+      router.push(`/(app)/tasks/${task.id}`);
       try {
         await updateTaskStatus(task.id, 'started');
         void queryClient.invalidateQueries({ queryKey: taskKeys.today() });
@@ -255,6 +265,7 @@ export default function TasksScreen() {
       } finally {
         setStartingId(null);
       }
+      return;
     }
     router.push(`/(app)/tasks/${task.id}`);
   }

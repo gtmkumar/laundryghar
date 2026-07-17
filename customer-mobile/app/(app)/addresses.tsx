@@ -24,6 +24,7 @@ import {
   useAddresses,
   useCreateAddress,
   useDeleteAddress,
+  useSetDefaultAddress,
   useUpdateAddress,
 } from '@/hooks/useCatalog';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
@@ -407,6 +408,7 @@ export default function AddressesScreen() {
   const { data: addresses, isLoading } = useAddresses();
   const createMutation = useCreateAddress();
   const updateMutation = useUpdateAddress();
+  const setDefaultMutation = useSetDefaultAddress();
   const deleteMutation = useDeleteAddress();
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -464,7 +466,7 @@ export default function AddressesScreen() {
   };
 
   const handleSetDefault = (addr: CustomerAddressDto) => {
-    updateMutation.mutate({
+    setDefaultMutation.mutate({
       id: addr.id,
       body: {
         label: addr.label as 'home' | 'work' | 'other',

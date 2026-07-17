@@ -3,15 +3,37 @@
  * completion overrides, plus derived stats for the home + tasks screens.
  */
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchRiderTasks } from '@/api/tasks';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
+import { fetchRiderTasks, type RiderTasksResult } from '@/api/tasks';
 import { useAuthStore } from '@/store/authStore';
 import { useTaskOverrideStore } from '@/store/taskOverrideStore';
-import type { RiderTask } from '@/types/api';
+import type { RiderTask, RiderTaskStatus } from '@/types/api';
 
 export const taskKeys = {
   today: () => ['rider', 'tasks', 'today'] as const,
 };
+
+/**
+ * Optimistically set one task's status in the cached today() list so a status
+ * flip (started / arrived / …) shows up before the PATCH resolves. No-op when
+ * the query has no cached data yet.
+ *
+ * The session-local completion overrides (useTaskOverrideStore, merged in
+ * useRiderTasks) only cover 'completed', so they don't clash with the en-route
+ * flips this drives — the flipped status flows straight through `merged`.
+ */
+export function setTaskStatusInCache(
+  queryClient: QueryClient,
+  taskId: string,
+  status: RiderTaskStatus,
+): void {
+  const prev = queryClient.getQueryData<RiderTasksResult>(taskKeys.today());
+  if (!prev) return;
+  queryClient.setQueryData<RiderTasksResult>(taskKeys.today(), {
+    ...prev,
+    tasks: prev.tasks.map((task) => (task.id === taskId ? { ...task, status } : task)),
+  });
+}
 
 export interface RiderTaskStats {
   total:        number;   // all tasks today
