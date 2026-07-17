@@ -1,5 +1,6 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using operations.Application.Fulfillment.Queries;
 
@@ -15,13 +16,22 @@ public class FulfillmentConfigEndpoint : IEndpointGroup
 {
     public static string? RoutePrefix => "/api/v1/fulfillment-config";
 
+    // Output-cache tag. This config is built from code-registered strategies (static per deploy),
+    // so there is no admin write to evict against — the 1h TTL is the sole refresh bound.
+    private const string ConfigTag = "config:fulfillment";
+
     public static void Map(RouteGroupBuilder group)
     {
         group.WithTags("Fulfilment - Config");
 
         // Any authenticated client may read the config it needs to mount its feature pack.
-        group.MapGet(GetAll, "/").RequireAuthorization();
-        group.MapGet(GetByMode, "/{mode}").RequireAuthorization();
+        // Cached identical per deploy; the {mode} route value is part of the request path, so
+        // each mode gets its own cache entry under the framework's default (path-based) key —
+        // no SetVaryByRouteValue needed. No query params are read by either handler.
+        group.MapGet(GetAll, "/").RequireAuthorization()
+            .CacheSharedOutput(ConfigTag, TimeSpan.FromHours(1));
+        group.MapGet(GetByMode, "/{mode}").RequireAuthorization()
+            .CacheSharedOutput(ConfigTag, TimeSpan.FromHours(1));
     }
 
     public static async Task<IResult> GetAll(IDispatcher dispatcher, CancellationToken ct)

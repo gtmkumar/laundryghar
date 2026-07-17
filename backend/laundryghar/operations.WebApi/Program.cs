@@ -17,6 +17,7 @@ using System.Reflection;
 using laundryghar.SharedDataModel;
 using laundryghar.Utilities.Auth;
 using laundryghar.Utilities.Auth.Audit;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Middlewares.ExceptionsMiddleware;
 using laundryghar.Utilities.OpenApi;
@@ -122,6 +123,9 @@ builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProv
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, StepUpAuthorizationResultHandler>();
 builder.Services.AddAuthorization();
 
+// ── Output caching (customer catalog + fulfilment config; tenant-keyed, tag-evicted on admin writes) ─
+builder.Services.AddSharedOutputCache();
+
 var app = builder.Build();
 
 // ── Forwarded headers (prod/staging, behind the gateway/edge proxy) ───────────
@@ -143,6 +147,10 @@ app.UseMiddleware<ExceptionHandler>();
 app.UseAuthentication();
 app.UseMiddleware<laundryghar.Utilities.Middlewares.TenantResolutionMiddleware>();
 app.UseAuthorization();
+
+// ── Output cache — after auth so cached authorized responses still require a valid
+// token on every request; only endpoint execution is skipped on a hit.
+app.UseOutputCache();
 
 // ── OpenAPI doc (/openapi/v1.json) + Scalar UI (/scalar), dev only ────────────
 if (app.Environment.IsDevelopment())

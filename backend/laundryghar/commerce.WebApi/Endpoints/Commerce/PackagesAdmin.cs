@@ -2,6 +2,7 @@ using commerce.Application.Commerce;
 using commerce.Application.Commerce.Admin.Packages;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 using laundryghar.Utilities.Validation;
@@ -17,6 +18,8 @@ public class PackagesAdmin : IEndpointGroup
     {
         group.WithTags("Admin - Commerce - Packages");
         group.RequireAuthorization();
+        // Package create/update/delete writes regenerate the cached customer package listing.
+        group.EvictOutputCacheOnWrite(CommerceCacheTags.Packages);
 
         group.MapGet(GetAll, "/").RequireAuthorization("permission:packages.manage");
         group.MapGet(GetById, "/{id:guid}").RequireAuthorization("permission:packages.manage");

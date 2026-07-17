@@ -1,5 +1,6 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 using laundryghar.Utilities.Validation;
@@ -19,9 +20,14 @@ public class ServiceCategoriesAdmin : IEndpointGroup
 
     public static void Map(RouteGroupBuilder group)
     {
-        group.WithTags("Admin - Catalog - Categories");
+        group.WithTags("Admin - Catalog - Categories")
+             // Writes regenerate the cached customer categories read.
+             .EvictOutputCacheOnWrite(CatalogCacheTags.Categories);
 
-        group.MapGet(GetAll, "/").RequireAuthorization("permission:catalog.read");
+        // Admin list is brand-scoped (no per-user data); POS fetches it on cold launch. The
+        // group's write filter above evicts catalog:categories on any non-GET, so this stays fresh.
+        group.MapGet(GetAll, "/").RequireAuthorization("permission:catalog.read")
+            .CacheSharedOutput(CatalogCacheTags.Categories, TimeSpan.FromMinutes(5), "page", "pageSize");
         group.MapGet(GetById, "/{id:guid}").RequireAuthorization("permission:catalog.read");
         group.MapPost(Create, "/")
             .AddEndpointFilter<ValidationFilter<CreateServiceCategoryRequest>>()

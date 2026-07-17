@@ -4,6 +4,7 @@ using core.Application.Engagement.Cms.AppBanners.Commands.UpdateAppBanner;
 using core.Application.Engagement.Cms.AppBanners.Queries.GetAppBannerById;
 using core.Application.Engagement.Cms.AppBanners.Queries.GetAppBanners;
 using core.Application.Engagement.Cms.Dtos;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Validation;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using LaundryGhar.Utilities.CQRS.Abstractions;
@@ -23,7 +24,9 @@ public class AppBanners : IEndpointGroup
     public static void Map(RouteGroupBuilder group)
     {
         group.WithTags("Admin - CMS - App Banners")
-             .RequireAuthorization("permission:cms.banner.manage");
+             .RequireAuthorization("permission:cms.banner.manage")
+             // Writes regenerate the cached public banners response.
+             .EvictOutputCacheOnWrite(CmsCacheTags.Banners);
 
         group.MapGet(GetAll);
         group.MapGet(GetById, "{id:guid}");

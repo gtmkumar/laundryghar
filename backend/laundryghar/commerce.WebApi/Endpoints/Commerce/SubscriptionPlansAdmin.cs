@@ -2,6 +2,7 @@ using commerce.Application.Commerce;
 using commerce.Application.Commerce.Admin.Subscriptions;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 using laundryghar.Utilities.Validation;
@@ -17,6 +18,8 @@ public class SubscriptionPlansAdmin : IEndpointGroup
     {
         group.WithTags("Admin - Commerce - Subscription Plans");
         group.RequireAuthorization();
+        // Plan create/update/delete/status writes regenerate the cached customer plan listing.
+        group.EvictOutputCacheOnWrite(CommerceCacheTags.Plans);
 
         group.MapGet(GetAll, "/").RequireAuthorization("permission:subscription.manage");
         group.MapGet(GetById, "/{id:guid}").RequireAuthorization("permission:subscription.manage");

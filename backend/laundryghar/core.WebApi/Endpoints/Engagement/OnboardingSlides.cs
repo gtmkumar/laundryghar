@@ -4,6 +4,7 @@ using core.Application.Engagement.Cms.OnboardingSlides.Commands.UpdateOnboarding
 using core.Application.Engagement.Cms.OnboardingSlides.Queries.GetOnboardingSlideById;
 using core.Application.Engagement.Cms.OnboardingSlides.Queries.GetOnboardingSlides;
 using core.Application.Engagement.Cms.Dtos;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Validation;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using LaundryGhar.Utilities.CQRS.Abstractions;
@@ -23,7 +24,9 @@ public class OnboardingSlides : IEndpointGroup
     public static void Map(RouteGroupBuilder group)
     {
         group.WithTags("Admin - CMS - Onboarding Slides")
-             .RequireAuthorization("permission:cms.onboarding.manage");
+             .RequireAuthorization("permission:cms.onboarding.manage")
+             // Writes regenerate the cached public onboarding-slides response.
+             .EvictOutputCacheOnWrite(CmsCacheTags.OnboardingSlides);
 
         group.MapGet(GetAll);
         group.MapGet(GetById, "{id:guid}");

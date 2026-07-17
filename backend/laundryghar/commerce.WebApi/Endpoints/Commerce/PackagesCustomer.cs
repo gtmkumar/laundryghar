@@ -2,6 +2,7 @@ using commerce.Application.Commerce;
 using commerce.Application.Commerce.Customer.Packages;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 
@@ -17,7 +18,11 @@ public class PackagesCustomer : IEndpointGroup
         group.WithTags("Customer - Packages");
         group.RequireAuthorization("CustomerOnly");
 
-        group.MapGet(GetAvailable, "/");
+        // Available packages: depends only on the caller's brand (folded into the tenant cache
+        // key) — the customer id passed to the query is unused for filtering. "My packages" and
+        // per-package usage below are per-user and are NOT cached.
+        group.MapGet(GetAvailable, "/")
+            .CacheSharedOutput(CommerceCacheTags.Packages, TimeSpan.FromMinutes(10));
         group.MapGet(GetMine, "/my");
         group.MapGet(GetUsage, "/my/{id:guid}/usage");
         group.MapPost(PurchaseInitiate, "/purchase/initiate");

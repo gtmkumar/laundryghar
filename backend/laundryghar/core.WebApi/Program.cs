@@ -24,6 +24,7 @@ using core.WebApi.Mcp.Tools;
 using laundryghar.SharedDataModel;
 using laundryghar.Utilities.Auth;
 using laundryghar.Utilities.Auth.Audit;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Middlewares.ExceptionsMiddleware;
 using laundryghar.Utilities.OpenApi;
@@ -64,6 +65,17 @@ builder.Services.AddSharedDataModel(
 builder.Services
     .AddCoreApplication()      // validators + command/query handlers (no mediator)
     .AddCoreInfrastructure();  // feature repositories
+
+// Razorpay Payment Links client (RazorpayLinkClient, registered by AddCoreInfrastructure above) —
+// bounded concurrency + a circuit breaker sized for real payment-call volume, so a Razorpay
+// outage fails fast instead of piling up threads across concurrent invoice sends.
+builder.Services.AddHttpClient("razorpay-core", c => c.BaseAddress = new Uri("https://api.razorpay.com/"))
+    .AddExternalDependencyResilience(
+        attemptTimeout: TimeSpan.FromSeconds(8),
+        totalRequestTimeout: TimeSpan.FromSeconds(20),
+        concurrencyLimit: 15,
+        circuitBreakerMinimumThroughput: 6,
+        circuitBreakerBreakDuration: TimeSpan.FromSeconds(20));
 
 // ── Auth foundation (F1-F4) ────────────────────────────────────────────────────
 // JWT settings + RS256 signing key. The key provider is eager-constructed so the SAME
@@ -127,7 +139,27 @@ if (builder.Environment.IsProduction()
 }
 
 // OTP delivery: channel-routing sender (WhatsApp template + MSG91 SMS fallback).
+//
+// Tight, request-path-tuned resilience: a login is a synchronous HTTP request with a user
+// waiting live, so a degraded WhatsApp/SMS provider must fail FAST rather than hang — the
+// existing RoutingOtpSender fallback (WhatsApp -> SMS -> dev-log) only helps if the failing
+// channel gives up quickly. Without this, a slow/down WhatsApp provider means every login
+// attempt waits through its full retry+timeout window before falling back to SMS.
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("whatsapp-otp")
+    .AddExternalDependencyResilience(
+        attemptTimeout: TimeSpan.FromSeconds(5),
+        totalRequestTimeout: TimeSpan.FromSeconds(8),
+        concurrencyLimit: 20,
+        circuitBreakerMinimumThroughput: 5,
+        circuitBreakerBreakDuration: TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient("msg91-otp")
+    .AddExternalDependencyResilience(
+        attemptTimeout: TimeSpan.FromSeconds(5),
+        totalRequestTimeout: TimeSpan.FromSeconds(8),
+        concurrencyLimit: 20,
+        circuitBreakerMinimumThroughput: 5,
+        circuitBreakerBreakDuration: TimeSpan.FromSeconds(15));
 builder.Services.AddSingleton<DevLogOtpSender>();
 builder.Services.AddSingleton<WhatsAppOtpDispatcher>();
 builder.Services.AddSingleton<Msg91OtpDispatcher>();
@@ -313,6 +345,9 @@ builder.Services
 // ── OpenAPI document (+ Bearer scheme & standard error responses) ──────────────
 builder.Services.AddDefaultOpenApi();
 
+// ── Output caching (public CMS endpoints; tenant-keyed, tag-evicted on admin writes) ─
+builder.Services.AddSharedOutputCache();
+
 var app = builder.Build();
 
 // ── Run seeders (F6 — IdentitySeeder, dev-only idempotent bootstrap) ──────────────
@@ -406,6 +441,10 @@ app.Use(async (ctx, next) =>
 
 app.UseMiddleware<laundryghar.Utilities.Middlewares.TenantResolutionMiddleware>();
 app.UseAuthorization();
+
+// ── Output cache — after auth so cached authorized responses still require a valid
+// token on every request; only endpoint execution is skipped on a hit.
+app.UseOutputCache();
 
 // ── MCP protected-resource metadata (RFC 9728, anonymous) ──────────────────────
 // MCP clients fetch this to discover the authorization server before presenting a token.

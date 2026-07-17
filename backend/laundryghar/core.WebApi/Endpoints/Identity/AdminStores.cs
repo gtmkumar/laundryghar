@@ -4,6 +4,7 @@ using core.Application.Identity.TenancyOrg.Stores.Commands.DeleteStore;
 using core.Application.Identity.TenancyOrg.Stores.Commands.UpdateStore;
 using core.Application.Identity.TenancyOrg.Stores.Queries.GetStoreById;
 using core.Application.Identity.TenancyOrg.Stores.Queries.GetStores;
+using laundryghar.Utilities.Caching;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using laundryghar.Utilities.Endpoints;
@@ -17,13 +18,19 @@ namespace core.WebApi.Endpoints.Identity;
 /// </summary>
 public class AdminStores : IEndpointGroup
 {
+    private const string CacheTag = "tenancy:stores";
+
     public static string? RoutePrefix => "/api/v1/admin/stores";
 
     public static void Map(RouteGroupBuilder group)
     {
-        group.WithTags("Admin - Stores").RequireAuthorization();
+        group.WithTags("Admin - Stores").RequireAuthorization()
+             // Store writes regenerate the cached list (admin sidebar + POS topbar fetch it
+             // on every launch; the list changes only when tenancy is edited).
+             .EvictOutputCacheOnWrite(CacheTag);
 
-        group.MapGet(GetAll).RequireAuthorization("permission:stores.list");
+        group.MapGet(GetAll).RequireAuthorization("permission:stores.list")
+             .CacheSharedOutput(CacheTag, TimeSpan.FromMinutes(5), "brandId", "franchiseId", "page", "pageSize");
         group.MapGet(GetById, "{id:guid}").RequireAuthorization("permission:stores.read");
         group.MapPost(Create).RequireAuthorization("permission:stores.create");
         group.MapPut(Update, "{id:guid}").RequireAuthorization("permission:stores.update");

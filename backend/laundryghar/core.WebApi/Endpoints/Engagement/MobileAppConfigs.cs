@@ -4,6 +4,7 @@ using core.Application.Engagement.Cms.MobileAppConfigs.Commands.UpdateMobileAppC
 using core.Application.Engagement.Cms.MobileAppConfigs.Queries.GetMobileAppConfigById;
 using core.Application.Engagement.Cms.MobileAppConfigs.Queries.GetMobileAppConfigs;
 using core.Application.Engagement.Cms.Dtos;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Validation;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using LaundryGhar.Utilities.CQRS.Abstractions;
@@ -23,7 +24,9 @@ public class MobileAppConfigs : IEndpointGroup
     public static void Map(RouteGroupBuilder group)
     {
         group.WithTags("Admin - CMS - Mobile App Config")
-             .RequireAuthorization("permission:cms.appconfig.manage");
+             .RequireAuthorization("permission:cms.appconfig.manage")
+             // Writes regenerate the cached public app-config response.
+             .EvictOutputCacheOnWrite(CmsCacheTags.AppConfig);
 
         group.MapGet(GetAll);
         group.MapGet(GetById, "{id:guid}");

@@ -117,9 +117,14 @@ public sealed class LoyaltyEarnService : BackgroundService
 
         Guid lastProcessedId = cursor.LastEventId ?? Guid.Empty;
 
+        // Guards against crediting the same order twice within one unsaved batch: the DB-backed
+        // AnyAsync check inside ProcessEventAsync only sees earlier events once they're actually
+        // flushed, and saves are now deferred to once per batch (see below) rather than per event.
+        var creditedOrderIdsThisBatch = new HashSet<Guid>();
+
         foreach (var evt in events)
         {
-            await ProcessEventAsync(db, evt, ct);
+            await ProcessEventAsync(db, evt, creditedOrderIdsThisBatch, ct);
             lastProcessedId = evt.Id;
         }
 
@@ -133,6 +138,7 @@ public sealed class LoyaltyEarnService : BackgroundService
     private async Task ProcessEventAsync(
         LaundryGharDbContext db,
         laundryghar.SharedDataModel.Entities.Kernel.OutboxEvent evt,
+        HashSet<Guid>         creditedOrderIdsThisBatch,
         CancellationToken    ct)
     {
         try
@@ -148,6 +154,16 @@ public sealed class LoyaltyEarnService : BackgroundService
             {
                 _logger.LogWarning(
                     "LoyaltyEarnService: eventId={EventId} has no brandId — skipping.", evt.Id);
+                return;
+            }
+
+            // In-batch guard first (cheap, no round trip): catches two events for the same order
+            // landing in the same unsaved batch, which the DB-backed check below cannot see yet.
+            if (!creditedOrderIdsThisBatch.Add(orderId))
+            {
+                _logger.LogDebug(
+                    "LoyaltyEarnService: orderId={OrderId} already credited earlier in this batch — skipping.",
+                    orderId);
                 return;
             }
 
@@ -246,7 +262,8 @@ public sealed class LoyaltyEarnService : BackgroundService
 
             // NOTE: we do NOT touch evt.Status or evt.PublishedAt.
             // OutboxEventRelayService is the exclusive owner of those fields.
-            await db.SaveChangesAsync(ct);
+            // Not saved here — the caller flushes the whole batch (plus the cursor advance) in one
+            // round trip; see creditedOrderIdsThisBatch above for why that's safe to do.
 
             _logger.LogInformation(
                 "LoyaltyEarnService: credited {Points} points to customerId={CustomerId} for orderId={OrderId}.",

@@ -1,5 +1,6 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 using laundryghar.Utilities.Validation;
@@ -20,10 +21,18 @@ public class ItemsAdmin : IEndpointGroup
 
     public static void Map(RouteGroupBuilder group)
     {
-        group.WithTags("Admin - Catalog - Items");
+        group.WithTags("Admin - Catalog - Items")
+             // Item create/update/delete, per-item pricing (SaveItemPricing) and CSV/Sheet imports
+             // all feed the published price-list read (item name + pricing mode + item pricing rows).
+             .EvictOutputCacheOnWrite(CatalogCacheTags.PriceList);
 
-        group.MapGet(GetAll, "/").RequireAuthorization("permission:catalog.read");
-        group.MapGet(GetManaged, "/managed").RequireAuthorization("permission:catalog.read");
+        // Admin item lists are brand-scoped (no per-user data); POS fetches them on cold launch.
+        // The group's write filter above evicts catalog:price-list on any non-GET (item CRUD,
+        // pricing, import), so these stay fresh. GetStats is a summary (not a list) — left uncached.
+        group.MapGet(GetAll, "/").RequireAuthorization("permission:catalog.read")
+            .CacheSharedOutput(CatalogCacheTags.PriceList, TimeSpan.FromMinutes(5), "page", "pageSize", "itemGroupId");
+        group.MapGet(GetManaged, "/managed").RequireAuthorization("permission:catalog.read")
+            .CacheSharedOutput(CatalogCacheTags.PriceList, TimeSpan.FromMinutes(5), "page", "pageSize", "itemGroupId", "search");
         group.MapGet(GetStats, "/stats").RequireAuthorization("permission:catalog.read");
         group.MapGet(GetById, "/{id:guid}").RequireAuthorization("permission:catalog.read");
         group.MapPut(SavePricing, "/{id:guid}/pricing").RequireAuthorization("permission:pricing.item.manage");

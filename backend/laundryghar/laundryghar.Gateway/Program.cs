@@ -120,6 +120,14 @@ builder.Services
     .AddReverseProxy()
     .LoadFromMemory(routes, clusters);
 
+// Per-cluster circuit breaker + timeout + concurrency limiter for every proxied request — see
+// ResilientForwarderHttpClientFactory for why this is needed (YARP's default HTTP client never
+// goes through IHttpClientFactory, so the resilience baseline in ServiceDefaults doesn't apply
+// to proxied traffic). Registered after AddReverseProxy() so it overrides YARP's own default
+// IForwarderHttpClientFactory registration.
+builder.Services.AddSingleton<Yarp.ReverseProxy.Forwarder.IForwarderHttpClientFactory,
+    laundryghar.Gateway.ResilientForwarderHttpClientFactory>();
+
 // ── Response compression — single point for all gateway-routed responses ─────
 //
 // The gateway is the only public entry point (the 3 direct backend ports are

@@ -67,40 +67,59 @@ public sealed class BrandPlatformBillingService : BackgroundService
             .Where(s => s.Status == "active" && s.AutoRenew && s.CurrentPeriodEnd <= now)
             .ToListAsync(ct);
 
+        // Batched per chunk (not per subscription, not all-at-once): no external gateway call and
+        // no shared numbering scheme couples one subscription's write to another's, so a chunk-wide
+        // save is safe. Chunking (not a single SaveChangesAsync for all of `due`) bounds the blast
+        // radius of one bad subscription to its chunk and avoids an oversized statement/long lock
+        // when the platform has many brands. A failed chunk is retried whole on the next poll cycle
+        // (idempotent via the per-period BrandPlatformInvoices.AnyAsync check below) rather than
+        // partially — simpler than picking apart a shared change tracker after a mid-chunk exception.
+        const int ChunkSize = 50;
         int issued = 0;
-        foreach (var sub in due)
+        foreach (var chunk in due.Chunk(ChunkSize))
         {
+            var chunkIssued = 0;
             try
             {
-                // Roll forward one period at a time until caught up to now (cap to avoid runaway).
-                for (var guard = 0; guard < 120 && sub.CurrentPeriodEnd <= now; guard++)
+                foreach (var sub in chunk)
                 {
-                    var nextStart = sub.CurrentPeriodEnd;
-                    var nextEnd   = AddInterval(nextStart, sub.BillingInterval);
-                    sub.CurrentPeriodStart = nextStart;
-                    sub.CurrentPeriodEnd   = nextEnd;
-                    sub.NextBillingAt      = nextEnd;
-                    sub.UpdatedAt          = now;
-
-                    var exists = await db.BrandPlatformInvoices
-                        .AnyAsync(i => i.SubscriptionId == sub.Id && i.BillingPeriodStart == nextStart, ct);
-                    if (!exists)
+                    // Roll forward one period at a time until caught up to now (cap to avoid runaway).
+                    for (var guard = 0; guard < 120 && sub.CurrentPeriodEnd <= now; guard++)
                     {
-                        db.BrandPlatformInvoices.Add(new BrandPlatformInvoice
+                        var nextStart = sub.CurrentPeriodEnd;
+                        var nextEnd   = AddInterval(nextStart, sub.BillingInterval);
+                        sub.CurrentPeriodStart = nextStart;
+                        sub.CurrentPeriodEnd   = nextEnd;
+                        sub.NextBillingAt      = nextEnd;
+                        sub.UpdatedAt          = now;
+
+                        var exists = await db.BrandPlatformInvoices
+                            .AnyAsync(i => i.SubscriptionId == sub.Id && i.BillingPeriodStart == nextStart, ct);
+                        if (!exists)
                         {
-                            Id = Guid.NewGuid(), SubscriptionId = sub.Id, BrandId = sub.BrandId,
-                            BillingPeriodStart = nextStart, BillingPeriodEnd = nextEnd,
-                            Amount = sub.Price, CurrencyCode = sub.CurrencyCode, Status = "issued",
-                            IssuedAt = now, DueAt = now.AddDays(7), CreatedAt = now,
-                        });
-                        issued++;
+                            db.BrandPlatformInvoices.Add(new BrandPlatformInvoice
+                            {
+                                Id = Guid.NewGuid(), SubscriptionId = sub.Id, BrandId = sub.BrandId,
+                                BillingPeriodStart = nextStart, BillingPeriodEnd = nextEnd,
+                                Amount = sub.Price, CurrencyCode = sub.CurrencyCode, Status = "issued",
+                                IssuedAt = now, DueAt = now.AddDays(7), CreatedAt = now,
+                            });
+                            chunkIssued++;
+                        }
                     }
                 }
                 await db.SaveChangesAsync(ct);
+                issued += chunkIssued; // only counted once the chunk actually persisted
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "BrandPlatformBillingService: failed to bill subscription {SubId}.", sub.Id);
+                // Chunk-wide failure: discard this chunk's pending changes so the next chunk starts
+                // clean, and let the next poll cycle retry these subscriptions from scratch.
+                db.ChangeTracker.Clear();
+                _logger.LogError(ex,
+                    "BrandPlatformBillingService: failed to bill a chunk of {Count} subscription(s) " +
+                    "(ids={SubIds}); will retry next cycle.",
+                    chunk.Length, string.Join(",", chunk.Select(s => s.Id)));
             }
         }
 

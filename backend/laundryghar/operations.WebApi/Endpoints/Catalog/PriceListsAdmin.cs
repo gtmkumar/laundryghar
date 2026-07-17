@@ -1,5 +1,6 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 using laundryghar.Utilities.Validation;
@@ -20,7 +21,10 @@ public class PriceListsAdmin : IEndpointGroup
 
     public static void Map(RouteGroupBuilder group)
     {
-        group.WithTags("Admin - Pricing - Price Lists");
+        group.WithTags("Admin - Pricing - Price Lists")
+             // Price-list create/update/publish/delete and item writes regenerate the cached
+             // customer published price-list read.
+             .EvictOutputCacheOnWrite(CatalogCacheTags.PriceList);
 
         // Price lists
         group.MapGet(GetAll, "/").RequireAuthorization("permission:pricing.read");

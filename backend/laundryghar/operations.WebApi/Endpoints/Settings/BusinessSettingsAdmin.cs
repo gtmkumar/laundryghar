@@ -1,5 +1,6 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 using laundryghar.Utilities.Validation;
@@ -7,6 +8,7 @@ using operations.Application.Settings.Commands.DeleteSetting;
 using operations.Application.Settings.Commands.UpsertSetting;
 using operations.Application.Settings.Dtos;
 using operations.Application.Settings.Queries.ListSettings;
+using operations.WebApi.Endpoints.Catalog; // CatalogCacheTags
 
 namespace operations.WebApi.Endpoints.Settings;
 
@@ -33,7 +35,10 @@ public class BusinessSettingsAdmin : IEndpointGroup
 
     public static void Map(RouteGroupBuilder group)
     {
-        group.WithTags("Admin - Business Settings");
+        group.WithTags("Admin - Business Settings")
+             // Settings upsert/delete change the scope-resolved values behind the customer
+             // catalog config read (min order value, currency, high-value garment threshold).
+             .EvictOutputCacheOnWrite(CatalogCacheTags.Config);
 
         group.MapGet(List, "/").RequireAuthorization(Read);
         group.MapPut(Upsert, "/")

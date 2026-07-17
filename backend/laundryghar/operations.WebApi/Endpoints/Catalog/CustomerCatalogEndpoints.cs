@@ -1,5 +1,6 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 using laundryghar.Utilities.Validation;
@@ -16,6 +17,20 @@ using operations.Application.Catalog.Pricing.Queries.PriceResolution;
 namespace operations.WebApi.Endpoints.Catalog;
 
 /// <summary>
+/// Output-cache tags for the customer-facing catalog reads. Each tag couples a cached
+/// customer read to the admin group(s) that edit the underlying content
+/// (<c>EvictOutputCacheOnWrite</c>) so changes regenerate the cached response immediately;
+/// the per-endpoint TTL is only a backstop.
+/// </summary>
+public static class CatalogCacheTags
+{
+    public const string Categories = "catalog:categories";
+    public const string Services   = "catalog:services";
+    public const string PriceList  = "catalog:price-list";
+    public const string Config     = "catalog:config";
+}
+
+/// <summary>
 /// Customer-facing catalog + self-service lane (/api/v1/customer/*). Group-gated by the
 /// "CustomerOnly" policy (token_use=customer). All self-service routes are self-filtered:
 /// the customer id is derived from the JWT sub (ICurrentUser.UserId) and brand_id claim
@@ -30,10 +45,17 @@ public class CustomerCatalogEndpoints : IEndpointGroup
         group.WithTags("Customer - Catalog").RequireAuthorization("CustomerOnly");
 
         // ── Catalog reads (read-only, no pagination needed for customers) ──────
-        group.MapGet(GetCategories, "/catalog/categories");
-        group.MapGet(GetServices, "/catalog/services");
-        group.MapGet(GetPriceList, "/catalog/price-list");
-        group.MapGet(GetCatalogConfig, "/catalog/config");
+        // Output-cached: each response depends only on the caller's brand (folded into the
+        // tenant cache key) plus the declared query params below — nothing per-user. Evicted
+        // by the matching admin groups on write; TTLs are regenerate-on-schedule backstops.
+        group.MapGet(GetCategories, "/catalog/categories")
+            .CacheSharedOutput(CatalogCacheTags.Categories, TimeSpan.FromMinutes(10));
+        group.MapGet(GetServices, "/catalog/services")
+            .CacheSharedOutput(CatalogCacheTags.Services, TimeSpan.FromMinutes(10), "categoryId");
+        group.MapGet(GetPriceList, "/catalog/price-list")
+            .CacheSharedOutput(CatalogCacheTags.PriceList, TimeSpan.FromMinutes(10));
+        group.MapGet(GetCatalogConfig, "/catalog/config")
+            .CacheSharedOutput(CatalogCacheTags.Config, TimeSpan.FromMinutes(10), "storeId");
 
         // ── Profile ────────────────────────────────────────────────────────────
         group.MapGet(GetProfile, "/profile");

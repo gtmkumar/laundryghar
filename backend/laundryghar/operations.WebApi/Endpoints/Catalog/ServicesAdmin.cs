@@ -1,5 +1,6 @@
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 using laundryghar.Utilities.Validation;
@@ -16,9 +17,15 @@ public class ServicesAdmin : IEndpointGroup
 
     public static void Map(RouteGroupBuilder group)
     {
-        group.WithTags("Admin - Catalog - Services");
+        group.WithTags("Admin - Catalog - Services")
+             // Service edits regenerate the customer services read AND the published price-list
+             // read (which projects the service name into each line's display label).
+             .EvictOutputCacheOnWrite(CatalogCacheTags.Services, CatalogCacheTags.PriceList);
 
-        group.MapGet(GetAll, "/").RequireAuthorization("permission:catalog.read");
+        // Admin list is brand-scoped (no per-user data); POS fetches it on cold launch. The
+        // group's write filter above evicts catalog:services on any non-GET, so this stays fresh.
+        group.MapGet(GetAll, "/").RequireAuthorization("permission:catalog.read")
+            .CacheSharedOutput(CatalogCacheTags.Services, TimeSpan.FromMinutes(5), "page", "pageSize", "categoryId");
         group.MapGet(GetById, "/{id:guid}").RequireAuthorization("permission:catalog.read");
         group.MapPost(Create, "/")
             .AddEndpointFilter<ValidationFilter<CreateServiceRequest>>()

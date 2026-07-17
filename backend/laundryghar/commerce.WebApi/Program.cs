@@ -29,6 +29,7 @@ using laundryghar.SharedDataModel;
 using laundryghar.SharedDataModel.Contracts;
 using laundryghar.Utilities.Auth;
 using laundryghar.Utilities.Auth.Audit;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Middlewares.ExceptionsMiddleware;
 using laundryghar.Utilities.OpenApi;
@@ -88,7 +89,16 @@ else
     {
         http.BaseAddress = new Uri("https://api.razorpay.com/");
         http.Timeout     = TimeSpan.FromSeconds(30);
-    });
+    })
+    // Bounded concurrency + a circuit breaker sized for real payment-call volume (not the
+    // library's ~100-sample default, which would rarely engage here) — a Razorpay outage fails
+    // fast instead of piling up threads/connections across concurrent checkout requests.
+    .AddExternalDependencyResilience(
+        attemptTimeout: TimeSpan.FromSeconds(8),
+        totalRequestTimeout: TimeSpan.FromSeconds(20),
+        concurrencyLimit: 15,
+        circuitBreakerMinimumThroughput: 6,
+        circuitBreakerBreakDuration: TimeSpan.FromSeconds(20));
 
     // Scoped: each request gets a fresh ICommerceDbContext scope for the per-brand settings read.
     builder.Services.AddScoped<IPaymentGateway, SettingsFirstPaymentGateway>();
@@ -98,7 +108,13 @@ else
 // Unconditional (no DB access at startup; mirrors core's razorpay-core registration). Resolves the
 // PLATFORM gateway credentials settings-first (payment/platform_gateway) → env Razorpay:KeyId/KeySecret.
 // Consumed by the partner invoice-pay / wallet top-up-via-link handlers AND the partner paylink webhook.
-builder.Services.AddHttpClient("razorpay-partner", c => c.BaseAddress = new Uri("https://api.razorpay.com/"));
+builder.Services.AddHttpClient("razorpay-partner", c => c.BaseAddress = new Uri("https://api.razorpay.com/"))
+    .AddExternalDependencyResilience(
+        attemptTimeout: TimeSpan.FromSeconds(8),
+        totalRequestTimeout: TimeSpan.FromSeconds(20),
+        concurrencyLimit: 15,
+        circuitBreakerMinimumThroughput: 6,
+        circuitBreakerBreakDuration: TimeSpan.FromSeconds(20));
 builder.Services.AddScoped<IPartnerPaymentLinkClient, PartnerRazorpayLinkClient>();
 
 // ── OpenAPI document (+ Bearer scheme & standard error responses) ──────────────
@@ -154,6 +170,9 @@ builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProv
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, StepUpAuthorizationResultHandler>();
 builder.Services.AddAuthorization();
 
+// ── Output caching (customer plan/package listings; tenant-keyed, tag-evicted on admin writes) ─
+builder.Services.AddSharedOutputCache();
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Worker lane (in-process background services migrated from laundryghar.Worker).
 //
@@ -180,6 +199,11 @@ builder.Services.Configure<PushOptions>(
     builder.Configuration.GetSection(PushOptions.SectionName));
 
 // ── Worker: notification provider HTTP clients ─────────────────────────────────
+// Tuned resilience per channel: bounded concurrency + a circuit breaker sized for real
+// per-poll-cycle volume (WorkerOptions batch sizes are ~20, not the library default's
+// ~100-sample window) so a degraded provider fails fast — each failed send is already
+// retried with backoff by NotificationDispatcherService, so a fast failure here just lets
+// that existing retry/dead-letter logic kick in sooner instead of hanging the poll cycle.
 builder.Services.AddHttpClient("whatsapp", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
@@ -187,14 +211,26 @@ builder.Services.AddHttpClient("whatsapp", client =>
     if (!string.IsNullOrWhiteSpace(accessToken))
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", accessToken);
-});
+})
+.AddExternalDependencyResilience(
+    attemptTimeout: TimeSpan.FromSeconds(6),
+    totalRequestTimeout: TimeSpan.FromSeconds(12),
+    concurrencyLimit: 10,
+    circuitBreakerMinimumThroughput: 5,
+    circuitBreakerBreakDuration: TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient("sms", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
     var authKey = builder.Configuration["Notifications:Sms:AuthKey"];
     if (!string.IsNullOrWhiteSpace(authKey))
         client.DefaultRequestHeaders.Add("authkey", authKey);
-});
+})
+.AddExternalDependencyResilience(
+    attemptTimeout: TimeSpan.FromSeconds(6),
+    totalRequestTimeout: TimeSpan.FromSeconds(12),
+    concurrencyLimit: 10,
+    circuitBreakerMinimumThroughput: 5,
+    circuitBreakerBreakDuration: TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient("push", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
@@ -203,7 +239,13 @@ builder.Services.AddHttpClient("push", client =>
     if (!string.IsNullOrWhiteSpace(accessToken))
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", accessToken);
-});
+})
+.AddExternalDependencyResilience(
+    attemptTimeout: TimeSpan.FromSeconds(6),
+    totalRequestTimeout: TimeSpan.FromSeconds(12),
+    concurrencyLimit: 10,
+    circuitBreakerMinimumThroughput: 5,
+    circuitBreakerBreakDuration: TimeSpan.FromSeconds(15));
 
 // ── Worker: settings-first notification cache (TTL 60 s, singleton) ────────────
 builder.Services.AddSingleton<NotificationSettingsCache>();
@@ -321,6 +363,10 @@ app.Use(async (ctx, next) =>
 app.UseAuthentication();
 app.UseMiddleware<laundryghar.Utilities.Middlewares.TenantResolutionMiddleware>();
 app.UseAuthorization();
+
+// ── Output cache — after auth so cached authorized responses still require a valid
+// token on every request; only endpoint execution is skipped on a hit.
+app.UseOutputCache();
 
 // ── OpenAPI doc (/openapi/v1.json) + Scalar UI (/scalar), dev only ────────────
 if (app.Environment.IsDevelopment())

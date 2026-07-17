@@ -323,11 +323,14 @@ public sealed class NotificationMappingService : BackgroundService
             CreatedAt       = now
         };
 
+        // Not saved here — the caller flushes the whole batch (plus the cursor advance) in one
+        // round trip. Safe because idempotencyKey is derived from evt.Id, which is unique within
+        // a single query result, so there is no risk of two rows in the same unsaved batch racing
+        // the AnyAsync dedup check above.
         db.NotificationOutboxes.Add(outbox);
-        await db.SaveChangesAsync(ct);
 
         _logger.LogDebug(
-            "NotificationMappingService: enqueued outbox row {OutboxId} channel={Channel} " +
+            "NotificationMappingService: queued outbox row {OutboxId} channel={Channel} " +
             "template={Template} for customer {CustomerId}.",
             outbox.Id, channel, templateCode, customer.Id);
 

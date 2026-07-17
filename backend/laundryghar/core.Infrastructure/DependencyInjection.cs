@@ -34,7 +34,9 @@ public static class DependencyInjection
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
         // Razorpay Payment Links — collect brand platform-tier invoices (reads Razorpay:KeyId/KeySecret).
-        services.AddHttpClient("razorpay-core", c => c.BaseAddress = new Uri("https://api.razorpay.com/"));
+        // The "razorpay-core" HttpClient itself (with tuned circuit-breaker/timeout/concurrency
+        // resilience) is registered in core.WebApi/Program.cs — this project has no reference to
+        // laundryghar.ServiceDefaults, where that resilience extension lives.
         services.AddScoped<IRazorpayLinkClient, RazorpayLinkClient>();
 
         return services;

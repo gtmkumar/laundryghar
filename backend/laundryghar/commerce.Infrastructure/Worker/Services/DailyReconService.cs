@@ -135,23 +135,42 @@ public sealed class DailyReconService : BackgroundService
         _logger.LogInformation(
             "DailyReconService: {Count} active warehouse(s) to process.", warehouses.Count);
 
-        foreach (var wh in warehouses)
+        // Batched per chunk: no external I/O and no numbering scheme ties one warehouse's recon to
+        // another's, so a chunk-wide save is safe. Chunking (rather than one save for every active
+        // warehouse) bounds the blast radius of one bad warehouse to its chunk and avoids an
+        // oversized statement/long lock as the platform grows. A failed chunk is retried whole
+        // tomorrow (the per-warehouse-per-day idempotency check in ProcessWarehouseAsync makes that
+        // safe) rather than picked apart mid-chunk after an exception.
+        const int ChunkSize = 50;
+        foreach (var chunk in warehouses.Chunk(ChunkSize))
         {
+            var created = 0;
             try
             {
-                await ProcessWarehouseAsync(db, wh.Id, wh.BrandId, wh.Name, today, ct);
+                foreach (var wh in chunk)
+                {
+                    if (await ProcessWarehouseAsync(db, wh.Id, wh.BrandId, wh.Name, today, ct))
+                        created++;
+                }
+                await db.SaveChangesAsync(ct);
+                if (created > 0)
+                    _logger.LogInformation(
+                        "DailyReconService: created {Count} daily recon(s) for this chunk.", created);
             }
             catch (Exception ex)
             {
+                db.ChangeTracker.Clear();
                 _logger.LogError(ex,
-                    "DailyReconService: failed for warehouseId={WarehouseId} name={Name}; " +
-                    "skipping — will not affect other warehouses.",
-                    wh.Id, wh.Name);
+                    "DailyReconService: failed for a chunk of {Count} warehouse(s) (ids={WhIds}); " +
+                    "will retry tomorrow.",
+                    chunk.Length, string.Join(",", chunk.Select(w => w.Id)));
             }
         }
     }
 
-    private async Task ProcessWarehouseAsync(
+    /// <summary>Prepares (does not save) the recon + item rows for one warehouse. Returns false if
+    /// today's recon already exists for it (nothing queued).</summary>
+    private async Task<bool> ProcessWarehouseAsync(
         LaundryGharDbContext db,
         Guid warehouseId,
         Guid brandId,
@@ -173,7 +192,7 @@ public sealed class DailyReconService : BackgroundService
             _logger.LogDebug(
                 "DailyReconService: daily recon already exists for warehouseId={WarehouseId} date={Date}; skipping.",
                 warehouseId, today);
-            return;
+            return false;
         }
 
         var now      = DateTimeOffset.UtcNow;
@@ -274,11 +293,12 @@ public sealed class DailyReconService : BackgroundService
             CreatedAt     = now
         });
 
-        await db.SaveChangesAsync(ct);
-
-        _logger.LogInformation(
-            "DailyReconService: created daily recon {ReconId} for warehouseId={WarehouseId} " +
+        // Not saved here — the caller flushes the whole chunk in one round trip.
+        _logger.LogDebug(
+            "DailyReconService: queued daily recon {ReconId} for warehouseId={WarehouseId} " +
             "name={Name} date={Date} — {Missing} missing-candidate item(s).",
             recon.Id, warehouseId, warehouseName, today, staleGarments.Count);
+
+        return true;
     }
 }

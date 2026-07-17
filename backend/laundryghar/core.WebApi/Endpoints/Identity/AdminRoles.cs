@@ -4,6 +4,7 @@ using core.Application.Identity.AccessControl.Commands.RevokeMembership;
 using core.Application.Identity.AccessControl.Queries.GetPermissions;
 using core.Application.Identity.AccessControl.Queries.GetRoles;
 using core.Application.Identity.Users.Dtos;
+using laundryghar.Utilities.Caching;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using laundryghar.Utilities.Endpoints;
@@ -24,7 +25,10 @@ public class AdminRoles : IEndpointGroup
         group.WithTags("Admin - Roles").RequireAuthorization();
 
         group.MapGet(GetRoles).RequireAuthorization("permission:roles.list");
-        group.MapGet(GetPermissions, "permissions").RequireAuthorization("permission:permissions.list");
+        // The permission catalog is seed-defined and changes only on deploy (AssignPermission
+        // edits role↔permission mappings, never the catalog) — TTL-only cache.
+        group.MapGet(GetPermissions, "permissions").RequireAuthorization("permission:permissions.list")
+             .CacheSharedOutput("rbac:permission-catalog", TimeSpan.FromMinutes(30), "module");
         group.MapPost(AssignPermission, "assign-permission").RequireAuthorization("permission:permissions.assign");
         group.MapPost(GrantMembership, "memberships/grant").RequireAuthorization("permission:memberships.grant");
         group.MapPost(RevokeMembership, "memberships/revoke").RequireAuthorization("permission:memberships.revoke");

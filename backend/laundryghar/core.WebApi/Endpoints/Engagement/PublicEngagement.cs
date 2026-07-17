@@ -1,11 +1,24 @@
 using core.Application.Engagement.Cms.AppBanners.Queries.GetPublicBanners;
 using core.Application.Engagement.Cms.MobileAppConfigs.Queries.GetPublicAppConfig;
 using core.Application.Engagement.Cms.OnboardingSlides.Queries.GetPublicOnboardingSlides;
+using laundryghar.Utilities.Caching;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 
 namespace core.WebApi.Endpoints.Engagement;
+
+/// <summary>
+/// Output-cache tags for CMS content. A tag couples the cached public read to the admin
+/// group that edits it (<c>EvictOutputCacheOnWrite</c>) so content changes regenerate
+/// the cached response immediately; the per-endpoint TTL is only a backstop.
+/// </summary>
+public static class CmsCacheTags
+{
+    public const string OnboardingSlides = "cms:onboarding-slides";
+    public const string AppConfig = "cms:app-config";
+    public const string Banners = "cms:banners";
+}
 
 /// <summary>
 /// Anonymous public endpoints consumed by mobile/web apps before the user logs in.
@@ -31,9 +44,15 @@ public class PublicEngagement : IEndpointGroup
         // Explicitly allow anonymous access — no RequireAuthorization()
         group.AllowAnonymous();
 
-        group.MapGet(OnboardingSlides, "onboarding-slides");
-        group.MapGet(AppConfig, "app-config");
-        group.MapGet(Banners, "banners");
+        // Output-cached: identical for every user of a brand and edited rarely (admin CMS).
+        // Keyed by tenant + the query params each handler reads; evicted by the matching
+        // admin groups on write. TTLs are regenerate-on-schedule backstops only.
+        group.MapGet(OnboardingSlides, "onboarding-slides")
+            .CacheSharedOutput(CmsCacheTags.OnboardingSlides, TimeSpan.FromMinutes(30), "appType", "brandCode");
+        group.MapGet(AppConfig, "app-config")
+            .CacheSharedOutput(CmsCacheTags.AppConfig, TimeSpan.FromMinutes(10), "platform", "brandCode");
+        group.MapGet(Banners, "banners")
+            .CacheSharedOutput(CmsCacheTags.Banners, TimeSpan.FromMinutes(10), "placement", "brandCode");
     }
 
     // GET /api/v1/public/onboarding-slides?appType=customer

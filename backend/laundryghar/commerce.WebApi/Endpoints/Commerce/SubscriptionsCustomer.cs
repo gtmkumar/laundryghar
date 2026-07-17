@@ -2,10 +2,22 @@ using commerce.Application.Commerce;
 using commerce.Application.Commerce.Customer.Subscriptions;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
+using laundryghar.Utilities.Caching;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 
 namespace commerce.WebApi.Endpoints.Commerce;
+
+/// <summary>
+/// Output-cache tags for the customer-facing commerce listings. Each tag couples a cached
+/// customer read to the admin group that edits it (<c>EvictOutputCacheOnWrite</c>) so changes
+/// regenerate the cached response immediately; the per-endpoint TTL is only a backstop.
+/// </summary>
+public static class CommerceCacheTags
+{
+    public const string Plans    = "commerce:plans";
+    public const string Packages = "commerce:packages";
+}
 
 /// <summary>Customer — subscriptions: plans, my subscriptions, subscribe, cancel (CustomerOnly).</summary>
 public class SubscriptionsCustomer : IEndpointGroup
@@ -17,7 +29,11 @@ public class SubscriptionsCustomer : IEndpointGroup
         group.WithTags("Customer - Subscriptions");
         group.RequireAuthorization("CustomerOnly");
 
-        group.MapGet(GetPlans, "/plans");
+        // Public plan listing: depends only on the caller's brand (folded into the tenant cache
+        // key) — the customer id passed to the query is unused for filtering. "My subscriptions"
+        // below is per-user and is NOT cached.
+        group.MapGet(GetPlans, "/plans")
+            .CacheSharedOutput(CommerceCacheTags.Plans, TimeSpan.FromMinutes(10));
         group.MapGet(GetMine, "/");
         group.MapPost(Subscribe, "/");
         group.MapPost(Cancel, "/{id:guid}/cancel");

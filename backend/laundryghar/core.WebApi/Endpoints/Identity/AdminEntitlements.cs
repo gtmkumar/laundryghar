@@ -1,6 +1,7 @@
 using core.Application.Identity.Entitlements.Commands;
 using core.Application.Identity.Entitlements.Dtos;
 using core.Application.Identity.Entitlements.Queries;
+using laundryghar.Utilities.Caching;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using laundryghar.Utilities.Endpoints;
@@ -21,7 +22,10 @@ public class AdminEntitlements : IEndpointGroup
     {
         group.WithTags("Admin - Entitlements").RequireAuthorization();
 
-        group.MapGet(GetBundles, "bundles").RequireAuthorization("permission:saas.read");
+        // Bundle definitions are seed-defined and runtime-read-only (ApplyBundle changes a
+        // brand's modules, never the bundles) — TTL-only cache, no eviction needed.
+        group.MapGet(GetBundles, "bundles").RequireAuthorization("permission:saas.read")
+             .CacheSharedOutput("saas:bundles", TimeSpan.FromMinutes(30));
         group.MapGet(GetPlatformBilling, "platform-billing").RequireAuthorization("permission:saas.read");
         group.MapGet(GetBrandModules, "brands/{brandId:guid}/modules").RequireAuthorization("permission:saas.read");
         group.MapGet(GetPlatformSubscription, "brands/{brandId:guid}/platform-subscription").RequireAuthorization("permission:saas.read");
