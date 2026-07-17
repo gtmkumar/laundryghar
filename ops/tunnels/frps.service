@@ -1,0 +1,14 @@
+[Unit]
+Description=frp server (dev tunnel ingress for laundryghar)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/frps -c /etc/frp/frps.local.toml
+Restart=on-failure
+RestartSec=5
+User=frp
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

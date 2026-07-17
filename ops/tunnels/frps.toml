@@ -1,0 +1,30 @@
+# frps.toml — frp SERVER config, deployed on the VPS (187.127.154.205).
+#
+# TEMPLATE — copy to frps.local.toml (already gitignored via `*.local`) and
+# replace CHANGE_ME_LONG_RANDOM_TOKEN with a real secret before deploying:
+#   openssl rand -hex 32
+#
+# Deploy: /etc/frp/frps.toml on the VPS, run via frps.service (this dir).
+
+bindAddr = "0.0.0.0"
+bindPort = 7000          # control port — frpc (laptop) connects here. Open in ufw.
+
+auth.method = "token"
+auth.token = "CHANGE_ME_LONG_RANDOM_TOKEN"   # must match frpc.local.toml exactly
+
+# HTTP vhost muxing: frpc proxies register a customDomain and frps routes
+# incoming requests by Host header to the right local service. This port is
+# NOT opened in the firewall — nginx on the same box proxies to it over
+# 127.0.0.1, so it's unreachable from the internet directly.
+vhostHTTPPort = 7100
+
+# Dashboard is optional — uncomment to inspect connected proxies at
+# http://127.0.0.1:7500 (tunnel over SSH to view: ssh -L 7500:localhost:7500 vps)
+# webServer.addr = "127.0.0.1"
+# webServer.port = 7500
+# webServer.user = "admin"
+# webServer.password = "CHANGE_ME_DASHBOARD_PASSWORD"
+
+log.to = "/var/log/frps.log"
+log.level = "info"
+log.maxDays = 7
