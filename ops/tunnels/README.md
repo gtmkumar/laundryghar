@@ -11,6 +11,9 @@ of a third-party tunnel service. Two independent things live here:
    stack, once it's actually deployed on this VPS (`api.trywavio.in`,
    `admin.trywavio.in`). This is the "reverse proxy / LB" `deploy/README.md`
    calls out as still missing.
+3. **Other local projects** — same frp tunnel, ngrok-style bare-prefix
+   subdomains for unrelated local services: `laundryghar.trywavio.in`→:5080,
+   `docsolt.trywavio.in`→:5069, `snapaccount.trywavio.in`→:5070.
 
 ```
 laptop (run-stack.sh)          VPS (187.127.154.205)
@@ -19,14 +22,17 @@ laptop (run-stack.sh)          VPS (187.127.154.205)
   commerce:5242 │                │        │
   admin-web:5174│                │        ▼
   metro    :8081┘                │  nginx :80/:443 ── dev-*.trywavio.in
+  (other projects)               │                     + laundryghar/docsolt/
+  :5080 / :5069 / :5070 ─────────┘                     snapaccount .trywavio.in
                                   │
                                   │  docker-compose: gateway:8080, admin-web:8081
                                   └─ nginx :80/:443 ── api. / admin. .trywavio.in
 ```
 
 DNS (already added, A records → 187.127.154.205, TTL 300):
-`dev-core`, `dev-ops`, `dev-commerce`, `dev-admin`, `dev-metro`, `api`, `admin`
-— all `*.trywavio.in`. Root (`@`) and `www` were left untouched.
+`dev-core`, `dev-ops`, `dev-commerce`, `dev-admin`, `dev-metro`, `api`, `admin`,
+`laundryghar`, `docsolt`, `snapaccount` — all `*.trywavio.in`. Root (`@`) and
+`www` were left untouched.
 
 ## VPS setup (run these yourself over SSH — see note below on access)
 
@@ -63,14 +69,14 @@ ssh vps 'sudo mv /tmp/trywavio.conf /etc/nginx/sites-available/trywavio.conf && 
           sudo ln -sf /etc/nginx/sites-available/trywavio.conf /etc/nginx/sites-enabled/ && \
           sudo nginx -t && sudo systemctl reload nginx'
 
-# 6. TLS certs (one cert for the 5 dev subdomains; skip api/admin until that
-#    stack is actually deployed on this box — certbot will fail on domains
-#    that don't yet resolve to a working backend... though these already
-#    resolve via DNS, so it'll issue fine even before the compose stack is up;
-#    just drop -d api.trywavio.in -d admin.trywavio.in if you'd rather wait)
+# 6. TLS certs (one cert covering every subdomain in the nginx vhost; skip
+#    api/admin until that stack is actually deployed on this box if you'd
+#    rather wait — they already resolve via DNS so certbot will issue fine
+#    either way, just drop -d api.trywavio.in -d admin.trywavio.in if not)
 sudo certbot --nginx \
   -d dev-core.trywavio.in -d dev-ops.trywavio.in -d dev-commerce.trywavio.in \
   -d dev-admin.trywavio.in -d dev-metro.trywavio.in \
+  -d laundryghar.trywavio.in -d docsolt.trywavio.in -d snapaccount.trywavio.in \
   -d api.trywavio.in -d admin.trywavio.in
 ```
 

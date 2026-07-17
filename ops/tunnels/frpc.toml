@@ -45,3 +45,26 @@ type = "http"
 localIP = "127.0.0.1"
 localPort = 8081
 customDomains = ["dev-metro.trywavio.in"]
+
+# ── Other local projects tunneled through the same VPS/frps, ngrok-style
+#    (bare <name>.trywavio.in prefixes, not the dev-* laundryghar-stack convention above).
+[[proxies]]
+name = "laundryghar-site"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 5080
+customDomains = ["laundryghar.trywavio.in"]
+
+[[proxies]]
+name = "docsolt"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 5069
+customDomains = ["docsolt.trywavio.in"]
+
+[[proxies]]
+name = "snapaccount"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 5070
+customDomains = ["snapaccount.trywavio.in"]
