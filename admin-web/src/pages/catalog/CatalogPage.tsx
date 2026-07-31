@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Plus, Loader2 } from 'lucide-react'
 import { usePriceListsInfinite } from '@/hooks/useCatalog'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
@@ -75,7 +76,12 @@ export function CatalogPage() {
   const { hasPermission } = usePermissions()
   const canManagePricing = hasPermission('pricing.read')
 
-  const [activeTab, setActiveTab] = useState<Tab>('priceMatrix')
+  // /catalog/fabrics (the navigator's "Fabrics" module) lands on this same page
+  // with the fabric-multipliers tab active.
+  const { pathname } = useLocation()
+  const [activeTab, setActiveTab] = useState<Tab>(
+    pathname.endsWith('/fabrics') ? 'fabricMultipliers' : 'priceMatrix',
+  )
   const [creatingPriceList, setCreatingPriceList] = useState(false)
 
   const tabs: { id: Tab; label: string }[] = [

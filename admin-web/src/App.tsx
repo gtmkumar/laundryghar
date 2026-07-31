@@ -87,6 +87,9 @@ const router = createBrowserRouter([
               { path: 'tenancy',        lazy: lazyPage(() => import('@/pages/tenancy/TenancyPage'), 'TenancyPage') },
               { path: 'items',          lazy: lazyPage(() => import('@/pages/items/ItemsPage'), 'ItemsPage') },
               { path: 'catalog',        lazy: lazyPage(() => import('@/pages/catalog/CatalogPage'), 'CatalogPage') },
+              // Navigator "Fabrics" item deep-links here (seeded /catalog/fabrics
+              // module) — same page, fabric-multipliers tab preselected.
+              { path: 'catalog/fabrics', lazy: lazyPage(() => import('@/pages/catalog/CatalogPage'), 'CatalogPage') },
               { path: 'orders',         lazy: lazyPage(() => import('@/pages/orders/OrdersPage'), 'OrdersPage') },
               { path: 'cms',            lazy: lazyPage(() => import('@/pages/cms/CmsPage'), 'CmsPage') },
               { path: 'analytics',      lazy: lazyPage(() => import('@/pages/analytics/AnalyticsPage'), 'AnalyticsPage') },

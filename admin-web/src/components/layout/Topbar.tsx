@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useBrandStore } from '@/stores/brandStore'
 import { logout } from '@/api/auth'
 import { useStores } from '@/hooks/useTenancy'
+import { usePermissions } from '@/hooks/usePermissions'
 import { changeLanguage, getActiveLocale, type AppLocale } from '@/i18n'
 
 function timeGreetingKey(): string {
@@ -27,7 +28,11 @@ export function Topbar() {
   const navigate = useNavigate()
   const [activeLocale, setActiveLocale] = useState<AppLocale>(getActiveLocale())
 
-  const storesQuery = useStores({ pageSize: 100 })
+  // GET /admin/stores requires stores.list — skip the fetch for roles without it
+  // (store_admin, warehouse_supervisor) so the shell doesn't 403-toast on load.
+  const { hasPermission } = usePermissions()
+  const canListStores = hasPermission('stores.list')
+  const storesQuery = useStores({ pageSize: 100 }, canListStores)
   const storeCount = storesQuery.data?.list.length ?? 0
 
   async function handleLogout() {
@@ -146,8 +151,12 @@ export function Topbar() {
       <div className="flex items-center justify-between px-6 pb-2 gap-4">
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <span>{formatDate(now)}</span>
-          <span className="text-gray-300">·</span>
-          <span>{t('topbar.stores', { count: storeCount })}</span>
+          {canListStores && (
+            <>
+              <span className="text-gray-300">·</span>
+              <span>{t('topbar.stores', { count: storeCount })}</span>
+            </>
+          )}
           <span className="text-gray-300">·</span>
           <span className="flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

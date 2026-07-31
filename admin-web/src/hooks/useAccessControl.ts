@@ -29,6 +29,7 @@ import type {
 } from '@/types/api'
 import { rollbackWithToast, snapshotAndSet } from '@/lib/optimistic'
 import { useEffectiveBrandId } from './useBrandContext'
+import { usePermissions } from './usePermissions'
 
 const PEOPLE_PAGE_SIZE = 100
 
@@ -52,10 +53,13 @@ export function useAccessPeople(search?: string, sort?: string) {
 
 export function useAccessRoles() {
   const brandId = useEffectiveBrandId()
+  // GET /access-control/roles requires roles.list — store-scoped admins reach
+  // this page via users.list but lack it; skip the fetch instead of 403-toasting.
+  const { hasPermission } = usePermissions()
   return useQuery({
     queryKey: ['access', 'roles', brandId],
     queryFn: getAccessRoles,
-    enabled: !!brandId,
+    enabled: !!brandId && hasPermission('roles.list'),
   })
 }
 
@@ -63,13 +67,16 @@ const FRANCHISE_PAGE_SIZE = 100
 
 export function useAccessFranchises(search?: string) {
   const brandId = useEffectiveBrandId()
+  // GET /access-control/franchises requires franchises.list (mirrors the
+  // /access-control?tab=franchises module row) — skip when not granted.
+  const { hasPermission } = usePermissions()
   return useInfiniteQuery({
     queryKey: ['access', 'franchises', search ?? '', brandId],
     queryFn: ({ pageParam }) =>
       getAccessFranchises({ search, page: pageParam, pageSize: FRANCHISE_PAGE_SIZE }),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => (lastPage.hasNextPage ? allPages.length + 1 : undefined),
-    enabled: !!brandId,
+    enabled: !!brandId && hasPermission('franchises.list'),
   })
 }
 

@@ -33,10 +33,14 @@ export const tenancyKeys = {
 
 const TENANCY_PAGE_SIZE = 100
 
-export function useBrands(params: PaginationParams & { status?: string; search?: string } = {}) {
+export function useBrands(
+  params: PaginationParams & { status?: string; search?: string } = {},
+  enabled = true,
+) {
   return useQuery({
     queryKey: tenancyKeys.brands(params),
     queryFn: () => getBrands(params),
+    enabled,
   })
 }
 

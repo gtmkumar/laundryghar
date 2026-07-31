@@ -17,9 +17,13 @@ const BASE = '/api/v1/auth'
 const SKIP_AUTH_RETRY = { _skipAuthRetry: true } as AxiosRequestConfig & { _skipAuthRetry: boolean }
 
 export async function passwordLogin(req: PasswordLoginRequest): Promise<TokenResponse> {
+  // `_skipAuthRetry`: a wrong password is a definitive 401 — without the flag the
+  // interceptor attempts a token refresh, fails, and hard-redirects to /login,
+  // wiping the "invalid credentials" error before the user can see it.
   const { data } = await identityClient.post<ApiResponse<TokenResponse>>(
     `${BASE}/password/login`,
     req,
+    SKIP_AUTH_RETRY,
   )
   return unwrap(data)
 }
@@ -40,7 +44,7 @@ export async function refreshTokens(req: RefreshTokenRequest): Promise<TokenResp
 }
 
 export async function logout(refreshToken: string): Promise<void> {
-  await identityClient.post(`${BASE}/logout`, { refreshToken })
+  await identityClient.post(`${BASE}/logout`, { refreshToken }, SKIP_AUTH_RETRY)
 }
 
 // ── Step-up (§8): re-verify a fresh OTP for a high/critical action ────────────

@@ -10,7 +10,7 @@ import {
   drawerInputCls,
 } from '@/components/shared/FormDrawer'
 import type { PromotionDto, CreatePromotionPayload, UpdatePromotionPayload } from '@/types/api'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, localIsoDate } from '@/lib/utils'
 
 // Small co-located option constant for this drawer's selects; not worth its own module.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -93,7 +93,7 @@ interface FormState {
 }
 
 function blankForm(): FormState {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localIsoDate()
   return {
     code: '',
     name: '',

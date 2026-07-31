@@ -1,4 +1,6 @@
 import { useAnalyticsDashboard } from '@/hooks/useAnalytics'
+import { useCustomerNameMap } from '@/hooks/useCatalog'
+import { usePermissions } from '@/hooks/usePermissions'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { ForbiddenState, isForbiddenError } from '@/components/shared/ForbiddenState'
@@ -44,6 +46,10 @@ function fmtCurrency(n: number) {
 
 export function AnalyticsDashboardTab() {
   const { data, isLoading, isError, error, refetch } = useAnalyticsDashboard()
+  // The analytics DTO carries only customer ids — resolve display names
+  // client-side (permission-gated so the lookup never 403s).
+  const { hasPermission } = usePermissions()
+  const customerNameMap = useCustomerNameMap(hasPermission('customer.read'))
 
   if (isLoading) return <LoadingState message="Loading dashboard..." />
   if (isError) return isForbiddenError(error) ? <ForbiddenState /> : <ErrorState error={error as Error} onRetry={() => void refetch()} />
@@ -126,7 +132,7 @@ export function AnalyticsDashboardTab() {
                     #
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Customer ID
+                    Customer
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     Segment
@@ -150,8 +156,10 @@ export function AnalyticsDashboardTab() {
                   topCustomersByLtv.map((c, i) => (
                     <tr key={c.customerId} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-2 text-gray-400 tabular-nums">{i + 1}</td>
-                      <td className="px-4 py-2 font-mono text-xs text-gray-600 truncate max-w-[180px]">
-                        {c.customerId}
+                      <td className="px-4 py-2 text-gray-700 truncate max-w-[180px]">
+                        {customerNameMap.get(c.customerId) ?? (
+                          <span className="font-mono text-xs text-gray-600">{c.customerId}</span>
+                        )}
                       </td>
                       <td className="px-4 py-2">
                         <span className="text-xs bg-gray-100 rounded px-2 py-0.5">

@@ -29,11 +29,9 @@ export function BrandSwitcher() {
 
   const isPlatformAdmin = user?.user_type === 'platform_admin'
 
-  // Only fetch brands list for platform admins
-  const { data, isLoading } = useBrands(
-    {},
-    // Only query when this switcher is rendered (for platform admins)
-  )
+  // Only fetch the brands list for platform admins — GET /admin/brands requires
+  // brands.list, and firing it for scoped roles produces a 403 + error toast.
+  const { data, isLoading } = useBrands({}, isPlatformAdmin)
 
   if (!isPlatformAdmin) {
     // Non-platform users: show their fixed brand name from the JWT context

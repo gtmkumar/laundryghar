@@ -10,7 +10,7 @@ import {
   drawerInputCls,
 } from '@/components/shared/FormDrawer'
 import type { CouponDto, CreateCouponPayload, UpdateCouponPayload } from '@/types/api'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, localIsoDate } from '@/lib/utils'
 
 // Small constant co-located with this drawer's <select>; not worth a separate module.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -66,7 +66,7 @@ interface FormState {
 }
 
 function blankForm(): FormState {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localIsoDate()
   return {
     code: '',
     name: '',

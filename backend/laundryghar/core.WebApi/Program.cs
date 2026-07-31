@@ -436,6 +436,16 @@ app.Use(async (ctx, next) =>
     {
         ctx.Items["bypass_rls"] = true;
     }
+    // Step-up (§8) re-mints the caller's claims via ScopeResolver, which reads the caller's
+    // OWN identity_access rows (memberships → roles → permissions). It runs AUTHENTICATED, so
+    // the pre-auth branch above never applies — and under tenant RLS those rows are invisible
+    // for non-platform users, minting an upgraded token with NO permissions/scope/brand (the
+    // user is then locked out until re-login). Same self-keyed-query isolation rationale as
+    // the pre-auth paths: every query is keyed to the validated caller's own id/identifier.
+    else if (ctx.Request.Path.StartsWithSegments("/api/v1/auth/step-up"))
+    {
+        ctx.Items["bypass_rls"] = true;
+    }
     await next(ctx);
 });
 

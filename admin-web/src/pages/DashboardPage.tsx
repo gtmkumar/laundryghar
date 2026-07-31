@@ -23,7 +23,9 @@ import { useAnalyticsDashboard, useDailyStoreRevenue } from '@/hooks/useAnalytic
 import { useOrders } from '@/hooks/useOrders'
 import { useStores } from '@/hooks/useTenancy'
 import { useCustomerNameMap } from '@/hooks/useCatalog'
-import { useBrandStore } from '@/stores/brandStore'
+import { useEffectiveBrandId } from '@/hooks/useBrandContext'
+import { usePermissions } from '@/hooks/usePermissions'
+import { localIsoDate } from '@/lib/utils'
 import type { OrderDto, DailyStoreRevenueDto, StoreDto } from '@/types/api'
 import { useStatusLabel, paymentTone, PAYMENT_TONE_CLASS } from './orders/orderFormat'
 import { ActiveRidersPanel } from './dashboard/ActiveRidersPanel'
@@ -36,15 +38,15 @@ function fmtINR(n: number): string {
 }
 
 function isoToday(): string {
-  return new Date().toISOString().slice(0, 10)
+  return localIsoDate()
 }
 
 function iso14DaysAgo(): string {
-  return new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10)
+  return localIsoDate(new Date(Date.now() - 14 * 86_400_000))
 }
 
 function isoYesterday(): string {
-  return new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+  return localIsoDate(new Date(Date.now() - 86_400_000))
 }
 
 /** Compute sum of a numeric field across DailyStoreRevenue rows for a given date */
@@ -482,17 +484,25 @@ function SmartInsight({ bars, todayRevenue, loading }: InsightProps) {
 // ── Dashboard Page ────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const { activeBrandId } = useBrandStore()
-  // Gate all brand-scoped queries behind activeBrandId to avoid 401s before
-  // the auto-select in AppShell resolves. The interceptor picks up activeBrandId
-  // synchronously from brandStore once set, so enabled=false prevents premature fires.
-  const enabled = Boolean(activeBrandId)
+  // Gate all brand-scoped queries behind the *effective* brand id — brand-scoped
+  // users (store/warehouse staff) carry brand_id in their JWT and never set the
+  // brandStore selection, so gating on activeBrandId alone left every dashboard
+  // query disabled for them (all-zero KPIs). Platform admins still wait for the
+  // auto-select to resolve before firing.
+  const effectiveBrandId = useEffectiveBrandId()
+  const enabled = Boolean(effectiveBrandId)
+  const { hasPermission } = usePermissions()
 
-  // ── Analytics dashboard (orders today + revenue today)
-  const dashboardQ = useAnalyticsDashboard(enabled)
+  // ── Analytics dashboard (orders today + revenue today) — requires analytics.read;
+  // store/warehouse roles lack it, so skip the fetch instead of 403-toasting.
+  const canReadAnalytics = hasPermission('analytics.read')
+  const dashboardQ = useAnalyticsDashboard(enabled && canReadAnalytics)
 
   // ── Revenue chart: last 14 days
-  const revenueQ = useDailyStoreRevenue({ from: iso14DaysAgo(), to: isoToday() }, enabled)
+  const revenueQ = useDailyStoreRevenue(
+    { from: iso14DaysAgo(), to: isoToday() },
+    enabled && canReadAnalytics,
+  )
   const chartBars = useMemo(() => aggregateByDate(revenueQ.data ?? []), [revenueQ.data])
 
   // ── Order status counts — there is no dedicated /count endpoint, but the list
@@ -510,11 +520,11 @@ export function DashboardPage() {
   // ── Stores for joining names (not brand-scoped in the same way — platform admin can fetch all).
   // Still gated behind `enabled`: getStores rides the X-Brand-Id interceptor, so firing it before
   // the brand auto-select resolves produces 401 noise on every dashboard mount (DEF-R3-1).
-  const storesQ = useStores({ pageSize: 100 }, enabled)
+  const storesQ = useStores({ pageSize: 100 }, enabled && hasPermission('stores.list'))
   const stores = storesQ.data?.list ?? []
 
   // ── Customer name map for live feed (pageSize 100, brand-scoped via X-Brand-Id header)
-  const customerNameMap = useCustomerNameMap(enabled)
+  const customerNameMap = useCustomerNameMap(enabled && hasPermission('customer.read'))
 
   // ── KPI derivations
   const today = dashboardQ.data?.today
@@ -575,16 +585,16 @@ export function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiCard
           label="Orders Today"
-          value={ordersToday}
-          sub="vs yesterday"
-          trend={ordersTrend}
+          value={canReadAnalytics ? ordersToday : '—'}
+          sub={canReadAnalytics ? 'vs yesterday' : 'needs analytics access'}
+          trend={canReadAnalytics ? ordersTrend : undefined}
           loading={isLoading}
         />
         <KpiCard
           label="Revenue Today"
-          value={fmtINR(revenueToday)}
-          sub="vs yesterday"
-          trend={revenueTrend}
+          value={canReadAnalytics ? fmtINR(revenueToday) : '—'}
+          sub={canReadAnalytics ? 'vs yesterday' : 'needs analytics access'}
+          trend={canReadAnalytics ? revenueTrend : undefined}
           loading={isLoading}
         />
         <KpiCard

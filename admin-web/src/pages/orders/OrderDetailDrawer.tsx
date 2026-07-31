@@ -59,13 +59,27 @@ function money(amount: number, currency: string) {
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 
-function SummarySection({ order }: { order: OrderDto }) {
+function SummarySection({
+  order,
+  customerName,
+  storeName,
+}: {
+  order: OrderDto
+  customerName?: string
+  storeName?: string
+}) {
   const c = order.currencyCode
   return (
     <>
       <DetailSection title="Summary">
-        <DetailRow label="Customer" value={<span className="font-mono text-xs">{order.customerId}</span>} />
-        <DetailRow label="Store" value={<span className="font-mono text-xs">{order.storeId}</span>} />
+        <DetailRow
+          label="Customer"
+          value={customerName ?? <span className="font-mono text-xs">{order.customerId}</span>}
+        />
+        <DetailRow
+          label="Store"
+          value={storeName ?? <span className="font-mono text-xs">{order.storeId}</span>}
+        />
         <DetailRow label="Channel" value={<span className="capitalize">{order.channel}</span>} />
         <DetailRow label="Type" value={<span className="capitalize">{order.orderType}</span>} />
         <DetailRow
@@ -139,7 +153,19 @@ function ItemsSection({ order }: { order: OrderDto }) {
   const items = order.items ?? []
   const addons = order.addons ?? []
   const c = order.currencyCode
-  if (items.length === 0) return null
+  if (items.length === 0) {
+    // Item-less orders exist (pickup-first bookings itemised after weighing) —
+    // say so explicitly instead of silently omitting the section, which reads
+    // as contradictory next to a nonzero grand total.
+    return (
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold text-gray-900">Items (0)</h3>
+        <p className="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-sm text-gray-500">
+          No items recorded yet — this order is awaiting itemisation.
+        </p>
+      </section>
+    )
+  }
   return (
     <section className="space-y-2">
       <h3 className="text-sm font-semibold text-gray-900">Items ({order.totalItems})</h3>
@@ -648,9 +674,14 @@ function ActionsSection({
 export function OrderDetailDrawer({
   orderId,
   onClose,
+  resolveCustomerName,
+  resolveStoreName,
 }: {
   orderId: string | null
   onClose: () => void
+  /** Resolve a customer/store id to a display name (falls back to the raw id). */
+  resolveCustomerName?: (id: string) => string | undefined
+  resolveStoreName?: (id: string) => string | undefined
 }) {
   const { hasPermission } = usePermissions()
   const { data: order, isLoading, isError, error } = useOrder(orderId)
@@ -710,7 +741,11 @@ export function OrderDetailDrawer({
           {(canUpdateStatus || (canCancel && canCancelFrom(order.status))) && (
             <ActionsSection order={order} canUpdateStatus={canUpdateStatus} canCancel={canCancel} />
           )}
-          <SummarySection order={order} />
+          <SummarySection
+            order={order}
+            customerName={resolveCustomerName?.(order.customerId)}
+            storeName={resolveStoreName?.(order.storeId)}
+          />
           <ItemsSection order={order} />
           <InvoiceSection order={order} canGenerate={canGenerateInvoice} canRead={canRead} />
           <TimelineSection order={order} />

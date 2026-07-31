@@ -18,7 +18,8 @@ import { useOpsQueues } from '@/hooks/useOrders'
 import { usePickupRequests } from '@/hooks/usePickups'
 import { useStores } from '@/hooks/useTenancy'
 import { useCustomerNameMap } from '@/hooks/useCatalog'
-import { useBrandStore } from '@/stores/brandStore'
+import { useEffectiveBrandId } from '@/hooks/useBrandContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import { ErrorState } from '@/components/shared/ErrorState'
 import {
   formatDurationMinutes,
@@ -53,17 +54,21 @@ function AgeBadge({ minutes }: { minutes: number }) {
 export function NeedsActionPanel() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { activeBrandId } = useBrandStore()
-  const enabled = Boolean(activeBrandId)
+  // Effective brand id: brand-scoped users carry brand_id in their JWT and never
+  // set the brandStore selection — gating on activeBrandId alone left this panel
+  // permanently disabled for them (same class as the DashboardPage fix).
+  const enabled = Boolean(useEffectiveBrandId())
+  const { hasPermission } = usePermissions()
 
   // 30s poll matches the dashboard cadence. All brand-scoped queries are gated
   // behind `enabled` so they don't fire (and 401) before the brand auto-select
   // resolves on dashboard mount (DEF-R3-1 — same class as the DashboardPage fix).
   // usePickupRequests self-gates via useEffectiveBrandId, so it needs no flag here.
+  // stores/customers lookups additionally require stores.list / customer.read.
   const opsQ = useOpsQueues({ pageSize: 50 }, 30_000, enabled)
   const pickupsQ = usePickupRequests({ status: 'pending', pageSize: 50 })
-  const storesQ = useStores({ pageSize: 100 }, enabled)
-  const customerNameMap = useCustomerNameMap(enabled)
+  const storesQ = useStores({ pageSize: 100 }, enabled && hasPermission('stores.list'))
+  const customerNameMap = useCustomerNameMap(enabled && hasPermission('customer.read'))
 
   const storeMap = useMemo(() => {
     const m = new Map<string, string>()

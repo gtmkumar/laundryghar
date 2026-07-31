@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { usePermissions } from '@/hooks/usePermissions'
 import { cn, formatCurrency, formatDateTime } from '@/lib/utils'
 import type { OrderDto } from '@/types/api'
 import { OrderDetailDrawer } from './OrderDetailDrawer'
@@ -176,9 +177,12 @@ function OrdersTab({ onOpenOrder, selectedId }: { onOpenOrder: (id: string | nul
     fetchNextPage: historyQ.fetchNextPage,
   })
 
-  // Name maps for cards.
-  const customerNameMap = useCustomerNameMap()
-  const storesQ = useStores({ pageSize: 100 })
+  // Name maps for cards. Both lookups are permission-gated: warehouse roles can
+  // list orders but lack customer.read / stores.list, and firing the fetches
+  // anyway 403s and trips the global error toast.
+  const { hasPermission } = usePermissions()
+  const customerNameMap = useCustomerNameMap(hasPermission('customer.read'))
+  const storesQ = useStores({ pageSize: 100 }, hasPermission('stores.list'))
   const storeMap = useMemo(() => {
     const m = new Map<string, string>()
     for (const s of storesQ.data?.list ?? []) m.set(s.id, s.name)
@@ -290,7 +294,12 @@ function OrdersTab({ onOpenOrder, selectedId }: { onOpenOrder: (id: string | nul
         )}
       </section>
 
-      <OrderDetailDrawer orderId={selectedId} onClose={() => onOpenOrder(null)} />
+      <OrderDetailDrawer
+        orderId={selectedId}
+        onClose={() => onOpenOrder(null)}
+        resolveCustomerName={(id) => customerNameMap.get(id)}
+        resolveStoreName={(id) => storeMap.get(id)}
+      />
     </>
   )
 }

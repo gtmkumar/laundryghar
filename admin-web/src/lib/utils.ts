@@ -40,6 +40,16 @@ export function formatCurrency(amount: number, currency = 'INR'): string {
   }
 }
 
+/**
+ * yyyy-MM-dd for a Date in the *local* timezone. `toISOString().slice(0, 10)`
+ * yields the UTC date, which is yesterday for IST times before 05:30 — visible
+ * as off-by-one default dates in forms and date-range filters.
+ */
+export function localIsoDate(d: Date = new Date()): string {
+  // en-CA locale formats as yyyy-MM-dd.
+  return d.toLocaleDateString('en-CA')
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)

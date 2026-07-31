@@ -62,7 +62,12 @@ export function LoginPage() {
       const dest = from !== '/' ? from : landingPath(useAuthStore.getState().user?.user_type)
       navigate(dest, { replace: true })
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : t('auth.loginFailed'))
+      // A 401 means bad credentials / inactive account — show the friendly
+      // message, not axios's "Request failed with status code 401".
+      const status = (err as { response?: { status?: number } })?.response?.status
+      setServerError(
+        status === 401 || !(err instanceof Error) ? t('auth.loginFailed') : err.message,
+      )
     }
   }
 

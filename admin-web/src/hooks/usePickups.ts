@@ -17,6 +17,7 @@ import type {
   UpdateDeliverySlotPayload,
 } from '@/types/api'
 import { useEffectiveBrandId } from './useBrandContext'
+import { usePermissions } from './usePermissions'
 
 export const pickupKeys = {
   list: (params?: object) => ['pickups', 'list', params] as const,
@@ -36,10 +37,13 @@ export const slotKeys = {
  */
 export function usePickupRequests(params: PickupRequestListParams = {}, refetchInterval?: number) {
   const brandId = useEffectiveBrandId()
+  // GET /admin/pickup-requests requires pickup.read — warehouse roles reach the
+  // dashboard/orders screens without it, so self-gate instead of 403-toasting.
+  const { hasPermission } = usePermissions()
   return useQuery({
     queryKey: pickupKeys.list({ brandId, ...params }),
     queryFn: () => getPickupRequests(params),
-    enabled: !!brandId,
+    enabled: !!brandId && hasPermission('pickup.read'),
     refetchInterval,
     placeholderData: (prev) => prev,
   })

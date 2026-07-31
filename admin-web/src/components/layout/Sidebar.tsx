@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useStores } from '@/hooks/useTenancy'
 import { useNavigator } from '@/hooks/useNavigator'
 import { useOnboardingUi } from '@/stores/onboardingStore'
@@ -148,7 +149,10 @@ function SidebarNav({
 export function Sidebar() {
   const { user } = useAuthStore()
   const nav = useNavigator()
-  const storesQuery = useStores({ pageSize: 100 })
+  // Skip the stores fetch for roles without stores.list — the endpoint 403s and
+  // the "Stores" nav item (whose badge needs the count) isn't shown to them anyway.
+  const { hasPermission } = usePermissions()
+  const storesQuery = useStores({ pageSize: 100 }, hasPermission('stores.list'))
   const storeCount = storesQuery.data?.list.length ?? 0
   // Collapse to an icon rail while the onboarding workspace panel is open.
   const collapsed = useOnboardingUi((s) => s.open)
