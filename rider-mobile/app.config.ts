@@ -13,14 +13,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
-  // Match Expo Go (SDK 52 runs the New Architecture) so dev-client/production
-  // builds behave the same as what QA exercises in Expo Go.
-  newArchEnabled: true,
-  splash: {
-    image: './assets/splash.png',
-    resizeMode: 'contain',
-    backgroundColor: '#4A552A',
-  },
   scheme: 'laundryghar-rider',
   ios: {
     supportsTablet: false,

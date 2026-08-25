@@ -23,6 +23,7 @@ import { useHomeBanners } from '@/hooks/useEngagement';
 import { useMe } from '@/hooks/useMe';
 import { SkeletonHomeScreen } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { ProfileCompletionBanner } from '@/components/ProfileCompletionBanner';
 import { serviceMeta } from '@/lib/serviceMeta';
 import { greeting } from '@/lib/format';
 import { useTranslation } from 'react-i18next';
@@ -251,6 +252,15 @@ export default function HomeScreen() {
           </Text>
           <Ionicons name="chevron-down" size={16} color="#7B7A6C" />
         </Pressable>
+
+        {/* Profile completion nudge — hidden once the profile is complete or dismissed.
+            Never blocks anything; it just links to the profile tab. */}
+        <View className="mt-4">
+          <ProfileCompletionBanner
+            completion={me?.profileCompletion}
+            onPress={() => router.push('/(app)/(tabs)/profile')}
+          />
+        </View>
 
         {/* Promo */}
         <View className="mx-6 mt-4">

@@ -7,6 +7,21 @@ public sealed class OtpSettings
     public int TtlMinutes  { get; set; } = 5;
     public int MaxAttempts { get; set; } = 3;
 
+    /// <summary>
+    /// Digits in a CUSTOMER login OTP. Four by default — the customer app's keypad is built
+    /// for four boxes and the short code measurably cuts drop-off on a consumer sign-up.
+    /// Staff and rider OTPs stay at six digits (see <see cref="StaffCodeLength"/>): those
+    /// accounts reach privileged data and are worth the extra entropy.
+    ///
+    /// Brute force is bounded by MaxAttempts (3 per code) and the rolling-window lockout
+    /// (LockoutThreshold across all codes), not by code length: at 4 digits an attacker
+    /// gets 3 of 10 000 guesses before the row is spent and 10 before the phone is locked.
+    /// </summary>
+    public int CustomerCodeLength { get; set; } = 4;
+
+    /// <summary>Digits in a staff / rider / step-up OTP.</summary>
+    public int StaffCodeLength { get; set; } = 6;
+
     /// <summary>Minimum seconds that must elapse before a new OTP can be issued for the same identifier+purpose.</summary>
     public int ResendCooldownSeconds { get; set; } = 60;
 
@@ -53,4 +68,16 @@ public sealed class OtpSettings
     /// Production with this set. Leave null/empty everywhere except dev/staging.
     /// </summary>
     public string? TestCode { get; set; }
+
+    /// <summary>
+    /// TESTING ONLY: the customer-flow counterpart of <see cref="TestCode"/>, separate
+    /// because customer codes are <see cref="CustomerCodeLength"/> digits (default 4) while
+    /// <see cref="TestCode"/> is six. Set to "1234" in dev/staging so any phone can complete
+    /// a customer login without SMS/WhatsApp delivery.
+    ///
+    /// Subject to the identical Production guards: ignored when IsProduction(), and the
+    /// host refuses to start in Production with it set. Delete it from configuration the
+    /// moment real OTP delivery goes live in an environment.
+    /// </summary>
+    public string? CustomerTestCode { get; set; }
 }

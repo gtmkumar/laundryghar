@@ -13,7 +13,12 @@ import { FlatList, Linking, Platform, Pressable, RefreshControl, Text, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
+// expo-notifications throws at module-evaluation time on Android in Expo Go
+// (SDK 53+ stripped the native push module) — a static import here would crash
+// this screen. The type import is erased at compile time (safe); the runtime
+// call below goes through a dynamic import() instead, whose rejection can be
+// caught, same as src/lib/pushNotifications.ts.
+import type { PermissionStatus } from 'expo-notifications';
 import { useTranslation } from 'react-i18next';
 import { useMyOrders, useMyPickupRequests } from '@/hooks/useOrders';
 import { formatDateTime } from '@/lib/format';
@@ -76,13 +81,14 @@ const TONE_STYLES: Record<UpdateEntry['tone'], { bg: string; color: string; icon
 
 function PermissionCard() {
   const { t } = useTranslation();
-  const [status, setStatus] = useState<Notifications.PermissionStatus | null>(null);
+  const [status, setStatus] = useState<PermissionStatus | null>(null);
 
   // Re-check on focus — the user may return from Settings.
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      Notifications.getPermissionsAsync()
+      import('expo-notifications')
+        .then((Notifications) => Notifications.getPermissionsAsync())
         .then((p) => { if (alive) setStatus(p.status); })
         .catch(() => { if (alive) setStatus(null); });
       return () => { alive = false; };

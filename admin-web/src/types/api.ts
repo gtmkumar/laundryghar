@@ -2479,6 +2479,38 @@ export interface BrandModuleEntitlement {
   validUntil: string | null
 }
 
+// ─── Custom domains (white-label tier T2 · PLATFORM_STRATEGY.md §4.2) ────────
+
+/** One custom hostname a brand serves under, with the DNS instruction it needs. */
+export interface BrandDomain {
+  id: string
+  brandId: string
+  domain: string
+  /** Only a verified domain resolves traffic to the brand. */
+  verified: boolean
+  verifiedAt: string | null
+  sslStatus: 'pending' | 'active' | 'failed' | 'expired'
+  isPrimary: boolean
+  /** DNS name for the TXT record, e.g. `_lg-verify.theirbrand.com`. */
+  verificationName: string
+  /** Exact TXT value to publish. */
+  verificationValue: string
+  /** CNAME target the domain itself points at (per-environment). */
+  cnameTarget: string
+  createdAt: string
+}
+
+/**
+ * Outcome of a verification attempt. `lookup_failed` means DNS could not be reached and says
+ * nothing about the provider's setup — it must not be shown as "you got it wrong".
+ */
+export interface VerifyBrandDomainResult {
+  verified: boolean
+  status: 'verified' | 'already_verified' | 'record_not_found' | 'value_mismatch' | 'lookup_failed'
+  message: string
+  foundRecords: string[]
+}
+
 export interface BrandEntitlements {
   brandId: string
   brandName: string

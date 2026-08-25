@@ -21,7 +21,11 @@
     "password": "पासवर्ड",
     "loginFailed": "साइन इन नहीं हो पाया। क्रेडेंशियल जाँचें।",
     "devNote": "Dev: admin@laundryghar.local / Admin@123",
-    "platformNote": "Platform admin — topbar में brand switcher से X-Brand-Id सेट करें।"
+    "platformNote": "Platform admin — topbar में brand switcher से X-Brand-Id सेट करें।",
+    "orDivider": "या",
+    "googleLoginFailed": "Google साइन-इन विफल रहा। पुनः प्रयास करें या अपना पासवर्ड उपयोग करें।",
+    "googleNoCredential": "Google ने साइन-इन टोकन नहीं लौटाया। कृपया पुनः प्रयास करें।",
+    "googleLoadFailed": "Google साइन-इन लोड नहीं हो सका। कनेक्शन जाँचें और पुनः प्रयास करें।"
   },
   "pos": {
     "newOrder": "नया ऑर्डर",

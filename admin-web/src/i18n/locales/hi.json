@@ -40,7 +40,11 @@
       "store_admin_sub": "एकल स्टोर · स्टाफ और रिपोर्ट",
       "warehouse": "वेयरहाउस",
       "warehouse_sub": "चेक-इन · QC · सत्यापन"
-    }
+    },
+    "orDivider": "या",
+    "googleLoginFailed": "Google साइन-इन विफल रहा। पुनः प्रयास करें या अपना पासवर्ड उपयोग करें।",
+    "googleNoCredential": "Google ने साइन-इन टोकन नहीं लौटाया। कृपया पुनः प्रयास करें।",
+    "googleLoadFailed": "Google साइन-इन लोड नहीं हो सका। कनेक्शन जाँचें और पुनः प्रयास करें।"
   },
   "topbar": {
     "operationsDashboard": "ऑपरेशन · डैशबोर्ड",

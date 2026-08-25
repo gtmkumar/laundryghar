@@ -27,6 +27,7 @@ public interface ICoreDbContext
     DbSet<Promotion> Promotions { get; }
     DbSet<Coupon> Coupons { get; }
     DbSet<Brand> Brands { get; }
+    DbSet<BrandDomain> BrandDomains { get; }
 
     // ─── Tenancy org hierarchy (AdminTenancy / Onboarding) ───────────────────
     DbSet<Platform> Platforms { get; }
@@ -58,6 +59,9 @@ public interface ICoreDbContext
 
     // ─── Customer catalog (customer mobile auth: OTP / refresh / /me) ─────────
     DbSet<Customer> Customers { get; }
+
+    // ─── Customer catalog (social sign-in: Google/Apple identity links) ───────
+    DbSet<CustomerIdentity> CustomerIdentities { get; }
 
     // ─── Logistics (rider counts in access-control franchise cards) ──────────
     DbSet<Rider> Riders { get; }

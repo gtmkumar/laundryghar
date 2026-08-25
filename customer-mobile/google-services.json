@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "180455121186",
+    "project_id": "laundry-ghar-5b39e",
+    "storage_bucket": "laundry-ghar-5b39e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:180455121186:android:770bfb0f5567f1a97b857b",
+        "android_client_info": {
+          "package_name": "com.launddryghar.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfB1VB-97b-k6Hk0g-u3VYgENzRbpijrg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

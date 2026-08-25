@@ -16,7 +16,12 @@ ADB="$ANDROID_HOME/platform-tools/adb"
 EMU="$ANDROID_HOME/emulator/emulator"
 AVD="${AVD:-snap_pixel}"
 
-ports=(5056 5015 5242 5174 8081 5000)
+# Metro/Expo runs on 9091, NOT Expo's default 8081 — another project on this machine
+# (snapaccount/mobile) owns 8081, and free_ports below kill -9s everything in this list.
+# Leaving 8081 here would silently kill that project's dev server on every start.
+METRO_PORT="${METRO_PORT:-9091}"
+
+ports=(5056 5015 5242 5174 "$METRO_PORT" 5000)
 free_ports() { for p in "${ports[@]}"; do for pid in $(lsof -nP -iTCP:$p -sTCP:LISTEN -t 2>/dev/null); do kill -9 "$pid" 2>/dev/null; done; done; }
 
 if [[ "${1:-start}" == "stop" ]]; then
@@ -69,16 +74,16 @@ echo "▶ waiting for emulator boot..."
 "$ADB" wait-for-device 2>/dev/null
 for i in $(seq 1 40); do [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break; sleep 5; done
 
-echo "▶ Metro (customer-mobile → 10.0.2.2 hosts)"
+echo "▶ Metro (customer-mobile → 10.0.2.2 hosts, port $METRO_PORT)"
 ( cd "$REPO/customer-mobile" && \
   IDENTITY_API_URL=http://10.0.2.2:5056 ENGAGEMENT_API_URL=http://10.0.2.2:5056 \
   CATALOG_API_URL=http://10.0.2.2:5015 ORDERS_API_URL=http://10.0.2.2:5015 COMMERCE_API_URL=http://10.0.2.2:5242 \
   DEFAULT_BRAND_CODE=LG-MAIN \
   PATH="$ANDROID_HOME/platform-tools:$PATH" \
-  nohup npx expo start >/tmp/customer_metro.log 2>&1 & )
-for i in $(seq 1 20); do lsof -nP -iTCP:8081 -sTCP:LISTEN -t >/dev/null 2>&1 && break; sleep 3; done
+  nohup npx expo start --port "$METRO_PORT" >/tmp/customer_metro.log 2>&1 & )
+for i in $(seq 1 20); do lsof -nP -iTCP:"$METRO_PORT" -sTCP:LISTEN -t >/dev/null 2>&1 && break; sleep 3; done
 sleep 3
-"$ADB" shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081" host.exp.exponent >/dev/null 2>&1
+"$ADB" shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:$METRO_PORT" host.exp.exponent >/dev/null 2>&1
 
 cat <<EOF
 
@@ -87,6 +92,6 @@ cat <<EOF
    OPERATIONS  http://localhost:5015   (GET /api/v1/fulfillment-config)
    COMMERCE    http://localhost:5242
    admin-web   http://localhost:5174   (admin@laundryghar.local / Admin@123)
-   customer    Android emulator ($AVD) — Metro :8081
+   customer    Android emulator ($AVD) — Metro :$METRO_PORT  (override: METRO_PORT=…)
    stop with:  bash scripts/run-stack.sh stop
 EOF

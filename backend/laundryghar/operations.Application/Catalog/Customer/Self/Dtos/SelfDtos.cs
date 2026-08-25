@@ -6,7 +6,8 @@ public sealed record CustomerProfileDto(
     Guid Id,
     Guid BrandId,
     string CustomerCode,
-    string PhoneE164,
+    /// <summary>Null for a customer who signed up with Google and never linked a phone.</summary>
+    string? PhoneE164,
     string? Email,
     string? FirstName,
     string? LastName,

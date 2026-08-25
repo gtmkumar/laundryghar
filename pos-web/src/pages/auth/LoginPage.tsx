@@ -5,8 +5,9 @@ import { useState } from 'react'
 import { Loader2, ShoppingBag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { loginSchema, type LoginFormValues } from '@/types/schemas'
-import { passwordLogin } from '@/api/auth'
+import { passwordLogin, googleLogin } from '@/api/auth'
 import { useAuthStore } from '@/stores/authStore'
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,6 +18,7 @@ export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [serverError, setServerError] = useState<string | null>(null)
+  const [googleBusy, setGoogleBusy] = useState(false)
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/new-order'
 
@@ -46,6 +48,28 @@ export function LoginPage() {
       setServerError(
         err instanceof Error ? err.message : t('auth.loginFailed'),
       )
+    }
+  }
+
+  async function onGoogleCredential(idToken: string) {
+    setServerError(null)
+    setGoogleBusy(true)
+    try {
+      const tokens = await googleLogin(idToken)
+      setTokens(tokens.accessToken, tokens.refreshToken)
+      navigate(from, { replace: true })
+    } catch (err) {
+      // A 401 here means "this Google address has no POS account" — the server's own
+      // wording is the useful one, so prefer the response envelope over axios's
+      // "Request failed with status code 401".
+      const envelopeMessage = (
+        err as { response?: { data?: { message?: { responseMessage?: string } } } }
+      )?.response?.data?.message?.responseMessage
+      setServerError(
+        envelopeMessage ?? (err instanceof Error ? err.message : t('auth.googleLoginFailed')),
+      )
+    } finally {
+      setGoogleBusy(false)
     }
   }
 
@@ -110,6 +134,15 @@ export function LoginPage() {
               {isSubmitting ? t('common.signingIn') : t('common.signIn')}
             </Button>
           </form>
+
+          {/* Google — renders nothing when VITE_GOOGLE_CLIENT_ID is unset */}
+          <div className="mt-5">
+            <GoogleSignInButton
+              disabled={isSubmitting || googleBusy}
+              onCredential={(idToken) => void onGoogleCredential(idToken)}
+              onError={setServerError}
+            />
+          </div>
         </div>
 
         {/* POS-2: never leak credential hints in a production build. */}

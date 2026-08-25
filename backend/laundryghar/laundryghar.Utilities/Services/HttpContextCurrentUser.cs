@@ -16,8 +16,25 @@ public sealed class HttpContextCurrentUser : ICurrentUser
 
     public Guid? UserId => ParseGuid(ClaimTypes.NameIdentifier);
     public string? UserType => Claim("user_type");
-    public string? Email => Claim("email");
-    public string? Phone => Claim("phone");
+
+    // The JWT bearer handler runs with inbound claim mapping ON (the default), which rewrites the
+    // JWT's registered claims to their long WS-Fed URIs: `sub` becomes ClaimTypes.NameIdentifier
+    // (which is why UserId above reads the mapped name) and `email` becomes ClaimTypes.Email. The
+    // token really does carry `email`, but by the time it reaches the principal the short name is
+    // gone — so a plain Claim("email") returned null for EVERY caller.
+    //
+    // That silently broke step-up (§8): StepUpVerifyHandler derives the OTP identifier from
+    // ICurrentUser.Email and threw "No email on file to verify against.", making every high/critical
+    // permission — payment.refund, pricing.publish, user.create, brands.update — unreachable.
+    // Found while verifying custom domains end to end; see docs/TASKS.md T-10.
+    //
+    // Reading the raw claim FIRST keeps behaviour identical wherever mapping is off (or a token
+    // carries the short name anyway) and only falls back to the mapped name. `phone` has no standard
+    // mapping today, but it is given the same treatment so it cannot break the same way later.
+    public string? Email => Claim("email") ?? Claim(ClaimTypes.Email);
+    public string? Phone => Claim("phone")
+                            ?? Claim(ClaimTypes.MobilePhone)
+                            ?? Claim(ClaimTypes.HomePhone);
     public Guid? BrandId => ParseGuid("brand_id");
     public Guid? FranchiseId => ParseGuid("franchise_id");
     public Guid? StoreId => ParseGuid("store_id");

@@ -32,6 +32,7 @@ public sealed class CoreDbContext : ICoreDbContext
     public DbSet<Promotion> Promotions => _db.Promotions;
     public DbSet<Coupon> Coupons => _db.Coupons;
     public DbSet<Brand> Brands => _db.Brands;
+    public DbSet<BrandDomain> BrandDomains => _db.BrandDomains;
 
     public DbSet<Platform> Platforms => _db.Platforms;
     public DbSet<Franchise> Franchises => _db.Franchises;
@@ -59,6 +60,7 @@ public sealed class CoreDbContext : ICoreDbContext
     public DbSet<PasswordReset> PasswordResets => _db.PasswordResets;
 
     public DbSet<Customer> Customers => _db.Customers;
+    public DbSet<CustomerIdentity> CustomerIdentities => _db.CustomerIdentities;
 
     public DbSet<Rider> Riders => _db.Riders;
 

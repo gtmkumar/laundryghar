@@ -33,8 +33,15 @@
  *   data.id    = <orderId> | <pickupRequestId>
  *
  * This seam is documented here and NOT addressed in the Worker (out of lane).
+ *
+ * Expo Go additionally throws AT MODULE-EVALUATION TIME on Android (SDK 53+
+ * stripped the native push module there too) — a static top-level `import`
+ * would crash app bootstrap immediately since this file is imported
+ * unconditionally from authStore.ts, and a throw during static import
+ * evaluation cannot be caught by any try/catch. `expo-notifications` is
+ * therefore loaded lazily via dynamic import() below, whose rejection CAN be
+ * caught like any other async error.
  */
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
@@ -57,24 +64,36 @@ export interface PushNotificationData {
 }
 
 // ---------------------------------------------------------------------------
-// Foreground handler — always show alert, play sound
+// Lazy-loaded expo-notifications module + one-time foreground handler setup.
 // ---------------------------------------------------------------------------
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    // SDK 54 (expo-notifications): shouldShowAlert split into shouldShowBanner + shouldShowList.
-    shouldShowBanner: true,
-    shouldShowList:   true,
-    shouldPlaySound:  true,
-    shouldSetBadge:   false,
-  }),
-});
+type NotificationsModule = typeof import('expo-notifications');
+
+let _notificationsPromise: Promise<NotificationsModule> | null = null;
+
+function loadNotifications(): Promise<NotificationsModule> {
+  if (!_notificationsPromise) {
+    _notificationsPromise = import('expo-notifications').then((Notifications) => {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          // SDK 54 (expo-notifications): shouldShowAlert split into shouldShowBanner + shouldShowList.
+          shouldShowBanner: true,
+          shouldShowList:   true,
+          shouldPlaySound:  true,
+          shouldSetBadge:   false,
+        }),
+      });
+      return Notifications;
+    });
+  }
+  return _notificationsPromise;
+}
 
 // ---------------------------------------------------------------------------
 // Android default channel (required for Android 8+)
 // ---------------------------------------------------------------------------
 
-async function ensureAndroidChannel(): Promise<void> {
+async function ensureAndroidChannel(Notifications: NotificationsModule): Promise<void> {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync('default', {
     name:             'Default',
@@ -110,7 +129,8 @@ export async function initialisePushNotifications(): Promise<string | null> {
   if (!FEATURES.pushNotifications) return null;
 
   try {
-    await ensureAndroidChannel();
+    const Notifications = await loadNotifications();
+    await ensureAndroidChannel(Notifications);
 
     // 1. Request permission — graceful on denial
     const { status: existing } = await Notifications.getPermissionsAsync();
@@ -166,7 +186,7 @@ export async function initialisePushNotifications(): Promise<string | null> {
 
     return expoPushToken;
   } catch {
-    // Expo Go iOS throws here — degrade silently.
+    // Expo Go (Android module load, iOS token fetch) throws here — degrade silently.
     return null;
   }
 }

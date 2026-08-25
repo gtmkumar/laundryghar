@@ -129,14 +129,31 @@ builder.Services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
 // ── OTP delivery stack (F5) ─────────────────────────────────────────────────────
 builder.Services.Configure<OtpSettings>(builder.Configuration.GetSection(OtpSettings.SectionName));
 
-// Fail closed: the testing master OTP (Otp:TestCode) must never reach Production.
-if (builder.Environment.IsProduction()
-    && !string.IsNullOrEmpty(builder.Configuration[$"{OtpSettings.SectionName}:TestCode"]))
+// Fail closed: the testing master OTPs must never reach Production. Otp:TestCode covers the
+// 6-digit staff/rider flow; Otp:CustomerTestCode covers the 4-digit customer flow. Either one
+// present in Production would let anybody sign in with a known code, so both abort startup.
+foreach (var testCodeKey in new[] { "TestCode", "CustomerTestCode" })
 {
-    throw new InvalidOperationException(
-        "Otp:TestCode is set in a Production environment. The testing master OTP is " +
-        "non-production only — remove Otp__TestCode from this environment's configuration.");
+    if (builder.Environment.IsProduction()
+        && !string.IsNullOrEmpty(builder.Configuration[$"{OtpSettings.SectionName}:{testCodeKey}"]))
+    {
+        throw new InvalidOperationException(
+            $"Otp:{testCodeKey} is set in a Production environment. The testing master OTP is " +
+            $"non-production only — remove Otp__{testCodeKey} from this environment's configuration.");
+    }
 }
+
+// ── Google sign-in (customer + staff social login) ──────────────────────────────
+// Client IDs only — no secret. Absent config leaves IGoogleIdTokenVerifier failing closed,
+// which is the correct behaviour for an environment where Google sign-in is not set up.
+// Custom domains (white-label T2): the CNAME target providers point their domain at is
+// environment-specific, so it is configuration rather than a constant.
+builder.Services.Configure<core.Application.Identity.TenancyOrg.BrandDomains.BrandDomainSettings>(
+    builder.Configuration.GetSection(
+        core.Application.Identity.TenancyOrg.BrandDomains.BrandDomainSettings.SectionName));
+
+builder.Services.Configure<GoogleAuthSettings>(
+    builder.Configuration.GetSection(GoogleAuthSettings.SectionName));
 
 // OTP delivery: channel-routing sender (WhatsApp template + MSG91 SMS fallback).
 //
@@ -492,17 +509,27 @@ app.Run();
 // ── Pre-auth scope-resolving paths that need an RLS bypass ────────────────────
 // Identity (E6): password login, OTP send/verify, and refresh resolve a user's
 // scope/memberships before any tenant context exists. Customer-auth (E7): the
-// unauthenticated OTP send/verify and refresh paths resolve the brand via an explicit
-// predicate (no token/tenant yet); logout + /me are authenticated (CustomerOnly) so they
-// keep RLS and are NOT bypassed here. OAuth (E8): the unauthenticated /oauth/* flows
+// unauthenticated OTP send/verify, Google sign-in, PIN unlock and refresh paths resolve the
+// brand via an explicit predicate (no token/tenant yet); logout, /me, PIN set and the
+// phone-link pair are authenticated (CustomerOnly) so they keep RLS and are NOT bypassed
+// here. OAuth (E8): the unauthenticated /oauth/* flows
 // (register, authorize page + backing OTP send/approve, token exchange) resolve the brand
 // and client/customer rows via explicit predicates before any tenant context exists.
 static bool IsScopeResolvingAuthPath(PathString path) =>
     path.StartsWithSegments("/api/v1/auth/password/login")
     || path.StartsWithSegments("/api/v1/auth/otp")
     || path.StartsWithSegments("/api/v1/auth/refresh")
+    // Staff Google sign-in: matches the Google-verified email against identity_access.users
+    // and resolves scope, exactly as password login does, before any tenant context exists.
+    || path.StartsWithSegments("/api/v1/auth/google")
     || path.StartsWithSegments("/api/v1/customer/auth/otp")
     || path.StartsWithSegments("/api/v1/customer/auth/refresh")
+    // Customer Google sign-in + PIN unlock: both are anonymous and resolve the brand (and
+    // then the customer) via explicit predicates before any token exists — the same
+    // situation as customer OTP send/verify. The customer-facing PIN *set* endpoint is
+    // NOT here: it is authenticated, so it keeps full RLS.
+    || path.StartsWithSegments("/api/v1/customer/auth/google")
+    || path.StartsWithSegments("/api/v1/customer/auth/pin/verify")
     // Partner (issue #14): the anonymous partner OTP send/verify paths resolve the partner user +
     // org by phone before any partner context exists. partner_users/partners have rls_partner
     // enabled, so without this bypass the lookups would return nothing. Each query is keyed to the

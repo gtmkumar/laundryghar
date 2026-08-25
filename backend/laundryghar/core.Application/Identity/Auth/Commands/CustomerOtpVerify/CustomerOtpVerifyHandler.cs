@@ -107,9 +107,11 @@ public sealed class CustomerOtpVerifyHandler : ICommandHandler<CustomerOtpVerify
             throw new UnauthorizedAccessException("Maximum OTP attempts exceeded.");
 
         // SEC2: Verify using salted HMAC, falling back to legacy SHA-256 for pre-migration rows.
-        // Non-production additionally accepts the configured Otp:TestCode (testing master code).
+        // Non-production additionally accepts Otp:CustomerTestCode (the 4-digit customer master
+        // code, e.g. "1234"). Otp:TestCode is deliberately NOT accepted here — it is the 6-digit
+        // staff/rider code and would not match this flow's length anyway.
         var hmacKey = OtpSecurityHelper.ResolveHmacKey(_otpSettings, _env.IsDevelopment());
-        var isValid = OtpSecurityHelper.IsTestCodeAccepted(_otpSettings.TestCode, _env.IsProduction(), cmd.Code.Trim())
+        var isValid = OtpSecurityHelper.IsTestCodeAccepted(_otpSettings.CustomerTestCode, _env.IsProduction(), cmd.Code.Trim())
                    || OtpSecurityHelper.VerifyCode(
                           hmacKey,
                           otpCode.CodeSalt,
@@ -134,7 +136,7 @@ public sealed class CustomerOtpVerifyHandler : ICommandHandler<CustomerOtpVerify
         bool isNew = customer is null;
         if (isNew)
         {
-            var customerCode = await GenerateUniqueCodeAsync(brandId, ct);
+            var customerCode = await CustomerSessionIssuer.GenerateUniqueCodeAsync(_db, brandId, ct);
             customer = new CustomerEntity
             {
                 Id               = Guid.NewGuid(),
@@ -181,72 +183,15 @@ public sealed class CustomerOtpVerifyHandler : ICommandHandler<CustomerOtpVerify
         otpCode.CustomerId = customer.Id;
         await _db.SaveChangesAsync(ct);
 
-        var ipAddress = string.IsNullOrEmpty(cmd.IpAddress) ? null
-            : IPAddress.TryParse(cmd.IpAddress, out var ip) ? ip : null;
-
-        // ── Issue customer JWT ─────────────────────────────────────────────────
-        var accessToken = _jwt.CreateCustomerAccessToken(new CustomerTokenClaims(
-            CustomerId: customer.Id,
-            BrandId:    customer.BrandId,
-            Phone:      customer.PhoneE164));
-
-        // ── Refresh token (customer_id path) ──────────────────────────────────
-        var rawRefresh = _jwt.GenerateRefreshTokenRaw();
-        var tokenHash  = _jwt.HashRefreshToken(rawRefresh);
-        var rtId       = Guid.NewGuid();
-
-        var refreshToken = new RefreshTokenEntity
-        {
-            Id         = rtId,
-            CustomerId = customer.Id,
-            TokenHash  = tokenHash,
-            FamilyId   = rtId,
-            IpAddress  = ipAddress,
-            UserAgent  = cmd.UserAgent,
-            IssuedAt   = DateTimeOffset.UtcNow,
-            ExpiresAt  = DateTimeOffset.UtcNow.AddDays(_jwtSettings.RefreshDays),
-            CreatedAt  = DateTimeOffset.UtcNow
-        };
-
-        // ── Login history ──────────────────────────────────────────────────────
-        _db.LoginHistories.Add(new LoginHistory
-        {
-            Id         = Guid.NewGuid(),
-            CustomerId = customer.Id,
-            Identifier = cmd.Phone,
-            AuthMethod = AuthMethod.Otp,
-            Success    = true,
-            IpAddress  = ipAddress,
-            UserAgent  = cmd.UserAgent,
-            OccurredAt = DateTimeOffset.UtcNow,
-            CreatedAt  = DateTimeOffset.UtcNow
-        });
-        await _db.SaveChangesAsync(ct);
-
-        // Root refresh-token insert uses raw parameterized SQL (self-referential family_id FK).
-        await _refreshTokens.InsertRootAsync(refreshToken, ct);
-
-        return new CustomerTokenResponse(
-            AccessToken:      accessToken,
-            RefreshToken:     rawRefresh,
-            ExpiresInSeconds: _jwtSettings.AccessMinutes * 60,
-            IsNewCustomer:    isNew);
-    }
-
-    private async Task<string> GenerateUniqueCodeAsync(Guid brandId, CancellationToken ct)
-    {
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        for (int attempt = 0; attempt < 10; attempt++)
-        {
-            var code = new string(Enumerable.Range(0, 10)
-                .Select(_ => chars[System.Security.Cryptography.RandomNumberGenerator.GetInt32(chars.Length)])
-                .ToArray());
-
-            var exists = await _db.Customers
-                .AnyAsync(c => c.BrandId == brandId && c.CustomerCode == code, ct);
-
-            if (!exists) return code;
-        }
-        return Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();
+        // ── Issue the session (JWT + refresh + login_history) ─────────────────
+        return await CustomerSessionIssuer.IssueAsync(
+            _db, _jwt, _refreshTokens, _jwtSettings,
+            customer,
+            authMethod:    AuthMethod.Otp,
+            identifier:    cmd.Phone,
+            ipAddressRaw:  cmd.IpAddress,
+            userAgent:     cmd.UserAgent,
+            isNewCustomer: isNew,
+            ct:            ct);
     }
 }

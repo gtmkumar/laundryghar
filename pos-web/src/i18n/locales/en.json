@@ -21,7 +21,11 @@
     "password": "Password",
     "loginFailed": "Login failed. Please check your credentials.",
     "devNote": "Dev: admin@laundryghar.local / Admin@123",
-    "platformNote": "Platform admin — set X-Brand-Id via brand switcher in topbar."
+    "platformNote": "Platform admin — set X-Brand-Id via brand switcher in topbar.",
+    "orDivider": "or",
+    "googleLoginFailed": "Google sign-in failed. Please try again or use your password.",
+    "googleNoCredential": "Google did not return a sign-in token. Please try again.",
+    "googleLoadFailed": "Could not load Google sign-in. Check your connection and try again."
   },
   "pos": {
     "newOrder": "New Order",

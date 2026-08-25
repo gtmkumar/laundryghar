@@ -88,10 +88,12 @@ public sealed class GenerateInvoiceHandler : ICommandHandler<GenerateInvoiceComm
 
         // ── 5. Customer snapshot ───────────────────────────────────────────────
         var customer     = order.Customer;
+        // A Google-first customer may have no phone number, so the fallback chain ends at
+        // the email and then a generic label — an invoice must always carry a name.
         var customerName = customer.DisplayName
                            ?? $"{customer.FirstName} {customer.LastName}".Trim();
         if (string.IsNullOrWhiteSpace(customerName))
-            customerName = customer.PhoneE164;
+            customerName = customer.PhoneE164 ?? customer.Email ?? "Customer";
 
         // ── 6. Place of supply — use store's state (supplier state) ────────────
         // Per GST rules, place of supply for services is the state where the
@@ -148,7 +150,7 @@ public sealed class GenerateInvoiceHandler : ICommandHandler<GenerateInvoiceComm
             SupplierAddress = supplierAddress,
             SupplierGstin   = supplierGstin,
             CustomerName    = customerName,
-            CustomerPhone   = customer.PhoneE164,
+            CustomerPhone   = customer.PhoneE164 ?? string.Empty,
             CustomerGstin   = null,   // B2C default; extend via separate endpoint if needed
             PlaceOfSupply   = placeOfSupply,
             SacCode         = InvoiceTaxCalculator.DefaultSacCode,

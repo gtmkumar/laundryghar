@@ -23,7 +23,8 @@
     "optional": "(वैकल्पिक)",
     "currency": "₹{{amount}}",
     "itemCount_one": "{{count}} कपड़ा",
-    "itemCount_other": "{{count}} कपड़े"
+    "itemCount_other": "{{count}} कपड़े",
+    "skip": "छोड़ें"
   },
   "language": {
     "title": "भाषा",
@@ -61,7 +62,8 @@
     "social": {
       "comingSoon": "जल्द आ रहा है",
       "socialSoonMessage": "सोशल साइन-इन जल्द उपलब्ध होगा।",
-      "continueWith": "{{provider}} से जारी रखें"
+      "continueWith": "{{provider}} से जारी रखें",
+      "googleFailed": "Google साइन-इन विफल"
     }
   },
   "onboarding": {
@@ -416,7 +418,17 @@
     "cancelDeleteMessage": "खाता हटाने का अनुरोध रद्द करें और खाता बहाल करें?",
     "cancelDeleteConfirm": "खाता रखें",
     "deleteRequestCancelled": "हटाना रद्द हुआ",
-    "deleteRequestCancelledMessage": "आपका खाता हटाना रद्द हो गया। वापसी पर स्वागत है!"
+    "deleteRequestCancelledMessage": "आपका खाता हटाना रद्द हो गया। वापसी पर स्वागत है!",
+    "completion": {
+      "title": "अपनी प्रोफ़ाइल पूरी करें",
+      "body": "सभी सुविधाएँ और बेहतर अनुभव पाने के लिए सेटअप पूरा करें।",
+      "cta": "अभी पूरा करें",
+      "dismiss": "प्रोफ़ाइल अनुस्मारक बंद करें",
+      "missingName": "आपका नाम",
+      "missingEmail": "आपका ईमेल",
+      "missingPhone": "आपका मोबाइल नंबर",
+      "percent": "{{percent}}% पूर्ण"
+    }
   },
   "addresses": {
     "title": "सहेजे गए पते",
@@ -519,5 +531,41 @@
     "recentUpdates": "हाल के अपडेट",
     "emptyTitle": "अभी यहां कुछ नहीं है",
     "emptyMessage": "पिकअप बुक करने के बाद ऑर्डर और पिकअप अपडेट यहां दिखेंगे।"
+  },
+  "linkPhone": {
+    "title": "अपना मोबाइल नंबर जोड़ें",
+    "subtitle": "इसे सत्यापित करने के लिए हम एक कोड भेजेंगे। आप यह बाद में भी कर सकते हैं।",
+    "whyWeAsk": "आपका नंबर हमारे राइडर को पिकअप या डिलीवरी के बारे में आपसे संपर्क करने देता है। इसे जोड़ना वैकल्पिक है।",
+    "skipA11y": "मोबाइल नंबर जोड़ना छोड़ें"
+  },
+  "secure": {
+    "title": "अनलॉक PIN सेट करें",
+    "subtitle": "कोड का इंतज़ार किए बिना जल्दी वापस आने के लिए इसका उपयोग करें।",
+    "confirmTitle": "अपना PIN दोबारा डालें",
+    "confirmSubtitle": "वही अंक एक बार फिर दर्ज करें।",
+    "mismatch": "PIN मेल नहीं खाए। फिर से कोशिश करें।",
+    "skipA11y": "अनलॉक PIN सेट करना छोड़ें",
+    "biometricToggle": "{{method}} से भी अनलॉक करें"
+  },
+  "unlock": {
+    "title": "वापसी पर स्वागत है",
+    "subtitle": "इसके लिए अपना PIN दर्ज करें",
+    "biometricPrompt": "Laundry Ghar अनलॉक करें",
+    "useBiometric": "{{method}} का उपयोग करें",
+    "useAnotherMethod": "दूसरी साइन-इन विधि चुनें",
+    "sessionExpired": "आपका सत्र समाप्त हो गया। जारी रखने के लिए अपना PIN दर्ज करें।"
+  },
+  "security": {
+    "sectionTitle": "साइन-इन और सुरक्षा",
+    "mobileNumber": "मोबाइल नंबर",
+    "addMobileNumber": "अपना मोबाइल नंबर जोड़ें",
+    "notAddedYet": "अभी तक नहीं जोड़ा गया",
+    "googleLinked": "Google खाता लिंक है",
+    "setPin": "अनलॉक PIN सेट करें",
+    "changePin": "अपना अनलॉक PIN बदलें",
+    "pinActive": "PIN अनलॉक चालू है",
+    "pinInactive": "अगली बार तेज़ी से साइन इन करें",
+    "biometricUnlock": "{{method}} से अनलॉक करें",
+    "biometricNeedsPin": "पहले PIN सेट करें"
   }
 }

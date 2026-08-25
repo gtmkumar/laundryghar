@@ -387,10 +387,14 @@ public sealed class NotificationMappingService : BackgroundService
         EventPayload? payload,
         laundryghar.SharedDataModel.Entities.Kernel.OutboxEvent evt)
     {
+        // Phone is null for Google-first customers who never linked a number, so the
+        // chain continues to email and finally a generic salutation.
         var name = customer.DisplayName
             ?? (customer.FirstName is not null
                 ? $"{customer.FirstName} {customer.LastName}".Trim()
-                : customer.PhoneE164);
+                : customer.PhoneE164)
+            ?? customer.Email
+            ?? "Customer";
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {

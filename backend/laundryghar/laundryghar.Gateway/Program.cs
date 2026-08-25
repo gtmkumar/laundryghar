@@ -160,39 +160,44 @@ builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = Compre
 
 // ── CORS — single central policy for all gateway-routed clients ───────────────
 //
-// Dev: allows the two Vite dev server origins (admin-web :5173, pos-web :5174)
-//      with credentials so Authorization cookies/headers work.
-// Non-dev: origins loaded from Cors:AllowedOrigins config section.
+// Dev: the usual dev-server origins are allowed out of the box (admin-web :5173,
+//      pos-web :5174, Expo web :8081), PLUS anything in Cors:AllowedOrigins. The union
+//      matters because dev servers move — Vite auto-increments when a port is taken and
+//      Expo is routinely started on a custom port — and a CORS failure shows up as an
+//      opaque "Failed to fetch" with nothing in the server log. Adding
+//      Cors__AllowedOrigins__0=http://localhost:9091 beats editing this file each time.
+// Non-dev: Cors:AllowedOrigins ONLY — no localhost defaults ever reach a deployed
+//      environment. That list must include the customer web app's domain, not just the
+//      two consoles.
 //
 // When clients adopt the gateway as their single base URL this becomes the
 // only CORS point — individual services keep their own CORS for direct access.
 
 const string GatewayCorsPolicyName = "GatewayCors";
 
+string[] DevDefaultOrigins =
+[
+    "http://localhost:5173",   // admin-web
+    "http://localhost:5174",   // pos-web
+    "http://localhost:8081",   // customer-mobile, Expo web dev server (default port)
+];
+
 builder.Services.AddCors(opts =>
 {
-    if (builder.Environment.IsDevelopment())
-    {
-        opts.AddPolicy(GatewayCorsPolicyName, policy =>
-            policy
-                .WithOrigins("http://localhost:5173", "http://localhost:5174")
-                .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials());
-    }
-    else
-    {
-        var configuredOrigins = builder.Configuration
-            .GetSection("Cors:AllowedOrigins")
-            .Get<string[]>() ?? [];
+    var configuredOrigins = builder.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>() ?? [];
 
-        opts.AddPolicy(GatewayCorsPolicyName, policy =>
-            policy
-                .WithOrigins(configuredOrigins)
-                .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials());
-    }
+    var allowedOrigins = builder.Environment.IsDevelopment()
+        ? DevDefaultOrigins.Concat(configuredOrigins).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+        : configuredOrigins;
+
+    opts.AddPolicy(GatewayCorsPolicyName, policy =>
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials());
 });
 
 // ── Global rate limiter — per client-IP, fixed window ─────────────────────────

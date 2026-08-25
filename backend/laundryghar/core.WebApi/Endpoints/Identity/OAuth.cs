@@ -2,6 +2,7 @@ using core.Application.Common;
 using core.Application.Common.Interfaces;
 using core.Application.Identity.Auth.Commands.CustomerOtpSend;
 using core.Application.Identity.Auth.Commands.CustomerOtpVerify;
+using core.Application.Identity.Auth.Common;
 using core.Application.Identity.Auth.Dtos;
 using core.Application.Identity.OAuth;
 using LaundryGhar.Utilities.CQRS.Abstractions;
@@ -123,6 +124,7 @@ public class OAuth : IEndpointGroup
         group.MapGet("/oauth/authorize",
             (HttpContext ctx,
              LaundryGharDbContext db,
+             IOptions<OtpSettings> otpOptions,
              CancellationToken ct) =>
             {
                 var q = ctx.Request.Query;
@@ -155,7 +157,9 @@ public class OAuth : IEndpointGroup
                 // Serve the inline HTML page — validation of client_id + redirect_uri
                 // happens at /oauth/authorize/approve (where we have async DB access).
                 // This keeps the GET handler synchronous and fast.
-                var html = BuildAuthorizePage(clientId!, redirectUri!, codeChallenge!, state, scope);
+                var html = BuildAuthorizePage(
+                    clientId!, redirectUri!, codeChallenge!, state, scope,
+                    Math.Clamp(otpOptions.Value.CustomerCodeLength, 4, 8));
 
                 // [Fix 4] Strict CSP + framing protection for this HTML response.
                 // All inline styles/scripts are covered by unsafe-inline; no external resources.
@@ -645,7 +649,8 @@ public class OAuth : IEndpointGroup
         string redirectUri,
         string codeChallenge,
         string? state,
-        string? scope)
+        string? scope,
+        int otpDigits)
     {
         // Parameters are JSON-serialized using System.Text.Json with JavaScriptEncoder.Default.
         // JavaScriptEncoder.Default escapes <, >, &, ', and " as <, >, &, ', " —
@@ -656,6 +661,9 @@ public class OAuth : IEndpointGroup
         var safeCodeChallenge = codeChallenge;
         var safeState = state ?? "";
         var safeScope = scope ?? "mcp:booking";
+        // This page drives the CUSTOMER OTP flow, whose code length is configurable
+        // (Otp:CustomerCodeLength, 4 by default) — the input must follow it, not assume 6.
+        var otpPlaceholder = new string('0', otpDigits);
 
         // Single-page HTML + vanilla JS. No external resources.
         // The JS calls two API endpoints on this same origin:
@@ -748,8 +756,8 @@ public class OAuth : IEndpointGroup
 
     <!-- Step 2: OTP entry -->
     <div id="step-otp">
-      <label for="otp">6-digit OTP</label>
-      <input type="text" id="otp" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+      <label for="otp">{{otpDigits}}-digit OTP</label>
+      <input type="text" id="otp" placeholder="{{otpPlaceholder}}" maxlength="{{otpDigits}}" inputmode="numeric" autocomplete="one-time-code" />
       <button id="btn-verify">Verify &amp; Allow</button>
       <div class="msg" id="msg-otp"></div>
     </div>
@@ -823,8 +831,8 @@ public class OAuth : IEndpointGroup
       btnVerify.addEventListener('click', async () => {
         const phone = phoneInput.value.trim();
         const code  = otpInput.value.trim();
-        if (!code || code.length !== 6) {
-          setMsg(msgOtp, 'Please enter the 6-digit OTP.', true); return;
+        if (!code || code.length !== {{otpDigits}}) {
+          setMsg(msgOtp, 'Please enter the {{otpDigits}}-digit OTP.', true); return;
         }
 
         btnVerify.disabled = true;

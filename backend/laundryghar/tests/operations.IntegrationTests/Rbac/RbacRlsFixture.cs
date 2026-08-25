@@ -155,6 +155,18 @@ public sealed class RbacRlsFixture : IAsyncLifetime
             CREATE OR REPLACE FUNCTION kernel.rls_bypass() RETURNS boolean LANGUAGE sql STABLE AS
               $$ SELECT lower(coalesce(current_setting('app.bypass_rls', true), 'false'))
                         IN ('on','true','1','yes','t') $$;
+
+            -- Verbatim copy of the production function (db/patches/triggers_set_updated_at.sql);
+            -- migration 0002 attaches it to tenancy_org.brand_domains, so it must exist before
+            -- that file is applied in step 5.
+            CREATE OR REPLACE FUNCTION kernel.set_updated_at() RETURNS trigger LANGUAGE plpgsql AS $fn$
+            BEGIN
+                IF NEW.updated_at IS NOT DISTINCT FROM OLD.updated_at THEN
+                    NEW.updated_at := now();
+                END IF;
+                RETURN NEW;
+            END
+            $fn$;
             """);
 
         // 3. trimmed real-shaped tables (owned by postgres).
@@ -253,6 +265,11 @@ public sealed class RbacRlsFixture : IAsyncLifetime
         // 5. apply the verbatim RBAC patches (order matters: base table then scope/expiry).
         await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Patch("permission_overrides.sql")));
         await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Patch("permission_override_scope_expiry.sql")));
+        // White-label T2 custom domains, applied from the real migration so the tests exercise the
+        // shipped constraints, policy and trigger rather than a hand-rolled stand-in. Its RLS policy
+        // is created here with no `TO app_user` and no WITH CHECK — exactly as production ships it —
+        // so the isolation test measures the real thing.
+        await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0002_brand_domains.up.sql")));
 
         // 6. grants for both app roles across all three schemas.
         await ExecAsync(conn, """

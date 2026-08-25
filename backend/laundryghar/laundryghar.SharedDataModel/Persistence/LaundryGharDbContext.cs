@@ -39,6 +39,7 @@ public class LaundryGharDbContext : DbContext
     // tenancy_org
     public DbSet<Platform> Platforms => Set<Platform>();
     public DbSet<Brand> Brands => Set<Brand>();
+    public DbSet<BrandDomain> BrandDomains => Set<BrandDomain>();
     public DbSet<Territory> Territories => Set<Territory>();
     public DbSet<FranchiseAgreement> FranchiseAgreements => Set<FranchiseAgreement>();
     public DbSet<Franchise> Franchises => Set<Franchise>();
@@ -75,6 +76,7 @@ public class LaundryGharDbContext : DbContext
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<CustomerDevice> CustomerDevices => Set<CustomerDevice>();
+    public DbSet<CustomerIdentity> CustomerIdentities => Set<CustomerIdentity>();
     public DbSet<AccountDeletionRequest> AccountDeletionRequests => Set<AccountDeletionRequest>();
     public DbSet<DpdpConsent> DpdpConsents => Set<DpdpConsent>();
     public DbSet<ServiceCategory> ServiceCategories => Set<ServiceCategory>();

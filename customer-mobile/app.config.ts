@@ -13,11 +13,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
-  splash: {
-    image: './assets/splash.png',
-    resizeMode: 'contain',
-    backgroundColor: OLIVE_700,
-  },
   scheme: 'laundryghar',
   ios: {
     supportsTablet: false,
@@ -60,6 +55,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     commerceApiUrl: process.env.COMMERCE_API_URL,
     engagementApiUrl: process.env.ENGAGEMENT_API_URL,
     defaultBrandCode: process.env.DEFAULT_BRAND_CODE ?? 'LG-MAIN',
+    // Google OAuth client IDs — public identifiers, safe to ship in the bundle.
+    // Create them in Google Cloud Console → Credentials (a Firebase project that has
+    // the Google sign-in provider enabled creates the web + platform clients for you).
+    // Leave unset to hide the Google button rather than show one that cannot work.
+    googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID,
+    googleAndroidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID,
+    googleIosClientId: process.env.GOOGLE_IOS_CLIENT_ID,
     // Sentry DSN — set via EAS secret (SENTRY_DSN) or .env.local
     // (EXPO_PUBLIC_SENTRY_DSN). When absent Sentry is fully disabled.
     sentryDsn: process.env.SENTRY_DSN,

@@ -47,10 +47,24 @@ public sealed class RbacEfFixture : IAsyncLifetime
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_admin') THEN CREATE ROLE app_admin; END IF;
         END $$;
 
-        -- kernel RLS helpers referenced by permission_overrides.sql's CREATE POLICY (stubbed; superuser
-        -- bypasses RLS so the bodies are never evaluated by these tests).
-        CREATE OR REPLACE FUNCTION kernel.rls_bypass()      RETURNS boolean LANGUAGE sql STABLE AS 'SELECT true';
-        CREATE OR REPLACE FUNCTION kernel.current_user_id() RETURNS uuid    LANGUAGE sql STABLE AS 'SELECT NULL::uuid';
+        -- kernel RLS helpers referenced by permission_overrides.sql's and
+        -- brand_module_entitlement.sql's CREATE POLICY (stubbed; superuser bypasses RLS so the
+        -- bodies are never evaluated by these tests). They must nonetheless EXIST, because
+        -- CREATE POLICY resolves the functions in its USING clause at creation time.
+        CREATE OR REPLACE FUNCTION kernel.rls_bypass()       RETURNS boolean LANGUAGE sql STABLE AS 'SELECT true';
+        CREATE OR REPLACE FUNCTION kernel.current_user_id()  RETURNS uuid    LANGUAGE sql STABLE AS 'SELECT NULL::uuid';
+        CREATE OR REPLACE FUNCTION kernel.current_brand_id() RETURNS uuid    LANGUAGE sql STABLE AS 'SELECT NULL::uuid';
+
+        -- Verbatim copy of the production function (db/patches/triggers_set_updated_at.sql);
+        -- migration 0002 attaches it to tenancy_org.brand_domains.
+        CREATE OR REPLACE FUNCTION kernel.set_updated_at() RETURNS trigger LANGUAGE plpgsql AS $fn$
+        BEGIN
+            IF NEW.updated_at IS NOT DISTINCT FROM OLD.updated_at THEN
+                NEW.updated_at := now();
+            END IF;
+            RETURN NEW;
+        END
+        $fn$;
         """;
 
     // ── Columns/tables the EF model maps that come from OTHER additive patches we don't apply here ─
@@ -59,14 +73,36 @@ public sealed class RbacEfFixture : IAsyncLifetime
         ALTER TABLE identity_access.users ADD COLUMN IF NOT EXISTS vertical_key varchar(20);
         ALTER TABLE identity_access.roles ADD COLUMN IF NOT EXISTS vertical_key varchar(20);
 
-        -- permission_canonical_module.sql joins identity_access.modules; the real navigator-modules seed
-        -- creates it. An empty stub is enough: the UPDATEs then map nothing and every permission stays an
-        -- orphan (module_key NULL), which the entitlement filter always keeps.
+        -- phase0_multi_vertical.sql's brand discriminator. GetNavigator SELECTs brands.vertical_key
+        -- to apply its vertical gate, so the column must exist; the DEFAULT matches the real patch,
+        -- which keeps the raw-SQL tenant seeding below working unchanged.
+        ALTER TABLE tenancy_org.brands
+            ADD COLUMN IF NOT EXISTS vertical_key varchar(20) NOT NULL DEFAULT 'laundry';
+
+        -- permission_canonical_module.sql joins identity_access.modules, and
+        -- brand_module_entitlement.sql adds is_core to it + FKs brand_module.module_key at it.
+        -- The real navigator-modules seed creates the table in production; here we create the same
+        -- SHAPE (mirroring AppModuleConfiguration) and leave it EMPTY. Empty is the safe default for
+        -- the pre-existing tests: permission_canonical_module's UPDATEs then map nothing, every
+        -- permission stays an orphan (module_key NULL), and the entitlement filter always keeps
+        -- orphans. Tests that care about entitlement insert their own module rows.
         CREATE TABLE IF NOT EXISTS identity_access.modules (
-            id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-            key                varchar(64) NOT NULL UNIQUE,
-            nav_order          int NOT NULL DEFAULT 100,
-            permission_modules text[] NOT NULL DEFAULT '{}'
+            id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            key                 varchar(64) NOT NULL UNIQUE,
+            label               varchar(128) NOT NULL DEFAULT '',
+            icon                varchar(64),
+            route               varchar(160),
+            section             varchar(64),
+            nav_order           int NOT NULL DEFAULT 100,
+            matrix_order        int NOT NULL DEFAULT 100,
+            show_in_nav         boolean NOT NULL DEFAULT false,
+            show_in_matrix      boolean NOT NULL DEFAULT true,
+            required_permission varchar(128),
+            permission_modules  text[] NOT NULL DEFAULT '{}',
+            vertical_key        varchar(20),
+            status              varchar(32) NOT NULL DEFAULT 'active',
+            created_at          timestamptz NOT NULL DEFAULT now(),
+            updated_at          timestamptz NOT NULL DEFAULT now()
         );
         """;
 
@@ -99,12 +135,28 @@ public sealed class RbacEfFixture : IAsyncLifetime
                      "permission_overrides.sql",
                      "permission_override_scope_expiry.sql",
                      "permission_canonical_module.sql",
+                     // The PaaS entitlement axis: modules.is_core + brand_module + the bundle catalog.
+                     // Applied verbatim so the entitlement tests exercise the REAL schema (FKs, the
+                     // brand-scoped RLS policy shape, the source CHECK) rather than a hand-rolled stub.
+                     // Its backfill is a no-op here: modules is empty and brands are seeded per-test.
+                     "brand_module_entitlement.sql",
                      // MANDATORY: provisions the current-month audit_logs partition, else the interceptor
                      // INSERT throws "no partition of relation audit_logs found" and rolls back the save.
                      "audit_logs_partition_maintenance.sql",
                  })
         {
             await Exec(conn, await File.ReadAllTextAsync(RepoPaths.Patch(patch)));
+        }
+
+        // Versioned migrations (db/migrations/), applied verbatim in order: brand_domains and the
+        // SECURITY DEFINER host lookup BrandResolver calls. All NEW schema lives here, not in patches.
+        foreach (var migration in new[]
+                 {
+                     "0002_brand_domains.up.sql",
+                     "0003_resolve_brand_domain.up.sql",
+                 })
+        {
+            await Exec(conn, await File.ReadAllTextAsync(RepoPaths.Migration(migration)));
         }
     }
 
@@ -145,6 +197,24 @@ public sealed class RbacEfFixture : IAsyncLifetime
             INSERT INTO tenancy_org.stores (id, brand_id, franchise_id, code, name, address_line1, city, state, pincode)
                 VALUES ('{{storeId}}', '{{brandId}}', '{{franchiseId}}', 's_{{sfx}}', 'S', 'A', 'C', 'ST', '000000');
             """);
+    }
+
+    /// <summary>Raw platform → brand pair via SQL (no franchise/store), for brand-scoped tests such as
+    /// entitlement. Same rationale as <see cref="SeedStoreChainAsync"/>: raw SQL avoids EF trying to
+    /// write patch-only tenancy columns this fixture does not provision.</summary>
+    public async Task<string> SeedBrandAsync(Guid brandId, string verticalKey = "laundry")
+    {
+        var platformId = Guid.NewGuid();
+        var sfx = Guid.NewGuid().ToString("N")[..10];
+        await using var c = new NpgsqlConnection(SuperConnString);
+        await c.OpenAsync();
+        await Exec(c, $$"""
+            INSERT INTO tenancy_org.platforms (id, code, name)
+                VALUES ('{{platformId}}', 'p_{{sfx}}', 'P');
+            INSERT INTO tenancy_org.brands (id, platform_id, code, name, vertical_key)
+                VALUES ('{{brandId}}', '{{platformId}}', 'b_{{sfx}}', 'B', '{{verticalKey}}');
+            """);
+        return $"b_{sfx}";
     }
 
     /// <summary>Open a raw superuser connection for assertion queries.</summary>

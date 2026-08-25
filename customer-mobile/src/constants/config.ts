@@ -38,6 +38,31 @@ export const CONFIG = {
 
 export type ServiceName = keyof typeof CONFIG;
 
+/**
+ * Digits in a customer login OTP. Must match the backend's Otp:CustomerCodeLength
+ * (4 by default) — the verify endpoint rejects a code of any other length.
+ */
+export const OTP_LENGTH = 4;
+
+/** PIN length used by the set/unlock screens. The backend accepts 4–6 digits. */
+export const PIN_LENGTH = 4;
+
+/**
+ * Google OAuth client IDs, one per platform, from Google Cloud Console
+ * (APIs & Services → Credentials). These are public identifiers, not secrets —
+ * they ship inside the app bundle by design.
+ *
+ * `web` doubles as the client for Expo web AND for Expo Go / the auth proxy;
+ * `android` is bound to the package name + signing SHA-1; `ios` to the bundle id.
+ * Google sign-in is hidden in the UI when the relevant id is missing, rather than
+ * showing a button that can only fail.
+ */
+export const GOOGLE_AUTH = {
+  webClientId:     extra['googleWebClientId'],
+  androidClientId: extra['googleAndroidClientId'],
+  iosClientId:     extra['googleIosClientId'],
+} as const;
+
 /** Flat express surcharge (₹) applied at payment; mirrored on the tracking summary. */
 export const EXPRESS_SURCHARGE = 50;
 
@@ -52,7 +77,18 @@ export const EXPRESS_SURCHARGE = 50;
 // ---------------------------------------------------------------------------
 export const FEATURES = {
   bookingApi: true,   // POST /api/v1/customer/pickup-requests is live with cart items
-  socialLogin: false, // Google / Apple sign-in buttons are presentational for now
+  /**
+   * Google sign-in via expo-auth-session → POST /customer/auth/google.
+   * The button additionally hides itself when no client ID is configured for the
+   * running platform (see GOOGLE_AUTH), so enabling this without credentials is safe.
+   * Apple sign-in is still presentational.
+   */
+  socialLogin: true,
+  /**
+   * PIN + biometric unlock for returning customers. When false the app always
+   * falls back to the OTP flow, which remains available regardless.
+   */
+  pinUnlock: true,
   /**
    * Push notifications — Expo push token registration + foreground handler.
    * Requires a dev/production build for full iOS support (Expo Go iOS cannot

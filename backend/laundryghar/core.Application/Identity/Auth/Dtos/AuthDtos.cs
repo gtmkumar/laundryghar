@@ -4,6 +4,12 @@ namespace core.Application.Identity.Auth.Dtos;
 
 public sealed record PasswordLoginRequest(string Identifier, string Password);
 
+/// <summary>
+/// Staff "Sign in with Google" for admin-web / pos-web. The console obtains the ID token
+/// from Google Identity Services and posts it here; no account is ever created from it.
+/// </summary>
+public sealed record GoogleLoginRequest(string IdToken);
+
 public sealed record OtpSendRequest(string Identifier, string IdentifierType, string Purpose);
 
 public sealed record OtpVerifyRequest(string Identifier, string IdentifierType, string Purpose, string Code);

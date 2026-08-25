@@ -59,6 +59,42 @@ export interface CustomerTokenResponse {
   accessToken: string;
   refreshToken: string;
   isNewCustomer: boolean;
+  /** True when the account has no verified phone yet — offer, but never force, the link step. */
+  needsPhone?: boolean;
+  /** True when an unlock PIN is set, so the app can offer PIN/biometric next launch. */
+  hasPin?: boolean;
+  /** False while name / email / phone is incomplete — drives the dashboard ribbon. */
+  profileComplete?: boolean;
+}
+
+export interface GoogleSignInRequest {
+  idToken: string;
+  brandCode?: string;
+}
+
+export interface PhoneLinkVerifyRequest {
+  phone: string;
+  code: string;
+}
+
+export interface PhoneLinkedResponse {
+  phone: string;
+  profileComplete: boolean;
+}
+
+export interface PinVerifyRequest {
+  /** Phone (E.164) or email of the account being unlocked. */
+  identifier: string;
+  pin: string;
+  brandCode?: string;
+}
+
+/** Which profile fields are still blank. Advisory only — nothing here blocks the app. */
+export interface ProfileCompletionDto {
+  isComplete: boolean;
+  percentComplete: number;
+  /** Field keys: 'name' | 'email' | 'phone'. */
+  missingFields: string[];
 }
 
 export interface RefreshTokenRequest {
@@ -73,12 +109,23 @@ export interface CustomerMeResponse {
   /** Backend field name — maps to CustomerId in CustomerMeResponse.cs */
   customerId: string;
   brandId: string;
-  /** Backend field name — maps to Phone in CustomerMeResponse.cs */
-  phone: string;
+  /**
+   * Backend field name — maps to Phone in CustomerMeResponse.cs.
+   * Null for a customer who signed up with Google and skipped the phone step.
+   */
+  phone?: string | null;
   firstName?: string;
   lastName?: string;
   displayName?: string;
   status: string;
+  email?: string | null;
+  avatarUrl?: string | null;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
+  hasPin?: boolean;
+  /** Linked social providers, e.g. ['google']. */
+  linkedProviders?: string[];
+  profileCompletion?: ProfileCompletionDto;
 }
 
 // ---------------------------------------------------------------------------

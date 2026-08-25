@@ -1,5 +1,6 @@
 using core.Application.Common.Interfaces;
 using core.Infrastructure.Auth;
+using core.Infrastructure.Auth.Google;
 using core.Infrastructure.Email;
 using core.Infrastructure.Gateway;
 using core.Infrastructure.Persistence;
@@ -33,11 +34,22 @@ public static class DependencyInjection
         // Injects the concrete LaundryGharDbContext for Database.ExecuteSqlAsync.
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
+        // Google sign-in — ID token verification for customer and staff social login.
+        // Both registrations are singletons on purpose: the OIDC ConfigurationManager caches
+        // Google's JWKS and refreshes it across key rotations, which only works if the same
+        // instance survives between requests.
+        services.AddSingleton(_ => GoogleIdTokenVerifier.CreateConfigurationManager());
+        services.AddSingleton<IGoogleIdTokenVerifier, GoogleIdTokenVerifier>();
+
         // Razorpay Payment Links — collect brand platform-tier invoices (reads Razorpay:KeyId/KeySecret).
         // The "razorpay-core" HttpClient itself (with tuned circuit-breaker/timeout/concurrency
         // resilience) is registered in core.WebApi/Program.cs — this project has no reference to
         // laundryghar.ServiceDefaults, where that resilience extension lives.
         services.AddScoped<IRazorpayLinkClient, RazorpayLinkClient>();
+
+        // Custom-domain ownership verification (white-label T2). Singleton: LookupClient is
+        // thread-safe and holds the resolver/socket setup, so one instance per process is correct.
+        services.AddSingleton<IDnsTxtLookup, Dns.DnsTxtLookup>();
 
         return services;
     }

@@ -2,9 +2,13 @@
  * Login (phone entry) — "Welcome back".
  * Validates an Indian mobile number, requires T&C consent, sends an OTP
  * (POST /customer/auth/otp/send), then routes to the code screen.
- * Google / Apple buttons are presentational until social login ships (FEATURES.socialLogin).
+ *
+ * Google sign-in is live: expo-auth-session returns a Google ID token which
+ * POST /customer/auth/google verifies server-side, creating the account on first
+ * use. A brand-new Google user is then offered — never forced — the phone step.
+ * Apple remains presentational.
  */
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -20,8 +24,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
 import { Button } from '@/components/ui/Button';
-import { sendOtp } from '@/api/auth';
+import { sendOtp, signInWithGoogle } from '@/api/auth';
 import { FEATURES } from '@/constants/config';
+import { isGoogleSignInAvailable } from '@/lib/googleAuth';
+import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
+import { useAuthStore } from '@/store/authStore';
 import { useTranslation } from 'react-i18next';
 
 function normalizePhone(raw: string): string {
@@ -36,6 +43,8 @@ function isValid(raw: string): boolean {
   return digits.length === 10 || (digits.length === 12 && digits.startsWith('91'));
 }
 
+/** Presentational provider button. Google has its own component (GoogleAuthButton) because
+ *  it owns an auth hook; this one covers the still-unimplemented providers. */
 function SocialButton({
   icon,
   label,
@@ -61,11 +70,55 @@ function SocialButton({
 export default function LoginScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { setTokens, rememberIdentifier } = useAuthStore();
   const [phone, setPhone] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const valid = isValid(phone);
+  const googleAvailable = isGoogleSignInAvailable();
+
+  /**
+   * Exchanges the Google ID token for a LaundryGhar session, then routes:
+   *   - brand-new account without a phone → the optional "add your number" step
+   *   - everyone else → straight to the dashboard
+   * Sign-up asks for nothing beyond what Google already told us.
+   */
+  const handleGoogleToken = useCallback(
+    async (idToken: string) => {
+      setGoogleLoading(true);
+      try {
+        const tokens = await signInWithGoogle(idToken);
+        await setTokens(tokens);
+
+        if (tokens.needsPhone) {
+          router.replace({
+            pathname: '/(auth)/link-phone',
+            params: { isNew: tokens.isNewCustomer ? '1' : '0' },
+          });
+        } else {
+          router.replace('/(app)/(tabs)/home');
+        }
+      } catch (err: unknown) {
+        Alert.alert(
+          t('auth.social.googleFailed'),
+          err instanceof Error ? err.message : t('auth.tryAgain'),
+        );
+      } finally {
+        setGoogleLoading(false);
+      }
+    },
+    [router, setTokens, t],
+  );
+
+  const handleGoogleError = useCallback(
+    (message: string) => {
+      setGoogleLoading(false);
+      Alert.alert(t('auth.social.googleFailed'), message);
+    },
+    [t],
+  );
 
   const handleSendOtp = async () => {
     if (!valid) {
@@ -80,6 +133,7 @@ export default function LoginScreen() {
     try {
       const normalized = normalizePhone(phone);
       await sendOtp(normalized);
+      await rememberIdentifier(normalized);
       const raw = normalized.replace('+91', '');
       router.push({ pathname: '/(auth)/otp', params: { phone: normalized, raw } });
     } catch (err: unknown) {
@@ -89,7 +143,7 @@ export default function LoginScreen() {
     }
   };
 
-  const socialSoon = () =>
+  const appleSoon = () =>
     Alert.alert(t('auth.social.comingSoon'), t('auth.social.socialSoonMessage'));
 
   return (
@@ -182,16 +236,20 @@ export default function LoginScreen() {
               <View className="h-px flex-1 bg-cream-300" />
             </View>
 
-            {/* Social */}
+            {/* Social. GoogleAuthButton owns the expo-auth-session hook, which throws when
+                no client ID is configured — so it must be MOUNTED conditionally, not just
+                hidden, or an unconfigured build crashes this whole screen. */}
             <View className="flex-row gap-3">
-              <SocialButton
-                label="Google"
-                onPress={socialSoon}
-                icon={<FontAwesome name="google" size={18} color="#DB4437" />}
-              />
+              {googleAvailable ? (
+                <GoogleAuthButton
+                  busy={googleLoading}
+                  onIdToken={handleGoogleToken}
+                  onError={handleGoogleError}
+                />
+              ) : null}
               <SocialButton
                 label="Apple"
-                onPress={socialSoon}
+                onPress={appleSoon}
                 icon={<FontAwesome name="apple" size={20} color="#1E2119" />}
               />
             </View>

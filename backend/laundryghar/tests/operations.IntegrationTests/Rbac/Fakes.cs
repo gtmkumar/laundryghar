@@ -33,7 +33,12 @@ public sealed class FakeCurrentUser : ICurrentUser
     public bool IsAuthenticated => UserId is not null;
     public bool IsPlatformAdmin { get; init; }
 
-    public bool HasPermission(string permissionCode) => false;
+    /// <summary>Codes <see cref="HasPermission"/> answers true for. Defaults to empty, which keeps the
+    /// pre-existing audit-interceptor usage on its original always-false behaviour.</summary>
+    public IReadOnlySet<string> Permissions { get; init; } =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    public bool HasPermission(string permissionCode) => Permissions.Contains(permissionCode);
 
     public IReadOnlyCollection<ScopeNode> ScopeNodes { get; init; } = Array.Empty<ScopeNode>();
 

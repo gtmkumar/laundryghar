@@ -5,8 +5,10 @@ import { useState } from 'react'
 import { Loader2, User, Lock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { loginSchema, type LoginFormValues } from '@/types/schemas'
-import { passwordLogin } from '@/api/auth'
+import { passwordLogin, googleLogin } from '@/api/auth'
 import { useAuthStore } from '@/stores/authStore'
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
+import { apiErrorMessage } from '@/lib/apiError'
 
 // Left panel stats — pre-auth so these are static/illustrative
 const HERO_STATS = [
@@ -36,6 +38,7 @@ export function LoginPage() {
   const location = useLocation()
   const [serverError, setServerError] = useState<string | null>(null)
   const [rememberDevice, setRememberDevice] = useState(false)
+  const [googleBusy, setGoogleBusy] = useState(false)
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/'
 
@@ -53,14 +56,19 @@ export function LoginPage() {
 
   if (accessToken) return <Navigate to={landingPath(user?.user_type)} replace />
 
+  /** Shared landing logic for both credentials and Google. */
+  function completeSignIn() {
+    // Respect an explicit redirect target; otherwise route by role.
+    const dest = from !== '/' ? from : landingPath(useAuthStore.getState().user?.user_type)
+    navigate(dest, { replace: true })
+  }
+
   async function onSubmit(values: LoginFormValues) {
     setServerError(null)
     try {
       const tokens = await passwordLogin({ identifier: values.identifier, password: values.password })
       setTokens(tokens.accessToken, tokens.refreshToken)
-      // Respect an explicit redirect target; otherwise route by role.
-      const dest = from !== '/' ? from : landingPath(useAuthStore.getState().user?.user_type)
-      navigate(dest, { replace: true })
+      completeSignIn()
     } catch (err) {
       // A 401 means bad credentials / inactive account — show the friendly
       // message, not axios's "Request failed with status code 401".
@@ -68,6 +76,24 @@ export function LoginPage() {
       setServerError(
         status === 401 || !(err instanceof Error) ? t('auth.loginFailed') : err.message,
       )
+    }
+  }
+
+  async function onGoogleCredential(idToken: string) {
+    setServerError(null)
+    setGoogleBusy(true)
+    try {
+      const tokens = await googleLogin(idToken)
+      setTokens(tokens.accessToken, tokens.refreshToken)
+      completeSignIn()
+    } catch (err) {
+      // Unlike a wrong password, a 401 here is not a guessing attempt — it means "this
+      // Google address has no staff account", which the user needs told plainly. The
+      // axios interceptor deliberately leaves 401 messages un-enriched, so read the
+      // server envelope directly.
+      setServerError(apiErrorMessage(err, t('auth.googleLoginFailed')))
+    } finally {
+      setGoogleBusy(false)
     }
   }
 
@@ -250,6 +276,13 @@ export function LoginPage() {
                 {isSubmitting ? t('auth.signingIn') : t('auth.signInArrow')}
               </button>
             </form>
+
+            {/* Google — renders nothing when VITE_GOOGLE_CLIENT_ID is unset */}
+            <GoogleSignInButton
+              disabled={isSubmitting || googleBusy}
+              onCredential={(idToken) => void onGoogleCredential(idToken)}
+              onError={setServerError}
+            />
 
             {/* Footer */}
             <div className="text-center space-y-1">

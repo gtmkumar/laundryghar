@@ -23,7 +23,8 @@
     "optional": "(optional)",
     "currency": "₹{{amount}}",
     "itemCount_one": "{{count}} item",
-    "itemCount_other": "{{count}} items"
+    "itemCount_other": "{{count}} items",
+    "skip": "Skip"
   },
   "language": {
     "title": "Language",
@@ -61,7 +62,8 @@
     "social": {
       "comingSoon": "Coming soon",
       "socialSoonMessage": "Social sign-in will be available shortly.",
-      "continueWith": "Continue with {{provider}}"
+      "continueWith": "Continue with {{provider}}",
+      "googleFailed": "Google sign-in failed"
     }
   },
   "onboarding": {
@@ -432,7 +434,17 @@
     "cancelDeleteMessage": "Cancel the account deletion request and restore your account?",
     "cancelDeleteConfirm": "Keep my account",
     "deleteRequestCancelled": "Deletion cancelled",
-    "deleteRequestCancelledMessage": "Your account deletion has been cancelled. Welcome back!"
+    "deleteRequestCancelledMessage": "Your account deletion has been cancelled. Welcome back!",
+    "completion": {
+      "title": "Complete your profile",
+      "body": "Finish setting up to unlock all features and a smoother experience.",
+      "cta": "Complete now",
+      "dismiss": "Dismiss profile reminder",
+      "missingName": "your name",
+      "missingEmail": "your email",
+      "missingPhone": "your mobile number",
+      "percent": "{{percent}}% complete"
+    }
   },
   "addresses": {
     "title": "Saved addresses",
@@ -596,5 +608,41 @@
     "recentUpdates": "Recent updates",
     "emptyTitle": "Nothing here yet",
     "emptyMessage": "Order and pickup updates will appear here once you book a pickup."
+  },
+  "linkPhone": {
+    "title": "Add your mobile number",
+    "subtitle": "We'll send a code to verify it. You can do this later.",
+    "whyWeAsk": "Your number lets our rider reach you about a pickup or delivery. Adding it is optional.",
+    "skipA11y": "Skip adding a mobile number"
+  },
+  "secure": {
+    "title": "Set an unlock PIN",
+    "subtitle": "Use it to get back in quickly, without waiting for a code.",
+    "confirmTitle": "Confirm your PIN",
+    "confirmSubtitle": "Enter the same digits once more.",
+    "mismatch": "Those PINs didn't match. Let's try again.",
+    "skipA11y": "Skip setting an unlock PIN",
+    "biometricToggle": "Also unlock with {{method}}"
+  },
+  "unlock": {
+    "title": "Welcome back",
+    "subtitle": "Enter your PIN for",
+    "biometricPrompt": "Unlock Laundry Ghar",
+    "useBiometric": "Use {{method}}",
+    "useAnotherMethod": "Use another sign-in method",
+    "sessionExpired": "Your session expired. Enter your PIN to continue."
+  },
+  "security": {
+    "sectionTitle": "Sign-in & security",
+    "mobileNumber": "Mobile number",
+    "addMobileNumber": "Add your mobile number",
+    "notAddedYet": "Not added yet",
+    "googleLinked": "Google account linked",
+    "setPin": "Set an unlock PIN",
+    "changePin": "Change your unlock PIN",
+    "pinActive": "PIN unlock is on",
+    "pinInactive": "Sign in faster next time",
+    "biometricUnlock": "Unlock with {{method}}",
+    "biometricNeedsPin": "Set a PIN first"
   }
 }

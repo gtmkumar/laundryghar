@@ -25,6 +25,7 @@ import {
   useCustomerProfile,
   useRequestAccountDeletion,
 } from '@/hooks/useCatalog';
+import { SecuritySettingsCard } from '@/components/SecuritySettingsCard';
 import type { PatchProfileRequest } from '@/types/api';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -408,6 +409,9 @@ export default function ProfileScreen() {
             onClose={() => setEditMode(false)}
           />
         ) : null}
+
+        {/* Sign-in & security — where a customer voluntarily completes what sign-up skipped */}
+        <SecuritySettingsCard me={me} />
 
         {/* Menu */}
         <View

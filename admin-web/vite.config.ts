@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
+// import { reticle } from '@reticlehq/vite-plugin' // disabled: causes an infinite reload loop, see reticle_feedback filed 2026-08-15
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],

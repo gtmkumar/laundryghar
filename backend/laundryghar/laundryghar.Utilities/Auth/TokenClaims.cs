@@ -54,10 +54,15 @@ public sealed record TokenClaims(
 /// token_use is always "customer" — used to reject system tokens on customer endpoints.
 /// Pinned contract: sub=customer_id, token_use=customer, brand_id, phone. No permissions claim.
 /// </summary>
+/// <param name="Phone">
+/// Null for a customer who signed up with Google and has not linked a phone number yet.
+/// The <c>phone</c> claim is then omitted from the JWT entirely rather than emitted empty —
+/// downstream services must key off <c>sub</c>, never <c>phone</c>.
+/// </param>
 public sealed record CustomerTokenClaims(
     Guid CustomerId,
     Guid BrandId,
-    string Phone
+    string? Phone
 )
 {
     /// <summary>Fixed token_use value for customers. Pinned for Catalog service contract.</summary>

@@ -15,7 +15,8 @@ public sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 
         b.Property(e => e.BrandId).HasColumnName("brand_id").IsRequired();
         b.Property(e => e.CustomerCode).HasColumnName("customer_code").HasMaxLength(30).IsRequired();
-        b.Property(e => e.PhoneE164).HasColumnName("phone_e164").HasMaxLength(20).IsRequired();
+        // Nullable since migration 0001 — Google-first sign-up predates any phone number.
+        b.Property(e => e.PhoneE164).HasColumnName("phone_e164").HasMaxLength(20);
         b.Property(e => e.Email).HasColumnName("email").HasColumnType("citext");
         b.Property(e => e.FirstName).HasColumnName("first_name").HasMaxLength(100);
         b.Property(e => e.LastName).HasColumnName("last_name").HasMaxLength(100);
@@ -40,6 +41,10 @@ public sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         b.Property(e => e.Tags).HasColumnName("tags").HasColumnType("text[]").IsRequired();
         b.Property(e => e.PhoneVerifiedAt).HasColumnName("phone_verified_at");
         b.Property(e => e.EmailVerifiedAt).HasColumnName("email_verified_at");
+        b.Property(e => e.PinHash).HasColumnName("pin_hash");
+        b.Property(e => e.PinSetAt).HasColumnName("pin_set_at");
+        b.Property(e => e.PinFailedAttempts).HasColumnName("pin_failed_attempts").IsRequired();
+        b.Property(e => e.PinLockedUntil).HasColumnName("pin_locked_until");
         b.Property(e => e.OnboardingCompletedAt).HasColumnName("onboarding_completed_at");
         b.Property(e => e.LastActiveAt).HasColumnName("last_active_at");
         b.Property(e => e.MarketingOptIn).HasColumnName("marketing_opt_in").IsRequired();

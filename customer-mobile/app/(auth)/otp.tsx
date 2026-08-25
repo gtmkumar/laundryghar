@@ -3,8 +3,8 @@
  * Display-only OtpInput cells driven by a custom numeric Keypad (no system
  * keyboard). Auto-submits on the last digit.
  *
- * NOTE: the mockup shows 4 cells, but the Identity service issues 6-digit
- * codes for the customer login flow, so we render 6 — correctness over pixels.
+ * Cell count comes from OTP_LENGTH (4), which must match the backend's
+ * Otp:CustomerCodeLength — the verify endpoint rejects codes of any other length.
  *
  * R3-BE-6: DPDP consent
  *   - When the backend returns isNewCustomer=true, we show a consent modal
@@ -29,10 +29,17 @@ import { verifyOtp, sendOtp } from '@/api/auth';
 import { grantConsent } from '@/api/catalog';
 import { useAuthStore } from '@/store/authStore';
 import { maskPhone } from '@/lib/format';
+import { OTP_LENGTH, FEATURES } from '@/constants/config';
 import { useTranslation } from 'react-i18next';
 
-const CODE_LENGTH = 6;
+const CODE_LENGTH = OTP_LENGTH;
 const RESEND_SECONDS = 30;
+
+/**
+ * Non-production master OTP (backend Otp:CustomerTestCode). Prefilled in dev builds only
+ * so testers skip manual entry; __DEV__ strips this from production bundles.
+ */
+const DEV_TEST_CODE = '1234';
 
 /** Privacy policy version string — bump when the policy changes. */
 const PRIVACY_POLICY_VERSION = '1.0';
@@ -157,15 +164,15 @@ export default function OtpScreen() {
     return () => clearTimeout(timer);
   }, [seconds]);
 
-  // DEV convenience: the non-prod backend accepts a master OTP of 123456
-  // (see WhatsApp/SMS OTP routing). Prefill it and auto-verify so testers skip
-  // manual entry. Guarded by __DEV__ so it is stripped from production builds.
+  // DEV convenience: the non-prod backend accepts a master OTP (Otp:CustomerTestCode).
+  // Prefill it and auto-verify so testers skip manual entry. Guarded by __DEV__ so it is
+  // stripped from production builds.
   const devAutofilled = React.useRef(false);
   useEffect(() => {
     if (!__DEV__ || devAutofilled.current || !phone) return;
     devAutofilled.current = true;
-    setCode('123456');
-    void verify('123456');
+    setCode(DEV_TEST_CODE);
+    void verify(DEV_TEST_CODE);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone]);
 
@@ -237,7 +244,9 @@ export default function OtpScreen() {
     } finally {
       setConsentSaving(false);
       setConsentVisible(false);
-      router.replace('/(app)/(tabs)/home');
+      // New customers are offered a PIN once (skippable) so their next visit does not
+      // need another OTP. Everything else lands on the dashboard directly.
+      router.replace(FEATURES.pinUnlock ? '/(auth)/secure' : '/(app)/(tabs)/home');
     }
   }
 

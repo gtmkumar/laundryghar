@@ -89,7 +89,8 @@ public sealed class CustomerRefreshHandler : ICommandHandler<CustomerRefreshComm
         {
             Id         = Guid.NewGuid(),
             CustomerId = customer.Id,
-            Identifier = customer.PhoneE164,
+            // Phone-less (Google-first) customers are identified by email in the audit trail.
+            Identifier = customer.PhoneE164 ?? customer.Email ?? customer.Id.ToString(),
             AuthMethod = AuthMethod.Refresh,
             Success    = true,
             IpAddress  = ipAddress,

@@ -29,6 +29,24 @@ export async function passwordLogin(req: PasswordLoginRequest): Promise<TokenRes
 }
 
 /**
+ * "Sign in with Google" — exchanges a Google ID token (from Google Identity Services)
+ * for a staff session. The server verifies the token against Google's JWKS and requires
+ * the verified email to match an existing user; it never provisions an account.
+ *
+ * `_skipAuthRetry` for the same reason as passwordLogin: a rejected Google identity is a
+ * definitive 401, and letting the interceptor refresh-and-redirect would wipe the
+ * "no account linked to that address" message before the user reads it.
+ */
+export async function googleLogin(idToken: string): Promise<TokenResponse> {
+  const { data } = await identityClient.post<ApiResponse<TokenResponse>>(
+    `${BASE}/google`,
+    { idToken },
+    SKIP_AUTH_RETRY,
+  )
+  return unwrap(data)
+}
+
+/**
  * Refresh against Identity. The refresh token is supplied by the HttpOnly
  * `lg_refresh` cookie (withCredentials), with an optional in-memory body token
  * for backward compat. Most refreshes go through refreshAccessToken() in

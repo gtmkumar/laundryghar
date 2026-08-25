@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Mail, UserCog, Loader2, Map as MapIcon, Coins, CreditCard, MessageCircle, Smartphone, Gauge, Radio, Banknote, SlidersHorizontal } from 'lucide-react'
+import { Mail, UserCog, Loader2, Map as MapIcon, Coins, CreditCard, MessageCircle, Smartphone, Gauge, Radio, Banknote, SlidersHorizontal, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettings } from '@/hooks/useSettings'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -14,8 +14,9 @@ import { SmsPanel } from './SmsPanel'
 import { FarePanel } from './FarePanel'
 import { DispatchPanel } from './DispatchPanel'
 import { BusinessRulesPanel } from './BusinessRulesPanel'
+import { CustomDomainsPanel } from './CustomDomainsPanel'
 
-type Key = 'email' | 'maps' | 'payout' | 'provisioning' | 'payments' | 'platform-payments' | 'whatsapp' | 'sms' | 'fare' | 'dispatch' | 'business-rules'
+type Key = 'email' | 'maps' | 'payout' | 'provisioning' | 'payments' | 'platform-payments' | 'whatsapp' | 'sms' | 'fare' | 'dispatch' | 'business-rules' | 'custom-domains'
 
 type NavItem = { key: Key; label: string; icon: React.ElementType; platformOnly?: boolean }
 
@@ -40,6 +41,12 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Business rules',
     items: [{ key: 'business-rules', label: 'Business rules', icon: SlidersHorizontal }],
+  },
+  {
+    // White-label tier T2 (PLATFORM_STRATEGY.md §4.2). Branding and domain belong to the Owner
+    // (§6 Law 1), so this is gated on brands.update rather than the platform-side saas.* perms.
+    section: 'Branding',
+    items: [{ key: 'custom-domains', label: 'Custom domains', icon: Globe }],
   },
   { section: 'Operations', items: [{ key: 'payout', label: 'Rider payouts', icon: Coins }] },
   {
@@ -114,6 +121,8 @@ export function SettingsPage() {
             <BusinessRulesPanel />
           ) : active === 'platform-payments' ? (
             <PlatformPaymentsPanel />
+          ) : active === 'custom-domains' ? (
+            <CustomDomainsPanel />
           ) : settings.isLoading ? (
             <div className="flex items-center justify-center py-24 text-gray-400">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading settings...

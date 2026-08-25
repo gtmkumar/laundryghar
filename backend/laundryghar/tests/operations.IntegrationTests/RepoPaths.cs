@@ -15,6 +15,11 @@ internal static class RepoPaths
     public static string Script(string fileName)
         => Path.Combine(RepoRoot, "database_scripts", fileName);
 
+    /// <summary>Resolves a versioned up/down migration under db/migrations/ — the home for all NEW
+    /// schema changes (db/patches/ is the historical record). See db/migrations/README.md.</summary>
+    public static string Migration(string fileName)
+        => Path.Combine(RepoRoot, "db", "migrations", fileName);
+
     private static string FindRoot()
     {
         var dir = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);

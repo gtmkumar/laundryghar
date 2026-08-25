@@ -1,6 +1,7 @@
 using core.Application.Common;
 using core.Application.Identity.Auth.Commands.AcceptInvite;
 using core.Application.Identity.Auth.Commands.ForgotPassword;
+using core.Application.Identity.Auth.Commands.GoogleLogin;
 using core.Application.Identity.Auth.Commands.Logout;
 using core.Application.Identity.Auth.Commands.OtpSend;
 using core.Application.Identity.Auth.Commands.OtpVerify;
@@ -20,6 +21,7 @@ namespace core.WebApi.Endpoints.Identity;
 
 /// <summary>
 /// POST /api/v1/auth/password/login
+/// POST /api/v1/auth/google
 /// POST /api/v1/auth/otp/send
 /// POST /api/v1/auth/otp/verify
 /// POST /api/v1/auth/refresh
@@ -72,6 +74,30 @@ public class Auth : IEndpointGroup
         })
         .AddEndpointFilter<ValidationFilter<PasswordLoginRequest>>()
         .WithName("PasswordLogin")
+        .Produces<SingleResponse<TokenResponse>>()
+        .ProducesProblem(401)
+        .AllowAnonymous();
+
+        // POST /api/v1/auth/google — staff "Sign in with Google" (admin-web / pos-web).
+        // Mirrors password login exactly: same token shape, same HttpOnly refresh cookie,
+        // same scope resolution. It only swaps the credential being checked, and it cannot
+        // create an account — the Google email must already map to a provisioned user.
+        group.MapPost("/google", async (
+            GoogleLoginRequest req,
+            HttpContext ctx,
+            IDispatcher dispatcher,
+            IOptions<JwtSettings> jwt,
+            IWebHostEnvironment env,
+            CancellationToken ct) =>
+        {
+            var ip = ctx.Connection.RemoteIpAddress?.ToString();
+            var ua = ctx.Request.Headers.UserAgent.ToString();
+            var result = await dispatcher.SendAsync(new GoogleLoginCommand(req.IdToken, ip, ua), ct);
+            SetRefreshCookie(ctx, result.RefreshToken, jwt.Value.RefreshDays, env.IsDevelopment());
+            return Results.Ok(new SingleResponse<TokenResponse> { Status = true, Data = result });
+        })
+        .AddEndpointFilter<ValidationFilter<GoogleLoginRequest>>()
+        .WithName("GoogleLogin")
         .Produces<SingleResponse<TokenResponse>>()
         .ProducesProblem(401)
         .AllowAnonymous();

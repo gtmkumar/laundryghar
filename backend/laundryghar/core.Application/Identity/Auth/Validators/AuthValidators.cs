@@ -36,6 +36,19 @@ public sealed class PasswordLoginValidator : AbstractValidator<PasswordLoginRequ
     }
 }
 
+public sealed class GoogleLoginValidator : AbstractValidator<GoogleLoginRequest>
+{
+    // Shape-only: signature/issuer/audience/expiry are enforced by IGoogleIdTokenVerifier.
+    public GoogleLoginValidator()
+    {
+        RuleFor(x => x.IdToken)
+            .NotEmpty()
+            .MaximumLength(4096)
+            .Matches(@"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
+            .WithMessage("idToken must be a compact-serialization JWT.");
+    }
+}
+
 public sealed class OtpSendValidator : AbstractValidator<OtpSendRequest>
 {
     private static readonly string[] ValidTypes    = ["phone", "email"];

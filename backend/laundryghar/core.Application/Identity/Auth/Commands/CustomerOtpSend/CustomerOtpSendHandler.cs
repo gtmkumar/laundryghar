@@ -15,7 +15,8 @@ using Microsoft.Extensions.Options;
 namespace core.Application.Identity.Auth.Commands.CustomerOtpSend;
 
 /// <summary>
-/// Sends a 6-digit OTP to a customer phone number under a specific brand.
+/// Sends a short numeric OTP (Otp:CustomerCodeLength digits, 4 by default) to a customer
+/// phone number under a specific brand.
 /// The brand is resolved inside the handler (header → body brandCode → config default).
 ///
 /// Security properties enforced:
@@ -28,8 +29,6 @@ namespace core.Application.Identity.Auth.Commands.CustomerOtpSend;
 /// </summary>
 public sealed class CustomerOtpSendHandler : ICommandHandler<CustomerOtpSendCommand, OtpSentResponse>
 {
-    private const int CodeLength = 6;
-
     private readonly ICoreDbContext   _db;
     private readonly IOtpSender       _sender;
     private readonly OtpSettings      _settings;
@@ -55,9 +54,20 @@ public sealed class CustomerOtpSendHandler : ICommandHandler<CustomerOtpSendComm
 
     public async Task<OtpSentResponse> HandleAsync(CustomerOtpSendCommand cmd, CancellationToken ct)
     {
-        // Brand resolution (header → body brandCode → config default → "LG-MAIN").
-        var brandId = await CustomerBrandResolver.ResolveAsync(
-            _db, _config, cmd.RawHeaderBrandId, cmd.BodyBrandCode, ct);
+        // Brand resolution. For an authenticated caller (phone-link) the brand comes from
+        // their own customer row — a signed-in customer cannot send themselves an OTP under
+        // some other brand, and tenancy_org.brands is not readable outside the pre-auth
+        // RLS bypass anyway. Otherwise: header → body brandCode → config default → "LG-MAIN".
+        var brandId = cmd.AuthenticatedCustomerId is { } callerId
+            ? await _db.Customers
+                .Where(c => c.Id == callerId)
+                .Select(c => c.BrandId)
+                .FirstOrDefaultAsync(ct)
+            : await CustomerBrandResolver.ResolveAsync(
+                _db, _config, cmd.RawHeaderBrandId, cmd.BodyBrandCode, ct);
+
+        if (brandId == Guid.Empty)
+            throw new UnauthorizedAccessException("Customer not found.");
 
         // SEC1: Rolling-window lockout — brand-scoped.
         // Sum Attempts on ALL rows (verified, expired, active) for this (phone, brand)
@@ -66,7 +76,7 @@ public sealed class CustomerOtpSendHandler : ICommandHandler<CustomerOtpSendComm
         var windowAttempts = await _db.OtpCodes
             .Where(o => o.Identifier     == cmd.Phone
                      && o.IdentifierType == "phone"
-                     && o.Purpose        == OtpPurpose.Login
+                     && o.Purpose        == cmd.Purpose
                      && o.ReferenceId    == brandId      // H1: brand-scoped
                      && o.ReferenceType  == "brand"
                      && o.CreatedAt      > lockoutWindowCutoff)
@@ -87,7 +97,7 @@ public sealed class CustomerOtpSendHandler : ICommandHandler<CustomerOtpSendComm
         var recent = await _db.OtpCodes
             .Where(o => o.Identifier     == cmd.Phone
                      && o.IdentifierType == "phone"
-                     && o.Purpose        == OtpPurpose.Login
+                     && o.Purpose        == cmd.Purpose
                      && o.ReferenceId    == brandId      // H1: brand-scoped
                      && o.ReferenceType  == "brand"      // H1: brand-scoped
                      && o.VerifiedAt     == null
@@ -111,7 +121,7 @@ public sealed class CustomerOtpSendHandler : ICommandHandler<CustomerOtpSendComm
         var existing = await _db.OtpCodes
             .Where(o => o.Identifier     == cmd.Phone
                      && o.IdentifierType == "phone"
-                     && o.Purpose        == OtpPurpose.Login
+                     && o.Purpose        == cmd.Purpose
                      && o.ReferenceId    == brandId      // H1: brand-scoped
                      && o.ReferenceType  == "brand"      // H1: brand-scoped
                      && o.VerifiedAt     == null
@@ -128,7 +138,7 @@ public sealed class CustomerOtpSendHandler : ICommandHandler<CustomerOtpSendComm
             .FirstOrDefaultAsync(ct);
 
         // SEC2: Generate OTP with HMAC-SHA256 + per-row random salt
-        var plainCode = GenerateNumericCode(CodeLength);
+        var plainCode = GenerateNumericCode(_settings.CustomerCodeLength);
         var salt      = OtpSecurityHelper.GenerateSalt();
         var hmacKey   = OtpSecurityHelper.ResolveHmacKey(_settings, _env.IsDevelopment());
         var codeHash  = OtpSecurityHelper.ComputeHmac(hmacKey, salt, plainCode);
@@ -141,7 +151,7 @@ public sealed class CustomerOtpSendHandler : ICommandHandler<CustomerOtpSendComm
         _db.OtpCodes.Add(new OtpCode
         {
             Id             = Guid.NewGuid(),
-            Purpose        = OtpPurpose.Login,
+            Purpose        = cmd.Purpose,
             Identifier     = cmd.Phone,
             IdentifierType = "phone",
             CodeHash       = codeHash,
@@ -165,16 +175,23 @@ public sealed class CustomerOtpSendHandler : ICommandHandler<CustomerOtpSendComm
             "[CUSTOMER-OTP] Phone={Phone} Brand={BrandId} ExpiresAt={ExpiresAt}",
             logPhone, brandId, expiresAt);
 
-        await _sender.SendAsync(cmd.Phone, "phone", plainCode, OtpPurpose.Login, ct, brandId: brandId);
+        await _sender.SendAsync(cmd.Phone, "phone", plainCode, cmd.Purpose, ct, brandId: brandId);
 
         return new OtpSentResponse("OTP sent successfully.", expiresAt);
     }
 
+    /// <summary>
+    /// Generates a zero-padded numeric code of <paramref name="length"/> digits.
+    /// The length is clamped to 4–8: below 4 the code is trivially guessable inside the
+    /// attempt budget, and 10 or more overflows the int passed to GetInt32 (10^10 wraps
+    /// negative and throws), so a fat-fingered config value must not reach that path.
+    /// </summary>
     private static string GenerateNumericCode(int length)
     {
-        var max    = (int)Math.Pow(10, length);
+        var digits = Math.Clamp(length, 4, 8);
+        var max    = (int)Math.Pow(10, digits);
         var random = System.Security.Cryptography.RandomNumberGenerator.GetInt32(max);
-        return random.ToString().PadLeft(length, '0');
+        return random.ToString().PadLeft(digits, '0');
     }
 
     /// <summary>

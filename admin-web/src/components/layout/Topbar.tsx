@@ -1,5 +1,5 @@
 import { LogOut, Bell, Plus, Search, Languages } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { BrandSwitcher } from './BrandSwitcher'
@@ -26,6 +26,11 @@ export function Topbar() {
   const { user, refreshToken, clearAuth } = useAuthStore()
   const { clearBrand } = useBrandStore()
   const navigate = useNavigate()
+  // Every non-dashboard page renders its own <PageHeader> with the real title
+  // — showing "Good afternoon" here too on top of it duplicated the heading
+  // and, worse, stayed stuck on "Operations · Dashboard" no matter what page
+  // you were actually on. Only the dashboard route wants the greeting.
+  const isDashboard = useLocation().pathname === '/'
   const [activeLocale, setActiveLocale] = useState<AppLocale>(getActiveLocale())
 
   // GET /admin/stores requires stores.list — skip the fetch for roles without it
@@ -65,14 +70,18 @@ export function Topbar() {
     <header className="shrink-0 bg-white border-b border-[#e8e4d8]">
       {/* Main topbar row */}
       <div className="flex items-center justify-between px-6 h-16 gap-4">
-        {/* Left: eyebrow + greeting */}
+        {/* Left: eyebrow + greeting — dashboard only, every other page titles itself via <PageHeader> */}
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-gray-400 uppercase tracking-widest leading-none">
-            {t('topbar.operationsDashboard')}
-          </p>
-          <h1 className="text-lg font-bold text-gray-900 leading-tight mt-0.5 truncate">
-            {t(timeGreetingKey())}, {firstName}
-          </h1>
+          {isDashboard && (
+            <>
+              <p className="text-xs text-gray-400 uppercase tracking-widest leading-none">
+                {t('topbar.operationsDashboard')}
+              </p>
+              <h1 className="text-lg font-bold text-gray-900 leading-tight mt-0.5 truncate">
+                {t(timeGreetingKey())}, {firstName}
+              </h1>
+            </>
+          )}
         </div>
 
         {/* Right: search + actions */}

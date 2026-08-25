@@ -87,8 +87,13 @@ public sealed class JwtTokenService : IJwtTokenService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("token_use", CustomerTokenClaims.TokenUseValue),
             new("brand_id",  claims.BrandId.ToString()),
-            new("phone",     claims.Phone),
         };
+
+        // Google-first customers have no phone until they link one. Omit the claim rather
+        // than emitting an empty string, so a consumer testing for its presence sees the
+        // truth instead of a blank number.
+        if (!string.IsNullOrEmpty(claims.Phone))
+            claimsList.Add(new Claim("phone", claims.Phone));
 
         return WriteToken(claimsList, creds);
     }
@@ -108,9 +113,12 @@ public sealed class JwtTokenService : IJwtTokenService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("token_use", CustomerTokenClaims.OAuthTokenUseValue),
             new("brand_id",  claims.BrandId.ToString()),
-            new("phone",     claims.Phone),
             new("scope",     scope),
         };
+
+        // See CreateCustomerAccessToken: phone-less (Google-first) customers omit the claim.
+        if (!string.IsNullOrEmpty(claims.Phone))
+            claimsList.Add(new Claim("phone", claims.Phone));
 
         return WriteToken(claimsList, creds);
     }

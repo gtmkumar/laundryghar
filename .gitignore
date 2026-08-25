@@ -73,3 +73,9 @@ Keys/
 *rzp*key*.csv
 .dbmigrate/
 *.dump
+# Firebase / GCP service-account keys (contain a private key).
+# google-services.json and GoogleService-Info.plist are NOT secret — they hold
+# public client identifiers and are intentionally tracked.
+*-firebase-adminsdk-*.json
+*service-account*.json
+gcp-*.json

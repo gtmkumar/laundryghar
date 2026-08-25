@@ -11,7 +11,13 @@ public class Customer : IAuditableEntity, ISoftDeletable
     public Guid Id { get; set; }
     public Guid BrandId { get; set; }
     public string CustomerCode { get; set; } = null!;
-    public string PhoneE164 { get; set; } = null!;
+
+    /// <summary>
+    /// Nullable since migration 0001: a Google-first sign-up creates the customer before any
+    /// phone number exists, and supplying one is explicitly skippable.
+    /// </summary>
+    public string? PhoneE164 { get; set; }
+
     public string? Email { get; set; }
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
@@ -42,6 +48,14 @@ public class Customer : IAuditableEntity, ISoftDeletable
     public string[] Tags { get; set; } = [];
     public DateTimeOffset? PhoneVerifiedAt { get; set; }
     public DateTimeOffset? EmailVerifiedAt { get; set; }
+
+    // ── PIN unlock (migration 0001) ──────────────────────────────────────────
+    /// <summary>Argon2id hash of the unlock PIN. Null until the customer sets one.</summary>
+    public string? PinHash { get; set; }
+    public DateTimeOffset? PinSetAt { get; set; }
+    public short PinFailedAttempts { get; set; }
+    public DateTimeOffset? PinLockedUntil { get; set; }
+
     public DateTimeOffset? OnboardingCompletedAt { get; set; }
     public DateTimeOffset? LastActiveAt { get; set; }
     public bool MarketingOptIn { get; set; }
@@ -64,6 +78,7 @@ public class Customer : IAuditableEntity, ISoftDeletable
     public Customer? ReferredByCustomer { get; set; }
     public ICollection<CustomerAddress> Addresses { get; set; } = [];
     public ICollection<CustomerDevice> Devices { get; set; } = [];
+    public ICollection<CustomerIdentity> Identities { get; set; } = [];
     public ICollection<DpdpConsent> DpdpConsents { get; set; } = [];
     public ICollection<AccountDeletionRequest> AccountDeletionRequests { get; set; } = [];
 }
