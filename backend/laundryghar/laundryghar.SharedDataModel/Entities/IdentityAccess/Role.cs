@@ -20,6 +20,13 @@ public class Role
     /// Gated the same way modules are — see <see cref="Enums.VerticalKey.IsAvailableTo"/>.</summary>
     public string? VerticalKey { get; set; }
 
+    /// <summary>The <see cref="AppFeature"/> a brand must have licensed for this role to be offered
+    /// and grantable — PLATFORM_STRATEGY.md §5/§6.3 "roles follow features" ("Buy Fleet → Rider
+    /// appears"). NULL = always available. Distinct from <see cref="VerticalKey"/>: vertical says
+    /// which KIND of business a role makes sense for, feature says whether this brand has bought
+    /// the capability it operates.</summary>
+    public string? FeatureKey { get; set; }
+
     public bool IsSystem { get; set; }
     public bool IsAssignable { get; set; }
     public short Priority { get; set; }

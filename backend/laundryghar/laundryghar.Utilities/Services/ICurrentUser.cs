@@ -38,6 +38,14 @@ public interface ICurrentUser
     /// item "brand_id_override") if present, else JWT brand_id, else null. Use for read
     /// paths (e.g. navigation/entitlement) that should degrade gracefully when no brand
     /// context is set rather than 401.</summary>
+    /// <summary>The consent this request is running under, if it is a support impersonation session
+    /// (§7). Null for ordinary traffic. Read from the token; the authoritative live state is checked
+    /// per-request by ImpersonationGuardMiddleware.</summary>
+    Guid? ImpersonationGrantId { get; }
+
+    /// <summary>read_only | read_write for an impersonation session; null otherwise.</summary>
+    string? ImpersonationScope { get; }
+
     Guid? TryGetBrandId();
 
     /// <summary>Effective brand for write operations. Platform admins: X-Brand-Id override

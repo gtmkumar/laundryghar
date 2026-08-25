@@ -20,13 +20,26 @@ const DEV_HOST =
 // expo-constants surfaces app.config.ts `extra` at runtime
 const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, string | undefined>;
 
-/** Build a default service URL on the gateway, with this service's path prefix. */
-const gw = (prefix: string) => `http://${DEV_HOST}:8080/${prefix}`;
+/**
+ * Host port of the LOCAL AppHost gateway. Not 8080: on a developer machine 8080 is the single
+ * most contested port there is — here another project's container answers it with a uvicorn 404,
+ * which is what "the gateway returns 502s" (see scripts/run-device.sh) actually was. The AppHost
+ * now binds the reserved 5300–5303 block; this must track the gateway endpoint in
+ * backend/laundryghar/laundryghar.AppHost/AppHost.cs.
+ *
+ * This is the DEV default only. In production `extra.*ApiUrl` overrides win, and the gateway
+ * container still listens on 8080 inside its own network (deploy/docker-compose.yml) where
+ * nothing competes for it.
+ */
+const GATEWAY_PORT = 5300;
 
-// All traffic via gateway :8080/<prefix>; extra overrides win (prod gateway URL).
+/** Build a default service URL on the gateway, with this service's path prefix. */
+const gw = (prefix: string) => `http://${DEV_HOST}:${GATEWAY_PORT}/${prefix}`;
+
+// All traffic via the gateway /<prefix>; extra overrides win (prod gateway URL).
 // The API Gateway (YARP) strips the prefix and forwards to the right host:
-//   /identity,/engagement -> core (5050);  /catalog,/orders -> operations (5002);
-//   /commerce -> commerce (5005).
+//   /identity,/engagement -> core (5301);  /catalog,/orders -> operations (5302);
+//   /commerce -> commerce (5303).
 export const CONFIG = {
   identityApiUrl:   extra['identityApiUrl']   ?? gw('identity'),
   catalogApiUrl:    extra['catalogApiUrl']    ?? gw('catalog'),

@@ -43,7 +43,7 @@ public sealed class PermissionHandler : AuthorizationHandler<PermissionRequireme
             return Task.CompletedTask; // default-deny — never Fail on a plain miss (other handlers may satisfy)
 
         // Gate 3: step-up (§8). A high/critical action requires a fresh OTP re-verification even for
-        // platform_admin. Fail with a typed reason so StepUpAuthorizationResultHandler emits a
+        // platform_admin. Fail with a typed reason so ApiAuthorizationResultHandler emits a
         // structured 403 step_up_required (rather than a bare deny) and the client can prompt + retry.
         if (StepUp.RequiresStepUp(context.User, required) && !StepUp.IsFresh(context.User))
         {

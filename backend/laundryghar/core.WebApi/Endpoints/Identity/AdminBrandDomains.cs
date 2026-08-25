@@ -6,6 +6,8 @@ using laundryghar.Utilities.ApiResponse.ResponseUtil;
 using laundryghar.Utilities.Endpoints;
 using laundryghar.Utilities.Services;
 
+using Microsoft.EntityFrameworkCore;
+
 namespace core.WebApi.Endpoints.Identity;
 
 /// <summary>
@@ -22,14 +24,24 @@ public class AdminBrandDomains : IEndpointGroup
 {
     public static string? RoutePrefix => "/api/v1/admin/brands/{brandId:guid}/domains";
 
+    // Gated on `domains.*`, NOT `brands.*`. Those permissions cover the whole brand-settings surface
+    // — name, logo, support details — and re-pointing them at the `custom_domain` feature would make
+    // a brand's own NAME uneditable unless they bought a domain add-on. Migration 0019 grants the new
+    // permissions to exactly the roles that already held brands.update, so nobody gains reach; what
+    // changes is that these routes now sit behind the feature §5 sells them as.
     public static void Map(RouteGroupBuilder group)
     {
         group.WithTags("Admin - Brand Domains").RequireAuthorization();
 
-        group.MapGet(List, "").RequireAuthorization("permission:brands.read");
-        group.MapPost(Add, "").RequireAuthorization("permission:brands.update");
-        group.MapPost(Verify, "{domainId:guid}/verify").RequireAuthorization("permission:brands.update");
-        group.MapDelete(Delete, "{domainId:guid}").RequireAuthorization("permission:brands.update");
+        group.MapGet(List, "").RequireAuthorization("permission:domains.read");
+
+        // §12's "automated SSL/domain health checks from day one" — the platform's own view of which
+        // custom domains are about to break. Platform-scoped, so it is gated on saas.read rather than
+        // a tenant permission: a provider sees their own domains through the panel above.
+        group.MapGet(GetNeedingAttention, "/health").RequireAuthorization("permission:saas.read");
+        group.MapPost(Add, "").RequireAuthorization("permission:domains.manage");
+        group.MapPost(Verify, "{domainId:guid}/verify").RequireAuthorization("permission:domains.manage");
+        group.MapDelete(Delete, "{domainId:guid}").RequireAuthorization("permission:domains.manage");
     }
 
     public static async Task<IResult> List(Guid brandId, IDispatcher dispatcher, CancellationToken ct)
@@ -68,4 +80,37 @@ public class AdminBrandDomains : IEndpointGroup
         var ok = await dispatcher.SendAsync(new DeleteBrandDomainCommand(brandId, domainId), ct);
         return ok ? Results.Ok(new Response { Status = true }) : Results.NotFound();
     }
+
+    /// <summary>
+    /// Domains that need a human: unreachable, degraded, failing repeatedly, expiring within the
+    /// window, or simply not checked lately — because silence is not health.
+    /// </summary>
+    public static async Task<IResult> GetNeedingAttention(
+        int? withinDays,
+        laundryghar.SharedDataModel.Persistence.LaundryGharDbContext db,
+        CancellationToken ct)
+    {
+        var days = withinDays is > 0 and <= 365 ? withinDays.Value : 21;
+
+        var rows = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+            db.Database.SqlQuery<DomainHealthRow>($"""
+                SELECT domain               AS "Domain",
+                       brand_code           AS "BrandCode",
+                       health_status        AS "HealthStatus",
+                       ssl_status           AS "SslStatus",
+                       ssl_expires_at       AS "SslExpiresAt",
+                       days_left            AS "DaysLeft",
+                       consecutive_failures AS "ConsecutiveFailures",
+                       last_checked_at      AS "LastCheckedAt"
+                FROM kernel.domains_needing_attention({days})
+                """), ct);
+
+        return Results.Ok(new SingleResponse<IReadOnlyList<DomainHealthRow>> { Status = true, Data = rows });
+    }
+
+    /// <param name="DaysLeft">Null when no certificate has ever been observed.</param>
+    public sealed record DomainHealthRow(
+        string Domain, string? BrandCode, string HealthStatus, string SslStatus,
+        DateTimeOffset? SslExpiresAt, int? DaysLeft, int ConsecutiveFailures,
+        DateTimeOffset? LastCheckedAt);
 }

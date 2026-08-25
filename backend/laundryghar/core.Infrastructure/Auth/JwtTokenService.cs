@@ -70,6 +70,20 @@ public sealed class JwtTokenService : IJwtTokenService
             claimsList.Add(new Claim(TokenClaims.AmrClaim, claims.Amr));
         if (claims.StepUpAt is { } stepUpAt)
             claimsList.Add(new Claim(TokenClaims.StepUpAtClaim, stepUpAt.ToString(), ClaimValueTypes.Integer64));
+        // Entitlement (§5): the features this brand has NOT licensed, so a denial caused by the PLAN
+        // can be answered 402 instead of an indistinguishable 403. Emitted only when enforcement is
+        // on and something is actually missing.
+        if (!string.IsNullOrEmpty(claims.EntitlementOff))
+            claimsList.Add(new Claim(TokenClaims.EntitlementOffClaim, claims.EntitlementOff));
+        if (claims.ImpersonationGrantId is { } impGrant)
+        {
+            claimsList.Add(new Claim(TokenClaims.ImpersonationGrantClaim, impGrant.ToString()));
+            claimsList.Add(new Claim(TokenClaims.ImpersonationScopeClaim,
+                claims.ImpersonationScope ?? laundryghar.SharedDataModel.Entities.IdentityAccess.ImpersonationScope.ReadOnly));
+            // amr records HOW this session was authenticated. The enum member has existed unused
+            // since the auth service was written; this is the path it was reserved for.
+            claimsList.Add(new Claim(TokenClaims.AmrClaim, laundryghar.SharedDataModel.Enums.AuthMethod.Impersonation));
+        }
         claimsList.Add(new Claim(TokenClaims.PermVersionClaim, claims.PermVersion.ToString()));
 
         return WriteToken(claimsList, creds);

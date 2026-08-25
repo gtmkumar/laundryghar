@@ -64,16 +64,16 @@ State key: **Done** = built and reachable · **Partial** = built but incomplete,
 | V3 | Vertical-tagged modules + roles (feature gating by vertical) | §3, §6.3 | **Done** | `identity_access.modules.vertical_key`, `identity_access.roles.vertical_key`; `GetNavigator.cs` (`VerticalKey.IsAvailableTo`), `GetAccessRoles.cs`; `db/patches/phase4_role_vertical_key.sql` | — | — |
 | V4 | **Vertical template as a first-class object** (mode + terminology + catalog preset + default feature set, applied at onboarding) | §3 | **Missing** | No `vertical_template` table in the live DB; no template entity/handler in `backend/`. The salon vertical was landed as a hand-written one-off patch (`db/patches/phase4_salon_pack.sql`) — module row + bundle + quota widening — not as a reusable template record. | Adding a vertical today = writing a bespoke SQL patch. No declarative template, no "pick a template at onboarding" path | **L** |
 | V5 | Terminology pack covering *every* user-facing string | §3, §12 (risk: terminology leakage) | **Partial** | `admin-web/src/lib/verticalTerms.ts` + `admin-web/src/hooks/useActiveVertical.ts` — covers exactly 3 things (on-site location noun, on-site `user_type`, a designation placeholder) in the admin console only. | No backend terminology source of truth; nothing in `pos-web`, `customer-mobile`, `rider-mobile`; i18n bundles (`*/src/i18n/locales/*.json`) are laundry-worded and vertical-blind | **L** |
-| V6 | Launch templates: Laundry, Courier/Parcel, Tiffin | §3 | **Partial / conflicting** | SQL (canonical) allows `laundry`, `salon`, `logistics` only — `brands_vertical_key_check`, `modules_vertical_key_check`, `module_bundle_vertical_key_check`. `logistics` ≈ Courier. `salon` is shipped but is **not** one of the strategy's three launch templates; `tiffin` does not exist. | See §4 conflict D1. Requires a product decision, not a code decision | **M** (after decision) |
+| V6 | Launch templates: Laundry, Courier/Parcel, Tiffin | §3 | **Partial** (advanced 2026-08-25 — **OQ-1 answered: keep salon, add tiffin**) | The vertical *vocabulary* is settled and shipped: `db/migrations/0004_add_tiffin_vertical.up.sql` widened all **eight** vertical CHECK constraints (brands, orders + partitions, modules, module_bundle, features, roles, users, matview_registry, notification_event_catalog) to `{laundry, salon, logistics, tiffin}`; `VerticalKey.cs` and `admin-web/src/lib/verticalTerms.ts` carry tiffin. A tiffin brand is creatable today, verified live. | The template *content* is still missing (T-13/T-15), and tiffin is strategy Mode 3 — it is registered but not operable until the recurring calendar lands (M3/OQ-2). | **M** |
 
 ### 2.3 White-label & multi-domain (§4)
 
 | # | Capability | Required by | State | Evidence | Gap | Effort |
 |---|---|---|---|---|---|---|
 | W1 | T1 — Listed provider (row in `brands`) | §4 | **Done** | `tenancy_org.brands` (37 columns incl. theming, locales, support channels); `core.WebApi/Endpoints/Identity/AdminBrands.cs` | — | — |
-| W2 | **`brand_domains` table** (`brand_id`, `domain`, `verification_txt`, `verified_at`, `ssl_status`, `is_primary`) | §4.2 | **Missing** | Zero hits for `brand_domain` / `BrandDomain` across `*.cs`, `*.sql`, `*.ts`. No `domain` column on `tenancy_org.brands` (live DB, checked column-by-column). | Entire table + entity + EF config + RLS policy absent | **M** |
-| W3 | **Host-header brand-resolution middleware** | §4.2 item 4 | **Missing** | `laundryghar.Utilities/Services/IBrandResolver.cs` documents its resolution order as: `X-Brand-Id` header → `?brandCode=` query → default `LG-MAIN`. **Host is not consulted.** Impl: `core.Infrastructure/Services/BrandResolver.cs`. | Without this, one deployment cannot serve N branded domains — the core T2 mechanic | **M** |
-| W4 | Domain ownership verification (CNAME + TXT) | §4.2 items 2 | **Missing** | no DNS-verification code anywhere in `backend/` | Verification workflow + admin UI absent | **M** |
+| W2 | **`brand_domains` table** (`brand_id`, `domain`, `verification_txt`, `verified_at`, `ssl_status`, `is_primary`) | §4.2 | **Done** ~~Missing~~ (closed 2026-08-25, task **T-08**) | `db/migrations/0002_brand_domains.up.sql` / `.down.sql`; `SharedDataModel/Entities/TenancyOrg/BrandDomain.cs` + `BrandDomainConfiguration.cs`; brand-scoped `rls_brand` policy matching the house shape; citext + globally-unique `domain`, one-primary-per-brand partial index. 6 tests in `Rbac/BrandDomainTests.cs`. | — | — |
+| W3 | **Host-header brand-resolution middleware** | §4.2 item 4 | **Done** ~~Missing~~ (closed 2026-08-25, task **T-09**) | `core.Infrastructure/Services/BrandResolver.cs` now resolves Host → verified `brand_domains` row ahead of the existing header/query/default chain, cached 30s (hits **and** misses). The lookup goes through `kernel.resolve_brand_domain(text)` (`db/migrations/0003`), SECURITY DEFINER because the caller is anonymous and the table is RLS-protected — a targeted grant, not a blanket bypass. 5 tests in `Rbac/BrandResolverHostTests.cs`. | Confined to the **anonymous** path by design: an authenticated request's brand comes from the JWT, and Host must never override it. | — |
+| W4 | Domain ownership verification (CNAME + TXT) | §4.2 items 2 | **Done** ~~Missing~~ (closed 2026-08-25, task **T-10**) | `core.Application/Identity/TenancyOrg/BrandDomains/` (challenge issuance under a private `_lg-verify` label, 256-bit CSPRNG token, add/verify/delete/list); `core.Infrastructure/Dns/DnsTxtLookup.cs` (DnsClient, caching off, NXDOMAIN ≠ lookup failure); `core.WebApi/Endpoints/Identity/AdminBrandDomains.cs`; admin UI `admin-web/src/pages/settings/CustomDomainsPanel.tsx`. 40 tests; browser-verified end to end. | — | — |
 | W5 | SSL automation (Let's Encrypt / CF-for-SaaS) | §4.2 item 3 | **Missing** | `deploy/` contains Docker/compose only; no ACME/cert automation | Ops work, plus an `ssl_status` feedback loop | **L** |
 | W6 | Per-provider sender identity (email domain, WhatsApp number, SMS sender ID) | §4.2 item 5 | **Done** ~~Partial~~ | **Corrected 2026-08-25 — the original entry below was wrong.** All three channels are already per-brand: `SettingsMailer.LoadAsync(brandId)` reads brand-scoped SMTP (host, credentials, from-address, from-name) from `kernel.system_settings`; `UpdateSmsHandler` writes a brand-scoped `sms/provider` row carrying **`SenderId`** and `DltTemplateId` via `SettingsStore.ResolveBrandIdAsync`; WhatsApp has a brand-scoped `whatsapp/cloud` row plus `brands.whatsapp_number`. Verified in the live DB: the `email/smtp`, `sms/provider` and `whatsapp/cloud` rows all carry a non-null `brand_id`. | ~~no per-brand SMS sender-ID field~~ — **false, `SenderId` exists and is brand-scoped.** The only residue is a *verified* sender-domain (SPF/DKIM) state, and that is not ours to verify: each provider supplies their own SMTP credentials and from-address, so DKIM/SPF alignment sits on their infrastructure. It would only become a gap if we ever sent on their behalf from **our** mail infrastructure, which is not what is built. | — |
 | W7 | T3 — White-label mobile app builds | §4 tier T3, §11-P4 | **Missing** | `customer-mobile/app.config.ts` hardcodes `name: 'Laundry Ghar'`, `slug`, `bundleIdentifier: 'com.laundryghar.customer'`, `package`, and `OLIVE_700` brand colour. Same shape in `rider-mobile/app.config.ts`. | No config-driven app factory, no per-provider EAS profile generation | **L** |
@@ -85,15 +85,15 @@ State key: **Done** = built and reachable · **Partial** = built but incomplete,
 | E1 | SaaS billing engine (plans, subscriptions, invoices, dunning, suspend-on-nonpay) | §5, §9 | **Done** | `finance_royalty.platform_plans`, `finance_royalty.franchise_subscriptions`, `finance_royalty.franchise_subscription_invoices`, `franchise_subscription_events` (live DB); `commerce.Infrastructure/Worker/Services/SubscriptionBillingService.cs` (dunning → `suspended` + outbox event); `db/patches/subscriptions_module.sql` | — | — |
 | E2 | Brand-level (provider ↔ platform) subscription + invoicing + payment link | §5, §9 | **Done** | `identity_access.brand_platform_subscription`, `identity_access.brand_platform_invoice`; `commerce.Infrastructure/Worker/Services/BrandPlatformBillingService.cs`; `core.Application/Identity/Entitlements/Commands/{CollectBrandPlatformInvoice,SetBrandPlatformInvoiceStatus,ProcessPaylinkWebhook}.cs`; `db/patches/phase4_brand_platform_subscription.sql`, `phase4_brand_platform_invoice_paylink.sql` | — | — |
 | E3 | Entitlement store: per-brand module licensing | §5 | **Done** | `identity_access.brand_module` (+ RLS `rls_brand`), `identity_access.module_bundle`, `module_bundle_item`, `modules.is_core`; `db/patches/brand_module_entitlement.sql`; entities `SharedDataModel/Entities/IdentityAccess/{BrandModule,ModuleBundle}.cs` | — | — |
-| E4 | Entitlement **enforcement** in the token | §5 | **Partial** | `core.Application/Identity/Auth/Common/ScopeResolver.cs:169` filters effective permissions to entitled modules — but only when `enforceEntitlement` is true, which is read from config `Entitlement:Enforced` in all five mint paths (`PasswordLogin`, `OtpVerify`, `RefreshToken`, `StepUpVerify`, `GoogleLogin`). | **The flag is set in no `appsettings*.json` in the repo → enforcement is OFF everywhere, including production config.** No test exercises `enforceEntitlement: true` (all three call sites in `ScopeResolverTests.cs` pass `false`). | **M** |
-| E5 | Entitlement enforcement in navigation | §5 | **Partial** | `core.Application/Identity/AccessControl/Queries/GetNavigator/GetNavigator.cs` gates modules by `Entitlement:Enforced` + `brand_module` | Same flag — never enabled; untested in the enforced state | **S** |
-| E6 | `402 feature_not_in_plan` + upgrade link | §5 "Enforcement" | **Missing** | zero occurrences of `402` / `PaymentRequired` in `backend/**/*.cs` | Un-entitled access currently degrades to a generic `403` (permission stripped from the token). No distinguishable "you don't own this, upgrade" signal for clients | **M** |
-| E7 | Feature catalog = the 17 named entitlements | §5 | **Partial** | `identity_access.modules` holds 29 rows (live DB). Present as near-equivalents: `orders`(bookings), `riders`(fleet), `subscriptions`(customer_subscriptions), `partner_booking`(raas_partner), `analytics`, `coupons`, `warehouse`(processing_facility). | **Absent entirely:** `scheduling`, `item_tracking`, `online_payments`, `wallet`, `loyalty`, `whatsapp_bot`, `multi_location`, `advanced_analytics`, `api_access`, `custom_domain`, `white_label_app`. The catalog is nav-module-shaped, not feature-shaped — a sellable feature and a menu entry are conflated | **M** |
-| E8 | Plans (Starter/Growth/Pro/Enterprise) mapped to the feature catalog | §5 | **Partial** | `identity_access.module_bundle` holds `starter`, `pro`, `enterprise`, `salon-starter` (live DB); seeded in `db/patches/brand_module_entitlement.sql` §5 | `growth` tier missing; bundle contents are laundry-module lists, not §5's feature lists; `module_bundle.price` is nullable and unset for the seeded three | **S** |
-| E9 | **`plan.features` ∪ purchased add-ons** as the entitlement source | §5 "Enforcement" | **Missing** | `finance_royalty.platform_plans.features` is a `jsonb` column that **no C# code reads** (grep: only DDL + DTO passthrough). Entitlement is resolved exclusively from `identity_access.brand_module`. | Two disconnected entitlement systems (`platform_plans.features` for the franchise-billing engine, `brand_module` for module licensing) with no bridge. Buying a plan does not grant its features | **M** |
-| E10 | À-la-carte add-ons | §5 | **Partial** | `brand_module.source` CHECK `('bundle','manual')` — the data model distinguishes a plan-granted module from a per-brand add-on; `SetBrandModule.cs` can set one manually | No purchase flow, no price per add-on, no self-serve buy — an add-on can only be toggled by a platform admin holding `saas.manage` | **M** |
+| E4 | Entitlement **enforcement** in the token | §5 | **Done** ~~Partial~~ (closed 2026-08-25, tasks **T-01 + T-03b** — `Entitlement:Enforced` is now **true**, made safe by migration 0008's backfill; verified per-brand that zero modules and zero permissions are lost) | `ScopeResolver.cs:169` filters effective permissions to entitled modules when `Entitlement:Enforced` is true (read in all five mint paths). T-01 made the flag **explicit** in `core.WebApi/appsettings.json` + `.Development.json` and added 7 tests covering the enforced path (`Rbac/EntitlementEnforcementTests.cs`), 6 of which fail if the filter is broken. | **Still OFF by deliberate choice.** Verified against the live DB: the only brand `LG-MAIN` is licensed for **19 of 26** active non-core modules (missing `appointments`, `audit`, `fabrics`, `items`, `partner_booking`, `platform_billing`, `report`), because the original backfill grandfathered only the modules that existed then. Flipping it today strips those seven from every user, and until **T-04** bridges plans→entitlements a brand has no way to buy access back. Turning it on is now an acceptance criterion of T-04. | **S** (after T-04) |
+| E5 | Entitlement enforcement in navigation | §5 | **Done** ~~Partial~~ (closed 2026-08-25, tasks **T-01 + T-03b**) | `GetNavigator.cs` gates modules by `Entitlement:Enforced` + `brand_module`; now covered by 3 navigator tests (un-entitled hidden, `is_core` never hidden, no-brand-context applies no entitlement). | Same flag, still off — see E4. | **S** (after T-04) |
+| E6 | `402 feature_not_in_plan` + upgrade link | §5 "Enforcement" | **Done** ~~Missing~~ (closed 2026-08-25, task **T-05**) | `laundryghar.Utilities/Auth/ApiAuthorizationResultHandler.cs` (renamed from `StepUpAuthorizationResultHandler`) emits `402 feature_not_in_plan` carrying the feature key + upgrade path; new `ent_off` token claim (`TokenClaims`/`ScopeResolver`/`JwtTokenService`) + `IFeatureCatalog`/`FeatureCatalog` for the permission→feature hop; admin-web `lib/apiError.ts` + `api/client.ts` render it. 6 tests. | Only observable once `Entitlement:Enforced` is on (T-04). | — |
+| E7 | Feature catalog = the 17 named entitlements | §5 | **Done** ~~Partial~~ (closed 2026-08-25, task **T-02**, per Goutam's OQ-3 answer "split features and modules") | `db/migrations/0005_split_features_from_modules.up.sql` creates `identity_access.features` (33 rows: all **17** §5 keys, is_sellable, + 16 auto-derived from existing modules so nothing is orphaned), `brand_feature`, `bundle_feature`, and `modules.feature_key`. Entities `AppFeature`/`BrandFeature`/`BundleFeature`; `ScopeResolver` + `GetNavigator` resolve permission → module → feature → `brand_feature`. The migration asserts per-brand entitlement parity and aborts rather than let a brand lose a module. | — | — |
+| E8 | Plans (Starter/Growth/Pro/Enterprise) mapped to the feature catalog | §5 | **Done** ~~Partial~~ (closed 2026-08-25, task **T-03**, migration 0007 — `growth` added; all four tiers rebuilt from §5 and asserted cumulative. **Prices remain placeholders**, OQ-4) | `identity_access.module_bundle` holds `starter`, `pro`, `enterprise`, `salon-starter` (live DB); seeded in `db/patches/brand_module_entitlement.sql` §5 | `growth` tier missing; bundle contents are laundry-module lists, not §5's feature lists; `module_bundle.price` is nullable and unset for the seeded three | **S** |
+| E9 | **`plan.features` ∪ purchased add-ons** as the entitlement source | §5 "Enforcement" | **Done** ~~Missing~~ (closed 2026-08-25, tasks **T-02 + T-03b**) — on the BRAND axis: `module_bundle → bundle_feature → brand_feature`, proven live across upgrade and downgrade with add-ons surviving both. `platform_plans.features` is NOT the source — see conflict D9 | `finance_royalty.platform_plans.features` is a `jsonb` column that **no C# code reads** (grep: only DDL + DTO passthrough). Entitlement is resolved exclusively from `identity_access.brand_module`. | Two disconnected entitlement systems (`platform_plans.features` for the franchise-billing engine, `brand_module` for module licensing) with no bridge. Buying a plan does not grant its features | **M** |
+| E10 | À-la-carte add-ons | §5 | **Done** ~~Partial~~ (closed 2026-08-25, task **T-02**) — `SetBrandFeature` writes `source='manual'`; `ApplyBundleToBrand` preserves manual rows across a plan change. Proven live: `custom_domain` bought as an add-on survived an upgrade to Pro and a downgrade back to Starter | `brand_module.source` CHECK `('bundle','manual')` — the data model distinguishes a plan-granted module from a per-brand add-on; `SetBrandModule.cs` can set one manually | No purchase flow, no price per add-on, no self-serve buy — an add-on can only be toggled by a platform admin holding `saas.manage` | **M** |
 | E11 | Usage overage metering | §5 | **Partial** | `finance_royalty.platform_plans` carries `max_orders_per_month`, `max_stores`, `max_users`, `max_riders`, `overage_per_order/store/user`; `commerce.subscription_usage_ledger` exists | No metering job counts brand usage against those caps for the **platform** subscription; `BrandPlatformBillingService` bills a flat bundle price | **M** |
-| E12 | Roles follow features | §5, §6.3 | **Partial** | `admin-web/src/pages/access-control/RolesTab.tsx:41-48` greys role/permission cells by `useBrandEntitlements()`; `GetAccessRoles.cs` filters roles by brand vertical | Greying is cosmetic and vertical-driven, not feature-driven: there is no feature→role mapping (e.g. "Fleet ⇒ Rider role"). A brand without the fleet module still sees + can grant the Rider role | **M** |
+| E12 | Roles follow features | §5, §6.3 | **Done** ~~Partial~~ (closed 2026-08-25, task **T-06**) | `identity_access.roles.feature_key` (`db/migrations/0006_roles_follow_features.up.sql`) maps `rider→fleet`, `warehouse_*→processing_facility`, `partner_*→raas_partner`; `core.Application/Identity/AccessControl/BrandFeatureGate.cs` is applied by BOTH `GetAccessRoles` (not offered) and `GrantMembership` (not grantable, keyed on the TARGET brand). 7 tests, 4 mutations caught. | The salon/logistics analogues (`salon_*`, `hub_*`) are deliberately left ungated — the strategy never maps them, and they are already constrained by `roles.vertical_key`. Tracked with OQ-5. | — |
 
 ### 2.5 Roles & permissions (§6)
 
@@ -117,10 +117,10 @@ State key: **Done** = built and reachable · **Partial** = built but incomplete,
 | P2 | Onboarding wizard: template → plan/trial → locations → catalog seed → staff invites → gateway → live | §7, §9 | **Missing** | no brand-level wizard in `backend/` or `admin-web/src/pages/` | Depends on P1 + V4 | **L** |
 | P3 | Live on a sub-domain in minutes | §7 | **Missing** | depends on W3 (Host resolution) | — | **M** |
 | P4 | MRR/ARR + adoption monitoring | §7 | **Done** | `GetPlatformBillingSummary.cs`; `admin-web/src/pages/finance/PlatformBillingPage.tsx`; `mv_franchise_saas_mrr` (live DB); `db/patches/phase4_platform_billing_nav.sql` | — | — |
-| P5 | Suspend / reactivate a provider | §7, §9 | **Partial** | `tenancy_org.brands.status` CHECK `('active','suspended','archived')`; `SubscriptionBillingService.cs` sets subscription status to `suspended` after N dunning attempts | Brand `status='suspended'` is not read by any auth or request path — a suspended brand keeps operating normally | **M** |
-| P6 | Suspension = **login-only mode** (owner can see + pay invoices; operations frozen) | §9 | **Missing** | no such mode anywhere | Needs a request-path gate that permits only auth + billing routes for a suspended brand | **M** |
+| P5 | Suspend / reactivate a provider | §7, §9 | **Done** ~~Partial~~ (closed 2026-08-25, task **T-18**) | `tenancy_org.brands.status` CHECK `('active','suspended','archived')`; `SubscriptionBillingService.cs` sets subscription status to `suspended` after N dunning attempts | Brand `status='suspended'` is not read by any auth or request path — a suspended brand keeps operating normally | **M** |
+| P6 | Suspension = **login-only mode** (owner can see + pay invoices; operations frozen) | §9 | **Done** ~~Missing~~ (closed 2026-08-25, task **T-18**) — `BrandSuspensionMiddleware` + `kernel.brand_status` (migration 0009). Verified live: operations `402 brand_suspended`; login, navigator and billing still 200; reinstatement restores service | no such mode anywhere | Needs a request-path gate that permits only auth + billing routes for a suspended brand | **M** |
 | P7 | Feature kill-switches | §7 | **Done** | `kernel.feature_flags` (brand/franchise/store scoped, live DB) | — | — |
-| P8 | Per-provider rate limits | §7 | **Missing** | `laundryghar.Gateway/Program.cs:213-242` — a fixed-window limiter partitioned by **client IP** only | No brand-keyed partition, no per-plan quota | **M** |
+| P8 | Per-provider rate limits | §7 | **Done** ~~Missing~~ (closed 2026-08-25, task **T-19**) — gateway partitions on `brand_id`, falling back to IP for anonymous traffic. Per-PLAN quotas deferred to T-23's metering | `laundryghar.Gateway/Program.cs:213-242` — a fixed-window limiter partitioned by **client IP** only | No brand-keyed partition, no per-plan quota | **M** |
 | P9 | Support impersonation with consent + full audit | §7, §6.1 Platform Support | **Missing** | only hit for "impersonat" is an unused enum member in `SharedDataModel/Enums/AuthMethod.cs` | No consent record, no impersonation token, no audit trail for it. The Platform Support role (`support`) exists but has no read-any-provider mechanism | **L** |
 | P10 | Cancellation → data export → retention → DPDP deletion | §9 | **Partial** | `db/patches/dpdp_erasure_pipeline.sql`; `commerce.Infrastructure/Worker/Services/{CustomerErasureService,CustomerAnonymizer,RetentionSweepService}.cs` — all **customer**-level | No brand-level wind-down: no provider data export, no brand retention window, no brand deletion pipeline | **L** |
 
@@ -143,18 +143,18 @@ satisfied. Effort totals are indicative, not commitments.
 catalog that matches what §5 says we sell.*
 
 1. **P1-1** Enable + prove entitlement enforcement (E4, E5) — add `Entitlement:Enforced` to config with an explicit value, add integration tests that mint a token with `enforceEntitlement: true` and assert un-entitled permissions are stripped and un-entitled nav items hidden.
-2. **P1-2** Feature catalog completion (E7) — add the missing sellable feature keys to `identity_access.modules`, separating *sellable feature* from *nav module* (`show_in_nav=false` for pure features).
+2. ~~**P1-2** Feature catalog completion (E7)~~ — **DONE** (T-02, migration 0005) — add the missing sellable feature keys to `identity_access.modules`, separating *sellable feature* from *nav module* (`show_in_nav=false` for pure features).
 3. **P1-3** Bundle/plan alignment (E8) — add the `growth` bundle, populate bundle→feature membership per §5, set prices.
 4. **P1-4** Bridge `platform_plans.features` → `brand_module` (E9) — one resolver so buying/changing a plan expands into entitlement rows; add-ons layer on top as `source='manual'`.
-5. **P1-5** `402 feature_not_in_plan` (E6) — a distinct response with the feature key + upgrade link, emitted where an un-entitled feature is requested; clients render an upgrade prompt.
-6. **P1-6** Roles follow features (E12) — a feature→role mapping so un-entitled roles are hidden and ungrantable, not merely greyed.
+5. ~~**P1-5** `402 feature_not_in_plan` (E6)~~ — **DONE** (T-05) — a distinct response with the feature key + upgrade link, emitted where an un-entitled feature is requested; clients render an upgrade prompt.
+6. ~~**P1-6** Roles follow features (E12)~~ — **DONE** (T-06) — a feature→role mapping so un-entitled roles are hidden and ungrantable, not merely greyed.
 7. **P1-7** Terminology config, backend-owned (V5) — a per-vertical terminology pack served from the backend and consumed by all four clients, replacing the admin-only 3-noun map.
 
-### P2 — Custom domains (T2 white-label)
+### P2 — Custom domains (T2 white-label) — **3 of 5 shipped 2026-08-25**
 
-8. **P2-1** `brand_domains` schema (W2) — table + RLS + EF entity + config, per §4.2's named columns.
-9. **P2-2** Host-header resolution middleware (W3) — extend `IBrandResolver` with Host lookup ahead of the header/query fallbacks; cache per host.
-10. **P2-3** Domain verification workflow (W4) — TXT-record challenge, verify endpoint, admin UI.
+8. ~~**P2-1** `brand_domains` schema (W2)~~ — **DONE** (T-08) — table + RLS + EF entity + config, per §4.2's named columns.
+9. ~~**P2-2** Host-header resolution middleware (W3)~~ — **DONE** (T-09) — extend `IBrandResolver` with Host lookup ahead of the header/query fallbacks; cache per host.
+10. ~~**P2-3** Domain verification workflow (W4)~~ — **DONE** (T-10) — TXT-record challenge, verify endpoint, admin UI.
 11. ~~**P2-4** Per-provider sender identity (W6)~~ — **withdrawn 2026-08-25: not a gap.** See W6 above; email, SMS and WhatsApp sender identity are already per-brand. Nothing to build.
 12. **P2-5** SSL automation + domain-health checks (W5) — ops; `ssl_status` written back.
 
@@ -191,6 +191,8 @@ catalog that matches what §5 says we sell.*
 | **D5** | `docs/rbac.md` §7 "schema additions required (not yet in base schema)" | Lists `role_permissions.effect` and `user_permission_overrides` as outstanding | Both shipped: `role_permissions.effect` and `identity_access.user_permission_override` are live (`db/patches/rbac_deny_rows.sql`, `permission_overrides.sql`), and `ScopeResolver.cs` implements deny-wins | **Doc is stale** — the checklist item is done. Same for most of `docs/rbac.md` §14's checklist |
 | **D6** | `docs/rbac.md` §9 / §2 table name | `user_permission_overrides` (plural) | `identity_access.user_permission_override` (singular) | **SQL wins** |
 | **D7** | `INDEX.md` status counts | "109 tables / 7 materialized views" (verified 2026-06-10) | The multi-vertical patches (`laundry_fulfillment` schema relocation, salon pack, brand entitlement, brand platform subscription) have landed since | **Stale count** — needs re-verification; not load-bearing for this plan |
+| **D9** | Entitlement source of truth | §2/§5 point at `platform_plans.features` (jsonb) as the entitlement store | `finance_royalty.platform_plans` holds **2 rows, both test data** (`QA-SAAS-STARTER → ["orders","catalog"]`, `VERIFY_PP_7024 → {"api_access":true}`) in two incompatible JSON shapes, and sits on the **franchise** billing axis. Entitlement runs on the **brand** axis: `module_bundle → bundle_feature → brand_feature` | **Code wins.** The brand axis is what §5 actually describes (a provider buying from us) and is what works end to end. `platform_plans.features` should be removed or documented as franchise-tier metadata — added 2026-08-25 |
+| **D10** | `custom_domain` and `white_label_app` are sellable Enterprise features in §5 with **no module** — and entitlement is enforced along `permission → module → feature`, so both gated **nothing**: custom domains and the white-label config were reachable on any tier. Two of Enterprise's four selling points were free. | **SQL wins** — migration `0019` adds the modules and feature-backed permissions, and grandfathers every brand already using a custom domain. Its assertion then found five more orphaned sellable features (OQ-14). |
 | **D8** | `PRODUCTION_SPEC.md` §8 schema path | Points to `database/README.md` + `database/*.sql` | The directory is `database_scripts/` (+ `db/patches/`) | **Stale path** in `PRODUCTION_SPEC.md`; `INDEX.md` has it right |
 
 ---
@@ -200,14 +202,21 @@ catalog that matches what §5 says we sell.*
 These are genuinely absent from the strategy documents, or the strategy contradicts what is built.
 Each blocks or reshapes a planned task.
 
-- **OQ-1 (blocks P3-3, V6):** the strategy names Laundry / Courier / Tiffin as launch templates, but
+- ~~**OQ-1**~~ **ANSWERED 2026-08-25 by Goutam: keep `salon`, add `tiffin`.** The vertical set becomes
+  `laundry`, `salon`, `logistics`, `tiffin`. Note that tiffin is strategy **Mode 3 (Recurring
+  Schedule)**, which is still undesigned — see OQ-2 — so tiffin can be *registered* as a vertical
+  before it can *operate*. Original question:
+- ~~OQ-1 (blocks P3-3, V6):~~ the strategy names Laundry / Courier / Tiffin as launch templates, but
   the codebase ships Laundry / Salon / Logistics. Is `salon` a first-class launch vertical? Is
   `tiffin` still wanted, and does it replace or join the three? Adding a vertical means widening
   three CHECK constraints, so the answer changes the schema.
 - **OQ-2 (blocks P3-2, M3):** Mode 3 "Recurring Schedule" has no design. Does a recurring booking
   materialise one order per occurrence (schedule → N orders) or a single long-lived order with
   occurrence rows? This determines whether it is a new `fulfillment_mode` or a new aggregate.
-- **OQ-3 (blocks P1-2, E7):** §5's feature catalog and `identity_access.modules` are different
+- ~~**OQ-3**~~ **ANSWERED 2026-08-25 by Goutam: SPLIT `features` from `modules`.** A sellable feature
+  and a navigation entry become separate tables with a mapping, so a feature with no menu
+  (`custom_domain`, `api_access`, `white_label_app`) finally has somewhere to live. Original question:
+- ~~OQ-3 (blocks P1-2, E7):~~ §5's feature catalog and `identity_access.modules` are different
   shapes — a sellable feature vs a nav menu entry. Should they stay one table (a module gains
   `is_sellable`) or split into `features` + `modules` with a mapping? The first is cheaper; the
   second is cleaner and matches §5's language.
@@ -236,6 +245,81 @@ Each blocks or reshapes a planned task.
   Writing the vocabulary myself would be inventing the product's voice in three industries.
 
 ---
+
+- **OQ-9 (from T-24; corrected 2026-08-25) — five cells where the grants exceed §6.2.** A full
+  80-cell diff (not the two originally reported) leaves five real over-grants after migration `0020`
+  fixed four labelling bugs: `platform_support`→customers `full` (§6.2 `V`), `platform_support`→money
+  `full` (§6.2 `V`, and see OQ-16), `manager`→billing `view` (§6.2 `—`; it is `feature_flag.view`,
+  i.e. seeing what you bought), `rider`→dispatch `view` (§6.2 `O` — the derivation cannot express
+  "own" for an engine role), `facility_staff`→bookings `view` (§6.2 `—`; it is `orders.read`, which a
+  facility worker plausibly needs). Twelve cells grant LESS than §6.2, led by **Platform Support
+  holding almost nothing** where §6.2 gives it `V` across eight groups. **Closing any of these is a
+  grant change, not a matrix edit.**
+
+- **OQ-16 (from the §6.2 audit) — Platform Support can issue refunds.** The `support` role holds
+  `payment.refund`. §6.1 says Support "DOES NOT change money"; §8.1 says read-first. This is a real
+  grant, not a labelling artefact, and it is the one over-grant with a security consequence. Left in
+  place deliberately: revoking a live permission to make a table agree with a document is the same
+  class of mistake as mislabelling one.
+
+- **OQ-17 (from the §6.2 audit) — nine permission modules sit outside §6.2's ten groups.**
+  `stores`, `franchises`, `franchise_agreements`, `territories`, `holidays`, `operating_hours`,
+  `platforms`, `impersonation`, `api_keys`. §6's ten groups are a simplification of the PROVIDER's
+  surface, not a partition of every permission. Forcing them in made the matrix *worse* (see T-24),
+  so they are left unclassified and named by a WARNING on every apply. Either §6.2 gains a group —
+  which §12 explicitly warns against — or the matrix documents that it covers ten groups and not
+  everything.
+
+- **OQ-10 (from T-21) — what a deletion keeps.** `kernel.purge_brand` deliberately preserves audit
+  logs (7-year ledger), our platform invoices/subscriptions (statutory retention), and the
+  cancellation record itself. The strategy does not decide this; it is one constant away from
+  changing, and it is the difference between "we deleted everything" and "we deleted everything we
+  are allowed to".
+
+- **OQ-11 (from T-04; SHARPENED 2026-08-25 by a live browser pass) — the "Platform plans" screen
+  is pointed at an empty table.** This is worse than the column-level finding below, and it took
+  opening the console to see it. The sidebar has a top-level entry **Platform plans** →
+  `/platform-plans` → `GET /commerce/api/v1/admin/platform-plans`, which reads
+  `finance_royalty.platform_plans`. That table holds exactly two rows, `QA-SAAS-STARTER` and
+  `VERIFY_PP_7024`, **both soft-deleted in June 2026**. So the screen correctly renders
+  *"No platform plans yet."*
+
+  The tiers that actually exist — the ones entitlement enforces and all 12 brands are subscribed to
+  — live in `identity_access.module_bundle` and surface under **Users & Roles → Licensing**
+  (`EntitlementsTab.tsx`), where they render correctly: Starter ₹999, Growth ₹1,999, Pro ₹2,999,
+  Enterprise ₹7,999, Salon Starter ₹1,499.
+
+  **Why this matters for OQ-4.** The prices that need confirming are not editable on the screen
+  named after them. An operator who opens "Platform plans" to set pricing sees an empty table, and
+  the real tiers are one tab deep inside an unrelated section. Settling OQ-4 through that screen
+  would mean editing rows that gate nothing. Two ways out — point the screen at `module_bundle`, or
+  retire it — and both are product calls, not mine.
+
+- **OQ-11 (original) — `finance_royalty.platform_plans.features` is read by nothing.** Two rows of
+  incompatible test junk on the *franchise* billing axis. Either dead weight from that engine or an
+  unbuilt franchise-tier feature. A product call.
+
+- **OQ-12 (from T-23) — what the public API should expose.** §11 P4 says "partner/public API" and §5
+  sells `api_access`; neither names an operation. The mechanism ships complete (issuance, scopes,
+  revocation, per-key limits, metering, entitlement) with **one** endpoint proving the chain.
+  Choosing the business operations and scope names is product, not code — each is one line once
+  decided.
+
+- **OQ-13 (from T-17) — there is no payment-gateway configuration surface anywhere.** No table, no
+  screen. The wizard's "connect online payments" step reads `brands.config->>'paymentGateway'`, so
+  it is honest today (a cash-only provider defers it) and becomes live the moment that screen exists.
+
+- **OQ-14 (from T-22) — five sellable features still gate nothing.** `wallet`, `online_payments`,
+  `loyalty`, `item_tracking`, `whatsapp_bot` are on the price list and have **no console module**, so
+  the `permission → module → feature` chain never reaches them. (`api_access` is also flagged by the
+  assertion but IS enforced, directly in `kernel.resolve_api_key`.) Migration `0019` **WARNs on every
+  apply** rather than papering over it. Fixing them means inventing module and permission mappings
+  for surfaces that do not exist.
+
+- **OQ-15 (from the build) — three transitive dependency advisories.** `MessagePack` (Aspire
+  AppHost), `Microsoft.OpenApi`, `SSH.NET`. All arrive through other packages, so clearing them means
+  pinning someone else's dependency tree — a real change with its own blast radius, belonging to no
+  task here.
 
 ## 6. Honest summary
 

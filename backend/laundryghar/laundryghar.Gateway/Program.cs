@@ -213,6 +213,9 @@ builder.Services.AddCors(opts =>
 var rateLimitSection = builder.Configuration.GetSection("RateLimit");
 var permitLimit       = rateLimitSection.GetValue<int>("PermitLimit",  300);
 var windowSeconds     = rateLimitSection.GetValue<int>("WindowSeconds", 60);
+// A tenant is many people behind one brand, so its budget is deliberately larger than one IP's.
+// Configurable per environment; defaults to 10x the per-IP allowance.
+var brandPermitLimit  = rateLimitSection.GetValue<int>("BrandPermitLimit", permitLimit * 10);
 
 const string GlobalRateLimiterPolicy = "GlobalPerIp";
 
@@ -228,20 +231,25 @@ builder.Services.AddRateLimiter(limiterOpts =>
         opts.QueueLimit          = 0; // reject immediately when window full
     });
 
-    // Partition per client IP, honouring X-Forwarded-For so the correct IP
-    // is used when requests pass through the Aspire / Docker network layer.
+    // ── Partition per PROVIDER first, per client IP otherwise (PLATFORM_STRATEGY.md §7:
+    //    "per-provider rate limits").
+    //
+    // IP alone is the wrong unit for a multi-tenant platform in both directions:
+    //   • it PUNISHES the innocent — a whole office, a mobile carrier NAT or a corporate proxy
+    //     collapses many tenants onto one IP, so a busy neighbour throttles everyone behind it;
+    //   • it FAILS TO CONTAIN the guilty — one tenant on a handful of machines simply gets a
+    //     multiple of the budget, and a runaway integration degrades the platform for others.
+    // Keying on brand_id makes the budget follow the tenant, which is who is actually being
+    // metered. Unauthenticated traffic has no tenant, so it keeps the IP partition — that is the
+    // path where IP is the only identity there is.
     limiterOpts.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
     {
-        // Try X-Forwarded-For first (set by upstream proxy / YARP itself in prod)
-        var forwardedFor = ctx.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        var clientIp     = !string.IsNullOrWhiteSpace(forwardedFor)
-            ? forwardedFor.Split(',')[0].Trim()          // take leftmost (real client)
-            : ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var (key, limit) = laundryghar.Gateway.RateLimitPartitioning.Resolve(ctx, permitLimit, brandPermitLimit);
 
-        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ =>
+        return RateLimitPartition.GetFixedWindowLimiter(key, _ =>
             new FixedWindowRateLimiterOptions
             {
-                PermitLimit          = permitLimit,
+                PermitLimit          = limit,
                 Window               = TimeSpan.FromSeconds(windowSeconds),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit           = 0

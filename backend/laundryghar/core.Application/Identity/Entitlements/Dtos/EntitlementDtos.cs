@@ -1,20 +1,34 @@
 namespace core.Application.Identity.Entitlements.Dtos;
 
-/// <summary>One module row in a brand's entitlement matrix.</summary>
-public sealed record BrandModuleDto(
+/// <summary>One FEATURE row in a brand's entitlement matrix (PLATFORM_STRATEGY.md §5).
+/// Feature-keyed rather than module-keyed since migration 0005 — a brand buys features, and the
+/// modules those features unlock are listed alongside so the console can say what a purchase gives.
+/// </summary>
+public sealed record BrandFeatureDto(
     string Key,
-    string Label,
-    string? Section,
+    string Name,
+    string? Description,
     bool IsCore,
+    /// <summary>On the price list. False for features auto-derived from existing modules — they
+    /// exist so entitlement is total, not because they are sold on their own.</summary>
+    bool IsSellable,
     bool Entitled,
-    string? Source,         // 'bundle' | 'manual' | null (not licensed)
-    DateOnly? ValidUntil);
+    string? Source,         // 'bundle' | 'manual' | 'core' | null (not licensed)
+    DateOnly? ValidUntil,
+    /// <summary>The navigation modules this feature unlocks. Empty for a sellable feature with no
+    /// menu at all (custom_domain, api_access, white_label_app). Carries KEYS as well as labels so
+    /// the console can still answer "is this module licensed?" — the Roles matrix greys its rows by
+    /// module key, and after the split that answer only exists via the feature behind it.</summary>
+    IReadOnlyList<FeatureModuleDto> Modules);
 
-/// <summary>A brand's full entitlement view: every active module + whether it's licensed.</summary>
+/// <summary>A navigation module unlocked by a feature.</summary>
+public sealed record FeatureModuleDto(string Key, string Label);
+
+/// <summary>A brand's full entitlement view: every active feature + whether it's licensed.</summary>
 public sealed record BrandEntitlementsDto(
     Guid BrandId,
     string BrandName,
-    IReadOnlyList<BrandModuleDto> Modules);
+    IReadOnlyList<BrandFeatureDto> Features);
 
 public sealed record ModuleBundleItemDto(string Key, string Label);
 public sealed record ModuleBundleDto(
@@ -23,8 +37,8 @@ public sealed record ModuleBundleDto(
     // Brand-tier pricing: what applying this bundle costs the tenant (null = unpriced/custom tier).
     decimal? Price = null, string? BillingInterval = null, string? CurrencyCode = null, bool IsPublic = true);
 
-/// <summary>Toggle a single module's licensing for a brand (a 'manual' override).</summary>
-public sealed record SetBrandModuleRequest(string ModuleKey, bool Enabled, DateOnly? ValidUntil = null);
+/// <summary>Toggle a single FEATURE's licensing for a brand (a 'manual' override / add-on).</summary>
+public sealed record SetBrandFeatureRequest(string FeatureKey, bool Enabled, DateOnly? ValidUntil = null);
 
 /// <summary>Apply a plan bundle to a brand: replace its 'bundle' rows with the bundle's items.</summary>
 public sealed record ApplyBundleRequest(string BundleCode);

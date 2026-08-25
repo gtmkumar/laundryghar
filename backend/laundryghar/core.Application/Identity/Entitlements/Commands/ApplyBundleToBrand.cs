@@ -11,8 +11,9 @@ namespace core.Application.Identity.Entitlements.Commands;
 public sealed record ApplyBundleToBrandCommand(Guid BrandId, ApplyBundleRequest Request, Guid? ActorId) : ICommand<bool>;
 
 /// <summary>Apply a plan bundle to a brand: refresh the brand's 'bundle'-sourced rows to
-/// exactly the bundle's modules. 'manual' overrides are preserved and take precedence
-/// (so a manual disable survives, a manual enable stays).</summary>
+/// exactly the bundle's FEATURES. 'manual' overrides are preserved and take precedence
+/// (so a manual disable survives, a manual enable stays) — that is what makes à-la-carte add-ons
+/// survive a plan change. Feature-keyed since migration 0005.</summary>
 public class ApplyBundleToBrandCommandHandler : ICommandHandler<ApplyBundleToBrandCommand, bool>
 {
     private readonly ICoreDbContext _db;
@@ -33,28 +34,28 @@ public class ApplyBundleToBrandCommandHandler : ICommandHandler<ApplyBundleToBra
             throw new ValidationException(new Dictionary<string, string[]>
                 { ["bundleCode"] = ["This bundle is not available for the brand's vertical."] });
 
-        // Expand the bundle, skipping modules not available to the brand's vertical — so a shared
-        // tier bundle never licenses a laundry-only module (e.g. fabrics) to a salon brand.
-        var bundleKeys = (await _db.ModuleBundleItems.AsNoTracking()
+        // Expand the bundle, skipping features not available to the brand's vertical — so a shared
+        // tier bundle never licenses a laundry-only feature (e.g. fabrics) to a salon brand.
+        var bundleKeys = (await _db.BundleFeatures.AsNoTracking()
             .Where(i => i.BundleCode == code)
-            .Join(_db.Modules.AsNoTracking(), i => i.ModuleKey, m => m.Key,
-                  (i, m) => new { m.Key, m.VerticalKey })
+            .Join(_db.Features.AsNoTracking(), i => i.FeatureKey, f => f.Key,
+                  (i, f) => new { f.Key, f.VerticalKey })
             .ToListAsync(ct))
-            .Where(m => VerticalKey.IsAvailableTo(m.VerticalKey, brandVertical))
-            .Select(m => m.Key)
+            .Where(f => VerticalKey.IsAvailableTo(f.VerticalKey, brandVertical))
+            .Select(f => f.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var existing = await _db.BrandModules
-            .Where(bm => bm.BrandId == cmd.BrandId)
+        var existing = await _db.BrandFeatures
+            .Where(bf => bf.BrandId == cmd.BrandId)
             .ToListAsync(ct);
-        var byKey = existing.ToDictionary(r => r.ModuleKey, StringComparer.OrdinalIgnoreCase);
+        var byKey = existing.ToDictionary(r => r.FeatureKey, StringComparer.OrdinalIgnoreCase);
         var now = DateTimeOffset.UtcNow;
 
         // Remove bundle-sourced rows that are NOT in the new bundle (manual rows untouched).
-        foreach (var row in existing.Where(r => r.Source == "bundle" && !bundleKeys.Contains(r.ModuleKey)))
-            _db.BrandModules.Remove(row);
+        foreach (var row in existing.Where(r => r.Source == "bundle" && !bundleKeys.Contains(r.FeatureKey)))
+            _db.BrandFeatures.Remove(row);
 
-        // Ensure every bundle module is licensed. Manual rows win and are left as-is;
+        // Ensure every bundle feature is licensed. Manual rows win and are left as-is;
         // bundle rows are (re)enabled; missing rows are inserted as 'bundle'.
         foreach (var key in bundleKeys)
         {
@@ -68,9 +69,9 @@ public class ApplyBundleToBrandCommandHandler : ICommandHandler<ApplyBundleToBra
             }
             else
             {
-                _db.BrandModules.Add(new BrandModule
+                _db.BrandFeatures.Add(new BrandFeature
                 {
-                    BrandId = cmd.BrandId, ModuleKey = key, Enabled = true, Source = "bundle",
+                    BrandId = cmd.BrandId, FeatureKey = key, Enabled = true, Source = "bundle",
                     CreatedAt = now, UpdatedAt = now, CreatedBy = cmd.ActorId, UpdatedBy = cmd.ActorId,
                 });
             }

@@ -58,9 +58,14 @@ public class LaundryGharDbContext : DbContext
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<UserPermissionOverride> UserPermissionOverrides => Set<UserPermissionOverride>();
     public DbSet<AppModule> Modules => Set<AppModule>();
-    public DbSet<BrandModule> BrandModules => Set<BrandModule>();
+    public DbSet<AppFeature> Features => Set<AppFeature>();
+    public DbSet<VerticalTerm> VerticalTerms => Set<VerticalTerm>();
+    public DbSet<VerticalTemplate> VerticalTemplates => Set<VerticalTemplate>();
+    public DbSet<RolePreset> RolePresets => Set<RolePreset>();
+    public DbSet<PermissionGroup> PermissionGroups => Set<PermissionGroup>();
+    public DbSet<BrandFeature> BrandFeatures => Set<BrandFeature>();
     public DbSet<ModuleBundle> ModuleBundles => Set<ModuleBundle>();
-    public DbSet<ModuleBundleItem> ModuleBundleItems => Set<ModuleBundleItem>();
+    public DbSet<BundleFeature> BundleFeatures => Set<BundleFeature>();
     public DbSet<BrandPlatformSubscription> BrandPlatformSubscriptions => Set<BrandPlatformSubscription>();
     public DbSet<BrandPlatformInvoice> BrandPlatformInvoices => Set<BrandPlatformInvoice>();
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();

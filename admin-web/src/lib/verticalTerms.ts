@@ -17,15 +17,26 @@ export const VERTICAL = {
   laundry: 'laundry',
   salon: 'salon',
   logistics: 'logistics',
+  tiffin: 'tiffin',
 } as const
 
 export type VerticalKey = (typeof VERTICAL)[keyof typeof VERTICAL]
 
-/** The on-site processing/service location noun, per vertical (laundry → salon → logistics). */
+/**
+ * FALLBACK vocabulary only.
+ *
+ * The authoritative source is the server's terminology pack (`GET /api/v1/terminology`, backed by
+ * identity_access.vertical_terms) — PLATFORM_STRATEGY.md §3 makes terminology config, not code, so a
+ * provider who calls them "pieces" rather than "garments" is a row, not a deploy. These constants
+ * remain as the offline default so a screen renders a sensible word while the pack is loading, or if
+ * the request fails. Prefer `termFrom(pack, ...)` wherever a pack is available.
+ */
 const ONSITE_NOUN: Record<string, string> = {
   laundry: 'Warehouse',
   salon: 'Studio',
   logistics: 'Hub',
+  // Recurring-schedule vertical (Mode 3): the on-site location is where meals are prepared.
+  tiffin: 'Kitchen',
 }
 
 /** Example designation/job-title placeholder, per vertical. */
@@ -33,6 +44,7 @@ const DESIGNATION_EG: Record<string, string> = {
   laundry: 'e.g. Store Supervisor',
   salon: 'e.g. Senior Stylist',
   logistics: 'e.g. Hub Operations Lead',
+  tiffin: 'e.g. Kitchen Supervisor',
 }
 
 function normalize(verticalKey: string | null | undefined): string {
@@ -90,4 +102,50 @@ export function roleScopeOptions(verticalKey?: string | null): { value: string; 
     { value: 'store', label: 'Store' },
     { value: 'warehouse', label: onsiteNoun(verticalKey) },
   ]
+}
+
+
+// ─── Server-driven terminology (the authoritative path) ─────────────────────
+
+/** The shape returned by `GET /api/v1/terminology`. */
+export interface TermPack {
+  verticalKey: string
+  terms: Record<string, { singular: string; plural: string }>
+}
+
+/**
+ * A word from the server pack, falling back to `fallback` when the pack has not loaded or does not
+ * define the key.
+ *
+ * The fallback is not defensive clutter: terminology is fetched asynchronously and a screen must
+ * never blank or flash empty waiting for a noun. A slightly generic word for one render is a much
+ * smaller failure than a blank one.
+ */
+export function termFrom(
+  pack: TermPack | undefined,
+  key: string,
+  fallback: string,
+  form: 'singular' | 'plural' = 'singular',
+): string {
+  const term = pack?.terms?.[key]
+  if (!term) return fallback
+  return (form === 'plural' ? term.plural : term.singular) || fallback
+}
+
+/** The item noun — "garment" / "service" / "parcel" / "meal". */
+export function itemNoun(pack: TermPack | undefined, form: 'singular' | 'plural' = 'singular'): string {
+  return termFrom(pack, 'item', form === 'plural' ? 'items' : 'item', form)
+}
+
+/** The booking noun — "order" / "appointment" / "shipment" / "delivery". */
+export function bookingNoun(pack: TermPack | undefined, form: 'singular' | 'plural' = 'singular'): string {
+  return termFrom(pack, 'booking', form === 'plural' ? 'bookings' : 'booking', form)
+}
+
+/**
+ * The on-site location noun, preferring the server pack and falling back to the local map.
+ * Supersedes {@link onsiteNoun} at call sites that can reach a pack.
+ */
+export function onsiteNounFrom(pack: TermPack | undefined, verticalKey?: string | null): string {
+  return termFrom(pack, 'onsite_location', onsiteNoun(verticalKey))
 }

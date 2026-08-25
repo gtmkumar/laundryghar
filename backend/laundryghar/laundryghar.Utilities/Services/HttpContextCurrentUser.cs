@@ -102,6 +102,11 @@ public sealed class HttpContextCurrentUser : ICurrentUser
             => nodeId is { } n && targetId is { } t && n == t;
     }
 
+    public Guid? ImpersonationGrantId =>
+        Guid.TryParse(Claim(Auth.TokenClaims.ImpersonationGrantClaim), out var g) ? g : null;
+
+    public string? ImpersonationScope => Claim(Auth.TokenClaims.ImpersonationScopeClaim);
+
     public Guid? TryGetBrandId()
     {
         if (_accessor.HttpContext?.Items.TryGetValue("brand_id_override", out var overrideVal) == true

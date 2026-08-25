@@ -17,6 +17,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- The signup provisioner's pure helpers (catalog-seed parsing, slugging) are internal but
+             carry the edge cases worth testing directly. -->
+        <InternalsVisibleTo Include="core.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\core.Domain\core.Domain.csproj" />
         <!-- CQRS abstractions/dispatcher, ICurrentUser, Result, PaginatedList, response wrappers -->
         <ProjectReference Include="..\laundryghar.Utilities\laundryghar.Utilities.csproj" />

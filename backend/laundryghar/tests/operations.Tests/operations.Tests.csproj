@@ -22,6 +22,8 @@
         <ProjectReference Include="..\..\operations.Infrastructure\operations.Infrastructure.csproj" />
         <ProjectReference Include="..\..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
         <ProjectReference Include="..\..\laundryghar.Utilities\laundryghar.Utilities.csproj" />
+        <!-- §7 per-provider rate limiting: the gateway's partition-key chooser is pure and testable. -->
+        <ProjectReference Include="..\..\laundryghar.Gateway\laundryghar.Gateway.csproj" />
     </ItemGroup>
 
     <ItemGroup>

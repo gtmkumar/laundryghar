@@ -10,6 +10,7 @@ namespace laundryghar.Utilities.Auth;
 ///                                    listed codes. Supports POS/Orders shared-route scenarios
 ///                                    (R3-SEC-2) where two independent permission families gate the
 ///                                    same endpoint (e.g. "permission:orders.create|pos.order.create").
+/// - "apiscope:&lt;scope&gt;"             → requires an API KEY (token_use=api_key) issued that scope.
 /// - "CustomerOnly"                  → requires token_use=customer.
 /// </summary>
 public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
@@ -32,6 +33,12 @@ public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
 
     public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
+        // "apiscope:<scope>" — the machine-credential equivalent (§11 P4). Checked FIRST because it
+        // is unambiguous and because these policies bind to the ApiKey scheme rather than the
+        // default one: a signed-in human must never satisfy an API-key scope, and vice versa.
+        if (ApiKey.ApiScopePolicy.TryBuild(policyName, out var scopePolicy))
+            return Task.FromResult(scopePolicy);
+
         // Permission-gated admin policy (single code or pipe-separated OR set)
         if (policyName.StartsWith(PolicyPrefix, StringComparison.OrdinalIgnoreCase))
         {

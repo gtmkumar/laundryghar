@@ -10,7 +10,7 @@ export async function getPlatformBillingSummary(): Promise<PlatformBillingSummar
 }
 
 export async function getBrandEntitlements(brandId: string): Promise<BrandEntitlements> {
-  const { data } = await identityClient.get<ApiResponse<BrandEntitlements>>(`${BASE}/brands/${brandId}/modules`)
+  const { data } = await identityClient.get<ApiResponse<BrandEntitlements>>(`${BASE}/brands/${brandId}/features`)
   return unwrap(data)
 }
 
@@ -31,13 +31,14 @@ export async function getModuleBundles(): Promise<ModuleBundle[]> {
   return unwrap(data)
 }
 
-export async function setBrandModule(
+/** Toggle one FEATURE as a per-brand 'manual' override — the à-la-carte add-on path (§5). */
+export async function setBrandFeature(
   brandId: string,
-  moduleKey: string,
+  featureKey: string,
   enabled: boolean,
   validUntil?: string | null,
 ): Promise<void> {
-  await identityClient.post(`${BASE}/brands/${brandId}/modules`, { moduleKey, enabled, validUntil: validUntil ?? null })
+  await identityClient.post(`${BASE}/brands/${brandId}/features`, { featureKey, enabled, validUntil: validUntil ?? null })
 }
 
 export async function applyBundleToBrand(brandId: string, bundleCode: string): Promise<void> {

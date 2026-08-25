@@ -152,6 +152,9 @@ public static class ScopeResolver
 
         var permissions = new HashSet<string>(effective, StringComparer.OrdinalIgnoreCase);
 
+        // Features the brand has not licensed — populated only on the enforced path below.
+        List<string> entitlementOff = [];
+
         // Every node the user holds an active membership at → the scope_nodes claim, so mutating
         // handlers can enforce the §6 boundary per request via ICurrentUser.IsWithinScope.
         var scopeNodes = string.Join(' ', memberships
@@ -159,23 +162,60 @@ public static class ScopeResolver
             .Distinct(StringComparer.OrdinalIgnoreCase));
 
         // PaaS entitlement (Phase 3, behind a flag): keep only permissions whose CANONICAL
-        // owning module (permissions.module_key) the brand has licensed (or that is core).
-        // module_key is a single owner per permission (set by permission_canonical_module.sql),
-        // so there is no tag-overlap ambiguity; orphans (null module_key) are always kept.
+        // owning module (permissions.module_key) the brand can reach. module_key is a single owner
+        // per permission (set by permission_canonical_module.sql), so there is no tag-overlap
+        // ambiguity; orphans (null module_key) are always kept.
         // Baking the filtered set into the token means every API endpoint enforces entitlement
         // automatically via HasPermission — no hot-path change. Platform admins are exempt
-        // (cross-brand operators). Runs on the bypass_rls auth path, so the brand_module read
+        // (cross-brand operators). Runs on the bypass_rls auth path, so the brand_feature read
         // sees rows; the explicit brand filter keeps it correct.
+        //
+        // Since migration 0005 the chain is permission → module → FEATURE → brand_feature: a brand
+        // licenses features (what it buys), and a module is reachable when the feature behind it is
+        // entitled. Several modules may share one feature (analytics + report), which is precisely
+        // why the two tables were split.
         if (enforceEntitlement && brandId is { } entBrandId
             && user.UserType != UserType.PlatformAdmin)
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            var entitledKeys = (await db.Modules.AsNoTracking()
-                .Where(m => m.Status == "active" && (m.IsCore ||
-                    db.BrandModules.Any(bm => bm.BrandId == entBrandId && bm.ModuleKey == m.Key
-                        && bm.Enabled && (bm.ValidUntil == null || bm.ValidUntil >= today))))
-                .Select(m => m.Key)
+
+            // Features the brand can use: always-on core features, plus the ones it has licensed
+            // on an unexpired, enabled row.
+            var allFeatures = await db.Features.AsNoTracking()
+                .Where(f => f.Status == "active")
+                .Select(f => new { f.Key, f.IsCore })
+                .ToListAsync(ct);
+
+            var licensed = (await db.BrandFeatures.AsNoTracking()
+                .Where(bf => bf.BrandId == entBrandId && bf.Enabled
+                          && (bf.ValidUntil == null || bf.ValidUntil >= today))
+                .Select(bf => bf.FeatureKey)
                 .ToListAsync(ct))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var entitledFeatures = allFeatures
+                .Where(f => f.IsCore || licensed.Contains(f.Key))
+                .Select(f => f.Key)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // The complement — what the brand does NOT own — travels in the token so a denial caused
+            // by the PLAN is answerable as 402 rather than an indistinguishable 403. Bounded by the
+            // catalogue size (tens of keys), unlike the stripped permission set it explains.
+            entitlementOff = allFeatures
+                .Where(f => !entitledFeatures.Contains(f.Key))
+                .Select(f => f.Key)
+                .ToList();
+
+            // …projected back onto the modules permissions are owned by. A core MODULE stays
+            // reachable regardless (it carries no feature_key), so a brand can never lock its own
+            // admins out of dashboard/users/settings.
+            var entitledKeys = (await db.Modules.AsNoTracking()
+                .Where(m => m.Status == "active")
+                .Select(m => new { m.Key, m.IsCore, m.FeatureKey })
+                .ToListAsync(ct))
+                .Where(m => m.IsCore
+                         || (m.FeatureKey is not null && entitledFeatures.Contains(m.FeatureKey)))
+                .Select(m => m.Key)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             // Map each effective code → its canonical owning module.
@@ -220,6 +260,7 @@ public static class ScopeResolver
             Permissions: string.Join(' ', permissions),
             PermVersion: user.PermVersion,
             ScopeNodes:  scopeNodes,
-            StepUpPerms: string.Join(' ', stepUpPerms));
+            StepUpPerms: string.Join(' ', stepUpPerms),
+            EntitlementOff: entitlementOff.Count > 0 ? string.Join(' ', entitlementOff) : null);
     }
 }

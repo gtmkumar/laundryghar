@@ -25,7 +25,7 @@ public class GetNavigatorQueryHandler : IQueryHandler<GetNavigatorQuery, Navigat
         var mods = await _db.Modules.AsNoTracking()
             .Where(m => m.ShowInNav && m.Status == "active")
             .OrderBy(m => m.NavOrder)
-            .Select(m => new { m.Key, m.Label, m.Icon, m.Route, m.Section, m.RequiredPermission, m.IsCore, m.VerticalKey })
+            .Select(m => new { m.Key, m.Label, m.Icon, m.Route, m.Section, m.RequiredPermission, m.IsCore, m.VerticalKey, m.FeatureKey })
             .ToListAsync(ct);
 
         var activeBrandId = _user.TryGetBrandId();
@@ -39,19 +39,24 @@ public class GetNavigatorQueryHandler : IQueryHandler<GetNavigatorQuery, Navigat
                 .Where(x => x.Id == vbId).Select(x => x.VerticalKey).FirstOrDefaultAsync(ct);
 
         // PaaS entitlement gate (Phase 2, behind a flag): when enforced, a module is
-        // visible only if it is core OR the active brand has licensed it. Resolved
-        // explicitly by brand id so it holds regardless of RLS bypass. With no brand
+        // visible only if it is core OR the active brand has licensed the FEATURE behind it.
+        // Resolved explicitly by brand id so it holds regardless of RLS bypass. With no brand
         // context (e.g. platform admin with no brand selected) entitlement is not
         // applied — they see the full catalogue, still gated by permissions below.
-        HashSet<string>? entitled = null;
+        //
+        // Keyed on features rather than modules since migration 0005: a brand buys features, and
+        // a module appears when its feature is owned. Core features are always on, mirroring the
+        // token-side filter in ScopeResolver so the sidebar and the API can never disagree.
+        HashSet<string>? entitledFeatures = null;
         if (_config.GetValue<bool>("Entitlement:Enforced")
             && activeBrandId is { } brandId)
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            entitled = (await _db.BrandModules.AsNoTracking()
-                .Where(bm => bm.BrandId == brandId && bm.Enabled
-                          && (bm.ValidUntil == null || bm.ValidUntil >= today))
-                .Select(bm => bm.ModuleKey)
+            entitledFeatures = (await _db.Features.AsNoTracking()
+                .Where(f => f.Status == "active" && (f.IsCore ||
+                    _db.BrandFeatures.Any(bf => bf.BrandId == brandId && bf.FeatureKey == f.Key
+                        && bf.Enabled && (bf.ValidUntil == null || bf.ValidUntil >= today))))
+                .Select(f => f.Key)
                 .ToListAsync(ct))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
@@ -60,7 +65,9 @@ public class GetNavigatorQueryHandler : IQueryHandler<GetNavigatorQuery, Navigat
         // user's permissions (platform_admin sees all).
         var visible = mods
             .Where(m => VerticalKey.IsAvailableTo(m.VerticalKey, brandVertical))
-            .Where(m => entitled == null || m.IsCore || entitled.Contains(m.Key))
+            .Where(m => entitledFeatures == null
+                     || m.IsCore
+                     || (m.FeatureKey is not null && entitledFeatures.Contains(m.FeatureKey)))
             .Where(m =>
                 string.IsNullOrEmpty(m.RequiredPermission)
                 || _user.IsPlatformAdmin

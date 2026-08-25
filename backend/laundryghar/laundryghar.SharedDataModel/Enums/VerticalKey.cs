@@ -14,9 +14,14 @@ public static class VerticalKey
     public const string Laundry   = "laundry";
     public const string Salon     = "salon";
     public const string Logistics = "logistics";
+    /// <summary>Recurring-schedule vertical (tiffin/milk/water cans) — strategy Mode 3. Registered
+    /// as a vertical by migration 0004; NOT yet operable, because Mode 3 needs a `recurring`
+    /// fulfilment strategy that is blocked on OQ-2. A tiffin brand today gets the vertical-neutral
+    /// spine (catalog, customers, orders, fleet, payments) and no delivery calendar.</summary>
+    public const string Tiffin    = "tiffin";
 
     public static readonly IReadOnlySet<string> All =
-        new HashSet<string> { Laundry, Salon, Logistics };
+        new HashSet<string> { Laundry, Salon, Logistics, Tiffin };
 
     public static bool IsValid(string? value) => value is not null && All.Contains(value);
 

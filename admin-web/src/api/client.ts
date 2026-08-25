@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useBrandStore } from '@/stores/brandStore'
 import { showToast } from '@/stores/toastStore'
 import { requestStepUp } from '@/stores/stepUpStore'
-import { apiErrorMessage, stepUpRequiredPermissions } from '@/lib/apiError'
+import { apiErrorMessage, featureLabel, featureNotInPlan, stepUpRequiredPermissions } from '@/lib/apiError'
 
 const IDENTITY_URL = import.meta.env.VITE_IDENTITY_URL as string
 const CATALOG_URL = import.meta.env.VITE_CATALOG_URL as string
@@ -169,6 +169,21 @@ function createInstance(baseURL: string): AxiosInstance {
       if (status && status !== 401 && error instanceof Error) {
         const rich = apiErrorMessage(error, error.message)
         if (rich && rich !== error.message) error.message = rich
+      }
+
+      // 402 = the BRAND has not bought this feature (PLATFORM_STRATEGY.md §5). Distinct from 403 on
+      // purpose: 403 means "you may not", 402 means "your plan does not include this" — which is
+      // actionable, so the toast names the feature and offers the upgrade instead of a dead end.
+      // Never refresh or log out: the session is perfectly valid.
+      if (status === 402) {
+        const denial = featureNotInPlan(error)
+        if (denial) {
+          // Name the FEATURE, not the permission: "Custom domain is not included in your plan" is
+          // something an owner can act on; "You don't have permission" is a dead end for a denial
+          // they could fix by upgrading.
+          showToast('error', `${featureLabel(denial.feature)} is not included in your plan. Go to Settings → Licensing to upgrade.`)
+          return Promise.reject(error)
+        }
       }
 
       // 403 = authenticated but not authorized. This is NOT a session problem, so

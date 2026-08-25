@@ -139,6 +139,20 @@ public sealed class WorkerOptions
     /// (The first invoice is issued synchronously by ApplyBundleToBrand regardless of this flag.)</summary>
     public bool BrandPlatformBillingEnabled { get; set; } = false;
 
+    /// <summary>
+    /// §9: how long a company stays in <c>PastDue</c> before the grace window ends and they drop to
+    /// login-only mode. Counted from the invoice's due date, not from the first retry.
+    ///
+    /// <para>Fourteen days is deliberately generous. The cost of suspending too early is a working
+    /// business going dark over a failed card; the cost of suspending too late is a few weeks of
+    /// unpaid usage. Those are not symmetric.</para>
+    /// </summary>
+    public int BrandDunningGraceDays { get; set; } = 14;
+
+    /// <summary>Retries before the grace window is even consulted. Shares the customer-subscription
+    /// backoff (<see cref="SubscriptionDunningBackoffMinutes"/>) so both engines behave alike.</summary>
+    public int BrandMaxDunningAttempts { get; set; } = 3;
+
     /// <summary>Poll interval (seconds) for the brand platform billing job. Default 86400 (daily).</summary>
     public int BrandPlatformBillingPollIntervalSeconds { get; set; } = 86400;
 

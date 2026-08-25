@@ -48,9 +48,16 @@ public sealed class CoreDbContext : ICoreDbContext
     public DbSet<RolePermission> RolePermissions => _db.RolePermissions;
     public DbSet<UserPermissionOverride> UserPermissionOverrides => _db.UserPermissionOverrides;
     public DbSet<AppModule> Modules => _db.Modules;
-    public DbSet<BrandModule> BrandModules => _db.BrandModules;
+    public DbSet<AppFeature> Features => _db.Features;
+    public DbSet<VerticalTerm> VerticalTerms => _db.VerticalTerms;
+    public DbSet<VerticalTemplate> VerticalTemplates => _db.VerticalTemplates;
+    public DbSet<RolePreset> RolePresets => _db.RolePresets;
+    public DbSet<PermissionGroup> PermissionGroups => _db.PermissionGroups;
+    public DbSet<ServiceCategory> ServiceCategories => _db.ServiceCategories;
+    public DbSet<Item> Items => _db.Items;
+    public DbSet<BrandFeature> BrandFeatures => _db.BrandFeatures;
     public DbSet<ModuleBundle> ModuleBundles => _db.ModuleBundles;
-    public DbSet<ModuleBundleItem> ModuleBundleItems => _db.ModuleBundleItems;
+    public DbSet<BundleFeature> BundleFeatures => _db.BundleFeatures;
     public DbSet<BrandPlatformSubscription> BrandPlatformSubscriptions => _db.BrandPlatformSubscriptions;
     public DbSet<BrandPlatformInvoice> BrandPlatformInvoices => _db.BrandPlatformInvoices;
 
@@ -67,7 +74,43 @@ public sealed class CoreDbContext : ICoreDbContext
     public DbSet<Partner> Partners => _db.Partners;
     public DbSet<PartnerUser> PartnerUsers => _db.PartnerUsers;
 
+    public DbSet<ImpersonationGrant> ImpersonationGrants => _db.Set<ImpersonationGrant>();
+    public DbSet<laundryghar.SharedDataModel.Entities.TenancyOrg.OnboardingProgress> OnboardingProgresses => _db.Set<laundryghar.SharedDataModel.Entities.TenancyOrg.OnboardingProgress>();
+    public DbSet<ApiKey> ApiKeys => _db.Set<ApiKey>();
+    public DbSet<ApiKeyUsage> ApiKeyUsages => _db.Set<ApiKeyUsage>();
+    public DbSet<laundryghar.SharedDataModel.Entities.TenancyOrg.BrandCancellation> BrandCancellations => _db.Set<laundryghar.SharedDataModel.Entities.TenancyOrg.BrandCancellation>();
     public DbSet<SystemSetting> SystemSettings => _db.SystemSettings;
+
+    /// <inheritdoc />
+    public async Task<T> ExecuteInTransactionAsync<T>(
+        Func<CancellationToken, Task<T>> action, CancellationToken ct)
+    {
+        // Reuse an ambient transaction rather than nesting: a caller that already opened one owns
+        // the commit, and starting a second here would silently break its atomicity.
+        if (_db.Database.CurrentTransaction is not null) return await action(ct);
+
+        // MUST go through the execution strategy. The context is configured with
+        // NpgsqlRetryingExecutionStrategy (retry-on-transient-failure), which refuses a
+        // user-initiated transaction outright:
+        //     The configured execution strategy 'NpgsqlRetryingExecutionStrategy' does not support
+        //     user-initiated transactions.
+        // The reason is not pedantry: on a transient fault the strategy retries, and a retry that
+        // resumed mid-transaction would double-apply the work already done. Handing it the WHOLE
+        // transaction makes the unit of retry the same as the unit of atomicity.
+        //
+        // The corollary is that `action` may run more than once. That is safe here because each
+        // attempt begins after a full rollback, so it always starts from the same state.
+        var strategy = _db.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+            var result = await action(ct);
+            await tx.CommitAsync(ct);
+            return result;
+        });
+    }
+
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken) =>
         _db.SaveChangesAsync(cancellationToken);

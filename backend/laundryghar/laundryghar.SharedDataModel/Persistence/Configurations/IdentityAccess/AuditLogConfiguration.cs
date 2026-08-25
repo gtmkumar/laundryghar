@@ -41,6 +41,8 @@ public sealed class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         b.Property(e => e.CreatedBy).HasColumnName("created_by");
 
         // FK navigations within this library's scope
+        b.Property(e => e.ImpersonationGrantId).HasColumnName("impersonation_grant_id");
+
         b.HasOne(e => e.Brand)
             .WithMany()
             .HasForeignKey(e => e.BrandId)

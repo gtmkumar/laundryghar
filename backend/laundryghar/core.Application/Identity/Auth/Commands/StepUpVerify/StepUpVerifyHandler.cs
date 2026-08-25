@@ -119,6 +119,20 @@ public sealed class StepUpVerifyHandler : ICommandHandler<StepUpVerifyCommand, S
         {
             Amr      = AuthMethod.Otp,
             StepUpAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+
+            // CARRY THE IMPERSONATION SESSION ACROSS (§7). ScopeResolver rebuilds claims from the
+            // user's own memberships and knows nothing about impersonation, so without this the
+            // upgraded token comes back with no imp_grant, no imp_scope and the support engineer's
+            // OWN brand — turning step-up into a way to walk out of a read-only, consented,
+            // audited session and keep working with an ordinary token. It grants nothing the caller
+            // did not already have signed out, but it silently drops the consent stamp from every
+            // subsequent audit row, which is exactly the property the feature exists to provide.
+            //
+            // Found by driving a real session: the write was refused for step-up, and the obvious
+            // next step — step up and retry — is what would have escaped the session.
+            BrandId              = _current.ImpersonationGrantId is null ? baseClaims.BrandId : _current.BrandId,
+            ImpersonationGrantId = _current.ImpersonationGrantId,
+            ImpersonationScope   = _current.ImpersonationScope,
         };
 
         var accessToken = _jwt.CreateAccessToken(upgraded);

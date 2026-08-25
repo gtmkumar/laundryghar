@@ -172,8 +172,10 @@ public sealed class RbacRlsFixture : IAsyncLifetime
         // 3. trimmed real-shaped tables (owned by postgres).
         await ExecAsync(conn, """
             CREATE TABLE IF NOT EXISTS tenancy_org.brands (
-                id   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                name text NOT NULL
+                id     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                name   text NOT NULL,
+                -- §9 login-only suspension reads this through kernel.brand_status (migration 0009).
+                status varchar(20) NOT NULL DEFAULT 'active'
             );
             CREATE TABLE IF NOT EXISTS tenancy_org.franchises (
                 id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -270,6 +272,121 @@ public sealed class RbacRlsFixture : IAsyncLifetime
         // is created here with no `TO app_user` and no WITH CHECK — exactly as production ships it —
         // so the isolation test measures the real thing.
         await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0002_brand_domains.up.sql")));
+        // The SECURITY DEFINER brand-status lookup behind the §9 suspension gate.
+        await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0009_brand_status_lookup.up.sql")));
+        // §6's preset/group surface. Needs identity_access.features for its FK, so a trimmed stand-in
+        // is created first — this fixture applies no entitlement migrations.
+        await ExecAsync(conn, """
+            CREATE TABLE IF NOT EXISTS identity_access.features (
+                key varchar(64) PRIMARY KEY, name varchar(128) NOT NULL DEFAULT '',
+                is_core boolean NOT NULL DEFAULT false, is_sellable boolean NOT NULL DEFAULT true,
+                status varchar(32) NOT NULL DEFAULT 'active', sort_order int NOT NULL DEFAULT 100,
+                vertical_key varchar(20),
+                created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+            INSERT INTO identity_access.features (key, name) VALUES
+                ('fleet','Fleet'), ('processing_facility','Processing facility')
+            ON CONFLICT (key) DO NOTHING;
+            """);
+        // brand_feature stand-in — kernel.resolve_api_key (0016) answers the `api_access`
+        // entitlement question in the same round trip, so the table has to exist for a key to
+        // resolve at all.
+        await ExecAsync(conn, """
+            CREATE TABLE IF NOT EXISTS identity_access.brand_feature (
+                brand_id    uuid NOT NULL,
+                feature_key varchar(64) NOT NULL,
+                enabled     boolean NOT NULL DEFAULT true,
+                source      varchar(16) NOT NULL DEFAULT 'manual',
+                valid_until date,
+                created_at  timestamptz NOT NULL DEFAULT now(),
+                updated_at  timestamptz NOT NULL DEFAULT now(),
+                PRIMARY KEY (brand_id, feature_key));
+            INSERT INTO identity_access.features (key, name) VALUES ('api_access','API access')
+            ON CONFLICT (key) DO NOTHING;
+            """);
+        await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0013_role_presets_and_groups.up.sql")));
+
+        // §7 consent table. The fixture's permissions/role_permissions are trimmed stand-ins, so the
+        // columns 0014's catalogue INSERT needs are added first. Additive only — existing tests read
+        // the same tables and are untouched.
+        await ExecAsync(conn, """
+            ALTER TABLE identity_access.permissions
+                ADD COLUMN IF NOT EXISTS description    text,
+                ADD COLUMN IF NOT EXISTS is_system      boolean NOT NULL DEFAULT false,
+                ADD COLUMN IF NOT EXISTS requires_scope boolean NOT NULL DEFAULT false,
+                ADD COLUMN IF NOT EXISTS module_key     varchar(64),
+                ADD COLUMN IF NOT EXISTS status         varchar(20) NOT NULL DEFAULT 'active',
+                ADD COLUMN IF NOT EXISTS created_at     timestamptz NOT NULL DEFAULT now(),
+                ADD COLUMN IF NOT EXISTS updated_at     timestamptz NOT NULL DEFAULT now();
+            ALTER TABLE identity_access.role_permissions
+                ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+            """);
+        await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0014_impersonation_grants.up.sql")));
+        // 0020 corrects four misclassifications in 0013's permission groups. Applied AFTER the
+        // permissions stand-in is widened above — its assertions read `permissions.status`.
+        await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0020_fix_permission_group_modules.up.sql")));
+        // §9 wind-down: the cancellation record plus the export/purge machinery. Applied in full so
+        // the tests drive the real functions rather than a stand-in — the properties under test
+        // (nothing missed, nothing leaked across tenants, nothing half-deleted) live in the SQL.
+        // The tombstone in kernel.purge_brand scrubs the identifying columns of a real brands row.
+        // This fixture's brands table is a three-column stand-in, so the columns are added first —
+        // the alternative, making the purge tolerate absent columns, would be complexity in shipped
+        // code paid for entirely by a test fixture.
+        await ExecAsync(conn, """
+            ALTER TABLE tenancy_org.brands
+                ADD COLUMN IF NOT EXISTS deleted_at        timestamptz,
+                ADD COLUMN IF NOT EXISTS legal_name        text,
+                ADD COLUMN IF NOT EXISTS tagline           text,
+                ADD COLUMN IF NOT EXISTS description       text,
+                ADD COLUMN IF NOT EXISTS logo_url          text,
+                ADD COLUMN IF NOT EXISTS favicon_url       text,
+                ADD COLUMN IF NOT EXISTS website_url       text,
+                ADD COLUMN IF NOT EXISTS support_email     text,
+                ADD COLUMN IF NOT EXISTS support_phone     text,
+                ADD COLUMN IF NOT EXISTS toll_free_number  text,
+                ADD COLUMN IF NOT EXISTS whatsapp_number   text,
+                ADD COLUMN IF NOT EXISTS play_store_url    text,
+                ADD COLUMN IF NOT EXISTS app_store_url     text,
+                ADD COLUMN IF NOT EXISTS config            jsonb NOT NULL DEFAULT '{}'::jsonb,
+                ADD COLUMN IF NOT EXISTS updated_at        timestamptz NOT NULL DEFAULT now();
+            """);
+        await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0015_brand_cancellation.up.sql")));
+
+        // §9's dunning edge. Needs a brand_platform_invoice stand-in for the columns 0021 adds.
+        await ExecAsync(conn, """
+            CREATE TABLE IF NOT EXISTS identity_access.brand_platform_invoice (
+                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                subscription_id uuid,
+                brand_id  uuid NOT NULL,
+                amount    numeric(12,2) NOT NULL DEFAULT 0,
+                status    varchar(20) NOT NULL DEFAULT 'issued',
+                due_at    timestamptz,
+                created_at timestamptz NOT NULL DEFAULT now());
+            """);
+        await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0021_brand_dunning.up.sql")));
+        // §11 P4 machine credentials.
+        await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0016_api_keys.up.sql")));
+        // §9's provider wizard. Needs tenancy_org.stores / franchises and customer_catalog.items for
+        // its facts function; trimmed stand-ins, because the point under test is the DERIVATION, not
+        // those tables' own schemas.
+        await ExecAsync(conn, """
+            CREATE TABLE IF NOT EXISTS tenancy_org.franchises (
+                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                brand_id uuid NOT NULL, code text NOT NULL,
+                created_at timestamptz NOT NULL DEFAULT now(), deleted_at timestamptz);
+            ALTER TABLE tenancy_org.franchises
+                ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
+                ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+            ALTER TABLE tenancy_org.stores
+                ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'active',
+                ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+            -- kernel.ensure_brand_subdomain builds the host from the brand's code.
+            ALTER TABLE tenancy_org.brands ADD COLUMN IF NOT EXISTS code text;
+            CREATE SCHEMA IF NOT EXISTS customer_catalog;
+            CREATE TABLE IF NOT EXISTS customer_catalog.items (
+                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                brand_id uuid NOT NULL, status varchar(20) NOT NULL DEFAULT 'active');
+            """);
+        await ExecAsync(conn, await File.ReadAllTextAsync(RepoPaths.Migration("0017_onboarding_progress.up.sql")));
 
         // 6. grants for both app roles across all three schemas.
         await ExecAsync(conn, """

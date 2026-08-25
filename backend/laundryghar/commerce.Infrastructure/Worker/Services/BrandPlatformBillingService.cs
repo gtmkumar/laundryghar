@@ -59,6 +59,7 @@ public sealed class BrandPlatformBillingService : BackgroundService
 
     private async Task RunCycleAsync(CancellationToken ct)
     {
+        await RunDunningAsync(ct);
         await using var scope = _scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
         var now = DateTimeOffset.UtcNow;
@@ -134,4 +135,116 @@ public sealed class BrandPlatformBillingService : BackgroundService
         "yearly"      => from.AddMonths(12),
         _             => from.AddMonths(1),
     };
+
+    /// <summary>
+    /// §9's `Active → PastDue → Suspended → Active` edge for the COMPANY's subscription to us.
+    ///
+    /// <para>The suspension gate (<c>BrandSuspensionMiddleware</c>) has existed and been tested
+    /// since T-18. What was missing was anything that pulled the trigger: nothing in the codebase
+    /// wrote <c>brands.status = 'suspended'</c>, so a provider could stop paying and keep trading
+    /// indefinitely. §5 describes suspend-on-nonpay as already built, and it was — for CUSTOMER
+    /// subscriptions, a different engine entirely.</para>
+    ///
+    /// <para>Three passes, in this order and for a reason. Payments are honoured FIRST, so a company
+    /// that paid this morning is never suspended this afternoon by a stale invoice — being wrongly
+    /// suspended is far more damaging than being suspended an hour late.</para>
+    /// </summary>
+    private async Task RunDunningAsync(CancellationToken ct)
+    {
+        try
+        {
+            await using var scope = _scopeFactory.CreateWorkerAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
+            var now = DateTimeOffset.UtcNow;
+
+            // ── 1. Payment recovered → reinstate ────────────────────────────────────────────────
+            // Only brands with NO outstanding invoice, and only ones dunning itself suspended:
+            // kernel.set_brand_suspension refuses to clear a ToS or manual suspension, so a
+            // fraudster settling a bill cannot reinstate themselves.
+            var recovered = await db.Database.SqlQuery<Guid>($"""
+                SELECT DISTINCT b.id AS "Value"
+                FROM   tenancy_org.brands b
+                WHERE  b.status = 'suspended'
+                  AND  b.suspension_reason = 'nonpayment'
+                  AND  NOT EXISTS (
+                         SELECT 1 FROM identity_access.brand_platform_invoice i
+                         WHERE  i.brand_id = b.id
+                           AND  i.status IN ('issued', 'past_due')
+                           AND  i.due_at <= now())
+                """).ToListAsync(ct);
+
+            foreach (var brandId in recovered)
+            {
+                await db.Database.ExecuteSqlAsync(
+                    $"SELECT kernel.set_brand_suspension({brandId}, false, 'nonpayment')", ct);
+                _logger.LogInformation(
+                    "Dunning: brand {BrandId} paid up — reinstated to active.", brandId);
+            }
+
+            // ── 2. Overdue → PastDue, and count the attempt ─────────────────────────────────────
+            var backoff = TimeSpan.FromMinutes(_options.SubscriptionDunningBackoffMinutes);
+            var marked = await db.Database.ExecuteSqlAsync($"""
+                UPDATE identity_access.brand_platform_invoice
+                   SET status          = 'past_due',
+                       attempt_count   = attempt_count + 1,
+                       last_attempt_at = now(),
+                       next_attempt_at = now() + {backoff}
+                 WHERE status IN ('issued', 'past_due')
+                   AND due_at <= now()
+                   AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+                """, ct);
+
+            if (marked > 0)
+            {
+                // The subscription follows its invoices, so the state machine in §9 is readable
+                // from the subscription row alone.
+                await db.Database.ExecuteSqlAsync($"""
+                    UPDATE identity_access.brand_platform_subscription s
+                       SET status = 'past_due', updated_at = now()
+                     WHERE s.status IN ('active', 'trialing')
+                       AND EXISTS (SELECT 1 FROM identity_access.brand_platform_invoice i
+                                   WHERE i.subscription_id = s.id AND i.status = 'past_due')
+                    """, ct);
+
+                _logger.LogWarning("Dunning: {Count} brand invoice(s) moved to past_due.", marked);
+            }
+
+            // ── 3. Grace window elapsed → suspend ───────────────────────────────────────────────
+            // BOTH conditions: the retries are exhausted AND the grace window has passed. Either
+            // alone would suspend too eagerly — a card that fails three times in an afternoon is a
+            // bank problem, not an abandoned account.
+            var grace = TimeSpan.FromDays(_options.BrandDunningGraceDays);
+            var attempts = _options.BrandMaxDunningAttempts;
+
+            var due = await db.Database.SqlQuery<Guid>($"""
+                SELECT DISTINCT i.brand_id AS "Value"
+                FROM   identity_access.brand_platform_invoice i
+                JOIN   tenancy_org.brands b ON b.id = i.brand_id
+                WHERE  i.status = 'past_due'
+                  AND  i.attempt_count >= {attempts}
+                  AND  i.due_at <= now() - {grace}
+                  AND  b.status = 'active'
+                """).ToListAsync(ct);
+
+            foreach (var brandId in due)
+            {
+                var result = await db.Database.SqlQuery<string?>(
+                    $"SELECT kernel.set_brand_suspension({brandId}, true, 'nonpayment') AS \"Value\"")
+                    .ToListAsync(ct);
+
+                _logger.LogWarning(
+                    "Dunning: brand {BrandId} suspended for non-payment after {Attempts} attempts "
+                    + "and a {Grace}-day grace window — login, billing and export stay open (§9). "
+                    + "Result: {Result}",
+                    brandId, attempts, _options.BrandDunningGraceDays,
+                    result.Count > 0 ? result[0] : "(none)");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Never let dunning take the billing cycle down with it. Failing to suspend costs a few
+            // days of unpaid usage; failing to INVOICE costs the month.
+            _logger.LogError(ex, "Dunning: pass failed; will retry next cycle.");
+        }
+    }
 }

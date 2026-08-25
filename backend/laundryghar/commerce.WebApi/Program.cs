@@ -167,7 +167,9 @@ builder.Services.AddSingleton<IAuthorizationHandler, PartnerOnlyHandler>(); // R
 builder.Services.AddSingleton<IAuthorizationHandler, PartnerAdminHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 // §8 step-up: convert a step-up policy denial into a structured 403 step_up_required.
-builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, StepUpAuthorizationResultHandler>();
+// Scoped, not Singleton: it resolves IFeatureCatalog (which holds the request's DbContext) to tell a
+// plan denial (402 feature_not_in_plan) from a permission denial (403).
+builder.Services.AddScoped<IAuthorizationMiddlewareResultHandler, ApiAuthorizationResultHandler>();
 builder.Services.AddAuthorization();
 
 // ── Output caching (customer plan/package listings; tenant-keyed, tag-evicted on admin writes) ─
@@ -362,6 +364,14 @@ app.Use(async (ctx, next) =>
 // platform admins get RLS bypass + X-Brand-Id → brand_id_override so RequireBrandId() resolves.
 app.UseAuthentication();
 app.UseMiddleware<laundryghar.Utilities.Middlewares.TenantResolutionMiddleware>();
+// §9 login-only mode: a suspended brand keeps its logins and its billing screens and loses the
+// ability to operate. AFTER tenant resolution so the brand is known, BEFORE authorization so a
+// suspended tenant is stopped regardless of what it is permitted to do.
+// Before the suspension gate and before any endpoint: a consented support session must be
+// re-validated against the database on every request, so a revocation bites immediately
+// rather than when the token expires.
+app.UseMiddleware<laundryghar.Utilities.Middlewares.ImpersonationGuardMiddleware>();
+app.UseMiddleware<laundryghar.Utilities.Middlewares.BrandSuspensionMiddleware>();
 app.UseAuthorization();
 
 // ── Output cache — after auth so cached authorized responses still require a valid

@@ -52,6 +52,33 @@ export function stepUpRequiredPermissions(error: unknown): string[] | null {
   return typeof raw === 'string' ? [raw] : []
 }
 
+/** `custom_domain` -> `Custom domain`. The backend sends the key; a human needs the name. */
+export function featureLabel(featureKey: string): string {
+  const words = featureKey.replace(/_/g, ' ').trim()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/**
+ * A `402 feature_not_in_plan` denial (PLATFORM_STRATEGY.md §5): the request failed because the
+ * BRAND has not bought the feature, not because the user lacks permission.
+ *
+ * The two are indistinguishable without this — the backend's entitlement filter strips un-entitled
+ * permissions from the token, so a plan denial would otherwise arrive as an ordinary 403 and the
+ * user would be told they lack permission when what they lack is the plan.
+ *
+ * @returns the feature key and where to upgrade, or null when this is not a plan denial.
+ */
+export function featureNotInPlan(error: unknown): { feature: string; upgradePath: string } | null {
+  if (apiErrorStatus(error) !== 402) return null
+  const envelope = envelopeOf(error)
+  if (envelope?.responseMessage !== 'feature_not_in_plan') return null
+  const raw = envelope.errorMessage?.feature_not_in_plan
+  if (!Array.isArray(raw) || raw.length === 0) return null
+  const [feature, upgradePath] = raw
+  if (typeof feature !== 'string') return null
+  return { feature, upgradePath: typeof upgradePath === 'string' ? upgradePath : '/settings' }
+}
+
 /**
  * Field-level validation errors keyed by the backend's field name (PascalCase
  * or camelCase, e.g. `Price` / `nameLocalized`). The generic `error` key the

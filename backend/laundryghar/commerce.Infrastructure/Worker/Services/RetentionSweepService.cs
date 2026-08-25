@@ -82,6 +82,8 @@ public sealed class RetentionSweepService : BackgroundService
         await SweepNotificationOutboxAsync(ct);
         await SweepOtpCodesAsync(ct);
         await SweepRefreshTokensAsync(ct);
+        await PurgeCancelledBrandsAsync(ct);
+        await CheckDomainHealthAsync(ct);
 
         _logger.LogDebug("RetentionSweepService: sweep cycle complete.");
     }
@@ -188,5 +190,156 @@ public sealed class RetentionSweepService : BackgroundService
             _logger.LogError(ex,
                 "RetentionSweepService: error sweeping refresh_tokens; skipping target.");
         }
+    }
+
+    /// <summary>
+    /// §9's last step: "export offered, wind-down retention, then <b>deletion</b> per DPDP."
+    ///
+    /// <para>Deletes every brand whose retention window has elapsed. Deliberately the ONLY code path
+    /// that can destroy a tenant — there is no delete endpoint — because the two properties that
+    /// make this safe are both properties of a scheduled job: it cannot be triggered by a mis-click,
+    /// and it cannot run early. The window, set when the provider cancelled, is the whole
+    /// safeguard.</para>
+    ///
+    /// <para>Withdrawal is honoured by construction: withdrawing flips the row's status away from
+    /// <c>retention</c>, and this only ever selects rows still in it. A provider who changes their
+    /// mind at hour 23 of day 30 is simply never picked up.</para>
+    ///
+    /// <para>Each brand is purged in its own transaction and its own scope. One tenant whose purge
+    /// stalls on an unexpected foreign key must not block every other tenant's — and
+    /// <c>kernel.purge_brand</c> raises rather than half-finishing, so a stall leaves that brand
+    /// exactly as it was, still in retention, to be retried on the next tick and investigated.</para>
+    /// </summary>
+    private async Task PurgeCancelledBrandsAsync(CancellationToken ct)
+    {
+        List<Guid> due;
+        try
+        {
+            await using var scope = _scopeFactory.CreateWorkerAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
+
+            due = await db.Set<laundryghar.SharedDataModel.Entities.TenancyOrg.BrandCancellation>()
+                .Where(c => c.Status == laundryghar.SharedDataModel.Entities.TenancyOrg.BrandCancellationStatus.Retention
+                         && c.RetentionUntil <= DateTimeOffset.UtcNow)
+                .Select(c => c.BrandId)
+                .ToListAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RetentionSweepService: could not list brands due for purge.");
+            return;
+        }
+
+        foreach (var brandId in due)
+        {
+            try
+            {
+                await using var scope = _scopeFactory.CreateWorkerAsyncScope();
+                var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
+
+                var rows = await db.Database
+                    .SqlQuery<long>($"SELECT sum(rows_deleted)::bigint AS \"Value\" FROM kernel.purge_brand({brandId})")
+                    .ToListAsync(ct);
+
+                await db.Set<laundryghar.SharedDataModel.Entities.TenancyOrg.BrandCancellation>()
+                    .Where(c => c.BrandId == brandId
+                             && c.Status == laundryghar.SharedDataModel.Entities.TenancyOrg.BrandCancellationStatus.Retention)
+                    .ExecuteUpdateAsync(u => u
+                        .SetProperty(c => c.Status, laundryghar.SharedDataModel.Entities.TenancyOrg.BrandCancellationStatus.Purged)
+                        .SetProperty(c => c.PurgedAt, DateTimeOffset.UtcNow)
+                        .SetProperty(c => c.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
+                _logger.LogWarning(
+                    "RetentionSweepService: purged brand {BrandId} — {Rows} row(s) deleted after the "
+                    + "retention window elapsed. The brand record remains as a tombstone for the audit ledger.",
+                    brandId, rows.Count > 0 ? rows[0] : 0);
+            }
+            catch (Exception ex)
+            {
+                // Left in 'retention' on purpose: a purge that partially ran and was marked complete
+                // would mean telling a customer their data is gone when some of it is not.
+                _logger.LogError(ex,
+                    "RetentionSweepService: purge FAILED for brand {BrandId}; it stays in retention "
+                    + "and will be retried. Investigate before reporting deletion as complete.", brandId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// §12: automated SSL and domain health checks "from day one".
+    ///
+    /// <para>Observes each verified custom domain and records what it found. It does NOT issue or
+    /// renew certificates — that half is blocked on OQ-6 (Let's Encrypt vs Cloudflare-for-SaaS), and
+    /// choosing a vendor on a customer's behalf is choosing their bill. Checking is identical
+    /// whichever wins, and is worth having alone: without it, a custom domain's certificate can
+    /// expire and the first anyone hears of it is a customer's customer seeing a browser
+    /// warning.</para>
+    ///
+    /// <para>Stalest-first and capped per tick, so a large estate drains fairly instead of the same
+    /// alphabetical prefix being checked every day while the tail is never looked at.</para>
+    /// </summary>
+    private async Task CheckDomainHealthAsync(CancellationToken ct)
+    {
+        const int PerTick = 100;
+
+        List<string> domains;
+        try
+        {
+            await using var scope = _scopeFactory.CreateWorkerAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
+
+            domains = await db.Database.SqlQuery<string>($"""
+                SELECT domain::text AS "Value"
+                FROM   tenancy_org.brand_domains
+                WHERE  verified_at IS NOT NULL
+                ORDER  BY last_checked_at NULLS FIRST
+                LIMIT  {PerTick}
+                """).ToListAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RetentionSweepService: could not list domains to health-check.");
+            return;
+        }
+
+        if (domains.Count == 0) return;
+
+        var checker = new laundryghar.SharedDataModel.Persistence.TlsDomainHealthChecker();
+        var unhealthy = 0;
+
+        foreach (var domain in domains)
+        {
+            try
+            {
+                var result = await checker.CheckAsync(domain, ct);
+
+                await using var scope = _scopeFactory.CreateWorkerAsyncScope();
+                var db = scope.ServiceProvider.GetRequiredService<LaundryGharDbContext>();
+                await db.Database.ExecuteSqlAsync(
+                    $"SELECT kernel.record_domain_check({domain}, {result.Health}, {result.Detail}, {result.SslExpiresAt}, {result.Issuer})",
+                    ct);
+
+                if (result.Health != laundryghar.SharedDataModel.Contracts.DomainHealth.Healthy)
+                {
+                    unhealthy++;
+                    _logger.LogWarning(
+                        "Domain health: {Domain} is {Health} — {Detail}",
+                        domain, result.Health, result.Detail ?? "no detail");
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // One domain's failure must not abandon the rest of the sweep.
+                _logger.LogError(ex, "Domain health: check failed for {Domain}.", domain);
+            }
+        }
+
+        _logger.LogInformation(
+            "Domain health: checked {Count} domain(s), {Unhealthy} needing attention.",
+            domains.Count, unhealthy);
     }
 }

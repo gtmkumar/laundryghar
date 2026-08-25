@@ -66,6 +66,20 @@ public static class DependencyInjection
         // Live-revocation token-version guard (used by TenantResolutionMiddleware when
         // Auth:EnforceTokenVersion is on). Scoped: reads through the per-request DbContext.
         services.AddMemoryCache();
+
+        // Permission -> feature lookup for the 402 vs 403 decision on the authorization denial path
+        // (PLATFORM_STRATEGY.md §5). Scoped: it holds the request's DbContext, and caches the map
+        // itself in the shared IMemoryCache rather than per instance.
+        services.AddScoped<Contracts.IFeatureCatalog, Persistence.FeatureCatalog>();
+
+        // Brand lifecycle status for §9's login-only suspension gate. Scoped (holds the DbContext);
+        // the status itself is cached in the shared IMemoryCache with a short TTL.
+        services.AddScoped<Contracts.IBrandStatusStore, Persistence.BrandStatusStore>();
+        // Uncached and fail-closed, unlike the brand status store above — see IImpersonationStateStore.
+        services.AddScoped<Contracts.IImpersonationStateStore, Persistence.ImpersonationStateStore>();
+        services.AddScoped<Contracts.IBrandExportService, Persistence.BrandExportService>();
+        services.AddScoped<Contracts.IApiKeyStore, Persistence.ApiKeyStore>();
+        services.AddScoped<Contracts.IOnboardingFactsStore, Persistence.OnboardingFactsStore>();
         services.AddScoped<laundryghar.SharedDataModel.Contracts.ITokenVersionStore,
             laundryghar.SharedDataModel.Persistence.TokenVersionStore>();
 

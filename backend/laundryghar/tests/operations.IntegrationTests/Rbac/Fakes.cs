@@ -45,7 +45,9 @@ public sealed class FakeCurrentUser : ICurrentUser
     public bool IsWithinScope(Guid? brandId = null, Guid? franchiseId = null, Guid? storeId = null, Guid? warehouseId = null)
         => true;
 
-    public Guid? TryGetBrandId() => BrandId;
+    public Guid? ImpersonationGrantId => null;
+        public string? ImpersonationScope => null;
+        public Guid? TryGetBrandId() => BrandId;
 
     public Guid RequireBrandId() => BrandId ?? throw new UnauthorizedAccessException("no brand");
 }

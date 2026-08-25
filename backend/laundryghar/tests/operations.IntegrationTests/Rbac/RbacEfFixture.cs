@@ -154,10 +154,42 @@ public sealed class RbacEfFixture : IAsyncLifetime
                  {
                      "0002_brand_domains.up.sql",
                      "0003_resolve_brand_domain.up.sql",
+                     // 0004 widens the vertical vocabulary (tiffin); 0005 splits the sellable
+                     // FEATURE catalogue out of the navigation modules and moves entitlement onto
+                     // it. Applied verbatim so the entitlement tests exercise the real FKs and the
+                     // real brand_feature RLS policy.
+                     "0004_add_tiffin_vertical.up.sql",
+                     "0005_split_features_from_modules.up.sql",
+                     // 0006 gates roles on features ("roles follow features", §5/§6.3).
+                     "0006_roles_follow_features.up.sql",
+                     // §3's per-vertical vocabulary. (0007 tier alignment is NOT applied here: it
+                     // needs module_bundle.price, which this fixture's trimmed patch chain does not
+                     // create, and nothing in these tests depends on tier contents.)
+                     "0010_vertical_terminology.up.sql",
+                     // §7 consent. Applied in full rather than stubbing the one audit column it
+                     // adds: the interceptor tests write real audit rows, and a stubbed column would
+                     // prove the mapping compiles without proving it matches the shipped schema.
+                     "0014_impersonation_grants.up.sql",
+                     "0015_brand_cancellation.up.sql",
                  })
         {
             await Exec(conn, await File.ReadAllTextAsync(RepoPaths.Migration(migration)));
         }
+
+        // The trimmed module_bundle stand-in predates the billing columns the ApplyBundleToBrand
+        // handler maps. Added rather than left out: EF selects every mapped column, so a missing one
+        // fails the whole query — and the plan-change tests exist to exercise that exact handler.
+        await Exec(conn, """
+            ALTER TABLE identity_access.module_bundle
+                ADD COLUMN IF NOT EXISTS price            numeric(12,2),
+                ADD COLUMN IF NOT EXISTS billing_interval varchar(20),
+                ADD COLUMN IF NOT EXISTS currency_code    varchar(3),
+                ADD COLUMN IF NOT EXISTS is_public        boolean NOT NULL DEFAULT true,
+                ADD COLUMN IF NOT EXISTS vertical_key     varchar(20),
+                ADD COLUMN IF NOT EXISTS created_at       timestamptz NOT NULL DEFAULT now(),
+                ADD COLUMN IF NOT EXISTS updated_at       timestamptz NOT NULL DEFAULT now();
+            """);
+
     }
 
     public async Task DisposeAsync()

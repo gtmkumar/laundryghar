@@ -35,6 +35,8 @@ public static class DependencyInjection
         // Salon vertical (Phase 4): an appointment strategy with its OWN status vocabulary —
         // the validation that the seam supports a genuinely different vertical.
         services.AddSingleton<IFulfillmentStrategy, operations.Application.Fulfillment.Salon.SalonAppointmentStrategy>();
+        // §3 Mode 3 — recurring scheduled delivery (tiffin/milk/water).
+        services.AddSingleton<IFulfillmentStrategy, operations.Application.Fulfillment.Recurring.RecurringDeliveryStrategy>();
         services.AddSingleton<IFulfillmentStrategyResolver, FulfillmentStrategyResolver>();
 
         return services;

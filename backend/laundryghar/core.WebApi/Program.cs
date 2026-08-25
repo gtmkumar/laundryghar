@@ -195,6 +195,9 @@ builder.Services.AddScoped<core.Infrastructure.Seeders.IdentitySeeder>();
 
 // ── Rate limiting (C5) ──────────────────────────────────────────────────────────
 var authPermitLimit = builder.Configuration.GetValue<int?>("RateLimit:AuthPermitLimit") ?? 10;
+// Default ceiling for an API key that carries no per-key limit of its own. A number, never
+// "unlimited" — see the "api_key" policy below.
+var apiKeyPermitLimit = builder.Configuration.GetValue<int?>("RateLimit:ApiKeyPermitLimit") ?? 120;
 
 builder.Services.AddRateLimiter(opts =>
 {
@@ -211,6 +214,72 @@ builder.Services.AddRateLimiter(opts =>
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
             }));
+
+    // "api_key": per-KEY rate limiting (§11 P4). The partition is the key id, not the IP — an
+    // integration behind one NAT must not be throttled by another customer's traffic, and one
+    // runaway integration must not be able to spend everyone else's budget by moving IPs.
+    //
+    // The limit comes from the key's own claim, so a provider on a higher tier can be given more
+    // without a deploy. A key with no explicit limit falls back to the host default; that default is
+    // deliberately a NUMBER and not "unlimited", because an unlimited default is one misconfigured
+    // retry loop away from an outage.
+    opts.AddPolicy("api_key", httpContext =>
+    {
+        // The PUBLIC half of the credential, parsed from the header. No database, no hashing, and
+        // available before authentication — see the UseRateLimiter comment below.
+        var raw = httpContext.Request.Headers[laundryghar.Utilities.Auth.ApiKey.ApiKeyClaims.HeaderName]
+                      .ToString();
+        if (string.IsNullOrEmpty(raw))
+        {
+            var authHeader = httpContext.Request.Headers.Authorization.ToString();
+            if (authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                raw = authHeader["Bearer ".Length..].Trim();
+        }
+
+        // Anything that is not a well-formed key shares one strict IP bucket: it cannot be attributed
+        // to a customer, and it is exactly the shape of a credential-guessing loop.
+        if (!laundryghar.Utilities.Auth.ApiKey.ApiKeyClaims.TryParse(raw, out var keyPrefix, out _))
+            return RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: $"anon:{httpContext.Connection.RemoteIpAddress}",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 20, Window = TimeSpan.FromSeconds(60),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst, QueueLimit = 0
+                });
+
+        // The key's own ceiling, cached by the authentication handler. A provider on a higher tier
+        // can be given more without a deploy. A key with no explicit limit falls back to the host
+        // default — which is deliberately a NUMBER and not "unlimited", because an unlimited default
+        // is one misconfigured retry loop away from an outage.
+        var limit = apiKeyPermitLimit;
+        var cache = httpContext.RequestServices
+            .GetService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+        if (cache is not null
+            && cache.TryGetValue(
+                laundryghar.Utilities.Auth.ApiKey.ApiKeyClaims.RateLimitCacheKey(keyPrefix),
+                out var cached)
+            && cached is int perKey && perKey > 0)
+            limit = perKey;
+
+        // Partitioned by KEY, not by IP: an integration behind one NAT must not be throttled by
+        // another customer's traffic, and one runaway integration must not be able to spend
+        // everyone else's budget by moving IPs.
+        //
+        // The LIMIT is part of the partition key, which looks redundant and is not. The factory runs
+        // ONCE per partition and its result is reused forever — so a key whose ceiling was still
+        // unknown on its first request (the cache is populated during authentication, which happens
+        // after this) would be pinned to the default bucket for the process's lifetime, and the
+        // per-key limit would silently never apply. Found by issuing a key limited to 5/min and
+        // watching nine requests succeed. Folding the limit in means learning the real ceiling
+        // creates the right bucket instead of being ignored by the wrong one.
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"{keyPrefix}:{limit}",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = limit, Window = TimeSpan.FromSeconds(60),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst, QueueLimit = 0
+            });
+    });
 
     // "oauth_register": 3 registrations / hour per IP.
     opts.AddPolicy("oauth_register", httpContext =>
@@ -287,10 +356,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 return context.Response.Body.WriteAsync(body).AsTask();
             }
         };
-    });
+    })
+    // §11 P4: machine credentials. A THIRD scheme rather than folding into "Bearer", because an API
+    // key is not a JWT and must never satisfy a policy written for a signed-in human — the schemes
+    // are what keep those two worlds from bleeding into each other. It reads the same Authorization
+    // header, and returns NoResult (not Fail) when the value is not a `lg_…` key, so an ordinary
+    // bearer token passes straight through to the JWT handler above.
+    .AddScheme<laundryghar.Utilities.Auth.ApiKey.ApiKeyOptions,
+               laundryghar.Utilities.Auth.ApiKey.ApiKeyAuthenticationHandler>(
+        laundryghar.Utilities.Auth.ApiKey.ApiKeyClaims.Scheme, _ => { });
+
+builder.Services.AddScoped<laundryghar.Utilities.Auth.ApiKey.IApiKeySecretVerifier,
+                           core.Infrastructure.Auth.ApiKeySecretVerifier>();
 
 // Permission/CustomerOnly authorization handlers + dynamic policy provider.
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, laundryghar.Utilities.Auth.ApiKey.ApiScopeHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, AnyPermissionHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, CustomerOnlyHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, PartnerOnlyHandler>(); // RaaS partner lane (auth)
@@ -300,7 +381,9 @@ builder.Services.AddSingleton<IAuthorizationHandler, PartnerAdminHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, McpCustomerOnlyHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 // §8 step-up: convert a step-up policy denial into a structured 403 step_up_required.
-builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, StepUpAuthorizationResultHandler>();
+// Scoped, not Singleton: it resolves IFeatureCatalog (which holds the request's DbContext) to tell a
+// plan denial (402 feature_not_in_plan) from a permission denial (403).
+builder.Services.AddScoped<IAuthorizationMiddlewareResultHandler, ApiAuthorizationResultHandler>();
 
 // Single AddAuthorization. "McpCustomerOnly" is registered as an EXPLICIT named policy so
 // the default provider resolves it — PermissionPolicyProvider.GetPolicyAsync falls back to
@@ -418,6 +501,11 @@ if (runSeed)
 app.UseForwardedHeadersIfEnabled();
 
 // ── Rate limiting (C5) — after real-IP resolution, before endpoints ───────────
+// Stays BEFORE authentication on purpose. The "api_key" policy partitions on the key prefix read
+// straight from the request header rather than on a claim, precisely so throttling happens before
+// any database lookup or password-hash verification — a guessing loop is stopped before it can cost
+// anything. (An earlier version partitioned on the claim and silently did nothing: the ApiKey scheme
+// is not the default one, so it only runs during authorization and HttpContext.User is empty here.)
 app.UseRateLimiter();
 
 // ── Global exception → response-envelope middleware ───────────────────────────
@@ -467,6 +555,14 @@ app.Use(async (ctx, next) =>
 });
 
 app.UseMiddleware<laundryghar.Utilities.Middlewares.TenantResolutionMiddleware>();
+// §9 login-only mode: a suspended brand keeps its logins and its billing screens and loses the
+// ability to operate. AFTER tenant resolution so the brand is known, BEFORE authorization so a
+// suspended tenant is stopped regardless of what it is permitted to do.
+// Before the suspension gate and before any endpoint: a consented support session must be
+// re-validated against the database on every request, so a revocation bites immediately
+// rather than when the token expires.
+app.UseMiddleware<laundryghar.Utilities.Middlewares.ImpersonationGuardMiddleware>();
+app.UseMiddleware<laundryghar.Utilities.Middlewares.BrandSuspensionMiddleware>();
 app.UseAuthorization();
 
 // ── Output cache — after auth so cached authorized responses still require a valid
@@ -535,4 +631,10 @@ static bool IsScopeResolvingAuthPath(PathString path) =>
     // enabled, so without this bypass the lookups would return nothing. Each query is keyed to the
     // caller-supplied phone; the mint is gated on a proven OTP + active status.
     || path.StartsWithSegments("/api/v1/partner/auth/otp")
-    || path.StartsWithSegments("/oauth");
+    || path.StartsWithSegments("/oauth")
+    // Provider self-signup (§9). Creates a tenant from nothing: there is no brand, no user and no
+    // token yet, so every table it touches — brands, users, memberships, brand_feature, the
+    // catalogue — is invisible under RLS without this. The bypass is safe for the same reason as the
+    // rest of this list: the phone is proven by OTP before a single row is written, and the brand
+    // code is generated rather than accepted, so a caller cannot reach or name anyone else's tenant.
+    || path.StartsWithSegments("/api/v1/signup");

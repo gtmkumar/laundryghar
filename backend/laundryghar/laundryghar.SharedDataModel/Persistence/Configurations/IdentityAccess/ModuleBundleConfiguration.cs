@@ -22,13 +22,13 @@ public sealed class ModuleBundleConfiguration : IEntityTypeConfiguration<ModuleB
     }
 }
 
-public sealed class ModuleBundleItemConfiguration : IEntityTypeConfiguration<ModuleBundleItem>
+public sealed class BundleFeatureConfiguration : IEntityTypeConfiguration<BundleFeature>
 {
-    public void Configure(EntityTypeBuilder<ModuleBundleItem> b)
+    public void Configure(EntityTypeBuilder<BundleFeature> b)
     {
-        b.ToTable("module_bundle_item", "identity_access");
-        b.HasKey(e => new { e.BundleCode, e.ModuleKey });
+        b.ToTable("bundle_feature", "identity_access");
+        b.HasKey(e => new { e.BundleCode, e.FeatureKey });
         b.Property(e => e.BundleCode).HasColumnName("bundle_code").IsRequired();
-        b.Property(e => e.ModuleKey).HasColumnName("module_key").IsRequired();
+        b.Property(e => e.FeatureKey).HasColumnName("feature_key").HasMaxLength(64).IsRequired();
     }
 }

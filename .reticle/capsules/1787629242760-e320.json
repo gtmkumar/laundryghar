@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "1787629242760-e320",
+  "createdAt": 1787629242761,
+  "origin": "failed-assert",
+  "expected": "net",
+  "observed": "a call matched but its body was not recorded, so `bodyContains` could not be checked — enable it where the app calls connect(): reticle({ captureNetworkBodies: true })",
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "testid",
+        "value": "e320",
+        "source": {
+          "file": "src/pages/access-control/AccessControlPage.tsx",
+          "line": 99,
+          "column": 10
+        }
+      },
+      "action": "click"
+    }
+  ]
+}

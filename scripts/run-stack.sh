@@ -21,8 +21,28 @@ AVD="${AVD:-snap_pixel}"
 # Leaving 8081 here would silently kill that project's dev server on every start.
 METRO_PORT="${METRO_PORT:-9091}"
 
-ports=(5056 5015 5242 5174 "$METRO_PORT" 5000)
-free_ports() { for p in "${ports[@]}"; do for pid in $(lsof -nP -iTCP:$p -sTCP:LISTEN -t 2>/dev/null); do kill -9 "$pid" 2>/dev/null; done; done; }
+# The ports this stack OWNS. Nothing else may be listed here: free_ports kill -9s whatever holds
+# them, so an extra entry is a loaded gun pointed at another process.
+#   5000 was in this list and is NOT ours — on macOS it is ControlCenter (AirPlay Receiver), and
+#   nothing this script starts ever binds it. Every run silently SIGKILLed a system service for
+#   no reason. Removed 2026-08-25.
+ports=(5056 5015 5242 5174 "$METRO_PORT")
+
+# Refuse to kill a process that is not one of ours. lsof gives us the command name; anything that
+# is not dotnet/node/expo is somebody else's and we would rather fail loudly than take it down.
+OURS='^(dotnet|node|npm|npx|core\.WebA|operation|commerce|Expo|expo)'
+free_ports() {
+  for p in "${ports[@]}"; do
+    for pid in $(lsof -nP -iTCP:$p -sTCP:LISTEN -t 2>/dev/null); do
+      cmd=$(ps -p "$pid" -o comm= 2>/dev/null | sed 's|.*/||')
+      if printf '%s' "$cmd" | grep -Eq "$OURS"; then
+        kill -9 "$pid" 2>/dev/null
+      else
+        echo "  ⚠ port $p held by '$cmd' (pid $pid) — NOT ours, leaving it alone" >&2
+      fi
+    done
+  done
+}
 
 if [[ "${1:-start}" == "stop" ]]; then
   echo "▶ stopping stack (freeing ports ${ports[*]})"; free_ports
@@ -55,7 +75,7 @@ echo "▶ backend hosts (CORE 5056 / OPERATIONS 5015 / COMMERCE 5242)"
 ( cd "$BE" && ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5242 \
     nohup dotnet run --project commerce.WebApi/commerce.WebApi.csproj --no-launch-profile >/tmp/commerce_host.log 2>&1 & )
 
-echo "▶ admin-web (Vite :5174 — uses .env.local proxy)"
+echo "▶ admin-web (Vite :5174 — pinned via strictPort in vite.config.ts)"
 ( cd "$REPO/admin-web" && nohup npm run dev >/tmp/admin_web.log 2>&1 & )
 
 echo "▶ Android emulator ($AVD)"

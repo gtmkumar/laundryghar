@@ -1,9 +1,9 @@
 // Laundry Ghar — Aspire AppHost
 // Single entry-point that starts the 3 consolidated services + gateway under the Aspire dashboard.
 //
-//   core       @5050 = Identity + Engagement + Mcp
-//   operations @5002 = Catalog + Orders + Warehouse + Logistics
-//   commerce   @5005 = Commerce + Finance + Analytics + Worker (worker hosted services run in-process)
+//   core       @5301 = Identity + Engagement + Mcp
+//   operations @5302 = Catalog + Orders + Warehouse + Logistics
+//   commerce   @5303 = Commerce + Finance + Analytics + Worker (worker hosted services run in-process)
 //   gateway    @8080 = single entry-point for all clients
 //
 // Usage:
@@ -36,11 +36,26 @@ var adminConnStr = builder.Configuration["ConnectionStrings:Admin"]
 var devPiiKeyBase64 = LoadOrGenerateDevPiiKey();
 
 // ── 3 consolidated services — ports are FIXED (clients + appsettings hard-reference them) ──
+//
+// RESERVED BLOCK 5300–5303. These were 5050 / 5002 / 5005 with the gateway on 8080, which put
+// them inside a range other projects on a dev machine actively use. On this machine the
+// `quaeris*` Docker containers publish 5003, 5004, 5007, 5090 and — fatally — **8080**, where a
+// uvicorn service answers every gateway request with 404. That is the real cause of the
+// "AppHost gateway is not reliable for local dev and returns 502s" note in
+// customer-mobile/scripts/run-device.sh: the gateway was never being reached at all.
+//
+// 53xx is chosen because the entire range is unclaimed, so this block cannot drift into a
+// neighbouring project's ports the way 500x did. Changing these means changing, together:
+// laundryghar.Gateway/appsettings.json, the Jwt__Authority values below, and the gateway
+// cluster addresses below. They are all in this commit.
+//
+// NOT changed: the container-internal 8080 in deploy/docker-compose.yml. Inside a container
+// network 8080 is correct and collides with nothing; only the HOST binding was ever the problem.
 
 // core = Identity + Engagement + Mcp.
 builder
     .AddProject<Projects.core_WebApi>("core")
-    .WithHttpEndpoint(port: 5050, name: "http")
+    .WithHttpEndpoint(port: 5301, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("ConnectionStrings__Default", connStr)
     .WithEnvironment("ConnectionStrings__Admin", adminConnStr)
@@ -48,15 +63,15 @@ builder
 
 // operations = Catalog + Orders + Warehouse + Logistics.
 // Jwt__Authority overrides appsettings (which targets the standalone core port 5056) so that
-// under the AppHost, JWKS validation points at core's fixed AppHost port 5050. Without this,
+// under the AppHost, JWKS validation points at core's fixed AppHost port 5301. Without this,
 // operations fetches JWKS from the dead :5056 and rejects every token with 401.
 builder
     .AddProject<Projects.operations_WebApi>("operations")
-    .WithHttpEndpoint(port: 5002, name: "http")
+    .WithHttpEndpoint(port: 5302, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("ConnectionStrings__Default", connStr)
     .WithEnvironment("ConnectionStrings__Admin", adminConnStr)
-    .WithEnvironment("Jwt__Authority", "http://localhost:5050")
+    .WithEnvironment("Jwt__Authority", "http://localhost:5301")
     .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64);
 
 // commerce = Commerce + Finance + Analytics + Worker.
@@ -66,41 +81,41 @@ builder
 // PII cipher fails closed at startup (it would otherwise see "Production").
 builder
     .AddProject<Projects.commerce_WebApi>("commerce")
-    .WithHttpEndpoint(port: 5005, name: "http")
+    .WithHttpEndpoint(port: 5303, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
     .WithEnvironment("ConnectionStrings__Default", connStr)
     .WithEnvironment("ConnectionStrings__Admin", adminConnStr)
-    .WithEnvironment("Jwt__Authority", "http://localhost:5050")
+    .WithEnvironment("Jwt__Authority", "http://localhost:5301")
     .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64);
 
-// ── API Gateway — single entry-point for all clients at :8080 ───────────────────────
+// ── API Gateway — single entry-point for all clients at :5300 ───────────────────────
 // ADDITIVE: all 3 per-service direct ports remain active.
 // Downstream cluster addresses are injected via env vars so YARP uses the same
 // port-fixed addresses as the other resources.  No service-discovery magic — consistent
 // with the "static ports" convention used throughout this AppHost.
 //
 // Path → cluster → consolidated service:
-//   /identity,  /engagement, /mcp           → core       @5050
-//   /catalog, /orders, /warehouse, /logistics → operations @5002
-//   /commerce, /finance, /analytics         → commerce   @5005
+//   /identity,  /engagement, /mcp           → core       @5301
+//   /catalog, /orders, /warehouse, /logistics → operations @5302
+//   /commerce, /finance, /analytics         → commerce   @5303
 builder
     .AddProject<Projects.laundryghar_Gateway>("gateway")
-    .WithHttpEndpoint(port: 8080, name: "http")
+    .WithHttpEndpoint(port: 5300, name: "http")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("Pii__EncryptionKey", devPiiKeyBase64)
     // Inject each downstream cluster address.  Overrides appsettings.json defaults;
     // double-underscore maps to Gateway:Clusters:{name}:Destinations:primary:Address.
-    .WithEnvironment("Gateway__Clusters__identity__Destinations__primary__Address",   "http://localhost:5050")
-    .WithEnvironment("Gateway__Clusters__engagement__Destinations__primary__Address", "http://localhost:5050")
-    .WithEnvironment("Gateway__Clusters__mcp__Destinations__primary__Address",        "http://localhost:5050")
-    .WithEnvironment("Gateway__Clusters__catalog__Destinations__primary__Address",    "http://localhost:5002")
-    .WithEnvironment("Gateway__Clusters__orders__Destinations__primary__Address",     "http://localhost:5002")
-    .WithEnvironment("Gateway__Clusters__warehouse__Destinations__primary__Address",  "http://localhost:5002")
-    .WithEnvironment("Gateway__Clusters__logistics__Destinations__primary__Address",  "http://localhost:5002")
-    .WithEnvironment("Gateway__Clusters__commerce__Destinations__primary__Address",   "http://localhost:5005")
-    .WithEnvironment("Gateway__Clusters__finance__Destinations__primary__Address",    "http://localhost:5005")
-    .WithEnvironment("Gateway__Clusters__analytics__Destinations__primary__Address",  "http://localhost:5005");
+    .WithEnvironment("Gateway__Clusters__identity__Destinations__primary__Address",   "http://localhost:5301")
+    .WithEnvironment("Gateway__Clusters__engagement__Destinations__primary__Address", "http://localhost:5301")
+    .WithEnvironment("Gateway__Clusters__mcp__Destinations__primary__Address",        "http://localhost:5301")
+    .WithEnvironment("Gateway__Clusters__catalog__Destinations__primary__Address",    "http://localhost:5302")
+    .WithEnvironment("Gateway__Clusters__orders__Destinations__primary__Address",     "http://localhost:5302")
+    .WithEnvironment("Gateway__Clusters__warehouse__Destinations__primary__Address",  "http://localhost:5302")
+    .WithEnvironment("Gateway__Clusters__logistics__Destinations__primary__Address",  "http://localhost:5302")
+    .WithEnvironment("Gateway__Clusters__commerce__Destinations__primary__Address",   "http://localhost:5303")
+    .WithEnvironment("Gateway__Clusters__finance__Destinations__primary__Address",    "http://localhost:5303")
+    .WithEnvironment("Gateway__Clusters__analytics__Destinations__primary__Address",  "http://localhost:5303");
 
 builder.Build().Run();
 

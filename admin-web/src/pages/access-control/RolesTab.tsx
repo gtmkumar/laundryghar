@@ -41,10 +41,18 @@ export function RolesTab({ query, search }: Props) {
   // Brand entitlement → which navigator modules the active brand has licensed. Used to
   // grey out matrix rows for unlicensed modules (their permissions are moot). Fails open:
   // if entitlements aren't available (no saas.read / no brand), nothing is greyed.
+  //
+  // Entitlement is FEATURE-keyed since migration 0005, while this matrix is module-keyed, so the
+  // features are flattened onto the modules they unlock. One feature may unlock several modules
+  // (analytics + report), which is why this is a flatMap rather than a rename.
   const entitlements = useBrandEntitlements()
   const entByKey = useMemo(() => {
     if (!entitlements.data) return null
-    return new Map(entitlements.data.modules.map((m) => [m.key, m.entitled]))
+    return new Map(
+      entitlements.data.features.flatMap((f) =>
+        f.modules.map((m) => [m.key, f.entitled] as const),
+      ),
+    )
   }, [entitlements.data])
   const isLicensed = (key: string) => entByKey == null || entByKey.get(key) !== false
 

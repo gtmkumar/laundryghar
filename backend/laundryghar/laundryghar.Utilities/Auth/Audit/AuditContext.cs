@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using laundryghar.SharedDataModel.Contracts;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
+using laundryghar.Utilities.Middlewares;
 using laundryghar.Utilities.Services;
 using Microsoft.AspNetCore.Http;
 
@@ -75,6 +76,14 @@ internal static class AuditContext
             // No principal → a background worker / seed / job path.
             log.ActorType = http is null ? "system" : "api";
         }
+
+        // The consent this action happened under, if any. Read from HttpContext.Items rather than
+        // re-parsed from the token because ImpersonationGuardMiddleware has already VALIDATED the
+        // grant against the database this request — stamping the raw claim would record a consent
+        // that may since have been revoked.
+        if (http?.Items.TryGetValue(ImpersonationKeys.GrantIdItem, out var grantId) == true
+            && grantId is Guid gid)
+            log.ImpersonationGrantId ??= gid;
 
         // Request context (best-effort; null on non-HTTP paths).
         if (http is not null)

@@ -30,7 +30,30 @@ public sealed record TokenClaims(
     string? Amr = null,
     // Unix seconds of the successful step-up verify; emitted ONLY on the upgraded token. The proof
     // is fresh while now − StepUpAt ≤ StepUp.FreshnessWindow.
-    long? StepUpAt = null
+    long? StepUpAt = null,
+    // Space-separated FEATURE keys this brand has NOT licensed (PLATFORM_STRATEGY.md §5). Emitted
+    // only when entitlement enforcement is on and the caller is brand-scoped. Bounded by the size of
+    // the feature catalogue (tens of short keys), unlike the stripped permission set it explains,
+    // which can run to hundreds.
+    //
+    // Its whole purpose is to make "you do not own this" distinguishable from "you are not allowed
+    // this". The entitlement filter removes un-entitled permissions from Permissions above, so
+    // without this claim BOTH cases arrive at the authorization handler as an identical absent
+    // permission and both would answer 403 — telling a paying customer they lack permission when
+    // what they actually lack is the plan. With it, the result handler answers 402 and names the
+    // feature to upgrade.
+    string? EntitlementOff = null,
+    // The consent this token was issued under (§7). Present ONLY on a token minted by
+    // /admin/impersonation/{id}/start; absent means "this is an ordinary session".
+    //
+    // The token deliberately keeps the SUPPORT engineer's `sub`. A token that claimed to be the
+    // provider would make the audit trail lie about who acted, which is the one thing an
+    // impersonation feature must never do. What changes is brand_id (so RLS scopes to the tenant)
+    // and these two claims (so the guard knows the session is bounded and read-first).
+    Guid? ImpersonationGrantId = null,
+    // read_only | read_write. Advisory only — the guard re-reads the authoritative scope from the
+    // database each request, because a claim minted an hour ago cannot know it has been revoked.
+    string? ImpersonationScope = null
 )
 {
     /// <summary>Fixed token_use value for system users. Pinned for Catalog service contract.</summary>
@@ -47,6 +70,15 @@ public sealed record TokenClaims(
 
     /// <summary>JWT claim name carrying the step-up timestamp in unix seconds (<see cref="StepUpAt"/>).</summary>
     public const string StepUpAtClaim = "stepup_at";
+
+    /// <summary>JWT claim name carrying the un-licensed feature keys (<see cref="EntitlementOff"/>).</summary>
+    public const string EntitlementOffClaim = "ent_off";
+
+    /// <summary>JWT claim name carrying the impersonation grant id (<see cref="ImpersonationGrantId"/>).</summary>
+    public const string ImpersonationGrantClaim = "imp_grant";
+
+    /// <summary>JWT claim name carrying the impersonation scope (<see cref="ImpersonationScope"/>).</summary>
+    public const string ImpersonationScopeClaim = "imp_scope";
 }
 
 /// <summary>

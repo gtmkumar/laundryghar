@@ -36,6 +36,14 @@ public class AuditLog
     public DateTimeOffset CreatedAt { get; set; }
     public Guid? CreatedBy { get; set; }
 
+    /// <summary>
+    /// Non-null when this action happened inside a consented support impersonation session
+    /// (migration 0014). <see cref="ActorUserId"/> still names the human who acted — impersonation
+    /// never rewrites who did it — and this names the consent they acted under, so the pair answers
+    /// "who, and by whose permission".
+    /// </summary>
+    public Guid? ImpersonationGrantId { get; set; }
+
     // Navigations — within tenancy_org BC
     public Brand? Brand { get; set; }
     public Franchise? Franchise { get; set; }

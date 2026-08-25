@@ -2469,14 +2469,46 @@ export interface AccessFranchises {
 }
 
 // ── Entitlements (PaaS per-brand module licensing) ──────────────────────────
-export interface BrandModuleEntitlement {
+/** A navigation module unlocked by a feature. */
+export interface FeatureModule {
   key: string
   label: string
-  section: string | null
+}
+
+/**
+ * One FEATURE row in a brand's entitlement matrix (PLATFORM_STRATEGY.md §5).
+ * Feature-keyed rather than module-keyed since migration 0005 — a brand buys features, and the
+ * modules listed here are what that purchase unlocks. `modules` is empty for a sellable feature
+ * with no menu at all (custom_domain, api_access, white_label_app).
+ */
+export interface BrandFeatureEntitlement {
+  key: string
+  name: string
+  description: string | null
   isCore: boolean
+  /** On the price list. False for features auto-derived from existing modules by migration 0005. */
+  isSellable: boolean
   entitled: boolean
   source: string | null // 'bundle' | 'manual' | 'core' | null
   validUntil: string | null
+  modules: FeatureModule[]
+}
+
+// ─── Terminology (PLATFORM_STRATEGY.md §3 · "terminology is config, not code") ──
+
+export interface Term {
+  singular: string
+  plural: string
+}
+
+/**
+ * One vertical's user-facing vocabulary. `terms` is keyed by a stable term key (`item`, `booking`,
+ * `onsite_location`) that is never shown to a user. A key that is absent falls back to the client's
+ * own neutral default, so a missing term reads slightly generic rather than blank.
+ */
+export interface TerminologyPack {
+  verticalKey: string
+  terms: Record<string, Term>
 }
 
 // ─── Custom domains (white-label tier T2 · PLATFORM_STRATEGY.md §4.2) ────────
@@ -2514,7 +2546,7 @@ export interface VerifyBrandDomainResult {
 export interface BrandEntitlements {
   brandId: string
   brandName: string
-  modules: BrandModuleEntitlement[]
+  features: BrandFeatureEntitlement[]
 }
 
 export interface ModuleBundleItem {

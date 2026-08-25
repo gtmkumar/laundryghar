@@ -24,6 +24,10 @@ public class AppModule
     /// <summary>Always-on module that bypasses brand entitlement (e.g. dashboard,
     /// settings, users) so a brand can never lock its own admins out.</summary>
     public bool IsCore { get; set; }
+    /// <summary>The <see cref="AppFeature"/> that must be entitled for this module to appear
+    /// (migration 0005). NULL only for core modules, which are always on. Many modules may share
+    /// one feature — <c>analytics</c> and <c>report</c> both sit behind <c>advanced_analytics</c>.</summary>
+    public string? FeatureKey { get; set; }
     public string Status { get; set; } = null!;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

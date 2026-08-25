@@ -52,6 +52,8 @@ internal static class ImportTestSupport
         public bool HasPermission(string permissionCode) => true;
         public IReadOnlyCollection<ScopeNode> ScopeNodes => [];
         public bool IsWithinScope(Guid? brandId = null, Guid? franchiseId = null, Guid? storeId = null, Guid? warehouseId = null) => WithinScope;
+        public Guid? ImpersonationGrantId => null;
+        public string? ImpersonationScope => null;
         public Guid? TryGetBrandId() => BrandId;
         public Guid RequireBrandId() => BrandId ?? throw new UnauthorizedAccessException("No brand.");
     }

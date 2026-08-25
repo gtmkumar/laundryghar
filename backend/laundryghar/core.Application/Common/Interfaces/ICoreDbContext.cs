@@ -45,9 +45,18 @@ public interface ICoreDbContext
     DbSet<RolePermission> RolePermissions { get; }
     DbSet<UserPermissionOverride> UserPermissionOverrides { get; }
     DbSet<AppModule> Modules { get; }
-    DbSet<BrandModule> BrandModules { get; }
+    DbSet<AppFeature> Features { get; }
+    DbSet<VerticalTerm> VerticalTerms { get; }
+    DbSet<VerticalTemplate> VerticalTemplates { get; }
+    DbSet<RolePreset> RolePresets { get; }
+    DbSet<PermissionGroup> PermissionGroups { get; }
+
+    // ─── Catalogue (signup seeds a template's preset categories/items) ───────
+    DbSet<ServiceCategory> ServiceCategories { get; }
+    DbSet<Item> Items { get; }
+    DbSet<BrandFeature> BrandFeatures { get; }
     DbSet<ModuleBundle> ModuleBundles { get; }
-    DbSet<ModuleBundleItem> ModuleBundleItems { get; }
+    DbSet<BundleFeature> BundleFeatures { get; }
     DbSet<BrandPlatformSubscription> BrandPlatformSubscriptions { get; }
     DbSet<BrandPlatformInvoice> BrandPlatformInvoices { get; }
 
@@ -73,7 +82,25 @@ public interface ICoreDbContext
     DbSet<PartnerUser> PartnerUsers { get; }
 
     // ─── Kernel (system settings store — Admin Settings) ─────────────────────
+    DbSet<ImpersonationGrant> ImpersonationGrants { get; }
+    DbSet<laundryghar.SharedDataModel.Entities.TenancyOrg.OnboardingProgress> OnboardingProgresses { get; }
+    DbSet<ApiKey> ApiKeys { get; }
+    DbSet<ApiKeyUsage> ApiKeyUsages { get; }
+    DbSet<laundryghar.SharedDataModel.Entities.TenancyOrg.BrandCancellation> BrandCancellations { get; }
+
     DbSet<SystemSetting> SystemSettings { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Runs <paramref name="action"/> inside a single database transaction, committing if it returns
+    /// and rolling back if it throws.
+    ///
+    /// <para>Exists because some writes need SEVERAL SaveChanges calls that must still be atomic.
+    /// Provider signup is the case in point: EF cannot infer the insert order between `brands` and
+    /// `brand_feature` (the FK is on a natural key with no navigation property), so the brand must be
+    /// saved before its features — but a brand that exists with no features, no owner and no plan is
+    /// worse than no brand at all.</para>
+    /// </summary>
+    Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct);
 }

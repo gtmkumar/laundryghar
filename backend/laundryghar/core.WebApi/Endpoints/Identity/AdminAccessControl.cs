@@ -30,6 +30,9 @@ public class AdminAccessControl : IEndpointGroup
 
         group.MapGet(GetAccessPeople, "people").RequireAuthorization("permission:users.list");
         group.MapGet(GetAccessRoles, "roles").RequireAuthorization("permission:roles.list");
+        // §6's simplified surface: 8 named roles x 10 permission groups, in plain language. A
+        // PRESENTATION over the same engine `roles` exposes in full — see GetRoleSurfaceQuery.
+        group.MapGet(GetRoleSurface, "role-surface").RequireAuthorization("permission:roles.list");
         group.MapGet(GetAccessFranchises, "franchises").RequireAuthorization("permission:franchises.list");
         group.MapPost(InviteUser, "invite").RequireAuthorization("permission:users.create");
         // Narrow rider-invite: franchise-scoped actors can onboard their own riders.
@@ -50,6 +53,16 @@ public class AdminAccessControl : IEndpointGroup
         var data = await dispatcher.QueryAsync(
             new GetAccessPeopleQuery(search, page < 1 ? 1 : page, pageSize < 1 ? 100 : pageSize, franchiseId, sort), ct);
         return Results.Ok(new SingleResponse<AccessPeoplePageDto> { Status = true, Data = data });
+    }
+
+    /// <summary>The §6 surface — what an owner reads when delegating, instead of a 300-row matrix.</summary>
+    public static async Task<IResult> GetRoleSurface(IDispatcher dispatcher, CancellationToken ct)
+    {
+        var data = await dispatcher.QueryAsync(
+            new core.Application.Identity.AccessControl.Queries.GetRoleSurface.GetRoleSurfaceQuery(), ct);
+        return Results.Ok(new SingleResponse<
+            core.Application.Identity.AccessControl.Queries.GetRoleSurface.RoleSurfaceDto>
+            { Status = true, Data = data });
     }
 
     public static async Task<IResult> GetAccessRoles(IDispatcher dispatcher, CancellationToken ct)

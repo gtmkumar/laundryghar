@@ -38,6 +38,7 @@ public class GetAccessRolesQueryHandler : IQueryHandler<GetAccessRolesQuery, Acc
                 r.Description,
                 r.ScopeType,
                 r.VerticalKey,
+                r.FeatureKey,
                 r.IsSystem,
                 r.Priority,
                 PermCodes = r.RolePermissions.Select(rp => rp.Permission.Code).ToList(),
@@ -49,6 +50,13 @@ public class GetAccessRolesQueryHandler : IQueryHandler<GetAccessRolesQuery, Acc
         // only to brands of that vertical; a neutral (null) role shows to all; with no brand context
         // every role passes. Mirrors GetNavigator's module gating.
         roles = roles.Where(r => VerticalKey.IsAvailableTo(r.VerticalKey, brandVertical)).ToList();
+
+        // Roles follow features (§5/§6.3): a role gated on a feature this brand has not bought is not
+        // offered at all — "buy Fleet → Rider appears". A courier shop sees four roles where a full
+        // laundry sees seven, with nobody pruning a list by hand. Hiding is only half of it; the
+        // grant command applies the same gate so this cannot be bypassed by crafting the request.
+        var entitledFeatures = await BrandFeatureGate.EntitledFeaturesAsync(_db, brandId, ct);
+        roles = roles.Where(r => BrandFeatureGate.IsRoleAvailable(r.FeatureKey, entitledFeatures)).ToList();
 
         var summaries = roles.Select(r =>
         {

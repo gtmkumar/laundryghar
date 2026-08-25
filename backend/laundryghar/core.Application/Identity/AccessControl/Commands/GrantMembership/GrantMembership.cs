@@ -1,4 +1,5 @@
 using core.Application.Common.Interfaces;
+using core.Application.Identity.AccessControl;
 using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Entities.IdentityAccess;
@@ -21,6 +22,23 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
     public GrantMembershipCommandHandler(ICoreDbContext db, ICurrentUser actor, IAuditWriter audit)
     { _db = db; _actor = actor; _audit = audit; }
 
+    /// <summary>The brand a franchise/store/warehouse scope belongs to, for the feature gate.
+    /// Null for platform scope (nothing to gate) or an unknown id.</summary>
+    private async Task<Guid?> ResolveBrandForScopeAsync(string scopeType, Guid? scopeId, CancellationToken ct)
+    {
+        if (scopeId is not { } id) return null;
+        return scopeType switch
+        {
+            ScopeType.Franchise => await _db.Franchises.AsNoTracking()
+                .Where(f => f.Id == id).Select(f => (Guid?)f.BrandId).FirstOrDefaultAsync(ct),
+            ScopeType.Store => await _db.Stores.AsNoTracking()
+                .Where(x => x.Id == id).Select(x => (Guid?)x.BrandId).FirstOrDefaultAsync(ct),
+            ScopeType.Warehouse => await _db.Warehouses.AsNoTracking()
+                .Where(w => w.Id == id).Select(w => (Guid?)w.BrandId).FirstOrDefaultAsync(ct),
+            _ => null,
+        };
+    }
+
     public async Task<MembershipDto> HandleAsync(GrantMembershipCommand cmd, CancellationToken ct)
     {
         var actor = _actor;
@@ -35,6 +53,34 @@ public class GrantMembershipCommandHandler : ICommandHandler<GrantMembershipComm
         {
             throw new UnauthorizedAccessException(
                 "Only a platform_admin may grant the platform_admin role.");
+        }
+
+        // ── Roles follow features (§5/§6.3): refuse a role the brand has not bought ──
+        // GetAccessRoles hides these, but hiding is cosmetic — anyone who can craft the request could
+        // otherwise grant a Rider on a brand with no fleet, and that user would then hold permissions
+        // the entitlement filter strips at every login, i.e. a role that silently does nothing.
+        // Gated on the TARGET brand, not the actor's: a platform admin acting on someone else's brand
+        // must still respect that brand's plan.
+        if (targetRole.FeatureKey is { } requiredFeature)
+        {
+            var gateBrandId = cmd.Request.ScopeType == ScopeType.Brand
+                ? cmd.Request.ScopeId ?? actor.BrandId
+                : await ResolveBrandForScopeAsync(cmd.Request.ScopeType, cmd.Request.ScopeId, ct)
+                  ?? actor.BrandId;
+
+            var entitled = await BrandFeatureGate.EntitledFeaturesAsync(_db, gateBrandId, ct);
+            if (!BrandFeatureGate.IsRoleAvailable(requiredFeature, entitled))
+            {
+                throw new laundryghar.Utilities.Exceptions.ValidationException(
+                    new Dictionary<string, string[]>
+                    {
+                        ["roleId"] =
+                        [
+                            $"The {targetRole.Name} role requires the '{requiredFeature}' feature, " +
+                            "which this brand's plan does not include.",
+                        ],
+                    });
+            }
         }
 
         // ── Defense-in-depth: a brand-scoped role MUST bind to a concrete brand ──

@@ -5,7 +5,7 @@ import {
   getBrandPlatformSubscription,
   cancelBrandPlatformSubscription,
   getPlatformBillingSummary,
-  setBrandModule,
+  setBrandFeature,
   applyBundleToBrand,
   setBrandPlatformInvoiceStatus,
   createBrandPlatformInvoicePaymentLink,
@@ -94,23 +94,23 @@ export function useModuleBundles() {
   })
 }
 
-export function useSetBrandModule() {
+export function useSetBrandFeature() {
   const qc = useQueryClient()
   const brandId = useEffectiveBrandId()
   return useMutation({
-    mutationFn: (v: { moduleKey: string; enabled: boolean; validUntil?: string | null }) =>
-      setBrandModule(brandId!, v.moduleKey, v.enabled, v.validUntil),
-    // Optimistic: flip the module switch in the cached entitlements instantly.
+    mutationFn: (v: { featureKey: string; enabled: boolean; validUntil?: string | null }) =>
+      setBrandFeature(brandId!, v.featureKey, v.enabled, v.validUntil),
+    // Optimistic: flip the feature switch in the cached entitlements instantly.
     onMutate: (v) =>
       snapshotAndSet(qc, [['entitlements', 'brand', brandId]], (data) => {
         const entitlements = data as BrandEntitlements
-        if (!Array.isArray(entitlements?.modules)) return data
+        if (!Array.isArray(entitlements?.features)) return data
         return {
           ...entitlements,
-          modules: entitlements.modules.map((m) =>
-            m.key === v.moduleKey
-              ? { ...m, entitled: v.enabled, validUntil: v.validUntil ?? m.validUntil }
-              : m,
+          features: entitlements.features.map((f) =>
+            f.key === v.featureKey
+              ? { ...f, entitled: v.enabled, validUntil: v.validUntil ?? f.validUntil }
+              : f,
           ),
         }
       }),

@@ -16,8 +16,13 @@ public static class FulfillmentMode
     /// <summary>Logistics: a single origin → destination trip (no store drop, no processing).</summary>
     public const string PointToPoint = "point_to_point";
 
+    /// <summary>Tiffin/milk/water: one delivery leg on a repeating calendar (§3 Mode 3). Each
+    /// occurrence is its OWN order, emitted by an <c>order_lifecycle.delivery_schedules</c> row —
+    /// see migration 0012 for why one-order-per-occurrence rather than one long-lived order.</summary>
+    public const string Recurring = "recurring";
+
     public static readonly IReadOnlySet<string> All =
-        new HashSet<string> { ProcessDeliver, Appointment, PointToPoint };
+        new HashSet<string> { ProcessDeliver, Appointment, PointToPoint, Recurring };
 
     public static bool IsValid(string? value) => value is not null && All.Contains(value);
 
@@ -26,6 +31,7 @@ public static class FulfillmentMode
     {
         VerticalKey.Salon     => Appointment,
         VerticalKey.Logistics => PointToPoint,
+        VerticalKey.Tiffin    => Recurring,
         _                     => ProcessDeliver, // laundry + unknown → preserves existing behaviour
     };
 }
