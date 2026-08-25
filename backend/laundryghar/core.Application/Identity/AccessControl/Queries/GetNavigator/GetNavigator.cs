@@ -24,7 +24,13 @@ public class GetNavigatorQueryHandler : IQueryHandler<GetNavigatorQuery, Navigat
     {
         var mods = await _db.Modules.AsNoTracking()
             .Where(m => m.ShowInNav && m.Status == "active")
-            .OrderBy(m => m.NavOrder)
+            // ThenBy(Key) is not decoration. Ordering by NavOrder alone left three pairs of rows
+            // sharing a value (cms/promotions, fabrics/subscriptions, appointments/warehouse), and
+            // an unordered tie resolves to whatever Postgres returns — the live DB and the browser
+            // disagreed about CMS vs Promotions, and both were "correct". Migration 0022 removed
+            // those ties and forbids new ones; this makes the NEXT tie degrade to alphabetical
+            // rather than to chance, so the menu can never reshuffle itself between page loads.
+            .OrderBy(m => m.NavOrder).ThenBy(m => m.Key)
             .Select(m => new { m.Key, m.Label, m.Icon, m.Route, m.Section, m.RequiredPermission, m.IsCore, m.VerticalKey, m.FeatureKey })
             .ToListAsync(ct);
 

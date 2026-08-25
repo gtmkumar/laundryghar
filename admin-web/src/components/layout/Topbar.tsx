@@ -172,22 +172,15 @@ export function Topbar() {
             <span className="text-green-600 font-medium">{t('common.live')}</span>
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            className="rounded-lg border border-[#e8e4d8] bg-white text-xs text-gray-600 px-2 py-1 outline-none"
-            defaultValue="today"
-          >
-            <option value="today">{t('common.today')}</option>
-            <option value="7d">{t('common.days7')}</option>
-            <option value="30d">{t('common.days30')}</option>
-          </select>
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-lg border border-[#e8e4d8] bg-white text-xs text-gray-600 px-3 py-1 hover:bg-[#F7F5EF] transition-colors"
-          >
-            ⬇ {t('common.export')}
-          </button>
-        </div>
+        {/* REMOVED: a Today/7d/30d <select> and an Export button.
+            Neither was ever wired — the select had a defaultValue and no onChange, the button
+            had no onClick. They rendered on EVERY page, directly above the dashboard KPIs, so
+            they read as that page's range filter and export: you could pick "30 days" and watch
+            every number stay exactly the same. A control that silently does nothing is worse
+            than an absent one, because the user believes the answer they are looking at.
+            Wiring them is a product decision, not a bug fix — a range filter here is global, and
+            what it should mean for right-now gauges like "Pending Pickup" (which are not
+            time-ranged at all) is undecided. Recorded as OQ-18 in docs/GAP_ANALYSIS.md. */}
       </div>
     </header>
   )

@@ -76,7 +76,8 @@ export const OPS_COLOR: Record<string, string> = {
   on_the_way: '#2563eb', // blue — en route to customer
   to_store: '#7c3aed',   // violet — collected, heading to the laundry
   arrived: '#16a34a',    // green — on site
-  idle: '#d97706',       // amber — on duty, no active leg
+  assigned: '#ea580c',   // orange — holding a leg they have not started
+  idle: '#d97706',       // amber — on duty, genuinely free
   offline: '#9ca3af',    // grey — off duty
 }
 
@@ -84,6 +85,7 @@ export const OPS_LABEL: Record<string, string> = {
   on_the_way: 'On the way',
   to_store: 'To laundry',
   arrived: 'On site',
+  assigned: 'Assigned (not started)',
   idle: 'Idle (on duty)',
   offline: 'Offline',
 }

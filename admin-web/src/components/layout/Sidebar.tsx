@@ -10,7 +10,6 @@ import {
   Bell,
   BarChart2,
   BookOpen,
-  Sun,
   Receipt,
   Warehouse,
   ShieldCheck,
@@ -24,6 +23,12 @@ import {
   LifeBuoy,
   Megaphone,
   Shirt,
+  CalendarClock,
+  Newspaper,
+  Wallet,
+  Percent,
+  Boxes,
+  Repeat,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -32,11 +37,24 @@ import { useStores } from '@/hooks/useTenancy'
 import { useNavigator } from '@/hooks/useNavigator'
 import { useOnboardingUi } from '@/stores/onboardingStore'
 
-// Icon-name (from the modules table) → lucide component.
+/**
+ * Icon-name (from the `identity_access.modules` table) → lucide component.
+ *
+ * This map is one half of a two-sided contract. Migration 0022 puts a CHECK constraint on
+ * `modules.icon` whose allow-list is exactly these keys, so seeding a nav row with an icon
+ * this map does not carry is rejected by the DATABASE rather than shipping as a wrong glyph.
+ * The enforcement only runs in that direction — registering an icon here that no module uses
+ * is harmless — so when you add one, add it to migration 0022's list in the same commit.
+ *
+ * That constraint exists because `CalendarClock` (the Appointments row) was seeded and never
+ * registered here: it silently fell through to the generic `LayoutGrid` square. Nothing caught
+ * it because the fallback below is deliberate — the nav must render even against a row we do
+ * not recognise — and a fallback that never complains is indistinguishable from working.
+ */
 const ICONS: Record<string, React.ElementType> = {
   LayoutDashboard, Building2, ShoppingCart, Users, Bike, Tag, Package, Bell,
   BarChart2, BookOpen, Receipt, Warehouse, ShieldCheck, Network, Coins, CreditCard, Layers, Monitor, Settings, LifeBuoy,
-  Megaphone, Shirt,
+  Megaphone, Shirt, CalendarClock, Newspaper, Wallet, Percent, Boxes, Repeat,
 }
 
 type NavItem = { key: string; label: string; icon: string | null; route: string | null }
@@ -81,6 +99,17 @@ function useActiveMatcher(items: NavItem[]) {
   }
 }
 
+// One warning per unknown name per session — this renders on every nav paint.
+const warnedIcons = new Set<string>()
+function warnUnknownIcon(name: string) {
+  if (warnedIcons.has(name)) return
+  warnedIcons.add(name)
+  console.warn(
+    `[Sidebar] module icon "${name}" is not registered in ICONS — falling back to a generic ` +
+      `square. Add it to the ICONS map AND to the allow-list in migration 0022.`,
+  )
+}
+
 function SidebarNav({
   sections,
   storeCount,
@@ -104,6 +133,9 @@ function SidebarNav({
           )}
           <div className="space-y-0.5">
             {group.items.map((item) => {
+              // Fall back rather than crash the whole nav, but say so: a silent fallback is
+              // exactly how CalendarClock rendered as a grid square for as long as it did.
+              if (import.meta.env.DEV && item.icon && !ICONS[item.icon]) warnUnknownIcon(item.icon)
               const Icon = (item.icon && ICONS[item.icon]) || LayoutGrid
               const to = item.route ?? '#'
               const badge = item.key === 'stores' ? storeCount : null
@@ -207,9 +239,10 @@ export function Sidebar() {
               <p className="text-sm font-medium text-white truncate leading-tight">{displayName}</p>
               <p className="text-xs text-gray-500 leading-tight">{user?.user_type === 'platform_admin' ? 'Super Admin' : 'Member'}</p>
             </div>
-            <button type="button" title="Toggle theme" aria-label="Toggle theme" className="text-gray-500 hover:text-gray-300 transition-colors">
-              <Sun className="h-4 w-4" />
-            </button>
+            {/* REMOVED: a Sun "Toggle theme" button with no onClick and no theme store behind
+                it anywhere in the app. Same class as the Topbar's range picker — it invited a
+                click and did nothing. Dark mode is a feature to build, not a button to leave
+                lying around. */}
           </>
         )}
       </div>

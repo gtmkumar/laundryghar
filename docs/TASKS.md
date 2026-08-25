@@ -2108,3 +2108,84 @@ SDK considers redundant; `IL2026`/`IL3050` — trimming/AOT notices on a `JsonSe
 call in the pre-existing `WhatsAppOtpDispatcher`. Clearing the advisories means pinning **someone
 else's** dependency tree, which is a real change with its own blast radius and belongs to no task
 here — flagged as **OQ-15** rather than done silently or ignored silently.
+
+---
+
+## Sidebar / dashboard defect pass — 2026-08-26
+
+Goutam reviewed the rendered dashboard and sidebar and asked whether they were correct. They were
+not. Nine defects, found by reading the screen against the schema and the handlers rather than by
+any failing test — every one of them had shipped green.
+
+### What was wrong, and what it cost
+
+| # | Defect | Why it mattered |
+|---|---|---|
+| 1 | Topbar's `Today / 7 days / 30 days` `<select>` had **no `onChange`**; Export had **no `onClick`** | Rendered on *every* page, directly above the KPIs. Selecting "30 days" changed nothing — the reader trusts the number beside a control that answers |
+| 2 | Sidebar footer's `Sun` "Toggle theme" — **no `onClick`**, no theme store anywhere | Same class as 1 |
+| 3 | **"2 on duty"** for riders last seen **73 days** ago | `is_on_duty` is a flag a rider sets and nothing clears. The API already shipped `isStale`; the panel spent it on the *opacity of a 2px dot* while the counts ignored it |
+| 4 | **"1 order · Idle"** on one rider | `opsStatus` was derived from **today's** legs only, so a leg assigned in June was invisible to it while the load counter still saw it. Not a state a rider can be in — the dispatcher has to pick which half to believe |
+| 5 | `nav_order` **tied** on three pairs (`cms`/`promotions`, `fabrics`/`subscriptions`, `appointments`/`warehouse`) with no tiebreaker | The live DB returned CMS above Promotions; the browser rendered the reverse. Both "correct". A menu that reshuffles between page loads has given up the muscle memory that is most of what a menu is |
+| 6 | `Coins` on three rows, `Layers` and `Tag` on two each | Six of nineteen rows visually ambiguous — why Finance read as one repeated row |
+| 7 | CMS carried the **`Bell`** icon | The universal notifications glyph, on the content screen |
+| 8 | `CalendarClock` (Appointments) **not registered** in the client's icon map | Fell through to a generic grid square. Invisible only because laundry brands lack the `scheduling` feature — the first salon brand would have seen it |
+| 9 | "vs yesterday" rendered with **no percentage** | A comparison whose number looks like it failed to load |
+
+### How each was closed
+
+**Migration `0022_deterministic_nav`** — breaks the three ties by multiplying every `nav_order` by
+10 (preserving the exact on-screen order; this was not a chance to re-decide the menu) and placing
+the tied rows in the order they already rendered. Adds a **partial unique index** on
+`(section, nav_order) WHERE show_in_nav` so a new tie cannot be seeded, gives every nav row a
+distinct icon, and adds a **CHECK constraint** whose allow-list is exactly the client's `ICONS` map
+— so defect 8's class now fails *in the migration that introduces it* rather than shipping as a
+silent wrong glyph. Round-tripped up→down→up; the down script restores the ambiguous state exactly.
+
+**`GetNavigator`** — `.ThenBy(m => m.Key)`, so a future tie degrades to alphabetical, not to chance.
+
+**`GetRidersLive`** — load and ops status now both read one set of **open legs at any age**, instead
+of load coming from `riders.current_load` and status from today's legs. A new `assigned` ops status
+separates "holding work they have not started" from `idle`, which now means genuinely free. That
+distinction is the fix for 4: collapsing the two is what let a pickup sit unchased for 73 days while
+the board reported its rider available.
+
+**`ActiveRidersPanel`** — availability is `isOnDuty && !isStale`. Out-of-contact riders are still
+listed (someone must chase them), counted separately as "no signal", sorted last, and never labelled
+"Idle". Dead controls (1, 2) **removed** rather than wired: doing so is a product decision, recorded
+as **OQ-18**.
+
+### Verification
+
+| | |
+|---|---|
+| Migrations | **0001–0022**, `verify` **OK**; 0022 round-tripped up→down→up with the original ties restored byte-for-byte |
+| Backend build | **0 errors**, **0 C# compiler warnings** (the 74 remaining are all NuGet advisories / trimming notices — OQ-15) |
+| Backend tests | **659** — core 116 · operations **356** · integration **187** (+21 new) |
+| Frontend | customer-mobile **170** · rider-mobile **91** · admin-web `tsc -b` + pos-web `tsc` clean; eslint **12 warnings, unchanged from HEAD** |
+| **Total** | **920 automated tests, 0 failures** |
+
+**Mutation-tested, not just green.** Each new test was proved to bite by reverting the fix under it:
+restoring `current_load` as the load source fails **10 of 18**; re-collapsing `assigned` into `idle`
+fails **3**; re-bounding the open-leg query to today fails **2**; deleting `.ThenBy(Key)` fails the
+ordering test. That last one only bites because it seeds **twelve** tied rows — at three rows the
+unordered result landed on the expected order often enough to pass with the tiebreaker deleted,
+which was measured rather than assumed.
+
+**Live browser pass** (Reticle, real app): dashboard reads **"0 on duty · 0 on the way · 0 idle ·
+2 no signal"**, both rider rows say "No signal" not "Idle", the range picker / Export / theme toggle
+are **absent**, "vs yesterday" is **absent** when there is no trend, the sidebar renders in the
+pinned order, and the console carries **zero errors and no unknown-icon warning** — the latter being
+positive proof that every seeded nav icon is now one the client can draw.
+
+### Not fixed — these are Goutam's calls, not defects
+
+- **OQ-11** — *Platform plans* is a first-class sidebar row pointing at `finance_royalty.platform_plans`,
+  which holds **2 rows, both soft-deleted (0 live)**. The table that actually governs entitlement is
+  `identity_access.module_bundle` (5 rows). The screen will always open blank.
+- **CMS has no `required_permission`** — the navigator treats null as "show it", so CMS is reachable
+  by any signed-in user whose brand has the feature, regardless of role. Documented as deliberate in
+  both the seed and `routePermissions.ts`, and it is the only content-editing screen with no role gate.
+- **Grouping** — *Platform plans* and *Platform billing* (what a tenant pays **us**) sit in the same
+  FINANCE group as *Cash book* and *Expenses* (what a brand spends). Two audiences, one heading.
+  *CMS* under CATALOGUE is marketing content, not catalogue.
+- **OQ-18** — whether the range filter and Export come back, and with what scope.

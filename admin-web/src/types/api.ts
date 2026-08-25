@@ -2884,7 +2884,10 @@ export interface UpdateRiderPayload {
 // ── Rider Ops (live board) ────────────────────────────────────────────────────
 
 /** Derived operational state of a rider on the live board. */
-export type RiderOpsStatus = 'offline' | 'idle' | 'on_the_way' | 'arrived' | 'to_store'
+// 'idle' means FREE (no open leg). A rider holding a leg they have not started is
+// 'assigned' — the two were collapsed, which is how a pickup sat unchased for 73 days
+// while the dashboard listed its rider as available.
+export type RiderOpsStatus = 'offline' | 'idle' | 'assigned' | 'on_the_way' | 'arrived' | 'to_store'
 
 /** A rider's current snapshot for the live map + roster (GET /admin/riders/live). */
 export interface RiderLiveDto {

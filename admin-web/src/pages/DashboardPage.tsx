@@ -583,17 +583,21 @@ export function DashboardPage() {
     <div className="space-y-5">
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* "vs yesterday" is the caption on a percentage, so it only renders when there IS
+            one. Both trends are undefined until there is a prior day to compare against, and
+            the caption used to render anyway — leaving a bare "0 / vs yesterday" that reads
+            like a comparison whose number failed to load. */}
         <KpiCard
           label="Orders Today"
           value={canReadAnalytics ? ordersToday : '—'}
-          sub={canReadAnalytics ? 'vs yesterday' : 'needs analytics access'}
+          sub={!canReadAnalytics ? 'needs analytics access' : ordersTrend ? 'vs yesterday' : undefined}
           trend={canReadAnalytics ? ordersTrend : undefined}
           loading={isLoading}
         />
         <KpiCard
           label="Revenue Today"
           value={canReadAnalytics ? fmtINR(revenueToday) : '—'}
-          sub={canReadAnalytics ? 'vs yesterday' : 'needs analytics access'}
+          sub={!canReadAnalytics ? 'needs analytics access' : revenueTrend ? 'vs yesterday' : undefined}
           trend={canReadAnalytics ? revenueTrend : undefined}
           loading={isLoading}
         />

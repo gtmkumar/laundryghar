@@ -17,7 +17,10 @@ public sealed record RiderLiveDto(
     double?  Lng,
     DateTimeOffset? LastPingAt,
     bool     IsStale,           // last ping older than the freshness window
-    string   OpsStatus,         // offline|idle|on_the_way|arrived (derived)
+    // Derived, never stored: offline | idle | assigned | on_the_way | to_store | arrived.
+    // "idle" means FREE — no open leg at all. A rider holding a leg they have not started
+    // is "assigned", not idle, so this can never contradict CurrentLoad beside it.
+    string   OpsStatus,
     string?  ActiveLegType,     // pickup|delivery|return of the in-progress leg
     Guid?    ActiveOrderId,
     string?  ActiveOrderNumber,

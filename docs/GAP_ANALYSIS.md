@@ -321,6 +321,22 @@ Each blocks or reshapes a planned task.
   pinning someone else's dependency tree — a real change with its own blast radius, belonging to no
   task here.
 
+- **OQ-18 (from the sidebar/dashboard review) — a global date range and Export were mocked, never
+  wired.** The Topbar carried a `Today / 7 days / 30 days` `<select>` with no `onChange` and an
+  Export button with no `onClick`, on **every page**, directly above the dashboard KPIs. Picking
+  "30 days" changed nothing. Both have been **removed** — a control that silently does nothing is
+  worse than an absent one, because the reader trusts the number beside it — and building them back
+  is a product decision, not a bug fix:
+    - Is the range **global** (it renders on every page) or does it belong to the dashboard alone?
+    - What does it mean for the three right-now gauges — Pending Pickup, In Wash, Out for Delivery
+      are current counts with no time axis; a range either silently skips them (today's behaviour,
+      but then the control lies about its scope) or has to be redefined for them.
+    - Export of **what** — the KPI row, the revenue series, or the underlying orders? Each is a
+      different endpoint. Note the list screens already have their own working `Export CSV` in
+      `FilterableTable`, so a second, different export needs a reason to exist.
+  A dead `Sun` "Toggle theme" button in the sidebar footer was removed for the same reason; there is
+  no theme store anywhere in the app, so dark mode is a feature to build, not a button to restore.
+
 ## 6. Honest summary
 
 The platform is much further along than §11's four phases imply, and further along in a different
