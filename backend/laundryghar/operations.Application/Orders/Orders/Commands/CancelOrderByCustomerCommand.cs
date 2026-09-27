@@ -104,6 +104,12 @@ public sealed class CancelOrderByCustomerHandler
 
         _db.OrderStatusHistories.Add(history);
         _db.OutboxEvents.Add(outbox);
+
+        // A0.8 — this path had no refund at all. A customer who cancelled a paid order from the app
+        // had it cancelled and kept nothing; the identical cancellation performed for them by an
+        // operator refunded in full. Same rule, same call, all three paths.
+        await OrderCancellationRefund.QueueAsync(_db, order, cmd.BrandId, cmd.CustomerId, now, ct);
+
         await _db.SaveChangesAsync(ct);
         return CreateOrderHandler.ToDto(order);
     }

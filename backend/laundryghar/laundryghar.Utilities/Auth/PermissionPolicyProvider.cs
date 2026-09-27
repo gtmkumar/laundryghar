@@ -1,3 +1,4 @@
+using laundryghar.Utilities.Authorization.Abac;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 
@@ -45,13 +46,25 @@ public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
             var remainder = policyName[PolicyPrefix.Length..];
             var codes = remainder.Split('|', StringSplitOptions.RemoveEmptyEntries);
 
+            // The ABAC requirement rides alongside the permission requirement on every permission
+            // policy (A4.2). ASP.NET Core demands that EVERY requirement be satisfied, so the
+            // meaning becomes "hold the code AND survive the policy rows" — the coarse RBAC gate
+            // stays first and stays authoritative for what a role can enumerate.
+            //
+            // Adding it here rather than per-endpoint is what makes the shadow window worth
+            // anything: every permission-gated endpoint reports a decision from day one, so the
+            // parity diff (A6.2) sees the whole surface rather than the handful someone remembered
+            // to tag. AbacAuthorizationHandler succeeds immediately when the engine is disabled or
+            // the endpoint declares no resource, so this is inert until a module is cut over.
+            var abac = new AbacRequirement();
+
             AuthorizationPolicy policy;
             if (codes.Length == 1)
             {
                 // Fast path: single permission code
                 policy = new AuthorizationPolicyBuilder()
                     .RequireAuthenticatedUser()
-                    .AddRequirements(new PermissionRequirement(codes[0]))
+                    .AddRequirements(new PermissionRequirement(codes[0]), abac)
                     .Build();
             }
             else
@@ -61,7 +74,7 @@ public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
                 // never needs to know the multi-code case — a dedicated handler resolves it.
                 policy = new AuthorizationPolicyBuilder()
                     .RequireAuthenticatedUser()
-                    .AddRequirements(new AnyPermissionRequirement(codes))
+                    .AddRequirements(new AnyPermissionRequirement(codes), abac)
                     .Build();
             }
 

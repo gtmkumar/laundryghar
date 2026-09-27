@@ -3,6 +3,18 @@ import { Search, Download } from 'lucide-react'
 import { DataTable, type Column, type SortState } from './DataTable'
 import { exportCsv, type CsvColumn } from '@/lib/csv'
 
+/**
+ * English plural for the count line. Naively appending "s" produced "0 policys" on the ABAC
+ * policies screen — and would do the same for any unit ending in a consonant plus -y
+ * ("category", "entity"). The two rules below cover every `unit` this codebase passes; anything
+ * genuinely irregular should be spelled out by the caller rather than guessed at here.
+ */
+function pluralise(unit: string): string {
+  if (/[^aeiou]y$/i.test(unit)) return `${unit.slice(0, -1)}ies`
+  if (/(s|x|z|ch|sh)$/i.test(unit)) return `${unit}es`
+  return `${unit}s`
+}
+
 /** A dropdown filter: keeps rows whose `value(row)` equals the chosen option. */
 export interface FilterDef<T> {
   /** Stable key (used for the select's React key only). */
@@ -173,8 +185,7 @@ export function FilterableTable<T>({
       <p className="px-4 py-3 text-sm text-gray-500">
         {visible.length}
         {typeof totalCount === 'number' && visible.length !== totalCount ? ` of ${totalCount}` : ''}{' '}
-        {unit}
-        {visible.length === 1 ? '' : 's'}
+        {visible.length === 1 ? unit : pluralise(unit)}
       </p>
 
       <DataTable

@@ -18,6 +18,8 @@ import type {
   GrantMembershipPayload,
   RevokeMembershipPayload,
   MembershipDto,
+  PersonMembershipDto,
+  PersonPermissionOverrideDto,
 } from '@/types/api'
 
 export type PersonStatusAction = 'activate' | 'suspend' | 'reactivate'
@@ -97,12 +99,40 @@ export async function getPermissionCatalog(module?: string): Promise<PermissionC
   return unwrap(data)
 }
 
+/**
+ * Every live permission override a person already holds.
+ *
+ * Added for audit finding A-4 ("blind writes"); the ABAC plan had named the same gap independently
+ * as task A8.2 — `user_permission_override` was write-only, with no query to read it back.
+ */
+export async function getPersonPermissionOverrides(
+  personId: string,
+): Promise<PersonPermissionOverrideDto[]> {
+  const { data } = await identityClient.get<ApiResponse<PersonPermissionOverrideDto[]>>(
+    `${BASE}/people/${personId}/permission-overrides`,
+  )
+  return unwrap(data)
+}
+
 /** Set (allow/deny) or clear (effect:null) a per-user permission override for one person. */
 export async function setUserPermissionOverride(
   personId: string,
   payload: SetUserPermissionOverridePayload,
 ): Promise<void> {
   await identityClient.post(`${BASE}/people/${personId}/permission-override`, payload)
+}
+
+/**
+ * Every live membership a person already holds.
+ *
+ * Added for audit finding A-4 ("blind writes"): grant and revoke existed, nothing could list, so
+ * this panel could only revoke what the current browser session had just granted.
+ */
+export async function getPersonMemberships(personId: string): Promise<PersonMembershipDto[]> {
+  const { data } = await identityClient.get<ApiResponse<PersonMembershipDto[]>>(
+    `${BASE}/people/${personId}/memberships`,
+  )
+  return unwrap(data)
 }
 
 /** Grant an additional multi-scope membership; returns the created membership (id needed to revoke it). */

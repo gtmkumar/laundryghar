@@ -15,6 +15,14 @@ public sealed record SetRoleCellsCommand(Guid RoleId, SetRoleCellsRequest Reques
 /// Applies a batch of matrix-cell changes to one role in a SINGLE transaction (one SaveChanges),
 /// so a save is all-or-nothing — no partial-write window if one cell fails. Mirrors SetRoleCell's
 /// cell→permission mapping and self-lockout guard, but for the whole diff at once.
+///
+/// <para><b>A-1 (audit 2026-09-05) — guard asymmetry.</b> This handler previously ran with only the
+/// self-lockout check below. Its sibling <c>AssignPermission</c>, behind the same
+/// <c>permissions.assign</c> policy and writing the same table, additionally refused to edit a
+/// system role, a role outside the caller's brand, or a role outranking the caller. So the harder
+/// route was guarded and the easier one — one matrix cell, flipping many codes at once — was not:
+/// a brand admin could add permissions to <c>platform_admin</c> itself. The three guards now come
+/// from <see cref="RoleEditGuard"/>, which both handlers call.</para>
 /// </summary>
 public class SetRoleCellsCommandHandler : ICommandHandler<SetRoleCellsCommand, bool>
 {
@@ -25,7 +33,13 @@ public class SetRoleCellsCommandHandler : ICommandHandler<SetRoleCellsCommand, b
     public async Task<bool> HandleAsync(SetRoleCellsCommand cmd, CancellationToken ct)
     {
         var roleId = cmd.RoleId;
-        if (!await _db.Roles.AnyAsync(r => r.Id == roleId && r.DeletedAt == null, ct)) return false;
+        var role = await RoleEditGuard.FindLiveRoleAsync(_db, roleId, ct);
+        if (role is null) return false;                       // 404, as before
+
+        // Authority to edit THIS role at all — checked before any cell is resolved, so an
+        // unauthorized save costs one query and changes nothing.
+        await RoleEditGuard.EnsureMayEditAsync(_db, _user, cmd.ActorId, role, ct);
+
         var changes = cmd.Request.Changes;
         if (changes.Count == 0) return true;
 
@@ -66,13 +80,26 @@ public class SetRoleCellsCommandHandler : ICommandHandler<SetRoleCellsCommand, b
         var have = existing.Select(rp => rp.PermissionId).ToHashSet();
         var now = DateTimeOffset.UtcNow;
 
+        // A0.3 — effect-aware enable/disable. Previously `have` counted a DENY row as "already
+        // granted", so ticking a denied cell inserted nothing, left the deny in place, and returned
+        // success: the box was already ticked (see A0.2) and stayed ticked. Enabling must now FLIP an
+        // existing deny to allow, and disabling must remove only the allow — a deny is a stronger
+        // statement than absence and is not what an unticked box asks for.
+        foreach (var rp in existing.Where(rp => toEnable.Contains(rp.PermissionId) && rp.Effect == "deny"))
+        {
+            rp.Effect    = "allow";
+            rp.GrantedAt = now;
+            rp.GrantedBy = cmd.ActorId;
+        }
+
         foreach (var pid in toEnable.Where(id => !have.Contains(id)))
             _db.RolePermissions.Add(new RolePermission
             {
                 Id = Guid.NewGuid(), RoleId = roleId, PermissionId = pid,
                 GrantedAt = now, GrantedBy = cmd.ActorId, CreatedAt = now, CreatedBy = cmd.ActorId,
             });
-        _db.RolePermissions.RemoveRange(existing.Where(rp => toDisable.Contains(rp.PermissionId)));
+        _db.RolePermissions.RemoveRange(
+            existing.Where(rp => toDisable.Contains(rp.PermissionId) && rp.Effect != "deny"));
 
         await _db.SaveChangesAsync(ct); // single transaction — atomic
 

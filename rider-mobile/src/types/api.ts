@@ -139,17 +139,13 @@ export interface AppSettingsConfigValue {
 }
 
 // ---------------------------------------------------------------------------
-// Auth DTOs — rider uses the shared password login endpoint
-// POST /api/v1/auth/password/login  →  TokenResponse
+// Auth DTOs — rider signs in with a 6-digit phone OTP (audit A-7: this said
+// "the shared password login endpoint", which no screen has ever used)
+// POST /api/v1/auth/otp/send        →  OtpSentResponse
+// POST /api/v1/auth/otp/verify      →  TokenResponse
 // POST /api/v1/auth/refresh         →  TokenResponse
 // POST /api/v1/auth/logout          →  (status only)
 // ---------------------------------------------------------------------------
-
-export interface PasswordLoginRequest {
-  /** Phone, email, or rider code — the backend accepts any unique identifier */
-  identifier: string;
-  password:   string;
-}
 
 /** Mirrors Identity's TokenResponse / OtpVerifiedResponse records */
 export interface TokenResponse {

@@ -62,6 +62,12 @@ public sealed class JwtTokenService : IJwtTokenService
         // pre-feature tokens) would let it pass EVERY §6 scope guard. Emitting an EMPTY claim makes
         // IsWithinScope loop 0 nodes → deny. The absent-claim path now only means pre-feature tokens.
         claimsList.Add(new Claim("scope_nodes", claims.ScopeNodes ?? string.Empty));
+        // ALWAYS emit roles, for exactly the reason above. The ABAC deny policies backfilled by
+        // migration 0026 read `subject.roles`; an absent claim makes that attribute unresolvable,
+        // and an unevaluable DENY fails closed — so a missing claim would not quietly widen access,
+        // it would deny every request the moment a module is switched to enforce. Emitting an empty
+        // claim keeps "no roles" a statable fact.
+        claimsList.Add(new Claim(TokenClaims.RolesClaim, claims.Roles ?? string.Empty));
         // Step-up (§8): high/critical codes always travel; amr + stepup_at only on a token upgraded
         // by /auth/step-up/verify (login/refresh leave them null → freshness naturally lapses).
         if (!string.IsNullOrEmpty(claims.StepUpPerms))

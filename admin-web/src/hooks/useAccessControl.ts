@@ -12,6 +12,8 @@ import {
   cloneRole,
   getPermissionCatalog,
   setUserPermissionOverride,
+  getPersonMemberships,
+  getPersonPermissionOverrides,
   grantMembership,
   revokeMembership,
   type PersonStatusAction,
@@ -170,6 +172,18 @@ export function usePermissionCatalog(enabled = true) {
   })
 }
 
+/**
+ * The permission overrides a person already carries (audit A-4 / ABAC A8.2). `enabled` defers the
+ * call until the panel is actually shown.
+ */
+export function usePersonPermissionOverrides(personId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['access', 'person-overrides', personId],
+    queryFn: () => getPersonPermissionOverrides(personId!),
+    enabled: enabled && !!personId,
+  })
+}
+
 /** Set/clear a per-user permission override; refreshes the person's detail. */
 export function useSetUserPermissionOverride() {
   const qc = useQueryClient()
@@ -177,8 +191,21 @@ export function useSetUserPermissionOverride() {
     mutationFn: (v: { personId: string; payload: SetUserPermissionOverridePayload }) =>
       setUserPermissionOverride(v.personId, v.payload),
     onSuccess: (_data, v) => {
+      qc.invalidateQueries({ queryKey: ['access', 'person-overrides', v.personId] })
       qc.invalidateQueries({ queryKey: ['admin-user', v.personId] })
     },
+  })
+}
+
+/**
+ * The memberships a person already holds (audit A-4). Keyed per person so a grant or revoke on one
+ * person cannot show stale rows on another; `enabled` defers the call until the drawer is open.
+ */
+export function usePersonMemberships(personId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['access', 'person-memberships', personId],
+    queryFn: () => getPersonMemberships(personId!),
+    enabled: enabled && !!personId,
   })
 }
 
@@ -188,6 +215,7 @@ export function useGrantMembership() {
   return useMutation({
     mutationFn: (payload: GrantMembershipPayload) => grantMembership(payload),
     onSuccess: (_data, v) => {
+      qc.invalidateQueries({ queryKey: ['access', 'person-memberships', v.userId] })
       qc.invalidateQueries({ queryKey: ['admin-user', v.userId] })
       qc.invalidateQueries({ queryKey: ['access', 'people'] })
       qc.invalidateQueries({ queryKey: ['access', 'franchises'] })
@@ -201,6 +229,7 @@ export function useRevokeMembership() {
   return useMutation({
     mutationFn: (v: { userId: string; payload: RevokeMembershipPayload }) => revokeMembership(v.payload),
     onSuccess: (_data, v) => {
+      qc.invalidateQueries({ queryKey: ['access', 'person-memberships', v.userId] })
       qc.invalidateQueries({ queryKey: ['admin-user', v.userId] })
       qc.invalidateQueries({ queryKey: ['access', 'people'] })
     },

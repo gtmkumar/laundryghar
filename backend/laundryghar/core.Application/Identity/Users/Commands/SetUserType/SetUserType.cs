@@ -66,6 +66,14 @@ public class SetUserTypeCommandHandler : ICommandHandler<SetUserTypeCommand, boo
         user.UpdatedBy = actor.UserId;
         user.Version++;
 
+        // A0.5 — user_type is what grants the total bypass: PermissionHandler.cs:33 lets
+        // platform_admin skip the membership check outright, and TenantResolutionMiddleware keys
+        // bypass_rls on it. Bumping only `Version` left already-issued tokens carrying the OLD type
+        // valid until their natural refresh, so a demotion was not revocable. Bumping PermVersion in
+        // the SAME SaveChanges makes it atomic with the change and puts it inside the ~15s
+        // EnforceTokenVersion propagation bound like every other authority change.
+        user.PermVersion++;
+
         await _db.SaveChangesAsync(ct);
         return true;
     }

@@ -43,9 +43,24 @@ public sealed class HttpContextCurrentUser : ICurrentUser
 
     public bool IsAuthenticated => Principal?.Identity?.IsAuthenticated == true;
 
+    // A7.3 — the `|| ScopeType == Platform` arm is gone.
+    //
+    // It made ACTIVE SCOPE a master key: any principal whose active membership happened to be at
+    // the platform node became a platform admin for every one of the 25 checks that read this
+    // property — IsWithinScope's short-circuit, the subscription and platform-plan commands, the
+    // access-people visibility filter, the anti-escalation guard in AssignPermission. A
+    // platform-scoped `auditor`, a read-only role, would have passed all of them.
+    //
+    // It is also redundant with what it was presumably meant to express. Platform membership is
+    // already carried in scope_nodes and honoured there: IsWithinScope returns true for a
+    // "platform" node on its own merits, and so does authz.within_scope. The difference is that a
+    // node is EVIDENCE OF A MEMBERSHIP, whereas scope_type is just which membership the caller
+    // happens to be operating through right now — a request-shaped detail, not an authority.
+    //
+    // Verified against live data before narrowing: exactly one platform-scoped membership exists
+    // and its user_type is already platform_admin, so no principal loses access to anything.
     public bool IsPlatformAdmin =>
-        UserType == SharedDataModel.Enums.UserType.PlatformAdmin
-        || ScopeType == SharedDataModel.Enums.ScopeType.Platform;
+        UserType == SharedDataModel.Enums.UserType.PlatformAdmin;
 
     public bool HasPermission(string permissionCode)
     {
@@ -74,14 +89,20 @@ public sealed class HttpContextCurrentUser : ICurrentUser
         // Platform operators are unbounded (they already bypass RLS + permission checks).
         if (IsPlatformAdmin) return true;
 
-        // Backward-compat / rollout safety: a token with NO scope_nodes claim at all can only be a
-        // genuinely pre-feature (pre-deploy) token. The real mint path (JwtTokenService.CreateAccessToken)
-        // now ALWAYS emits scope_nodes for user tokens — even empty — so a membership-less principal
-        // carries a PRESENT-but-empty claim that correctly DENIES here (the foreach below loops 0 nodes
-        // → returns false). Since the JWT is signed the claim cannot be stripped, so an absent claim
-        // reliably means "pre-feature token, not enforceable" → allow (rollout safety only).
-        // A present claim is enforced normally: deny unless one of its nodes matches the target.
-        if (Claim("scope_nodes") is null) return true;
+        // A7.4 — an absent scope_nodes claim now DENIES.
+        //
+        // It used to return true. The reasoning was rollout safety: the mint path
+        // (JwtTokenService.CreateAccessToken) always emits scope_nodes for user tokens — even
+        // empty — so an absent claim could only mean a token issued before the feature existed,
+        // and those should not be locked out mid-session.
+        //
+        // That reasoning has expired. Access tokens are short-lived, the claim has been emitted for
+        // every user token for many releases, and what the rule actually says is "a token missing
+        // its authorization data passes every scope check" — the single broadest fail-open in the
+        // authority model, reachable by anything that can present a signed token without the claim.
+        // A present-but-empty claim still means "no memberships" and denies via the loop below;
+        // that is the case the rollout guard was really protecting, and it is handled without this.
+        if (Claim("scope_nodes") is null) return false;
 
         foreach (var node in ScopeNodes)
         {
@@ -116,9 +137,12 @@ public sealed class HttpContextCurrentUser : ICurrentUser
         return BrandId is { } b && b != Guid.Empty ? b : null;
     }
 
+    // F-4 — throws a 400, not a 401. See BrandContextRequiredException for why the distinction
+    // matters: the token is valid, the request is simply missing the brand it acts on, and 401
+    // makes every client tear down the session over a missing header.
     public Guid RequireBrandId()
         => TryGetBrandId()
-           ?? throw new UnauthorizedAccessException(
+           ?? throw new Exceptions.BrandContextRequiredException(
                "Brand context required. For platform admins, pass the X-Brand-Id header.");
 
     private string? Claim(string type) => Principal?.FindFirstValue(type);

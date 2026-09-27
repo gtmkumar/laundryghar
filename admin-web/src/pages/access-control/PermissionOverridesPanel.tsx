@@ -1,10 +1,14 @@
 import { useMemo, useState } from 'react'
-import { Loader2, Check, Trash2, ShieldOff, SlidersHorizontal } from 'lucide-react'
+import { AlertCircle, Check, Loader2, MapPin, ShieldOff, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { DetailSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
-import { usePermissionCatalog, useSetUserPermissionOverride } from '@/hooks/useAccessControl'
+import {
+  usePermissionCatalog,
+  usePersonPermissionOverrides,
+  useSetUserPermissionOverride,
+} from '@/hooks/useAccessControl'
 import { showToast } from '@/stores/toastStore'
 import { apiErrorMessage } from '@/lib/apiError'
-import type { SetUserPermissionOverridePayload } from '@/types/api'
+import type { PersonPermissionOverrideDto, SetUserPermissionOverridePayload } from '@/types/api'
 
 interface Props {
   personId: string
@@ -27,13 +31,18 @@ const SCOPE_OPTIONS: { value: string; label: string }[] = [
 ]
 
 /**
- * Per-user permission overrides (docs/rbac.md §7). There is no backend endpoint to LIST a
- * person's current overrides, so this renders the add/clear form only: pick a permission,
- * allow or deny it (deny = "suspend this capability for this one user"), optionally scope it
- * to a subtree / time-box it / add a reason, then Apply — or Clear to remove the override.
+ * Per-user permission overrides (docs/rbac.md §7): pick a permission, allow or deny it
+ * (deny = "suspend this capability for this one user"), optionally scope it to a subtree /
+ * time-box it / add a reason, then Apply — or Clear to remove the override.
+ *
+ * Audit finding A-4 ("blind writes") was that this panel could set and clear but never SHOW, so the
+ * only way to answer "what exceptions does this person carry" was to open the database. The ABAC
+ * plan had named the same gap independently as task A8.2. It now reads
+ * `GET /admin/access-control/people/{id}/permission-overrides` and lists what is actually in force.
  */
 export function PermissionOverridesPanel({ personId, canManage, isSelf }: Props) {
   const catalogQ = usePermissionCatalog(canManage && !isSelf)
+  const overridesQ = usePersonPermissionOverrides(personId, canManage && !isSelf)
   const setOverride = useSetUserPermissionOverride()
 
   const [permCode, setPermCode] = useState('')
@@ -65,6 +74,19 @@ export function PermissionOverridesPanel({ personId, canManage, isSelf }: Props)
     if (!permCode.trim()) return 'Pick a permission.'
     if (scopeType && !scopeId.trim()) return 'Enter a scope id for the chosen scope, or set scope to Global.'
     return null
+  }
+
+  /** Load a listed override back into the form — makes clearing or amending one a single click
+   *  instead of retyping its code and scope by hand. */
+  const editExisting = (o: PersonPermissionOverrideDto) => {
+    setErr(null); setDone(null)
+    setPermCode(o.permissionCode)
+    setEffect(o.effect === 'allow' ? 'allow' : 'deny')
+    setScopeType(o.scopeType ?? '')
+    setScopeId(o.scopeId ?? '')
+    setReason(o.reason ?? '')
+    setExpiresAt(o.expiresAt ? o.expiresAt.slice(0, 16) : '')
+    if (o.scopeType || o.expiresAt || o.reason) setShowAdvanced(true)
   }
 
   const submit = async (clearing: boolean) => {
@@ -225,8 +247,84 @@ export function PermissionOverridesPanel({ personId, canManage, isSelf }: Props)
               <Trash2 className="h-3.5 w-3.5" /> Clear
             </button>
           </div>
+          {/* What is actually in force (A-4). */}
+          <div className="space-y-1.5 border-t border-gray-100 pt-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+              Overrides in force
+            </p>
+
+            {overridesQ.isPending && (
+              <p className="flex items-center gap-2 text-xs text-gray-500">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading overrides…
+              </p>
+            )}
+
+            {overridesQ.isError && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <div className="space-y-1">
+                  <p>{apiErrorMessage(overridesQ.error, 'Could not load this person’s overrides.')}</p>
+                  <button
+                    type="button"
+                    onClick={() => void overridesQ.refetch()}
+                    className="font-medium underline underline-offset-2"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {overridesQ.isSuccess && overridesQ.data.length === 0 && (
+              <p className="text-xs text-gray-400">
+                None — this person’s access comes entirely from their roles.
+              </p>
+            )}
+
+            {overridesQ.isSuccess && overridesQ.data.length > 0 && (
+              <ul className="space-y-1.5">
+                {overridesQ.data.map((o) => (
+                  <li
+                    key={o.id}
+                    className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm"
+                  >
+                    <span
+                      className={
+                        o.effect === 'deny'
+                          ? 'inline-flex items-center gap-1 rounded-full bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-700'
+                          : 'inline-flex items-center gap-1 rounded-full bg-green-50 px-1.5 py-0.5 text-[11px] font-semibold text-green-700'
+                      }
+                    >
+                      {o.effect === 'deny' ? <ShieldOff className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+                      {o.effect === 'deny' ? 'Denied' : 'Allowed'}
+                    </span>
+                    <span className="font-medium text-gray-800">{o.permissionName}</span>
+                    <code className="rounded bg-gray-50 px-1 text-[11px] text-gray-500">{o.permissionCode}</code>
+                    {o.scopeType && (
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                        <MapPin className="h-3 w-3" /> {o.scopeName ?? o.scopeType}
+                      </span>
+                    )}
+                    {o.expiresAt && (
+                      <span className="text-[11px] text-gray-400">
+                        until {new Date(o.expiresAt).toLocaleDateString()}
+                      </span>
+                    )}
+                    {o.reason && <span className="w-full text-[11px] text-gray-400">“{o.reason}”</span>}
+                    <button
+                      type="button"
+                      onClick={() => editExisting(o)}
+                      className="ml-auto rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                    >
+                      Edit / clear
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <p className="text-xs text-gray-400">
-            Current overrides aren’t listed here yet — the API has no per-user overrides read endpoint.
             Applying or clearing takes effect immediately and re-issues the user’s tokens.
           </p>
         </div>

@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Loader2, Plus, X, Star, MapPin } from 'lucide-react'
+import { AlertCircle, Loader2, MapPin, Plus, Star, X } from 'lucide-react'
 import { DetailSection, Field, drawerInputCls } from '@/components/shared/FormDrawer'
-import { useGrantMembership, useRevokeMembership } from '@/hooks/useAccessControl'
+import { useGrantMembership, usePersonMemberships, useRevokeMembership } from '@/hooks/useAccessControl'
 import { showToast } from '@/stores/toastStore'
 import { apiErrorMessage } from '@/lib/apiError'
-import type { AccessRoles, AccessFranchise, MembershipDto } from '@/types/api'
+import type { AccessRoles, AccessFranchise, PersonMembershipDto } from '@/types/api'
 
 interface Props {
   personId: string
@@ -20,22 +20,25 @@ interface Props {
 
 /**
  * Additive, multi-scope memberships (docs/rbac.md §6) — distinct from the single-primary
- * change-role flow above. There is no backend endpoint to LIST a person's memberships, so
- * pre-existing ones can't be shown/revoked here; this grants NEW memberships and lets you
- * revoke the ones granted in this session (the grant response returns their ids).
+ * change-role flow above.
+ *
+ * Audit finding A-4 ("blind writes") was that this panel could grant and revoke but never SHOW:
+ * with no endpoint to list a person's memberships, it could only offer to revoke what the current
+ * browser session had just granted, and anything granted yesterday was unreachable. It now reads
+ * `GET /admin/access-control/people/{id}/memberships` and renders what the person actually holds.
  */
 export function MembershipsPanel({
   personId, canGrant, canRevoke, isSelf, roles, franchises, effectiveBrandId,
 }: Props) {
   const grant = useGrantMembership()
   const revoke = useRevokeMembership()
+  // Skipped for the self case, where the whole panel renders a notice instead of any data.
+  const memberships = usePersonMemberships(personId, !isSelf)
 
   const [roleId, setRoleId] = useState('')
   const [franchiseId, setFranchiseId] = useState('')
   const [isPrimary, setIsPrimary] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  // Memberships granted during this drawer session — the only ones we can revoke (we hold their ids).
-  const [granted, setGranted] = useState<MembershipDto[]>([])
 
   const allRoles = roles?.groups.flatMap((g) => g.roles) ?? []
   const selectedRole = allRoles.find((r) => r.id === roleId)
@@ -64,10 +67,11 @@ export function MembershipsPanel({
     }
 
     try {
-      const membership = await grant.mutateAsync({
+      await grant.mutateAsync({
         userId: personId, roleId: role.id, scopeType, scopeId, isPrimary,
       })
-      setGranted((g) => [membership, ...g])
+      // No local copy is kept: the grant invalidates the memberships query, so the list below
+      // re-reads from the server and shows the same rows anyone else would see.
       setRoleId(''); setFranchiseId(''); setIsPrimary(false)
       showToast('success', `Granted “${role.name}” membership.`)
     } catch (e) {
@@ -75,20 +79,21 @@ export function MembershipsPanel({
     }
   }
 
-  const revokeOne = async (m: MembershipDto) => {
-    if (!window.confirm('Revoke this membership? The user loses this role at this scope.')) return
+  const revokeOne = async (m: PersonMembershipDto) => {
+    if (!window.confirm(`Revoke “${m.roleName}” at ${scopeLabelFor(m)}? The user loses this role at this scope.`)) return
     try {
       await revoke.mutateAsync({ userId: personId, payload: { membershipId: m.id } })
-      setGranted((g) => g.filter((x) => x.id !== m.id))
       showToast('success', 'Membership revoked.')
     } catch (e) {
       showToast('error', apiErrorMessage(e, 'Could not revoke the membership.'))
     }
   }
 
-  const scopeLabelFor = (m: MembershipDto): string => {
+  // The server resolves the scope name; fall back to the local franchise list, then to the bare
+  // scope type, so a row is never labelled with a raw uuid.
+  const scopeLabelFor = (m: PersonMembershipDto): string => {
+    if (m.scopeName) return m.scopeName
     if (m.scopeType === 'platform') return 'Platform'
-    if (m.scopeType === 'brand') return 'Brand'
     const f = franchises.find((x) => x.id === m.scopeId)
     return f ? f.name : `${m.scopeType[0].toUpperCase()}${m.scopeType.slice(1)}`
   }
@@ -104,15 +109,41 @@ export function MembershipsPanel({
             manages one franchise). This is additive — it doesn’t replace the primary role.
           </p>
 
-          {/* Session-granted memberships (revocable — we hold their ids) */}
-          {granted.length > 0 && (
+          {/* What the person actually holds, read from the server (A-4). */}
+          {memberships.isPending && (
+            <p className="flex items-center gap-2 text-xs text-gray-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading memberships…
+            </p>
+          )}
+
+          {memberships.isError && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <div className="space-y-1">
+                <p>{apiErrorMessage(memberships.error, 'Could not load this person’s memberships.')}</p>
+                <button
+                  type="button"
+                  onClick={() => void memberships.refetch()}
+                  className="font-medium underline underline-offset-2"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          )}
+
+          {memberships.isSuccess && memberships.data.length === 0 && (
+            <p className="text-xs text-gray-400">No additional memberships yet.</p>
+          )}
+
+          {memberships.isSuccess && memberships.data.length > 0 && (
             <ul className="space-y-1.5">
-              {granted.map((m) => (
+              {memberships.data.map((m) => (
                 <li
                   key={m.id}
                   className="flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm"
                 >
-                  <span className="font-medium text-gray-800">{m.roleCode}</span>
+                  <span className="font-medium text-gray-800">{m.roleName}</span>
                   {m.isPrimary && (
                     <span className="inline-flex items-center gap-0.5 rounded-full bg-lg-amber/20 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">
                       <Star className="h-3 w-3" /> Primary
@@ -121,6 +152,11 @@ export function MembershipsPanel({
                   <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                     <MapPin className="h-3 w-3" /> {scopeLabelFor(m)}
                   </span>
+                  {m.expiresAt && (
+                    <span className="text-[11px] text-gray-400">
+                      until {new Date(m.expiresAt).toLocaleDateString()}
+                    </span>
+                  )}
                   {canRevoke && (
                     <button
                       type="button"
@@ -180,11 +216,6 @@ export function MembershipsPanel({
               </button>
             </div>
           )}
-
-          <p className="text-xs text-gray-400">
-            Existing memberships aren’t listed here yet — the API has no per-user memberships read endpoint,
-            so only memberships granted in this session can be revoked.
-          </p>
         </div>
       )}
     </DetailSection>

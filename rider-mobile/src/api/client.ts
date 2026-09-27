@@ -193,7 +193,7 @@ function createAxiosInstance(baseURL: string): AxiosInstance {
 // Per-service instances
 // ---------------------------------------------------------------------------
 
-/** Identity service — used for auth/password/login, auth/refresh, auth/logout */
+/** Identity service — used for auth/otp/send, auth/otp/verify, auth/refresh, auth/logout */
 export const identityClient  = createAxiosInstance(`${CONFIG.identityApiUrl}/api/v1`);
 
 /** Logistics service — all /rider/* self-service endpoints */

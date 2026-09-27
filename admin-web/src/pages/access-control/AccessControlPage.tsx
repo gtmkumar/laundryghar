@@ -8,13 +8,17 @@ import { PeopleTab } from './PeopleTab'
 import { RolesTab } from './RolesTab'
 import { FranchisesTab } from './FranchisesTab'
 import { EntitlementsTab } from './EntitlementsTab'
+import { PoliciesTab } from './PoliciesTab'
 import { InviteUserModal } from './InviteUserModal'
 
-type TabKey = 'people' | 'roles' | 'franchises' | 'modules'
+type TabKey = 'people' | 'roles' | 'policies' | 'franchises' | 'modules'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'people', label: 'People' },
   { key: 'roles', label: 'Roles & Permissions' },
+  // Policies sit next to the matrix rather than replacing it: the matrix answers "does this role
+  // hold this code", policies answer "and under what conditions" (docs/ABAC_IMPLEMENTATION_PLAN.md A8).
+  { key: 'policies', label: 'Policies' },
   { key: 'franchises', label: 'Franchises' },
   { key: 'modules', label: 'Licensing' },
 ]
@@ -60,6 +64,7 @@ export function AccessControlPage() {
     people: people.data?.pages[0]?.counts.all,
     roles: rolesCount,
     franchises: franchises.data ? franchiseTotal : undefined,
+    policies: undefined,
     modules: undefined,
   }
 
@@ -126,6 +131,7 @@ export function AccessControlPage() {
       {/* Tab body */}
       {tab === 'people' && <PeopleTab query={people} sort={peopleSort} onSort={toggleSort} />}
       {tab === 'roles' && <RolesTab query={roles} search={term} />}
+      {tab === 'policies' && <PoliciesTab search={term} />}
       {tab === 'franchises' && <FranchisesTab query={franchises} />}
       {tab === 'modules' && canEntitlements && <EntitlementsTab />}
 

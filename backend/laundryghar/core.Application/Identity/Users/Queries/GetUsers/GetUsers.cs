@@ -1,7 +1,9 @@
 using core.Application.Common.Interfaces;
+using core.Application.Identity.Users.Common;
 using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.Common;
+using laundryghar.Utilities.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace core.Application.Identity.Users.Queries.GetUsers;
@@ -12,13 +14,23 @@ public sealed record GetUsersQuery(int Page = 1, int PageSize = 20, string? Stat
 public class GetUsersQueryHandler : IQueryHandler<GetUsersQuery, PaginatedList<UserDto>>
 {
     private readonly ICoreDbContext _db;
-    public GetUsersQueryHandler(ICoreDbContext db) => _db = db;
+    private readonly ICurrentUser _actor;
+
+    public GetUsersQueryHandler(ICoreDbContext db, ICurrentUser actor)
+    {
+        _db = db;
+        _actor = actor;
+    }
 
     public Task<PaginatedList<UserDto>> HandleAsync(GetUsersQuery r, CancellationToken ct)
     {
+        // Tenant isolation. users has no brand_id, so no RLS policy protects this table and the
+        // filter has to be here. Without it this endpoint returned EVERY user on the platform to
+        // any brand admin — verified live, 20 users across 12 brands, identical for two different
+        // tenants' admins.
         var q = _db.Users.AsNoTracking()
             .Include(u => u.Profile)
-            .AsQueryable();
+            .ScopedToCallerBrand(_db, _actor);
         if (!string.IsNullOrEmpty(r.Status))   q = q.Where(u => u.Status   == r.Status);
         if (!string.IsNullOrEmpty(r.UserType)) q = q.Where(u => u.UserType == r.UserType);
         // Filter by home vertical (laundry/salon/logistics) using the denormalised column — lets a

@@ -65,7 +65,29 @@ public sealed class ApiAuthorizationResultHandler : IAuthorizationMiddlewareResu
             return;
         }
 
-        // ── 2. Otherwise: was this denial caused by the PLAN rather than by permissions?
+        // ── 2. An ABAC denial (A3.4). Reported before the plan check because it is the most
+        //      specific answer available: the PDP already knows exactly which policy stopped this
+        //      request and why, and that explanation is worth strictly more to a caller than
+        //      "you lack something". The reason string names the matched policy key, so support can
+        //      go straight to the row rather than reasoning backwards from an empty 403 — which is
+        //      the failure mode the current bare-403 default produces on every denial.
+        var abac = authorizeResult.AuthorizationFailure?.FailureReasons
+            .OfType<Authorization.Abac.AbacDeniedFailureReason>()
+            .FirstOrDefault();
+
+        if (abac is not null)
+        {
+            await WriteAsync(context, StatusCodes.Status403Forbidden, ErrorMessageEnum.Forbidden,
+                "policy_denied", "policy_denied",
+                [
+                    abac.Decision.MatchedPolicyKey ?? "(no policy matched)",
+                    $"{abac.Target.ResourceType}/{abac.Target.Action}",
+                    abac.Decision.Reason,
+                ]);
+            return;
+        }
+
+        // ── 3. Otherwise: was this denial caused by the PLAN rather than by permissions?
         //      Only worth asking when the token actually reports missing features.
         var unlicensed = FeatureNotInPlan.UnlicensedFeatures(context.User);
         if (unlicensed.Count > 0)

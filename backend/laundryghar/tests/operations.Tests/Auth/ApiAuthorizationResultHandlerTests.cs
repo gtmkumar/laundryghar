@@ -142,7 +142,57 @@ public class ApiAuthorizationResultHandlerTests
         Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
     }
 
+    // 7 ── F-5: the 402 must never become an existence oracle.
+    //
+    //      The audit recorded this as "plan gating evaluated before tenancy", and it is — the
+    //      authorization pipeline necessarily runs before the handler that knows who owns a row,
+    //      and inverting that would mean loading resources before deciding whether the caller may
+    //      ask for them. So the question worth answering is not the ordering but the CONSEQUENCE:
+    //      can the status distinguish a resource that exists from one that does not?
+    //
+    //      It cannot, and structurally so. This branch reads two things — the caller's own ent_off
+    //      claim and the permission code the endpoint declares — and never the route, the resource
+    //      id, or its owner. A brand that has not licensed a feature gets the same 402 for its own
+    //      ids as for anyone else's. Measured live during the audit; pinned here because nothing
+    //      else would stop a later edit from reaching for the route values and quietly turning a
+    //      billing answer into a disclosure.
+    [Fact]
+    public async Task The_402_is_byte_identical_for_a_real_foreign_id_and_a_fabricated_one()
+    {
+        var foreignId    = Guid.NewGuid();   // stands for another tenant's real franchise
+        var fabricatedId = Guid.NewGuid();   // an id belonging to nobody
+
+        var onForeign    = await ForbidOnAsync(foreignId);
+        var onFabricated = await ForbidOnAsync(fabricatedId);
+
+        Assert.Equal(StatusCodes.Status402PaymentRequired, onForeign.Status);
+        Assert.Equal(onForeign.Status, onFabricated.Status);
+
+        // Not just the status — the whole envelope. A difference anywhere in the body would be
+        // just as readable an oracle as a difference in the status line.
+        Assert.Equal(onForeign.Body, onFabricated.Body);
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Denies a request for one franchise id and returns the raw response.</summary>
+    private static async Task<(int Status, string Body)> ForbidOnAsync(Guid resourceId)
+    {
+        var context = Ctx(unlicensed: "franchises",
+                          catalog: new FakeCatalog { ["franchises.read"] = "franchises" });
+
+        // Everything the handler COULD read about which resource was asked for.
+        context.Request.Path = $"/api/v1/franchises/{resourceId}";
+        context.Request.RouteValues["id"] = resourceId.ToString();
+
+        await new ApiAuthorizationResultHandler().HandleAsync(
+            next: _ => Task.CompletedTask, context,
+            PermissionPolicy("franchises.read"), PolicyAuthorizationResult.Forbid());
+
+        context.Response.Body.Position = 0;
+        using var reader = new StreamReader(context.Response.Body);
+        return (context.Response.StatusCode, await reader.ReadToEndAsync());
+    }
 
     private static AuthorizationPolicy PermissionPolicy(string code) =>
         new AuthorizationPolicyBuilder().AddRequirements(new PermissionRequirement(code)).Build();

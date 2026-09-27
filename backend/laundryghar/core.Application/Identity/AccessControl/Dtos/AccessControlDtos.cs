@@ -80,3 +80,40 @@ public sealed record SetPersonStatusResult(string Status, bool MustChangePasswor
 public sealed record NavItemDto(string Key, string Label, string? Icon, string? Route);
 public sealed record NavSectionDto(string Section, IReadOnlyList<NavItemDto> Items);
 public sealed record NavigatorDto(IReadOnlyList<NavSectionDto> Sections);
+
+/// <summary>
+/// One live scope membership, as the person drawer reads it (audit A-4). Carries the resolved scope
+/// NAME as well as its id: the panel names a scope without having to hold every franchise, store and
+/// warehouse list in memory to look one up.
+/// </summary>
+public sealed record PersonMembershipDto(
+    Guid Id,
+    Guid UserId,
+    string ScopeType,
+    Guid? ScopeId,
+    string? ScopeName,
+    Guid RoleId,
+    string RoleCode,
+    string RoleName,
+    bool IsPrimary,
+    DateTimeOffset GrantedAt,
+    DateTimeOffset? ExpiresAt);
+
+/// <summary>
+/// One live per-user permission override, as the person drawer reads it (audit A-4 / ABAC A8.2).
+/// Carries the permission's display name and module so the panel need not re-look them up in the
+/// catalogue, and the resolved scope name for a scoped override.
+/// </summary>
+public sealed record PersonPermissionOverrideDto(
+    Guid Id,
+    Guid UserId,
+    string PermissionCode,
+    string PermissionName,
+    string Module,
+    string Effect,
+    string? ScopeType,
+    Guid? ScopeId,
+    string? ScopeName,
+    string? Reason,
+    DateTimeOffset? ExpiresAt,
+    DateTimeOffset GrantedAt);

@@ -34,6 +34,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using laundryghar.Utilities.Authorization.Abac;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -380,6 +381,11 @@ builder.Services.AddSingleton<IAuthorizationHandler, PartnerAdminHandler>();
 // Identity CustomerOnlyHandler above (distinct requirement types).
 builder.Services.AddSingleton<IAuthorizationHandler, McpCustomerOnlyHandler>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+// ── ABAC (docs/ABAC_IMPLEMENTATION_PLAN.md) ───────────────────────────────────
+// Registers the PDP/PIP/PEP. Inert unless Abac:Enabled is true, and evaluate-and-log-only
+// unless Abac:Mode is "enforce" — so this call changes nothing about who can do what until
+// a module is deliberately cut over (A7.1).
+builder.Services.AddAbac(builder.Configuration, connStr);
 // §8 step-up: convert a step-up policy denial into a structured 403 step_up_required.
 // Scoped, not Singleton: it resolves IFeatureCatalog (which holds the request's DbContext) to tell a
 // plan denial (402 feature_not_in_plan) from a permission denial (403).

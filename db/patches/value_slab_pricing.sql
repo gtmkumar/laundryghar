@@ -123,11 +123,18 @@ ON CONFLICT (code) DO NOTHING;
 -- Grant to every role that already holds pricing.pricelist.update (platform_admin via
 -- its wildcard grant, brand_admin, catalogue_manager, …). Join keeps the grant set in
 -- lockstep with pricelist authoring without hardcoding role codes.
+--
+-- A0.1: `rp.effect = 'allow'` is load-bearing. role_permissions holds allow AND deny rows, so
+-- without it a role that is explicitly DENIED pricing.pricelist.update reads as holding it and is
+-- granted pricing.slab.manage. That is exactly how `auditor` — the read-only role, carrying 97
+-- deny rows — ended up able to publish pricing slabs. Migration 0023 repairs the rows this
+-- already created. Any future "grant to every role that already holds X" must carry this filter.
 INSERT INTO identity_access.role_permissions (id, role_id, permission_id, granted_at, created_at)
 SELECT gen_random_uuid(), rp.role_id, slab.id, now(), now()
 FROM identity_access.role_permissions rp
 JOIN identity_access.permissions upd  ON upd.id = rp.permission_id AND upd.code = 'pricing.pricelist.update'
 JOIN identity_access.permissions slab ON slab.code = 'pricing.slab.manage'
+WHERE rp.effect = 'allow'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 COMMIT;

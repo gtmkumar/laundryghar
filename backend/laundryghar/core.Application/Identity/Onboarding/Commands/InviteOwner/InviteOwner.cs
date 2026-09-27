@@ -26,6 +26,11 @@ public sealed record InviteOwnerCommand(Guid FranchiseId, InviteOwnerRequest Req
 
 public class InviteOwnerCommandHandler : ICommandHandler<InviteOwnerCommand, OnboardingStateDto?>
 {
+    /// <summary>The role a franchise owner is created with. Named once so the user type beside it
+    /// is derived from it (<see cref="UserType.ForPrimaryRole"/>) rather than written out separately —
+    /// the drift audit finding A-2 describes, where this flow and CompleteSignup disagreed.</summary>
+    private const string OwnerRoleCode = "franchise_owner";
+
     private readonly ICoreDbContext _db;
     private readonly ICurrentUser _actor;
     private readonly IDispatcher _dispatcher;
@@ -43,9 +48,9 @@ public class InviteOwnerCommandHandler : ICommandHandler<InviteOwnerCommand, Onb
         if (string.IsNullOrWhiteSpace(r.Email))
             throw new ValidationException(new Dictionary<string, string[]> { ["email"] = ["Owner email is required."] });
 
-        var roleId = await _db.Roles.AsNoTracking().Where(x => x.Code == "franchise_owner" && x.DeletedAt == null)
+        var roleId = await _db.Roles.AsNoTracking().Where(x => x.Code == OwnerRoleCode && x.DeletedAt == null)
             .Select(x => (Guid?)x.Id).FirstOrDefaultAsync(cancellationToken)
-            ?? throw new ValidationException(new Dictionary<string, string[]> { ["role"] = ["franchise_owner role is missing."] });
+            ?? throw new ValidationException(new Dictionary<string, string[]> { ["role"] = [$"{OwnerRoleCode} role is missing."] });
 
         var email = r.Email.Trim();
         var ownerId = await _db.Users.AsNoTracking()
@@ -63,7 +68,7 @@ public class InviteOwnerCommandHandler : ICommandHandler<InviteOwnerCommand, Onb
                 Id = ownerId,
                 Email = email,
                 PhoneE164 = string.IsNullOrWhiteSpace(r.Phone) ? null : r.Phone,
-                UserType = UserType.FranchiseOwner,
+                UserType = UserType.ForPrimaryRole(OwnerRoleCode),
                 Status = UserStatus.Invited,
                 InvitationToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                 InvitationSentAt = now,

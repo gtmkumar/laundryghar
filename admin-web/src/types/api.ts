@@ -2714,6 +2714,50 @@ export interface MembershipDto {
   grantedAt: string
 }
 
+/**
+ * One LIVE per-user permission override, from
+ * `GET /admin/access-control/people/{id}/permission-overrides`.
+ *
+ * Carries the permission's display name and module so the panel need not cross-reference the
+ * catalogue, and the resolved node name for a scoped override.
+ */
+export interface PersonPermissionOverrideDto {
+  id: string
+  userId: string
+  permissionCode: string
+  permissionName: string
+  module: string
+  effect: string
+  scopeType: string | null
+  scopeId: string | null
+  scopeName: string | null
+  reason: string | null
+  expiresAt: string | null
+  grantedAt: string
+}
+
+/**
+ * One LIVE membership a person already holds, from
+ * `GET /admin/access-control/people/{id}/memberships`.
+ *
+ * Distinct from `MembershipDto`, which is what a grant returns: this carries the resolved scope
+ * NAME and the role's display name, so the panel can label a membership without holding every
+ * franchise/store/warehouse list in memory.
+ */
+export interface PersonMembershipDto {
+  id: string
+  userId: string
+  scopeType: string
+  scopeId: string | null
+  scopeName: string | null
+  roleId: string
+  roleCode: string
+  roleName: string
+  isPrimary: boolean
+  grantedAt: string
+  expiresAt: string | null
+}
+
 /** A permission in the catalog (GET /admin/roles/permissions) — populates the per-user override picker. */
 export interface PermissionCatalogItem {
   id: string
@@ -3612,4 +3656,59 @@ export interface FulfillmentConfigDto {
   requiresStoreDrop: boolean
   requiresPickup: boolean
   requiresDelivery: boolean
+}
+
+// ---------------------------------------------------------------------------
+// ABAC — policy authoring and explain (docs/ABAC_IMPLEMENTATION_PLAN.md A8)
+// GET /api/v1/admin/policies, GET .../decisions, PATCH .../{id}
+// ---------------------------------------------------------------------------
+
+/** One row of authz.policy. Backend: PolicyListItem. */
+export interface AbacPolicy {
+  id: string
+  key: string
+  version: number
+  /** null = platform-authored: applies to every tenant and a brand may only tighten it. */
+  brandId: string | null
+  description: string | null
+  effect: 'permit' | 'deny'
+  resourceType: string
+  action: string
+  /** The coarse RBAC code this policy refines, when it refines one. */
+  permissionCode: string | null
+  priority: number
+  effectiveFrom: string
+  effectiveTo: string | null
+  isActive: boolean
+  /** 0 = unconditional. An unconditional PERMIT applies to everyone who clears the RBAC gate. */
+  conditionCount: number
+  isPlatformAuthored: boolean
+}
+
+/** One row of authz.decision_log. Backend: DecisionLogItem. */
+export interface AbacDecision {
+  occurredAt: string
+  userId: string | null
+  customerId: string | null
+  tokenUse: string | null
+  resourceType: string | null
+  resourceId: string | null
+  action: string | null
+  decision: 'permit' | 'deny' | 'not_applicable'
+  /** shadow = evaluated and logged but NOT enforced; enforce = the decision was applied. */
+  mode: 'shadow' | 'enforce'
+  matchedPolicy: string | null
+  reason: string | null
+  /** The resolved attribute bag, as JSON text. */
+  attributes: string | null
+  /** What the existing permission gate decided for the same request (A6.2 parity). */
+  rbacAllowed: boolean | null
+  latencyMicroseconds: number | null
+}
+
+export interface PolicyEditPayload {
+  isActive?: boolean
+  priority?: number
+  effectiveTo?: string | null
+  description?: string | null
 }

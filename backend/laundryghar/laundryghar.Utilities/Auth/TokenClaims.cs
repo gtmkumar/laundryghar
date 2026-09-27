@@ -53,9 +53,22 @@ public sealed record TokenClaims(
     Guid? ImpersonationGrantId = null,
     // read_only | read_write. Advisory only — the guard re-reads the authoritative scope from the
     // database each request, because a claim minted an hour ago cannot know it has been revoked.
-    string? ImpersonationScope = null
+    string? ImpersonationScope = null,
+    // Space-separated ROLE codes held via ancestor-or-self memberships. Distinct from Permissions:
+    // a role is what a policy names, a permission is what it grants, and the two have already
+    // drifted (docs/AUTHORITY_MODEL.md). ABAC needs the role itself as a subject attribute — the
+    // A6.3 deny policies are written as "subject.roles contains <role>" — and without it in the
+    // token the attribute would have to be resolved with a database round trip per request, or, in
+    // the RLS layer, be unresolvable and therefore make every deny policy fire.
+    //
+    // Bounded by the number of memberships a person holds (a handful), not by the permission
+    // catalogue, so this costs the token very little.
+    string? Roles = null
 )
 {
+    /// <summary>JWT claim name carrying <see cref="Roles"/>.</summary>
+    public const string RolesClaim = "roles";
+
     /// <summary>Fixed token_use value for system users. Pinned for Catalog service contract.</summary>
     public const string TokenUseValue = "user";
 

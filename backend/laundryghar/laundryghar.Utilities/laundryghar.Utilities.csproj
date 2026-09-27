@@ -18,6 +18,9 @@
     <ItemGroup>
         <PackageReference Include="MailKit" Version="4.17.0" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
+        <!-- ABAC policy/attribute reads go straight to Npgsql: the authz schema is deliberately not
+             mapped in any DbContext, so a policy read cannot be caught in an application save. -->
+        <PackageReference Include="Npgsql" Version="10.0.3" />
         <!-- ValidationFilter<T> runs FluentValidation validators as a minimal-API endpoint filter -->
         <PackageReference Include="FluentValidation" Version="11.11.0" />
         <!-- CQRS handler/behavior assembly scanning (services.Scan) -->

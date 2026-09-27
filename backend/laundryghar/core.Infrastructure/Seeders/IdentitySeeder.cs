@@ -74,7 +74,8 @@ public sealed class IdentitySeeder
 
     // ─── 1. Permissions ────────────────────────────────────────────────────
 
-    private static readonly (string Code, string Module, string Action, string Name, string Risk)[] PermissionDefs =
+    // internal (not private) so PermissionCatalogueDriftTests can compare it against the SQL files.
+    internal static readonly (string Code, string Module, string Action, string Name, string Risk)[] PermissionDefs =
     [
         // platform
         ("platforms.list",    "platforms", "list",    "List platforms",    "normal"),
@@ -290,6 +291,21 @@ public sealed class IdentitySeeder
         ("partner_wallet.topup",         "partner_booking","wallet.topup",   "Top up partner wallet",       "high"),
         ("partner_invoice.read",         "partner_booking","invoice.read",   "View partner invoices",       "low"),
         ("partner_invoice.export",       "partner_booking","invoice.export", "Export partner invoices",     "normal"),
+
+        // ── Audit A-5 (2026-09-05): codes that shipped as raw SQL and were never folded back ──
+        // Seven codes existed in identity_access.permissions but not in this array, so a database
+        // built from the seeder alone was missing them and the catalogue understated the platform
+        // by seven. Each is reproduced here with the module/action/name/risk its SQL file wrote, so
+        // seeding is a no-op against a database those files already touched. The same drift was
+        // fixed by hand twice before (see the R3-SEC-1 comments above); PermissionCatalogueDriftTests
+        // now fails the build instead of leaving it to be noticed.
+        ("impersonation.request",        "impersonation","request",  "Request impersonation",                "high"),      // 0014_impersonation_grants
+        ("impersonation.approve",        "impersonation","approve",  "Approve or revoke impersonation",      "critical"),  // 0014_impersonation_grants
+        ("api_keys.manage",              "api_keys",     "manage",   "Manage API keys",                      "critical"),  // 0016_api_keys
+        ("domains.read",                 "domains",      "read",     "View custom domains",                  "low"),       // 0019_premium_feature_modules
+        ("domains.manage",               "domains",      "manage",   "Manage custom domains",                "high"),      // 0019_premium_feature_modules
+        ("white_label.read",             "white_label",  "read",     "View white-label app configuration",   "low"),       // 0019_premium_feature_modules
+        ("dispatch.mode.manage",         "dispatch",     "manage",   "Manage dispatch mode",                 "high"),      // patches/dispatch_permissions.sql
     ];
 
     private async Task<Dictionary<string, Permission>> SeedPermissionsAsync(CancellationToken ct)

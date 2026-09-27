@@ -141,6 +141,14 @@ public sealed class UpdateOrderStatusHandler : ICommandHandler<UpdateOrderStatus
 
         _db.OrderStatusHistories.Add(history);
         _db.OutboxEvents.Add(outbox);
+
+        // A0.8 — a cancellation reached through the generic status endpoint is still a
+        // cancellation. This path set CancelledAt and moved on, so a paid order cancelled from the
+        // status dropdown was never refunded, while the same order cancelled from the Cancel button
+        // was. One transition, one rule.
+        if (req.ToStatus == OrderStatus.Cancelled)
+            await OrderCancellationRefund.QueueAsync(_db, order, brandId, cmd.ActorId, now, ct);
+
         await _db.SaveChangesAsync(ct);
 
         return CreateOrderHandler.ToDto(order);

@@ -29,4 +29,9 @@
         <ProjectReference Include="..\laundryghar.SharedDataModel\laundryghar.SharedDataModel.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- PermissionCatalogueDriftTests reads IdentitySeeder.PermissionDefs directly. -->
+        <InternalsVisibleTo Include="core.Tests" />
+    </ItemGroup>
+
 </Project>

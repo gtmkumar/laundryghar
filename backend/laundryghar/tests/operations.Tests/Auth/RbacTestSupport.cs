@@ -15,8 +15,9 @@ internal static class RbacTestSupport
     /// <summary>
     /// Builds a principal carrying only the claims explicitly supplied. Passing <c>null</c> (the
     /// default) OMITS the claim entirely — this is the difference between an ABSENT claim and a
-    /// present-but-empty claim (pass <c>""</c> for the latter), which the scope/step-up logic treats
-    /// very differently (rollout fail-open vs. deny).
+    /// present-but-empty claim (pass <c>""</c> for the latter). Both now DENY at the scope check
+    /// (A7.4), but they remain distinct in the ABAC layer, where absent is Indeterminate and empty
+    /// is a resolved "no memberships".
     /// </summary>
     public static ClaimsPrincipal Principal(
         string? tokenUse = null,
@@ -25,7 +26,12 @@ internal static class RbacTestSupport
         string? scopeNodes = null,
         string? scopeType = null,
         string? stepUpPerms = null,
-        string? stepUpAt = null)
+        string? stepUpAt = null,
+        string? roles = null,
+        Guid? subject = null,
+        Guid? brandId = null,
+        Guid? franchiseId = null,
+        Guid? storeId = null)
     {
         var claims = new List<Claim>();
 
@@ -39,6 +45,11 @@ internal static class RbacTestSupport
         Add("permissions", permissions);
         Add("scope_nodes", scopeNodes);
         Add("scope_type", scopeType);
+        Add(TokenClaims.RolesClaim, roles);             // "roles"
+        Add(ClaimTypes.NameIdentifier, subject?.ToString());
+        Add("brand_id", brandId?.ToString());
+        Add("franchise_id", franchiseId?.ToString());
+        Add("store_id", storeId?.ToString());
         Add(TokenClaims.StepUpPermsClaim, stepUpPerms); // "step_up_perms"
         Add(TokenClaims.StepUpAtClaim, stepUpAt);       // "stepup_at"
 

@@ -41,7 +41,11 @@ public class GetAccessRolesQueryHandler : IQueryHandler<GetAccessRolesQuery, Acc
                 r.FeatureKey,
                 r.IsSystem,
                 r.Priority,
-                PermCodes = r.RolePermissions.Select(rp => rp.Permission.Code).ToList(),
+                // A0.2 — effect-aware. Without this filter a DENY row rendered as a ticked cell, so
+                // `auditor` (46 allows, 97 denies) showed 102 ticked cells against platform_admin's
+                // 103 and read as the most powerful role in the platform. The sibling query
+                // GetRoleSurface.cs:71 already filtered denies; this one did not.
+                PermCodes = r.RolePermissions.Where(rp => rp.Effect != "deny").Select(rp => rp.Permission.Code).ToList(),
                 MemberCount = r.UserScopeMemberships.Count(m => m.RevokedAt == null),
             })
             .ToListAsync(ct);

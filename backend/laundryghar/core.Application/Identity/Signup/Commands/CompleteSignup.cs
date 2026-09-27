@@ -40,6 +40,11 @@ public class CompleteSignupCommandHandler : ICommandHandler<CompleteSignupComman
     /// but never its length, so this is a placeholder to be confirmed alongside pricing (OQ-4).</summary>
     public const int TrialDays = 14;
 
+    /// <summary>The role a self-serve brand owner is created with. Named once so the user type
+    /// beside it is derived from it (<see cref="UserType.ForPrimaryRole"/>) rather than written out
+    /// separately — the drift audit finding A-2 describes.</summary>
+    private const string OwnerRoleCode = "brand_admin";
+
     private readonly ICoreDbContext _db;
     private readonly OtpSettings _otpSettings;
     private readonly IHostEnvironment _env;
@@ -131,7 +136,18 @@ public class CompleteSignupCommandHandler : ICommandHandler<CompleteSignupComman
             Email = req.Email?.Trim(),
             // Proven moments ago by the OTP above.
             PhoneVerifiedAt = now,
-            UserType = UserType.Staff,
+            // Audit A-2 ("two owners, two shapes"): this said UserType.Staff while the very next
+            // block grants the brand_admin ROLE, so the platform's two owner-creation flows
+            // described the same concept two different ways — InviteOwner types a franchise owner
+            // FranchiseOwner to match the franchise_owner role it grants, and this one did not.
+            //
+            // It was not only cosmetic. AdminSettings.Forbidden gates on
+            // `UserType == "brand_admin"` rather than on a permission, so a self-signed-up owner
+            // holding brand_admin was refused their own brand's settings — measured, and the
+            // clearest sign that a person's type and their primary role disagreeing is a defect
+            // rather than a distinction. The rule both flows now follow: user_type mirrors the tier
+            // of the primary role the account is created with.
+            UserType = UserType.ForPrimaryRole(OwnerRoleCode),
             Status = "active",
             Locale = "en-IN",
             Timezone = "Asia/Kolkata",
@@ -145,8 +161,8 @@ public class CompleteSignupCommandHandler : ICommandHandler<CompleteSignupComman
         // brand_admin is the closest shipped role to §6's "Owner" — full control of one brand. The
         // named Owner preset arrives with T-24; using it here would mean inventing a role.
         var ownerRole = await _db.Roles.AsNoTracking()
-            .FirstOrDefaultAsync(r => r.Code == "brand_admin" && r.DeletedAt == null, innerCt)
-            ?? throw new BusinessRuleException("The brand_admin role is missing; cannot create an owner.");
+            .FirstOrDefaultAsync(r => r.Code == OwnerRoleCode && r.DeletedAt == null, innerCt)
+            ?? throw new BusinessRuleException($"The {OwnerRoleCode} role is missing; cannot create an owner.");
 
         _db.UserScopeMemberships.Add(new UserScopeMembership
         {

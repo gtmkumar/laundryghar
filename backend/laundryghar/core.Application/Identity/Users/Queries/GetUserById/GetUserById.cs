@@ -1,4 +1,5 @@
 using core.Application.Common.Interfaces;
+using core.Application.Identity.Users.Common;
 using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.SharedDataModel.Crypto;
@@ -17,7 +18,11 @@ public class GetUserByIdQueryHandler : IQueryHandler<GetUserByIdQuery, UserDto?>
 
     public async Task<UserDto?> HandleAsync(GetUserByIdQuery r, CancellationToken ct)
     {
+        // Same isolation as the list. Reached by id, this endpoint returned a foreign tenant's
+        // full staff profile — email, phone, PAN, masked Aadhaar, bank account, IFSC, UPI — and the
+        // financial mask below is no defence, because brand_admin holds users.read_financial.
         var dto = await _db.Users.AsNoTracking().Include(u => u.Profile)
+            .ScopedToCallerBrand(_db, _actor)
             .Where(u => u.Id == r.Id)
             .Select(u => new UserDto(
                 u.Id, u.Email, u.PhoneE164, u.UserType, u.Status, u.MfaEnabled, u.LastLoginAt, u.CreatedAt,

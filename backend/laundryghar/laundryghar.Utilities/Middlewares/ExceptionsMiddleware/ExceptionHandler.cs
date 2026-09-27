@@ -114,6 +114,20 @@ public class ExceptionHandler
                     ErrorMessageEnum.Forbidden, HttpStatusCode.Forbidden,
                     ex.Message, SingleError(ex, ex.Message));
 
+            // F-4 — a missing brand is a malformed REQUEST, not a dead SESSION.
+            //
+            // Must be classified before UnauthorizedAccessException below: this used to fall
+            // through to it and return 401, which clients read as "log out". Carries its code in
+            // the dictionary so a client can prompt for a brand rather than parse the message.
+            case BrandContextRequiredException:
+                return new MappedError(
+                    ErrorMessageEnum.BadRequest, HttpStatusCode.BadRequest,
+                    ex.Message,
+                    new Dictionary<string, string[]>
+                    {
+                        ["code"] = new[] { BrandContextRequiredException.ErrorCode }
+                    });
+
             // DEF-4c: unknown lookup keys (e.g. POST /garments with an unknown tagCode)
             // surface as KeyNotFoundException → map to a clean 404 instead of a 500.
             case KeyNotFoundException:

@@ -8,6 +8,8 @@ using core.Application.Identity.AccessControl.Dtos;
 using core.Application.Identity.AccessControl.Queries.GetAccessFranchises;
 using core.Application.Identity.AccessControl.Queries.GetAccessPeople;
 using core.Application.Identity.AccessControl.Queries.GetAccessRoles;
+using core.Application.Identity.AccessControl.Queries.GetPersonMemberships;
+using core.Application.Identity.AccessControl.Queries.GetPersonPermissionOverrides;
 using core.Application.Identity.Users.Dtos;
 using LaundryGhar.Utilities.CQRS.Abstractions;
 using laundryghar.Utilities.ApiResponse.ResponseUtil;
@@ -43,6 +45,8 @@ public class AdminAccessControl : IEndpointGroup
         group.MapPut(UpdateRole, "roles/{id:guid}").RequireAuthorization("permission:roles.manage");
         group.MapDelete(DeleteRole, "roles/{id:guid}").RequireAuthorization("permission:roles.manage");
         group.MapPost(CloneRole, "roles/{id:guid}/clone").RequireAuthorization("permission:roles.manage");
+        group.MapGet(GetPersonMemberships, "people/{id:guid}/memberships").RequireAuthorization("permission:users.read");
+        group.MapGet(GetPersonPermissionOverrides, "people/{id:guid}/permission-overrides").RequireAuthorization("permission:users.read");
         group.MapPost(SetUserPermissionOverride, "people/{id:guid}/permission-override").RequireAuthorization("permission:permissions.assign");
         group.MapPost(SetPersonStatus, "people/{id:guid}/status").RequireAuthorization("permission:users.update");
     }
@@ -88,6 +92,26 @@ public class AdminAccessControl : IEndpointGroup
     {
         var data = await dispatcher.SendAsync(new InviteRiderCommand(req), ct);
         return Results.Ok(new SingleResponse<UserDto> { Status = true, Data = data });
+    }
+
+    /// <summary>
+    /// A-4 — the read that was missing. GRANT and REVOKE existed; nothing could LIST, so the drawer
+    /// could only offer to revoke what the current browser session had just granted.
+    /// </summary>
+    public static async Task<IResult> GetPersonMemberships(Guid id, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var data = await dispatcher.QueryAsync(new GetPersonMembershipsQuery(id), ct);
+        return Results.Ok(new ListResponse<PersonMembershipDto> { Status = true, Data = data.ToList() });
+    }
+
+    /// <summary>
+    /// A-4 (and ABAC task A8.2) — <c>user_permission_override</c> was write-only. Setting and
+    /// clearing existed; nothing could read one back.
+    /// </summary>
+    public static async Task<IResult> GetPersonPermissionOverrides(Guid id, IDispatcher dispatcher, CancellationToken ct)
+    {
+        var data = await dispatcher.QueryAsync(new GetPersonPermissionOverridesQuery(id), ct);
+        return Results.Ok(new ListResponse<PersonPermissionOverrideDto> { Status = true, Data = data.ToList() });
     }
 
     public static async Task<IResult> SetRoleCells(Guid id, SetRoleCellsRequest req, ICurrentUser user, IDispatcher dispatcher, CancellationToken ct)

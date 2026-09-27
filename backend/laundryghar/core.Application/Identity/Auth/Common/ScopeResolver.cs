@@ -116,12 +116,20 @@ public static class ScopeResolver
         // Allow/deny semantics, DENY WINS: effective = (role-allowed − role-denied ∪ user-allow) − user-deny.
         var roleAllowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var roleDenied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // The role CODES behind those permissions, for the `roles` claim. Collected from exactly the
+        // same ancestor-or-self membership set, so "which roles do you hold" and "which permissions
+        // do you have" can never disagree about which memberships counted.
+        var roleCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var m in memberships.Where(m => ancestorKeys.Contains(NodeKey(m.ScopeType, m.ScopeId))))
-            foreach (var rp in m.Role.RolePermissions)
+        {
+            if (m.Role?.Code is { Length: > 0 } code) roleCodes.Add(code);
+
+            foreach (var rp in m.Role!.RolePermissions)
             {
                 if (rp.Effect == "deny") roleDenied.Add(rp.Permission.Code);
                 else roleAllowed.Add(rp.Permission.Code);
             }
+        }
 
         // Per-user overrides: skip EXPIRED rows; a scoped override applies only when its node is
         // ancestor-or-self of the active scope; a global (null-scope) override applies everywhere.
@@ -261,6 +269,10 @@ public static class ScopeResolver
             PermVersion: user.PermVersion,
             ScopeNodes:  scopeNodes,
             StepUpPerms: string.Join(' ', stepUpPerms),
-            EntitlementOff: entitlementOff.Count > 0 ? string.Join(' ', entitlementOff) : null);
+            EntitlementOff: entitlementOff.Count > 0 ? string.Join(' ', entitlementOff) : null,
+            // Always emitted, even when empty, for the same reason scope_nodes is: a PRESENT-but-
+            // empty claim says "this person holds no roles" and correctly matches nothing, whereas
+            // an ABSENT claim is unresolvable and makes every deny policy over subject.roles fire.
+            Roles: string.Join(' ', roleCodes));
     }
 }

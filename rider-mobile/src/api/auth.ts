@@ -2,8 +2,15 @@
  * Rider auth API — maps to AuthEndpoints.cs (shared system auth)
  * Endpoint prefix: {Identity}/api/v1/auth/
  *
- * Riders are SYSTEM users (user_type='rider') — they log in with a
- * password, not OTP.  The endpoint is POST /api/v1/auth/password/login.
+ * Riders are SYSTEM users (user_type='rider') and sign in with a 6-digit phone OTP:
+ * POST /auth/otp/send then POST /auth/otp/verify. That is the only flow the app offers —
+ * app/(auth)/login.tsx asks for a phone number and nothing else.
+ *
+ * This header used to say the opposite ("they log in with a password, not OTP") and described a
+ * `passwordLogin` helper that no screen ever called. Audit finding A-7. The helper has been
+ * removed rather than left as dead code behind a corrected comment: the backend endpoint still
+ * exists and is used by other clients, so a rider password flow can be added back deliberately if
+ * it is ever wanted, instead of lingering as something that looks supported and is not.
  */
 import axios from 'axios';
 import { identityClient } from '@/api/client';
@@ -11,7 +18,6 @@ import type {
   OtpSendRequest,
   OtpSentResponse,
   OtpVerifyRequest,
-  PasswordLoginRequest,
   SingleResponse,
   TokenResponse,
 } from '@/types/api';
@@ -82,25 +88,6 @@ export async function verifyLoginOtp(
     }
     throw new Error('That code is incorrect or has expired. Please try again.');
   }
-}
-
-// ---------------------------------------------------------------------------
-// POST /api/v1/auth/password/login   (kept as a fallback sign-in path)
-// ---------------------------------------------------------------------------
-export async function passwordLogin(
-  identifier: string,
-  password: string,
-): Promise<TokenResponse> {
-  const payload: PasswordLoginRequest = { identifier, password };
-  const res = await identityClient.post<SingleResponse<TokenResponse>>(
-    '/auth/password/login',
-    payload,
-  );
-  const envelope = res.data;
-  if (!envelope.status || !envelope.data) {
-    throw new Error(envelope.message?.responseMessage ?? 'Login failed');
-  }
-  return envelope.data;
 }
 
 // ---------------------------------------------------------------------------

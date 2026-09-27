@@ -39,4 +39,40 @@ public static class UserType
     /// (laundry <c>warehouse_staff</c> or the neutral <c>ops_staff</c>).</summary>
     public static bool IsOperationalStaff(string? value)
         => value is WarehouseStaff or OpsStaff;
+
+    /// <summary>
+    /// The <c>user_type</c> that mirrors a primary role.
+    ///
+    /// <para><b>Why this exists.</b> Audit finding A-2, "two owners, two shapes": the platform's two
+    /// account-creation flows each wrote a user type next to a role code, by hand, and disagreed.
+    /// <c>CompleteSignup</c> typed a self-serve brand owner <c>staff</c> while granting them the
+    /// <c>brand_admin</c> role; <c>InviteOwner</c> typed a franchise owner <c>franchise_owner</c>
+    /// alongside the matching role. Two independent axes, two hand-written pairings, and nothing
+    /// checking they agreed — so one of them drifted.</para>
+    ///
+    /// <para>Type and role remain genuinely different things: a role grants permissions, a type
+    /// decides which portal someone lands in and feeds the anti-escalation rank in
+    /// <c>SetUserType</c>. What they must not do is contradict each other, because code that reads
+    /// the wrong axis then gets the wrong answer silently — <c>AdminSettings.Forbidden</c> gates on
+    /// <c>UserType == "brand_admin"</c>, which refused a self-signed-up owner their own brand's
+    /// settings.</para>
+    ///
+    /// <para>Any flow that creates an account together with its primary role calls this instead of
+    /// naming a type beside a role code. Roles with no distinct type tier — the vertical operational
+    /// roles and any brand-defined custom role — fall through to <see cref="Staff"/>, which is what
+    /// they were already.</para>
+    /// </summary>
+    /// <param name="roleCode">A seeded role code (<c>identity_access.roles.code</c>).</param>
+    public static string ForPrimaryRole(string? roleCode) => roleCode switch
+    {
+        "platform_admin"  => PlatformAdmin,
+        "brand_admin"     => BrandAdmin,
+        "franchise_owner" => FranchiseOwner,
+        "store_admin"     => StoreAdmin,
+        "rider"           => Rider,
+        "auditor"         => Auditor,
+        "support"         => Support,
+        "warehouse_staff" => WarehouseStaff,
+        _                 => Staff,
+    };
 }
