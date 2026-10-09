@@ -179,7 +179,7 @@ idempotency markers only.
 - Category: Concurrency / data integrity
 - Severity: High
 - Status: Verified (absence confirmed by grep; code paths read); races Not Tested
-- Evidence: zero matches for `IsConcurrencyToken|IsRowVersion|ConcurrencyCheck|xmin|DbUpdateConcurrencyException` in non-test code. Read-modify-write examples: coupon `CurrentUsageCount++` after a separate max-uses check (`CreateOrderCommand.cs:292-293,771`); loyalty balance and `Version++` (`:388-415`); package `CreditValueUsed +=` (`:485`); wallet `Balance +=` (`CustomerWalletHandlers.cs:178-183`, `AdminPaymentHandlers.cs:183-187` in the listing); order `AmountPaid +=` (`RecordOfflinePaymentCommand.cs:174-175`, `UpdateMyTaskStatus.cs:225`); order status (`UpdateOrderStatusCommand.cs:59-64`). The only row lock is the partner wallet (`CommerceDbContext.cs:118-124`). `ExceptionHandler.cs:306-345` would map a concurrency exception to a generic 400.
+- Evidence: zero matches for `IsConcurrencyToken|IsRowVersion|ConcurrencyCheck|xmin|DbUpdateConcurrencyException` in non-test code. Read-modify-write examples: coupon `CurrentUsageCount++` after a separate max-uses check (`CreateOrderCommand.cs:292-293,771`); loyalty balance and `Version++` (`:388-415`); package `CreditValueUsed +=` (`:485`); wallet `Balance +=` (`CustomerWalletHandlers.cs:181`, `AdminPaymentHandlers.cs:184`); order `AmountPaid +=` (`RecordOfflinePaymentCommand.cs:174-175`, `UpdateMyTaskStatus.cs:225`); order status (`UpdateOrderStatusCommand.cs:59-64`). The only row lock is the partner wallet (`CommerceDbContext.cs:118-124`). `ExceptionHandler.cs:306-345` would map a concurrency exception to a generic 400.
 - Observed behaviour: concurrent operations on the same customer, coupon or order overwrite each other (last write wins). Coupon global caps and per-customer caps can be exceeded, and wallet and loyalty balances drift from their append-only ledgers.
 - Impact: money drift between the balance column and the ledger, promotional budget overrun, and silent status regressions.
 - Recommended remediation: map Postgres `xmin` as a concurrency token on money-bearing aggregates (wallet, customer loyalty, coupon, customer package, order) and translate `DbUpdateConcurrencyException` to 409. Alternatively use atomic `UPDATE … SET x = x + @d WHERE … AND x + @d <= cap` as already done for slots.
@@ -311,7 +311,7 @@ idempotency markers only.
 - Category: Storage / security / operability
 - Severity: Medium
 - Status: Verified
-- Evidence: `operations.Infrastructure/Storage/FileStorageProviderFactory.cs:119-139` (`s3`/`azure-blob` throw); `LocalFileStorageProvider.cs:43-58`; `PRODUCTION_ENV.md:160-178` (default `/tmp/laundryghar-uploads`, "Not suitable for Production"); `deploy/docker-compose.yml:47-58` (no volume for operations); `UploadInspectionPhoto.cs:51-66` stores the client `ContentType`; the MIME allowlist is in the orphaned validator (SA-API-003). `ResolvePath` prefix check without a trailing separator (`:95-99`) is mitigated because keys are server-generated.
+- Evidence: `operations.Infrastructure/Storage/FileStorageProviderFactory.cs:119-139` (`s3`/`azure-blob` throw); `LocalFileStorageProvider.cs:43-58`; `PRODUCTION_ENV.md:160-178` (default `/tmp/laundryghar-uploads`, "Not suitable for Production"); `deploy/docker-compose.yml:48-58` (no volume for operations); `UploadInspectionPhoto.cs:51-66` stores the client `ContentType`; the MIME allowlist is in the orphaned validator (SA-API-003). `ResolvePath` prefix check without a trailing separator (`:95-99`) is mitigated because keys are server-generated.
 - Observed behaviour: KYC documents and inspection photos are lost on container recreation and are not visible across replicas. Any content type is accepted (a request size limit of 6 to 22 MB still applies) and echoed back on download (with attachment disposition). KYC PII is stored unencrypted on local disk.
 - Impact: data loss of evidentiary and compliance files; horizontal scaling breaks uploads.
 - Recommended remediation: implement the S3/Blob provider with per-tenant prefixes (the key scheme already supports this), enforce the MIME allowlist plus magic-byte sniffing, and use server-side encryption.
@@ -355,7 +355,7 @@ idempotency markers only.
 - Category: Multi-business / multi-vertical readiness
 - Severity: Medium
 - Status: Partially Verified
-- Evidence: `CompleteSignup.cs:115-120` (INR / IN / Asia/Kolkata / en-IN forced for every new tenant); `UpdateMyTaskStatus.cs:159,173` (laundry statuses hard-coded); `LoyaltyEarnService.cs:108-111` (earn only on `delivery.completed`, so appointment-mode orders never earn); no customer appointment, booking or staff-slot endpoint exists for the salon strategy (grep `appointment` in `*/Endpoints` returns nothing; the strategy exists in `operations.Application/Fulfillment/Salon/SalonAppointmentStrategy.cs`); the customer booking API is pickup-centric (`CustomerOrderEndpoints.cs:50-54`).
+- Evidence: `CompleteSignup.cs:115-120` (INR / IN / Asia/Kolkata / en-IN forced for every new tenant); `UpdateMyTaskStatus.cs:159,173` (laundry statuses hard-coded); `LoyaltyEarnService.cs:94,109` (earn only on `delivery.completed`, so appointment-mode orders never earn); no customer appointment, booking or staff-slot endpoint exists for the salon strategy (grep `appointment` in `*/Endpoints` returns nothing; the strategy exists in `operations.Application/Fulfillment/Salon/SalonAppointmentStrategy.cs`); the customer booking API is pickup-centric (`CustomerOrderEndpoints.cs:50-54`).
 - Observed behaviour: the platform can only onboard Indian tenants and fully serve laundry or parcel flows. Salon and other verticals have a state machine but no booking API or loyalty hook.
 - Impact: blocks the "one vertical per tenant" target for anything other than laundry or parcel.
 - Recommended remediation: take currency, country, timezone and locale from signup input or the vertical template; emit vertical-neutral completion events (`order.completed`) from strategies; add an appointment booking slice before selling salon.
@@ -384,7 +384,7 @@ idempotency markers only.
 - Category: Operability
 - Severity: Low
 - Status: Verified (config read)
-- Evidence: `laundryghar.ServiceDefaults/Extensions.cs:172-201` (only a "self" check, and endpoints are mapped only when `HealthChecks:Expose`); `deploy/docker-compose.yml:78` sets `HealthChecks__Expose` only on the gateway; `laundryghar.Gateway/HealthServicesEndpoint.cs:50-70` probes `{service}/health`.
+- Evidence: `laundryghar.ServiceDefaults/Extensions.cs:172-201` (only a "self" check, and endpoints are mapped only when `HealthChecks:Expose`); `deploy/docker-compose.yml:80` sets `HealthChecks__Expose` only on the gateway; `laundryghar.Gateway/HealthServicesEndpoint.cs:50-70` probes `{service}/health`.
 - Impact: dead workers and DB outages are invisible, and `/health/services` reports services as down in production.
 - Recommended remediation: add DB readiness and worker heartbeat checks; expose them on the internal network.
 - Dependencies / priority: P3. Related area: OPS.
@@ -402,7 +402,7 @@ idempotency markers only.
 - **Webhook HMAC**: per-brand secret resolved from the matched payment, constant-time comparison, fail-closed outside Development (`RazorpayWebhookHandler.cs:103-150,365-377`); the RLS bypass applies only to exact POST routes (`commerce.WebApi/Program.cs:355-366`).
 - **Slot double-booking guard**: atomic conditional `UPDATE … booked_count < capacity AND brand_id = …` inside the same transaction as the insert, with rollback on idempotency collision (`PickupCommands.cs:395-492`; reschedule `CustomerPickupCommands.cs:179-212`).
 - **Customer pickup idempotency**: per-customer partial unique index plus 23505 → existing row (`PickupCommands.cs:464-512`; `db/patches/pickup_idempotency_and_source.sql:61-65`).
-- **Order numbering**: atomic DB counter, not `COUNT+1` (`CreateOrderCommand.cs:806-818`).
+- **Order numbering**: atomic DB counter, not `COUNT+1` (`CreateOrderCommand.cs:807-818`).
 - **RLS GUC hygiene**: every GUC is rewritten on each connection open, with an "unresolved" sentinel (`RlsConnectionInterceptor.cs:57-121`); worker bypass requires a positive marker (`CommerceHostCurrentTenant.cs:80-90`).
 - **Partner wallet money path**: `FOR UPDATE` lock plus inbox-marker consumer, which is a correct no-skip, idempotent design (`CommerceDbContext.cs:118-124`; `PartnerBookingDebitService.cs:20-45`).
 - **JWT validation**: RS256 pinned, issuer, audience and lifetime validated, 30 s skew, on all hosts (`core.WebApi/Program.cs:301-338`; `operations.WebApi/Program.cs:89-111`).
