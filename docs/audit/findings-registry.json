@@ -1576,7 +1576,7 @@
   "severity": "Low",
   "original_severity": "Low",
   "severity_reason": "",
-  "status": "- Prerequisite bypass: Verified (code) - Primary-demotion collision: Suspected (SQL reasoning; not executed)",
+  "status": "Partially Verified (prerequisite bypass Verified by code read; primary-domain demotion collision Suspected, SQL reasoning only)",
   "qa": "Not independently re-verified by QA (specialist evidence accepted; see report)",
   "duplicate_of": null,
   "related": "",

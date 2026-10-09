@@ -4,7 +4,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 
 **ID convention.** `SA-<AREA>-NNN` (SaaS Audit). It does not collide with earlier IDs in `docs/AUDIT_REPORT.md` (A-n, F-n), `docs/ABAC_AUDIT_2026-08-31.md` (F-n) or `docs/QA-BUG-REPORT-2026-07-18.md` (BUG-n). No earlier root `FINDINGS.md` existed. Every ID raised by any agent is preserved. Where two agents reported the same defect, one ID is **canonical** and the others are listed as **duplicates** pointing to it. Distinct issues that share a theme are cross-referenced as *related*, not merged.
 
-**Severity** is the consolidated value after QA. Where it differs from the specialist's original rating, both are shown with the reason. **Status** uses Verified / Partially Verified / Suspected / Not Tested. "Verified" means the code path was read end to end and, where stated, reproduced; no HTTP-level or .NET test execution was possible in the audit environment (no .NET SDK, no Docker). SQL-level claims were reproduced on throwaway PostgreSQL 16 clusters built from the repository. **Phase** refers to the remediation roadmap in [`docs/audit/07-remediation-roadmap.md`](docs/audit/07-remediation-roadmap.md) (0 = verified critical risks … 5 = new verticals / hardening at scale).
+**Severity** is the consolidated value after QA. Where it differs from the specialist's original rating, both are shown with the reason. **Status** uses Verified / Partially Verified / Suspected / Not Tested. "Verified" means the code path was read end to end and, where stated, reproduced; no HTTP-level or .NET test execution was possible in the audit environment (no .NET SDK, no Docker). SQL-level claims were reproduced on throwaway PostgreSQL 16 clusters built from the repository. **Phase** is the consolidated roadmap phase and takes precedence over the specialist's original priority note (shown verbatim in each entry; they can differ, e.g. where QA raised severity or the architect re-sequenced dependencies). It refers to the remediation roadmap in [`docs/audit/07-remediation-roadmap.md`](docs/audit/07-remediation-roadmap.md) (0 = verified critical risks … 5 = new verticals / hardening at scale).
 
 **Totals.** 211 IDs raised; 156 canonical findings after de-duplication (55 duplicates). Canonical by severity: Critical 3, High 40, Medium 79, Low 32, Informational 2. Canonical by phase: P0 27, P1 58, P2 21, P3 33, P4 11, P5 6.
 
@@ -162,7 +162,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 | [SA-SOLID-013](#sa-solid-013) | Low | Verified | P3 | OOP/SOLID | Settings-resolved providers lose their logger (`_logger as ILogger<OtherType>` always evaluates to null) |  |
 | [SA-VERT-008](#sa-vert-008) | Low | Verified | P3 | Verticals/domain | Catalog discriminator is inert, and the service model is laundry-shaped |  |
 | [SA-ONB-009](#sa-onb-009) | Low | Verified | P4 | Onboarding/white-label | The vertical cannot be changed through any governed path, and a raw change would not re-provision |  |
-| [SA-ONB-011](#sa-onb-011) | Low | - Prerequisite bypass: Ve | P4 | Onboarding/white-label | `go-live` ignores wizard prerequisites, and adding a primary custom domain can strand the brand off its … |  |
+| [SA-ONB-011](#sa-onb-011) | Low | Partially Verified | P4 | Onboarding/white-label | `go-live` ignores wizard prerequisites, and adding a primary custom domain can strand the brand off its … |  |
 | [SA-ONB-012](#sa-onb-012) | Low | Verified | P4 | Onboarding/white-label | White-label app identifiers can collide between brands |  |
 | [SA-DB-016](#sa-db-016) | Low | Partially Verified | P5 | Database (index/idempotency/RLS) | Pooled-connection tenant context is safe for EF, but rests on session-level GUCs |  |
 | [SA-DB-021](#sa-db-021) | Low | Verified | P5 | Database (index/idempotency/RLS) | No DB-level booking overlap prevention; the salon schema is inaccessible to app_user |  |
@@ -184,7 +184,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** platform-wide login and refresh outage at trivial load. A refresh 429 logs users out. One abusive client can lock out every tenant. Auth audit trails lose client IPs.
 - **Remediation:** enable `ForwardedHeaders` on the three services with `KnownProxies`/`KnownIPNetworks` set to the gateway or compose network rather than clearing them. Remove `/refresh` endpoints from the 10/min policy and give them their own per-user or per-family limit.
 - **Tests required:** integration test with two distinct `X-Forwarded-For` values from a trusted proxy that asserts independent partitions; test that refresh is not throttled by login traffic.
-- **Dependencies / priority:** P0. Related area: SEC / OPS. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0. Related area: SEC / OPS. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-AUTHZ-001
@@ -199,7 +199,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Complete loss of multi-tenant isolation. Any internet user who can pass a phone OTP can read and modify every tenant's data, billing and configuration.
 - **Remediation:** in `CreateUserCommandHandler`, reuse the `SetUserType` guard. Reject `platform_admin` unless `actor.IsPlatformAdmin`, and reject any type whose priority outranks the actor. Better still, derive `user_type` from the granted role (`UserType.ForPrimaryRole`) and stop accepting it from clients. Add a DB trigger or CHECK that only a bypass session can write `user_type='platform_admin'`.
 - **Tests required:** brand/franchise/store admin create and invite with `platform_admin` and with `brand_admin` (from store_admin) are refused. A platform admin can still create one.
-- **Dependencies / priority:** P0 · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-TEN-001
@@ -215,7 +215,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** if 0031 is applied and services run as `app_user`, all of the following break: - customer order history, pickups and slots; - every commerce-host read and write for staff and customers (payments, wallets, finance, analytics, partner billing); - API-key integrations. Conversely, if these flows "work" somewhere, RLS is not actually enforced in that environment. Either way the documented isolation model and the runtime disagree. The existing test …
 - **Remediation:** 1. Make `CommerceHostCurrentTenant` delegate the subject slice (`ScopeNodes`, `Roles`, `Permissions`, `UserType`, `TokenUse`, `CustomerId`) to the same claim reads as `HttpContextCurrentTenant`. Better: compose it around `HttpContextCurrentTenant`. 2. Give non-staff principals a defined scope semantics in the `within_scope_cols` predicate. For example, return `true` when `app.current_token_use` is in `customer`, `customer_mcp` or `api_key` (the brand and customer policies still confine them), or have the interceptor publish `""` plus a …
 - **Tests required:** add customer, API-key and commerce-adapter sessions to `SubBrandScopeRlsTests`, and an audit insert under each session type. Add a test asserting that `CommerceHostCurrentTenant` and `HttpContextCurrentTenant` publish identical GUCs for the same principal.
-- **Dependencies / priority:** P0. Blocks any production use of 0031. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0. Blocks any production use of 0031. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/02-multitenancy.md`](docs/audit/specialists/02-multitenancy.md)
 
 ### SA-API-007
@@ -231,7 +231,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** lost revenue reconciliation, wrongly unpaid orders, and support load. The online payment workflow is not production-ready.
 - **Remediation:** treat `failed` as non-terminal while the Razorpay order is open (accept `captured` from `pending|failed`). Bind amount and order server-side from the order's `amount_due`. Apply payment effects (order `amount_paid`, wallet credit) in one idempotent "on captured" routine called by both verify and webhook.
 - **Tests required:** webhook sequence `failed` → `captured` ends captured and paid; verify plus webhook race credits exactly once.
-- **Dependencies / priority:** P0 before taking online payments. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 before taking online payments. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-008
@@ -246,7 +246,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** customers are told they are refunded when they are not.
 - **Remediation:** add an idempotent refund executor (worker plus inbox marker as in `PartnerBookingDebitService`) that moves `pending` to `succeeded|failed` through the gateway or wallet.
 - **Tests required:** cancel a paid order and assert the refund is executed once.
-- **Dependencies / priority:** P0 (with SA-API-007). · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 (with SA-API-007). · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-009
@@ -262,7 +262,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** direct money loss.
 - **Remediation:** persist the refund row as `processing` first and commit, call the gateway outside the transaction with a deterministic idempotency reference, then update. Lock the payment row (`FOR UPDATE`) when computing the cap.
 - **Tests required:** simulated transient failure that asserts a single gateway call; parallel refunds that assert the cap holds.
-- **Dependencies / priority:** P1. Related area: DB. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P1. Related area: DB. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-012
@@ -278,7 +278,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** cross-tenant data exposure (customers' phone numbers and order details go through another tenant's business account), wrong branding, and billing to the wrong tenant. This blocks white-label SaaS.
 - **Remediation:** resolve credentials per `request.BrandId` (brand row, then platform row, deterministically), and cache per brand.
 - **Tests required:** two brands with distinct credentials; assert each notification uses its own brand's credentials.
-- **Dependencies / priority:** P0 for multi-tenant launch. Related area: SEC. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 for multi-tenant launch. Related area: SEC. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-ARCH-013
@@ -294,7 +294,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** tenant isolation depends on every identity-admin handler being perfect, with no structural or database backstop.
 - **Remediation:** - Phase 0: server-derive `user_type`; add a DB trigger allowing `platform_admin` writes only from a platform/bypass role. - Phase 1–3: give platform operators a separate token audience and endpoint group that tenant tokens cannot satisfy.
 - **Tests required:** tenant-plane create/invite/set-type of `platform_admin` → refused; a platform-audience token is required for `/admin/entitlements`, `/admin/brands` and platform invoices.
-- **Dependencies / priority:** P0 (trigger and derivation), P1 (audience split). · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 (trigger and derivation), P1 (audience split). · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/01b-architect-challenge-review.md`](docs/audit/specialists/01b-architect-challenge-review.md)
 
 ### SA-ARCH-014
@@ -310,7 +310,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** outages (SA-DB-001), fail-open customer RLS on commerce (SA-TEN-002), silent worker no-ops (SA-SUB-004).
 - **Remediation:** one `TenantContextResolver` mapping every token type (user, customer, partner, api_key, worker) to the same GUC set, with an explicit customer scope node. Add a test matrix (lane × host × restrictive-policy table) run against a migrated schema in CI (depends on SA-ARCH-008).
 - **Tests required:** the lane matrix above.
-- **Dependencies / priority:** P0 for the customer/commerce lanes; P1 for consolidation. --- · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 for the customer/commerce lanes; P1 for consolidation. --- · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/01b-architect-challenge-review.md`](docs/audit/specialists/01b-architect-challenge-review.md)
 
 ### SA-AUTHZ-002
@@ -325,7 +325,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Vertical escalation inside a tenant, account takeover, payout fraud (bank/UPI change on rider/staff profiles).
 - **Remediation:** - Add one `TargetUserGuard` (shared helper) to every identity write handler. It should require `ScopedToCallerBrand`, require the target's highest role priority to be ≥ the actor's, and require `IsWithinScope` on the target's memberships. - Restrict `"activate"` to `Invited`/`Locked` users and require `users.set_password`. - Move email/phone/bank changes behind a high-risk permission with step-up and bump `perm_version`.
 - **Tests required:** store_admin → brand_admin activate/update/deactivate refused; store_admin → other store's staff refused; own-store junior allowed.
-- **Dependencies / priority:** P0 · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-AUTHZ-003
@@ -341,7 +341,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Cross-tenant account takeover. Can also unexpectedly re-home a victim's primary scope.
 - **Remediation:** in `GrantMembershipCommandHandler`, require the target user to be within the actor's brand (`ScopedToCallerBrand`) unless the actor is a platform admin. New users should only be attachable through the invite flow, which creates them. Enable RLS on `user_scope_memberships` with a brand-resolving policy (a separate audit, per the 0029 note).
 - **Tests required:** granting a membership to a user with no membership in the actor's brand → 403/404.
-- **Dependencies / priority:** P0 · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-AUTHZ-004
@@ -356,7 +356,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Revenue loss and an entitlement-model bypass. It also undermines the RBAC model generally, since any brand admin can mint any code their brand can see.
 - **Remediation:** enforce a grant ceiling. An actor may only grant codes they themselves hold, and never codes flagged platform-scope (`permissions.requires_scope`/platform module). Add `IsPlatformAdmin` (or a platform-audience check) to every handler under `/admin/entitlements` and `/admin/brands`. Restrict override scope types to nodes within the actor's scope.
 - **Tests required:** a brand admin granting `saas.manage`/`brands.create` via override or role cells → refused; `SetBrandFeature` as a non-platform caller → 403.
-- **Dependencies / priority:** P0/P1 · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0/P1 · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-DB-002
@@ -372,7 +372,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** - Disaster recovery, staging and new-region builds are not reproducible from the repo. - CI never validates the real DDL. - A re-run on production turns every platform-admin and worker bypass into zero rows. That fails closed, but it is an outage.
 - **Remediation:** freeze a baseline (`pg_dump --schema-only` of production) as `db/migrations/0000_baseline.up.sql`. Retire `db/patches/` from the bootstrap. Make `rls_proposal.sql` stop redefining `rls_bypass()`. Add a CI job that builds a PostgreSQL service from baseline + migrations and runs `migrate.sh verify` plus RLS smoke tests.
 - **Tests required:** a CI job that builds the schema; an assertion that `kernel.rls_bypass()` returns true for `'true'`.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-DB-012
@@ -388,7 +388,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** customer Google sign-in returns a 500 in the production role configuration. This is the same DEF-002 defect class that `fix_legacy_*_rls_policies.sql` removed elsewhere.
 - **Remediation:** replace with `kernel.rls_bypass() OR brand_id = kernel.current_brand_id()`, scoped `TO app_user`. Same for the four salon policies.
 - **Tests required:** anonymous plus bypass query on customer_identities.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-FE-001
@@ -403,7 +403,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** most of the back office is non-functional in the only shipped deployment path. Local dev works because `.env` has all nine values, which hides the problem.
 - **Remediation:** add the six missing `ARG`/`ENV` lines plus `VITE_GOOGLE_CLIENT_ID` to the Dockerfile, release.yml and compose. Better still, inject one `window.__CONFIG__` at container start, which also allows runtime per-environment config.
 - **Tests required:** a CI step that builds the image and greps `dist/assets/*.js` for each gateway prefix (`/engagement`, `/analytics`, …); a smoke e2e of the dashboard and CMS against compose.
-- **Dependencies / priority:** P0 before any production deploy. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 before any production deploy. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-MOB-001
@@ -419,7 +419,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Corrupt order lifecycle and finance (phantom COD payments, wrong `amount_paid`/`payment_status`), and load counter drift leading to over-assignment. It also undermines admin/customer consistency.
 - **Remediation:** Add a per-leg transition table in the handler, for example: `assigned|accepted → started → arrived → (collected) → completed|failed`; terminal = `completed|failed|cancelled|expired|rejected`. Then: - return Conflict for illegal transitions and a 200 no-op for same-status repeats, decrementing load only on the first terminal entry; - before delivery completion, require the order's strategy to allow `→ delivered` from its current status; - use a conditional `UPDATE … WHERE status = @expected` (or an `xmin` concurrency token).
 - **Tests required:** cancelled→completed rejected; completed→started rejected; double completed does not change load twice; completing a delivery leg of a cancelled order rejected.
-- **Dependencies / priority:** P0. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-OPS-003
@@ -435,7 +435,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** loss of compliance-relevant evidence (KYC, proof of delivery, damage inspection). The operations host also cannot run more than one replica.
 - **Remediation:** implement the S3/Blob provider at the existing seam before go-live. Interim step: mount a named volume at an explicit `Storage__Local__RootPath` and include it in backups.
 - **Tests required:** provider contract tests (save/read/delete, brand-prefixed key).
-- **Dependencies / priority:** P0. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-OPS-004
@@ -451,7 +451,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** once premade partitions run out, new `orders` and `audit_logs` rows go to the default partition (later partition creation conflicts) or inserts fail. That is a revenue-path outage on a timer.
 - **Remediation:** extend `PartitionMaintenanceService` to call a SECURITY DEFINER wrapper around `partman.run_maintenance_proc()` under a single-runner advisory lock, or enable pg_cron or the partman background worker on the managed DB. Add an alert on default-partition row count > 0.
 - **Tests required:** integration test asserting future partitions exist N months ahead after a maintenance run.
-- **Dependencies / priority:** P0. Related area: DB. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0. Related area: DB. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-QC-001
@@ -467,7 +467,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** money leaves with no ledger record, and the cap check (app SUM and trigger) cannot see it, so repeated attempts over-refund without limit. The wallet-refund feature is dead.
 - **Remediation:** - Split the API field into `RefundMethod` (`original|wallet`), mapped to `refund_method`, and `RefundType` (`full|partial|…`), validated against `RefundType` constants. - Insert the refund row as `processing` and commit before calling the gateway; update it afterwards. This also fixes SA-API-009.
 - **Tests required:** handler unit test mapping each documented value; integration test that a refund with each method persists; a fake gateway asserting zero calls when the row insert fails.
-- **Dependencies / priority:** P1 (blocked behind SA-TEN-001 for brand staff today; reachable by platform admins). · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P1 (blocked behind SA-TEN-001 for brand staff today; reachable by platform admins). · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/10c-qa-verification-db-mobile.md`](docs/audit/specialists/10c-qa-verification-db-mobile.md)
 
 ### SA-TEN-002
@@ -483,7 +483,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** in the very host that serves payments and wallets, customer isolation rests only on per-handler `CustomerId` predicates. This is the exact fail-open condition A0.6 documented, and it was re-introduced through the second adapter.
 - **Remediation:** same change as SA-TEN-001 step 1 (one shared claim-to-GUC mapping).
 - **Tests required:** RLS test with the commerce adapter's GUCs; customer A must not read customer B's payment.
-- **Dependencies / priority:** P1. Fix together with SA-TEN-001. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P1. Fix together with SA-TEN-001. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/02-multitenancy.md`](docs/audit/specialists/02-multitenancy.md)
 
 ### SA-TEN-003
@@ -498,7 +498,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** suspension, the platform's main server-side tenant restriction, can be undone by the tenant itself in two requests. That defeats both ToS enforcement and non-payment enforcement (the latter until the next dunning tick).
 - **Remediation:** 1. In `set_brand_cancellation_state`, refuse `p_status='cancelled'` when the current status is `suspended`. Alternatively, record the prior status in `brand_cancellations` and have withdrawal restore it rather than forcing `active`. 2. Have `RequestBrandCancellation` reject suspended brands, or preserve the suspension through the wind-down.
 - **Tests required:** a migration test (suspended → cancelled must raise, or withdraw must restore `suspended`) and a handler test.
-- **Dependencies / priority:** P0. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/02-multitenancy.md`](docs/audit/specialists/02-multitenancy.md)
 
 ### SA-VERT-002
@@ -514,7 +514,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Revenue and reputation risk: a paying tenant is sold a product that does not work. 0012 also contradicts 0011's own stated gate ("Listing an unrunnable template … would be worse than not offering it", `0011…:76-79`).
 - **Remediation:** Immediately set `is_public=false` for `salon` and `tiffin` in a new migration, and tie public visibility to an operability checklist (creation path, booking API, client screen). Then build each vertical as its own feature module (see the module-boundary recommendation below).
 - **Tests required:** A test that `GetSignupTemplates` returns only templates whose fulfillment mode has a creation path. An E2E signup → first booking test per public template.
-- **Dependencies / priority:** P0 for the visibility flip; P1/P2 for building the verticals. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 for the visibility flip; P1/P2 for building the verticals. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/04-verticals.md`](docs/audit/specialists/04-verticals.md)
 
 ### SA-API-002
@@ -530,7 +530,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** the outer DoS backstop is ineffective, and cross-tenant denial of service is possible.
 - **Remediation:** key the brand partition only on a validated token (validate the JWT at the gateway, or move brand partitioning into the services after authentication). Never key on an unauthenticated header. Use the forwarded-headers middleware with known proxies instead of parsing XFF by hand.
 - **Tests required:** `Resolve` ignores `X-Brand-Id` for unauthenticated requests; spoofed XFF from an untrusted hop is ignored.
-- **Dependencies / priority:** P1. Related area: SEC. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. Related area: SEC. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-004
@@ -546,7 +546,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** financial double-charges and duplicate orders under real network conditions.
 - **Remediation:** add an `idempotency_key` column with a partial `UNIQUE (brand_id, idempotency_key)` (mirroring `pickup_idempotency_and_source.sql`) and catch 23505 to return the winner. Serialise metadata with `JsonSerializer`.
 - **Tests required:** a parallel-request integration test (Testcontainers) asserting one order and one ledger debit.
-- **Dependencies / priority:** P1. Related area: DB. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. Related area: DB. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-005
@@ -562,7 +562,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** money drift between the balance column and the ledger, promotional budget overrun, and silent status regressions.
 - **Remediation:** map Postgres `xmin` as a concurrency token on money-bearing aggregates (wallet, customer loyalty, coupon, customer package, order) and translate `DbUpdateConcurrencyException` to 409. Alternatively use atomic `UPDATE … SET x = x + @d WHERE … AND x + @d <= cap` as already done for slots.
 - **Tests required:** parallel debit/credit tests asserting `balance == SUM(ledger)`; coupon cap race test.
-- **Dependencies / priority:** P1. Related area: DB. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. Related area: DB. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-DB-005
@@ -578,7 +578,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** escalation across tenants depends entirely on app checks in the access-control handlers. Token/OTP hashes and profiles of every tenant are readable by any app_user query.
 - **Remediation:** enable RLS on `user_scope_memberships` with a policy deriving the brand from (scope_type, scope_id) via a SECURITY DEFINER helper, or add a `brand_id` column. Enable `rls_user_self` on the token/OTP/profile tables, keeping the bypass for auth paths. Restrict the `users` INSERT check.
 - **Tests required:** an A session cannot insert a membership whose role, scope or brand is B.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-MOB-002
@@ -594,7 +594,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Two riders dispatched to one customer, duplicate payouts/COD, and load drift.
 - **Remediation:** 1. Add a partial unique index `ON delivery_assignments(pickup_request_id) WHERE status IN ('offered','assigned','accepted','started','arrived') AND pickup_request_id IS NOT NULL`, plus `(order_id, leg_type)` with the same predicate. 2. In handlers, check `pr.Status == 'pending'` and map 23505 to 409. 3. Add an explicit reassign command that cancels the old leg and adjusts load in one transaction. 4. Make accept/expire conditional updates (`UPDATE … SET status='accepted' WHERE id=@id AND status='offered' AND offer_expires_at > now()`).
 - **Tests required:** concurrent assign (Testcontainers), assign-after-assign 409, accept-vs-expire race, reassign moves load.
-- **Dependencies / priority:** P0. Depends on SA-MOB-001 for status vocabulary. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P0. Depends on SA-MOB-001 for status vocabulary. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-MOB-003
@@ -609,7 +609,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** No proof of handover, which is a dispute and fraud vector for COD/high-value items. The "OTP-verified delivery" product claim is not met.
 - **Remediation:** - Generate CSPRNG 4–6 digit pickup/delivery OTPs when the order enters `pickup_scheduled`/`out_for_delivery` (strategy transition effect). - Add `otp_attempts` with a lockout after N attempts per leg. - Expose the OTP to the customer by push/SMS.
 - **Tests required:** order out_for_delivery has OTP; complete without verify → 400; 6th wrong attempt → locked.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-OPS-006
@@ -624,7 +624,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** untested artifacts reach production hosts through the documented `pull && up` flow. CI has been red since it was created, which means the signal is ignored.
 - **Remediation:** run release on `workflow_run: CI, conclusion success` (or merge the jobs with `needs:`). Stop using `latest` for deploys and pin `${TAG}` to the SHA. Fix the two mobile failures. Enable branch protection that requires CI.
 - **Tests required:** none (pipeline config).
-- **Dependencies / priority:** P0. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P0. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-SOLID-003
@@ -639,7 +639,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** franchisor royalty revenue is not billed. Finance reports are wrong.
 - **Remediation:** use the `CommercePaymentStatus` constants everywhere (forbid raw literals with an analyzer or banned-API rule) and add a `CommercePaymentStatus.Settled = { Captured, Succeeded }` set used by royalty, refund and reconciliation queries.
 - **Tests required:** a royalty calculation over seeded captured and succeeded payments returns non-zero; a refund of a COD payment follows a defined rule.
-- **Dependencies / priority:** P0 for franchise billing. Related area: FINANCE. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P0 for franchise billing. Related area: FINANCE. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-SUB-001
@@ -654,7 +654,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** 100 % revenue leakage on the only self-serve acquisition funnel. Signup is anonymous and rate-limited only by OTP, so anyone can create unlimited free Pro tenants.
 - **Remediation:** - In `RunCycleAsync`, add a pass for `status='trialing' AND current_period_end <= now`. It should either: - convert to `active` and issue the first invoice, if a payment method is on file or `AutoRenew`; or - move to `past_due` so dunning applies. - Optionally set `brand_feature.valid_until = trial end` for bundle rows during the trial, so features lapse without the worker.
 - **Tests required:** an integration test for the worker conversion pass (trial → invoice → past_due → suspend); a test that a trial brand's token loses features after expiry when it does not convert.
-- **Dependencies / priority:** P0. Needs SA-SUB-004 and SA-SUB-005 fixed first, or the pass will not run. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P0. Needs SA-SUB-004 and SA-SUB-005 fixed first, or the pass will not run. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-002
@@ -670,7 +670,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** paying customers stay locked out. Support load rises, and payment is lost silently, because Razorpay receives 200.
 - **Remediation:** accept `issued` and `past_due` in the webhook and in link creation. Also clear `next_attempt_at` and record `paid_at` and the payment id.
 - **Tests required:** a webhook test for a `past_due` invoice, followed by a reinstatement test with the worker.
-- **Dependencies / priority:** P0. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P0. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-003
@@ -685,7 +685,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** revenue leakage for every brand that is ever late, plus an MRR report that is wrong.
 - **Remediation:** in the reinstatement pass, also set `brand_platform_subscription.status='active'` where it is `past_due` and there are no open invoices.
 - **Tests required:** worker test for past_due → paid → active → next renewal invoiced.
-- **Dependencies / priority:** P0. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P0. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-004
@@ -701,7 +701,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** there is no recurring revenue even when the worker is enabled. It would pass a local test run as the `postgres` superuser, which ignores RLS.
 - **Remediation:** a one-line change to `_scopeFactory.CreateWorkerAsyncScope()` at `L63`. Consider also asserting `WorkerScope.IsWorkerScope` in worker-only code paths.
 - **Tests required:** an integration test that runs `BrandPlatformBillingService` against an `app_user` connection with RLS on, and asserts an invoice is created.
-- **Dependencies / priority:** P0. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P0. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-006
@@ -716,7 +716,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** entitlements are not tied to the commercial contract. This weakens Q4.
 - **Remediation:** make subscription status an input to entitlement. Smallest change: on cancel (at period end) and on `past_due` beyond grace, set `brand_feature.valid_until` on `source='bundle'` rows, or have ScopeResolver treat `bundle` rows as entitled only while the subscription is `active` or `trialing`. Keep `manual` add-ons explicit.
 - **Tests required:** cancel, then token mint, asserting the bundle features are gone at period end; ApplyBundle on a cancelled subscription without payment, asserting the expected (decided) behaviour.
-- **Dependencies / priority:** P0/P1. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P0/P1. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-007
@@ -731,7 +731,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** blocks self-serve SaaS. Suspensions without notice also carry legal and reputational risk.
 - **Remediation:** - Add brand-scoped read endpoints (for example `GET /api/v1/admin/billing/me`) gated by a new tenant permission (`billing.read`) and keyed to the caller's `brand_id`, never a route parameter. - Add an owner-initiated "pay invoice" endpoint that creates or returns the payment link. - Add a Billing page in admin-web, and handle `brand_suspended`. - Emit notification outbox events on invoice issue and on `past_due`.
 - **Tests required:** owner can read only their own invoices; owner can create a link while suspended; another brand's invoice id returns 404.
-- **Dependencies / priority:** P0 for commercial launch. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P0 for commercial launch. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-FE-004
@@ -746,7 +746,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Q9. Order processing for any non-laundry vertical is not usable in the main business console.
 - **Remediation:** add `allowedTransitions` to `OrderDto` in `types/api.ts` and use it, as POS does. Build the filter from `useFulfillmentConfig()` stages plus terminal statuses. Keep the laundry map only as a fallback.
 - **Tests required:** component tests for the drawer with a salon fixture (`booked` shows Confirm / Cancel); an e2e against a seeded salon brand.
-- **Dependencies / priority:** P1, a prerequisite for any non-laundry tenant. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1, a prerequisite for any non-laundry tenant. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-MOB-004
@@ -761,7 +761,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Point-to-point/courier is not operable, distance-based payouts and fares are meaningless, and the "auto status on arrival" claim is false.
 - **Remediation:** 1. Add optional `latitude/longitude` to the create/update address DTO and persist them as a Point. 2. In customer-mobile, add an `expo-location` "use my current location" button and/or a pin-drop on `react-native-maps` (dev-build/config plugin required). 3. Add a server-side `IGeocoder` port with one provider adapter, called on address save when lat/lng are absent. Store the provider, accuracy and timestamp. 4. Copy address geo into `delivery_assignments.geo_location` at assignment time. 5. Allow stores to be pinned in admin.
 - **Tests required:** address saved with coordinates → quote succeeds; leg created copies geo; geofence flips within 150 m.
-- **Dependencies / priority:** P0 for the logistics vertical; P1 for laundry. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P0 for the logistics vertical; P1 for laundry. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-SOLID-001
@@ -777,7 +777,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** customer communication failures and inconsistent loyalty accrual across channels. Audit history can be wrong. Each new vertical multiplies these copies.
 - **Remediation:** add one application service, `IOrderTransitionService.TransitionAsync(order, toStatus, actor, reason, ct)`, that calls `strategy.EnsureTransition`, sets `Status`, `LifecycleState` and `Version`, applies `ApplyTransitionEffects`, adds the history row and always emits `order.status_changed` with `fromStatus` and `toStatus`. Route all 5 paths through it. Keep `delivery.completed` as an additional event. Add `("order.status_changed","cancelled")` to the template map, or emit `order.cancelled`. Decide whether loyalty should key off `LifecycleState …
 - **Tests required:** for each path (admin PATCH, admin cancel, customer cancel, rider pickup collect, rider delivery complete), assert exactly one history row with the correct `FromStatus`, one `order.status_changed` outbox row, and that the template resolves. Assert that a rider completing a `disputed` order is rejected. Assert that loyalty earns for both …
-- **Dependencies / priority:** P1. Prerequisite for SA-SOLID-004. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1. Prerequisite for SA-SOLID-004. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-VERT-001
@@ -793,7 +793,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Breaks the "one brand = one vertical" promise at the data layer. Vertical-keyed reporting (`orders.vertical_key` index in `phase0_multi_vertical.sql:72`) mislabels orders. Salon and tiffin tenants run laundry workflows.
 - **Remediation:** Load `brand.VerticalKey` in `CreateOrderHandler` and set `order.VerticalKey` from it. Derive the mode from a single policy: `JobType.Parcel → point_to_point`, otherwise `FulfillmentMode.DefaultFor(brand.VerticalKey)`. Reject a mode the brand's vertical does not allow (for example `process_deliver` on a salon brand) with a 422. Add a DB trigger or CHECK that `orders.vertical_key` equals the brand's vertical.
 - **Tests required:** Handler tests asserting a salon brand gets `appointment`/`booked`, a laundry brand gets `process_deliver`, and parcel on a laundry brand gets `point_to_point` with `vertical_key='laundry'`. A parity test that laundry behaviour is unchanged.
-- **Dependencies / priority:** P1. Blocks any salon or tiffin onboarding. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1. Blocks any salon or tiffin onboarding. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/04-verticals.md`](docs/audit/specialists/04-verticals.md)
 
 ### SA-VERT-004
@@ -808,7 +808,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Incorrect GST tax documents for non-laundry tenants (a compliance and legal exposure in India). The blueprint already planned a per-strategy `TaxProfile` (`MULTI_VERTICAL_BLUEPRINT.md` §2.2), but it was never built.
 - **Remediation:** Add `TaxProfile` (SAC + description) to `IFulfillmentStrategy`, or a per-vertical row in config with brand override. Make billable statuses `LifecycleState ∈ {completed, closed}` plus the explicit laundry `ready` prepaid case, instead of laundry literals.
 - **Tests required:** Invoice tests per mode: laundry gets 999712, point_to_point gets the configured courier SAC, salon `completed` is billable.
-- **Dependencies / priority:** P1 for logistics tenants already onboardable. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1 for logistics tenants already onboardable. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/04-verticals.md`](docs/audit/specialists/04-verticals.md)
 
 ### SA-ONB-002
@@ -823,7 +823,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Step 3 of the target flow ("logo, branding") and tier T2 are not deliverable. A self-signed-up owner cannot edit even their own brand name.
 - **Remediation:** 1. Add a brand-self `PUT /admin/brand/branding` that reads and writes via SECURITY DEFINER or a narrow RLS policy (`id = current_brand_id()`). It should cover name, logo, favicon and colours, with hex validation. 2. Add a logo upload that reuses `IFileStorageProvider` with the brand prefix. 3. Add a public `GET /public/branding` (Host or brandCode). 4. Have admin-web set CSS variables at runtime and have the mobile apps theme at runtime for the shared app.
 - **Tests required:** owner can update their own brand and cannot update another; colour validation; the public branding endpoint resolves per brand.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/05-onboarding-whitelabel.md`](docs/audit/specialists/05-onboarding-whitelabel.md)
 
 ### SA-VERT-003
@@ -838,7 +838,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** The salon (and any booking-based service) value proposition cannot be met. If appointment rows were written as-is, double-booking would be unprevented at both the DB and the code level.
 - **Remediation:** When salon is built, use `tstzrange` with `EXCLUDE USING gist (staff_member_id WITH =, tstzrange(scheduled_start, scheduled_end) WITH &&) WHERE status NOT IN ('cancelled','no_show')` (requires `btree_gist`), and the same on `resource_bookings`. Add a small availability service that composes operating hours, holidays, staff shifts and existing bookings. Add `duration_minutes` to the service catalog. Add the missing FK to `orders(id, created_at)`.
 - **Tests required:** Concurrent double-booking test (two transactions, same staff, overlapping range: one must fail). Operating-hours rejection test. Holiday rejection test.
-- **Dependencies / priority:** P2 (only needed once salon is pursued; gate salon behind SA-VERT-002 until then). · **Roadmap phase:** P5
+- **Specialist's dependencies / priority note:** P2 (only needed once salon is pursued; gate salon behind SA-VERT-002 until then). · **Consolidated roadmap phase:** P5
 - **Source:** [`docs/audit/specialists/04-verticals.md`](docs/audit/specialists/04-verticals.md)
 
 ### SA-DB-003
@@ -854,7 +854,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** any SQL execution as app_user (an injection, or a single unchecked handler argument) can exfiltrate or destroy another tenant. `RetentionSweepService.cs:241` actually *depends* on this accidental grant, because it runs on the app_user connection.
 - **Remediation:** 1. `REVOKE EXECUTE ON FUNCTION kernel.purge_brand(uuid) FROM app_user`, and run the purge worker on a dedicated `app_maintenance` role. 2. Inside every brand-taking SECURITY DEFINER function, add `IF NOT kernel.rls_bypass() AND p_brand_id IS DISTINCT FROM kernel.current_brand_id() THEN RAISE …`. 3. Replace `GRANT EXECUTE ON ALL FUNCTIONS` default privileges with explicit grants.
 - **Tests required:** an app_user cross-brand call to each function must raise.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-MOB-005
@@ -869,7 +869,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Harassment/abuse vector, wrong-address dispatch, and possible cross-brand reference.
 - **Remediation:** In `CustomerSchedulePickupHandler`, verify `CustomerAddresses.Any(a => a.Id == req.AddressId && a.CustomerId == cmd.CustomerId && a.BrandId == cmd.BrandId && a.DeletedAt == null)` and return 404 otherwise. Apply the same in admin create (address must belong to `req.CustomerId`).
 - **Tests required:** foreign addressId → 404; own address → 201.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-OPS-010
@@ -883,7 +883,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** RPO is 24 h and RTO is a full logical restore. Dumps (including role password hashes in globals) are unencrypted outside the DB. Single-tenant recovery requires a full side restore plus manual copying.
 - **Remediation:** use managed PG PITR as the primary mechanism (README L31-33 already suggests it). Encrypt archives. Schedule `verify-backup.sh` with row-count and RLS-policy checks. Write a brand-scoped restore runbook.
 - **Tests required:** scheduled verify job with alerting on failure.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-QA-001
@@ -899,7 +899,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** it widens SA-AUTHZ-001. It also means "the membership guard protects user creation" is not true anywhere.
 - **Remediation:** wrap InviteUser in `ExecuteInTransactionAsync` (or validate the grant before creating), and apply the SA-AUTHZ-001 type ceiling inside `CreateUserCommandHandler`.
 - **Tests required:** an invite rejected by the grant guard leaves no user row; an invite with a forbidden `user_type` is refused before any write.
-- **Dependencies / priority:** P0 together with SA-AUTHZ-001. · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 together with SA-AUTHZ-001. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/10a-qa-verification-security.md`](docs/audit/specialists/10a-qa-verification-security.md)
 
 ### SA-QC-003
@@ -915,7 +915,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** - Even after a scheduler is added (SA-OPS-004), every run fails. So: - no new monthly partitions for orders, audit_logs, notifications_log and decision_log (rows fall into the DEFAULT partitions); - no 14-day deletion of rider GPS history (DPDP, SA-MOB-012). - The failure is silent unless the cron output is monitored.
 - **Remediation:** a migration that does `UPDATE partman.part_config SET parent_table='laundry_fulfillment.process_logs' WHERE parent_table='order_lifecycle.process_logs'` (or `undo`/re-`create_parent`). Add a CI/startup assertion that every `part_config.parent_table` resolves, and call maintenance per table so one bad row cannot block the rest.
 - **Tests required:** an integration test that runs `run_maintenance_proc()` on the migrated schema, and a retention test that drops a partition older than 14 days.
-- **Dependencies / priority:** P1 (with SA-OPS-004). · **Roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P1 (with SA-OPS-004). · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/10c-qa-verification-db-mobile.md`](docs/audit/specialists/10c-qa-verification-db-mobile.md)
 
 ### SA-API-003
@@ -931,7 +931,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** unbounded payloads, wrong data stored, and security-relevant upload restrictions missing. Existing unit tests that exercise validators directly give false assurance.
 - **Remediation:** register `ValidationBehavior` (call `RegisterBehaviors`, or wire just validation into `Dispatcher`), and add an architecture test that fails when a validator's target type is never validated. Remove or rename dead behaviors.
 - **Tests required:** a reflection test that every `AbstractValidator<T>` is reachable; endpoint tests for the cases above.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-015
@@ -946,7 +946,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** silently missing order and refund notifications and missing loyalty points under concurrent load.
 - **Remediation:** move both consumers to the `outbox_consumed_events` inbox pattern already used by `PartnerBookingDebitService`.
 - **Tests required:** an interleaved-commit test where an event committed late is still processed.
-- **Dependencies / priority:** P2. Related area: DB. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. Related area: DB. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-016
@@ -961,7 +961,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** memory and DB pressure; one tenant's request can degrade the shared database for every tenant.
 - **Remediation:** clamp in `PaginatedList.CreateAsync` (for example to a maximum of 200) and document it in OpenAPI.
 - **Tests required:** `pageSize=10000` returns at most 200 items.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-018
@@ -977,7 +977,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** duplicate bookings and slot exhaustion.
 - **Remediation:** generate a UUID per checkout attempt in the client and send it as `Idempotency-Key`.
 - **Tests required:** client unit test that the header is present; server test already exists for the key path.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-019
@@ -992,7 +992,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** double booking and capacity drift.
 - **Remediation:** route admin creation through the same atomic slot-increment transaction as the customer path.
 - **Tests required:** admin booking on a full slot is rejected; booked count stays consistent after reject.
-- **Dependencies / priority:** P2. Related area: DB. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. Related area: DB. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-020
@@ -1007,7 +1007,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** weakened theft detection and spurious logouts.
 - **Remediation:** `UPDATE refresh_tokens SET revoked_at=now() WHERE id=@id AND revoked_at IS NULL` and treat 0 rows as reuse. Optionally add a short grace window that returns the already-minted child.
 - **Tests required:** parallel refresh test produces exactly one success.
-- **Dependencies / priority:** P2. Related area: SEC. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. Related area: SEC. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-ARCH-006
@@ -1022,7 +1022,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Loyalty credits (and to a lesser degree notifications) can be silently skipped when two transactions interleave; adding vertical-specific consumers would copy whichever pattern is nearest. No path to an external broker without per-consumer rework despite the ADR claim.
 - **Remediation:** Standardise every consumer on the inbox pattern already proven in `PartnerBookingDebitService`; introduce a small `OutboxEventTypes` + payload record catalogue in a shared contracts namespace; either remove the no-op relay or make it explicitly "mark-as-relayed" with a TODO for a broker. No broker needed now.
 - **Tests required:** Concurrency test inserting two events with inverted commit order, asserting each consumer processes both.
-- **Dependencies / priority:** P1 for loyalty (money-adjacent), P2 otherwise. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1 for loyalty (money-adjacent), P2 otherwise. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/01-architecture.md`](docs/audit/specialists/01-architecture.md)
 
 ### SA-ARCH-010
@@ -1036,7 +1036,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** The money-moving bounded context — and the one hosting all workers — has no automated regression net; refactoring towards modules (SA-ARCH-001/006/007) is high-risk there.
 - **Remediation:** Add `commerce.Tests` mirroring `operations.Tests` (EF InMemory or Testcontainers) starting with webhook idempotency, wallet balance mutations and the outbox consumers.
 - **Tests required:** as above.
-- **Dependencies / priority:** P1 (before touching commerce structure). · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1 (before touching commerce structure). · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/01-architecture.md`](docs/audit/specialists/01-architecture.md)
 
 ### SA-AUTHZ-007
@@ -1051,7 +1051,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** least privilege fails for multi-membership users. Each membership's permissions should be bounded by that membership's node.
 - **Remediation:** evaluate `(permission, node)` pairs. Emit per-node permission sets, or in `IsWithinScope` require that the node granting the specific permission covers the resource. The ABAC engine (`authz.within_scope`) is the natural home for this once enabled.
 - **Tests required:** store role at S1 + brand read-only role → write to S2 refused.
-- **Dependencies / priority:** P1 · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1 · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-AUTHZ-009
@@ -1065,7 +1065,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** a fired or compromised employee keeps full access for up to 15 minutes after suspension. A DB hiccup silently disables revocation.
 - **Remediation:** bump `PermVersion` and revoke the refresh-token family in both suspend paths. Make the version check fail closed for high/critical permissions, or at least log and alert.
 - **Tests required:** suspend user → next request with the old token → 401 within the TTL.
-- **Dependencies / priority:** P1 · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1 · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-DB-009
@@ -1081,7 +1081,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** today this is safe only while exactly one commerce replica runs. Horizontal scaling causes duplicate events, notifications and possibly mandate debits. A crash between claim and outcome strands rows permanently.
 - **Remediation:** claim with `UPDATE … SET status='publishing', claimed_at=now() WHERE id IN (SELECT id … FOR UPDATE SKIP LOCKED LIMIT n) RETURNING *`; add a lease timeout; insert the billing attempt in `initiated` state before charging; or take `pg_try_advisory_lock` per job.
 - **Tests required:** two-worker relay test.
-- **Dependencies / priority:** P2 (P1 before scaling out). · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2 (P1 before scaling out). · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-DB-010
@@ -1095,7 +1095,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** concurrent redemptions exceed `max_total_uses` and `max_uses_per_customer`, and "one coupon per order" can be broken.
 - **Remediation:** guarded `UPDATE commerce.coupons SET current_usage_count = current_usage_count + 1 WHERE id=@id AND (max_total_uses IS NULL OR current_usage_count < max_total_uses)` (rows==1), plus partial UNIQUE `(order_id) WHERE reverted_at IS NULL`. For single-use, add UNIQUE `(coupon_id, customer_id) WHERE reverted_at IS NULL`, applicable when `is_single_use_per_cust`; this needs a trigger or a separate table.
 - **Tests required:** parallel redemption.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-DB-014
@@ -1110,7 +1110,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** - ABAC defaults to shadow/disabled (`AbacOptions.cs:15-18`), so today the parity data is wrong and every decision-log flush fails. - After an enforce cutover, brand policies would never apply. - `subject.roles contains X` deny rules would evaluate against an empty set and fail open.
 - **Remediation:** run these reads under `SET LOCAL app.bypass_rls='true'` in a transaction, or via SECURITY DEFINER read functions. Replace COPY with batched INSERT or a SECURITY DEFINER writer.
 - **Tests required:** an integration test against app_user (not superuser).
-- **Dependencies / priority:** P2 (P1 before any ABAC enforce). · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2 (P1 before any ABAC enforce). · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-DB-018
@@ -1124,7 +1124,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** `purge_brand`, customer erasure and parent deletes seq-scan child tables. Duplicate indexes inflate write cost on orders, payments and fulfillment_unit.
 - **Remediation:** add FK indexes on high-churn children with `CREATE INDEX CONCURRENTLY` (migration flagged `-- migrate: no-transaction`). Drop redundant indexes after confirming production `pg_stat_user_indexes`.
 - **Tests required:** none (catalog check in CI).
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-FE-002
@@ -1139,7 +1139,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** on shared or counter computers, logout is ineffective. Combined with SameSite=Strict this is not cross-site exploitable, but the next person at the machine gets the previous admin's session (which could be a `platform_admin`).
 - **Remediation:** always `POST /logout` with `withCredentials: true`, without the `if`. Widen the cookie path to `/identity/api/v1/auth` (refresh and logout), or add a cookie-reading `/auth/refresh/logout` under the same path, so the server can revoke the family and not just delete the cookie.
 - **Tests required:** Playwright: login, reload, logout, goto `/`, expect `/login`. Backend: an integration test that logout via cookie revokes the family, so a later refresh returns 401.
-- **Dependencies / priority:** P0/P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P0/P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-FE-003
@@ -1154,7 +1154,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** counter tablets are exactly the shared, poorly managed devices where this risk is highest. The two staff web apps also behave inconsistently.
 - **Remediation:** mirror admin-web: add `partialize` that excludes `refreshToken`, and switch the interceptor refresh to `refreshAccessToken()` (which uses the cookie, `client.ts:179-191`).
 - **Tests required:** a unit test that the persisted `lg-pos-auth` JSON has no `refreshToken`; an e2e that a hard reload still refreshes through the cookie.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-FE-005
@@ -1169,7 +1169,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** operators act on the wrong tenant's data. The server is still authoritative (RLS / brand filters), so this is a confusion and integrity risk, not a direct leak.
 - **Remediation:** include `useEffectiveBrandId()` in every brand-scoped query key, or call `queryClient.clear()` in `setActiveBrand` and on every logout path; key the navigator on `[accessToken, brandId]`; call `clearBrand()` in the 401 forced-logout path.
 - **Tests required:** a hook test that switching brand changes the keys or clears the cache; an e2e that switches brand and asserts the order list re-fetches with the new header.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-FE-010
@@ -1184,7 +1184,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** a misleading price promise and wrong data in pickup requests.
 - **Remediation:** gate the fallback with `__DEV__`; in production render `ErrorState` / `EmptyState` with retry.
 - **Tests required:** a component test for an empty price list in production mode, which should show the empty state with no demo items.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-FE-011
@@ -1199,7 +1199,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** regressions in POS and admin UI logic (the SA-FE-004 class of bug) cannot be caught. Mobile PRs merge on a red pipeline.
 - **Remediation:** regenerate the rider lockfile (or align `react`/`react-dom`); commit a stub `expo-env.d.ts` (`/// <reference types="expo/types" />`) or add a `*.css` module declaration; add a pos-web job (lint, build) and a Dockerfile; add Vitest plus React Testing Library to the web apps, starting with `orderStatus`/`allowedTransitions`, `routePermissions` and the client interceptors.
 - **Tests required:** as above.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-MOB-008
@@ -1214,7 +1214,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Silent data loss, riders believing tasks are complete when they are not, and gaps in tracking history.
 - **Remediation:** - Enqueue only on network or 5xx errors (`!error.response || status >= 500`). - On 4xx, show the server message and drop or mark the item failed. - Replay `failed` via `failTaskStatus`. - Continue past permanently failed items. - Optionally buffer the last N pings.
 - **Tests required:** jest: 400 not enqueued; poison item skipped; failed replay carries reason.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-MOB-009
@@ -1229,7 +1229,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Riders silently logged out mid-shift, and tracking stops.
 - **Remediation:** In the task, read tokens directly from SecureStore if the store is not hydrated, and never call `onAuthFailure` from a headless context (skip the ping on 401).
 - **Tests required:** jest unit with an unhydrated store → no logout.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-MOB-010
@@ -1244,7 +1244,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Privacy (tracking outside shift), DoS surface, misleading live board, and geofence manipulation.
 - **Remediation:** - Add a FluentValidation validator: lat ∈ [-90,90], lng ∈ [-180,180], batch ≤ 50, `PingedAt` within [now-15m, now+2m] (else clamp to server time), accuracy ≤ 200 m for geofence evaluation. - Reject or ignore pings when `!IsOnDuty || Status != active`. - Store server receive time in `created_at` and use it for staleness.
 - **Tests required:** validator unit tests; off-duty ping → 204/ignored.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-MOB-011
@@ -1259,7 +1259,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Ex-partner retains operational access and customer PII.
 - **Remediation:** - On deactivate: set `IsOnDuty=false`, cancel or flag open legs for reassignment, and revoke refresh tokens. - Add `r.Status == "active"` (or not terminated) to the rider self-resolve in all rider-self handlers via one shared helper.
 - **Tests required:** terminated rider → 403/404 on ping and status.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-OPS-005
@@ -1275,7 +1275,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** duplicate customer WhatsApp/SMS/push messages (cost and spam) and silent loss after a crash. Scaling the commerce API for load also multiplies job runners.
 - **Remediation:** claim with `UPDATE ... SET status='sending', locked_until=now()+interval 'N min' WHERE id IN (SELECT id ... FOR UPDATE SKIP LOCKED LIMIT n) RETURNING *`, and reclaim rows whose lease has expired. Move workers into a separate `worker` compose service pinned to one replica, using the same image with a flag.
 - **Tests required:** Testcontainers test running two dispatchers concurrently and asserting each row is sent once, plus a test that a stale lease is reclaimed.
-- **Dependencies / priority:** P1 (P0 before any multi-replica deployment). Related area: DB. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1 (P0 before any multi-replica deployment). Related area: DB. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-OPS-007
@@ -1291,7 +1291,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** untested rollbacks, version skew between the test and production engines, and concurrent operator runs racing each other.
 - **Remediation:** add a CI job on PG18 with partman and postgis that runs `build_from_scratch.sh` → `migrate.sh up` → `migrate.sh down all` → `migrate.sh up` → `verify`. Wrap `cmd_up`/`cmd_down` in `pg_advisory_lock`. Add an expand/contract convention for backward-compatible deploys.
 - **Tests required:** the CI job itself.
-- **Dependencies / priority:** P1. Related area: DB. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. Related area: DB. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-OPS-008
@@ -1307,7 +1307,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** no per-tenant SLOs, no way to isolate a noisy or failing tenant, and no paging on outages.
 - **Remediation:** add one middleware after `TenantResolutionMiddleware` that opens a log scope `{brand_id, user_id}` and tags `Activity.Current` with `tenant.brand_id` (also on worker scopes). Set the OTLP endpoint in compose and add Npgsql OTel. Define alerts for 5xx rate, 429 rate, outbox/notification dead-letter counts, partition runway and backup age.
 - **Tests required:** unit test that the middleware sets the scope and tag.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-OPS-009
@@ -1321,7 +1321,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** operators following the docs will set `Secrets__Provider=file` and get nothing. There is no rotation path or central store, and secrets are visible in `docker inspect`.
 - **Remediation:** correct the docs. Use the already-supported `Jwt__PrivateKeyPath` with Docker secrets, and add `builder.Configuration.AddKeyPerFile("/run/secrets", optional:true)` in ServiceDefaults (one line, framework-provided).
 - **Tests required:** config-binding test for key-per-file.
-- **Dependencies / priority:** P1. Related area: SEC. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. Related area: SEC. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-OPS-012
@@ -1335,7 +1335,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** the documented deploy flow either fails or pulls the wrong images. The POS client cannot be deployed from the repo.
 - **Remediation:** qualify the images as `ghcr.io/${OWNER}/laundryghar-core:${TAG:-latest}`. Add pos-web to CI and release. Consider runtime config injection (`/config.js`) for SPAs.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-OPS-014
@@ -1349,7 +1349,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** one heavy tenant can exhaust a cluster's in-flight slots or the DB pool for everyone.
 - **Remediation:** add a per-brand concurrency partition at the gateway (verified-token brand only, see SA-OPS-002) and map limits from plan entitlements. Add container resource limits.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-QB-002
@@ -1364,7 +1364,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** false assurance, and migration regressions (like the 0005 bootstrap failure) reach operators.
 - **Remediation:** use `Assert.Skip`/`SkippableFact` (or fail when `CI=true`) instead of `return`. Add a CI job that builds Postgres 16 with partman and postgis from the documented bootstrap, runs `migrate.sh up`, then `down`/`up` for the last N migrations, and checks EF mappings against `information_schema`. Add handler tests for the paths listed above.
 - **Tests required:** as above. Add a meta-test that fails if any integration test returns early on CI.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/10b-qa-verification-platform.md`](docs/audit/specialists/10b-qa-verification-platform.md)
 
 ### SA-QC-002
@@ -1380,7 +1380,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** in any multi-warehouse or multi-franchise brand, scoped staff hit 500s on batch and expense creation whenever their visible count equals a sibling's on the same day. That is far more frequent than the cross-tenant case in SA-DB-007. Expenses become affected once SA-TEN-001 is fixed for the commerce host.
 - **Remediation:** replace COUNT+1 with a per-brand counter row using the `next_order_number` upsert pattern, executed in a SECURITY DEFINER function or under a brand-only predicate. Make the uniques `(brand_id, number)` (SA-DB-007).
 - **Tests required:** two warehouse-scoped users in one brand create batches on the same day; two franchise-scoped users create expenses.
-- **Dependencies / priority:** P2, with SA-DB-007. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2, with SA-DB-007. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/10c-qa-verification-db-mobile.md`](docs/audit/specialists/10c-qa-verification-db-mobile.md)
 
 ### SA-SOLID-008
@@ -1395,7 +1395,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** silent customer-communication failure that operators can't see. PII also ends up in logs.
 - **Remediation:** outside Development, return a distinct outcome (for example a `ChannelSendResult` carrying `Delivered=false`) or throw a `ChannelNotConfiguredException`, and store the status as `suppressed` or `failed:not_configured`. Mask PII in the log line.
 - **Tests required:** with no credentials in Production mode, the outbox row is not `sent`.
-- **Dependencies / priority:** P1. Related area: NOTIFICATIONS / SEC. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. Related area: NOTIFICATIONS / SEC. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-TEN-007
@@ -1410,7 +1410,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** RLS is a guard against *forgotten predicates*, not against SQL injection or a single mis-wired handler. One raw-SQL injection or one wrong argument yields cross-tenant reads or writes. The steady growth of SECURITY DEFINER escape hatches widens that surface. - Recommended remediation (incremental, no rewrite): 1. Add a read policy on `brands` (`id = current_brand_id()`) so tenants can read their own row, then retire the read-only DEFINER …
 - **Remediation:** See source report.
 - **Tests required:** calling each DEFINER function with a foreign brand id while `current_brand_id` is set must fail.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/02-multitenancy.md`](docs/audit/specialists/02-multitenancy.md)
 
 ### SA-TEN-008
@@ -1426,7 +1426,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** lifecycle states do not mean what the product says they mean. There is billing and legal exposure (charging end customers of a frozen tenant).
 - **Remediation:** - Add a shared `IBrandStatusStore` check (or SQL `JOIN brands … status='active'`) to every worker query that acts on behalf of a brand. - Make `DeleteBrand` set `status='archived'` (or remove the endpoint in favour of cancellation), and make `brand_status` return `archived` when `deleted_at` is set.
 - **Tests required:** worker tests with a suspended brand fixture; a login test for a deleted brand.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/02-multitenancy.md`](docs/audit/specialists/02-multitenancy.md)
 
 ### SA-TEN-010
@@ -1441,7 +1441,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** SA-TEN-001 and SA-TEN-002 shipped despite substantial RLS test volume.
 - **Remediation:** - Generate the fixture's GUC setter from `RlsConnectionInterceptor` itself, for example by instantiating the interceptor with a fake `ICurrentTenant`. - Add one smoke test per `ICurrentTenant` adapter × principal type. - Add a CI job that applies the real migration chain and re-runs the 0027 guard.
 - **Tests required:** the tests just described.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/02-multitenancy.md`](docs/audit/specialists/02-multitenancy.md)
 
 ### SA-TEN-015
@@ -1455,7 +1455,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** re-running either "idempotent" patch against production silently resets the RLS-subject role to a publicly known password.
 - **Remediation:** remove the password from the patches and set it out of band (secrets manager), or use `\password` / `psql -v`.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/02-multitenancy.md`](docs/audit/specialists/02-multitenancy.md)
 
 ### SA-AUTHZ-011
@@ -1470,7 +1470,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** customers of a brand without, say, the wallet/loyalty/subscription feature can still call those customer APIs if data exists. A downgrade takes up to 15 min to bite for store staff.
 - **Remediation:** add a `RequireFeature("<key>")` endpoint filter backed by a cached brand-feature lookup, applied to customer/partner groups. Bump all members whose memberships resolve to the brand (reuse `user_in_brand`).
 - **Tests required:** brand without feature X → customer endpoint for X → 402.
-- **Dependencies / priority:** P1 · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P1 · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-ONB-007
@@ -1486,7 +1486,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** GST compliance defect on every self-signed-up registered business.
 - **Remediation:** In `CompleteSignup`, set `Franchise.Gstin` from the request after validating the 15-character GSTIN pattern.
 - **Tests required:** a signup with a GSTIN produces an invoice showing that GSTIN.
-- **Dependencies / priority:** P1 (small fix). · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P1 (small fix). · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/05-onboarding-whitelabel.md`](docs/audit/specialists/05-onboarding-whitelabel.md)
 
 ### SA-ONB-010
@@ -1501,7 +1501,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Silent, unbillable or empty tenants. Regressions in the tenant-creation endpoint, which is the platform's most abuse-prone surface, would not be caught.
 - **Remediation:** 1. Fail the signup (500 plus an alert) when a public template has no resolvable bundle. 2. Optionally accept a `planCode` validated against the vertical's bundles. 3. Map 23505 to 409. 4. Add handler and integration tests.
 - **Tests required:** As listed in T-16, plus missing bundle → error and concurrent duplicate phone → 409.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/05-onboarding-whitelabel.md`](docs/audit/specialists/05-onboarding-whitelabel.md)
 
 ### SA-QB-001
@@ -1517,7 +1517,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** franchisor royalties stay understated, and the error is silent because the fix for SA-SOLID-003 would look like it works.
 - **Remediation:** set `FranchiseId = order.FranchiseId` in both initialisers, or compute royalty by joining `payments → orders.franchise_id`. Backfill existing rows from `orders`.
 - **Tests required:** royalty over seeded COD, online and offline payments equals their sum. An insert test asserting that `payments.franchise_id` is not null when `order_id` is set.
-- **Dependencies / priority:** P0 together with SA-SOLID-003. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P0 together with SA-SOLID-003. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/10b-qa-verification-platform.md`](docs/audit/specialists/10b-qa-verification-platform.md)
 
 ### SA-SUB-005
@@ -1532,7 +1532,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** suspension-on-nonpayment, which `0021` describes as shipped, is inert unless an operator knows an undocumented flag.
 - **Remediation:** document the flag, and decide whether it should default to on in Production (it must be fixed together with SA-SUB-004). Add a startup warning in Production when it is off.
 - **Tests required:** config test pinning the intended value (the same pattern as `EntitlementConfigTests`).
-- **Dependencies / priority:** P1, after SA-SUB-004. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P1, after SA-SUB-004. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-008
@@ -1547,7 +1547,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** plans cannot be priced on usage. The Starter tier is unusable as designed.
 - **Remediation:** - Add `limits jsonb` (or typed columns) to `module_bundle`, snapshot it on the subscription, and enforce it in the few create handlers that matter (stores, users, riders) with a shared `IPlanLimitGuard` that returns 402 `plan_limit_reached`. - Model "1 location" as a limit, not as a missing feature.
 - **Tests required:** create-store at the limit returns 402; Starter can create exactly one store.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-009
@@ -1562,7 +1562,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** paid tier differentiators are free. Q4 is overstated.
 - **Remediation:** as migration 0019 did, add dedicated modules or permissions for these features and point their permissions' `module_key` at them. Turn the 0019 WARNING into an EXCEPTION in a new migration, so it fails CI.
 - **Tests required:** a catalogue test asserting that every `is_sellable` feature is referenced by at least one active module that owns at least one permission.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-011
@@ -1577,7 +1577,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** confusion, false confidence, and a likely double-modelling of tenant pricing.
 - **Remediation:** decide whether franchises are a separate payer. If not, deprecate `platform_plans`/`franchise_subscriptions` and hide the page. If so, reuse the brand billing worker pattern. Update ADR-010.
 - **Tests required:** n/a until decided.
-- **Dependencies / priority:** P2 (product decision). · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P2 (product decision). · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-012
@@ -1592,7 +1592,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** overbilling disputes on one side, underdelivery on the other.
 - **Remediation:** - For `trialing`: change the plan only (keep `trialing`, issue no invoice). - For downgrade: schedule it (`pending_bundle_code`, applied at renewal), or keep features until `current_period_end`.
 - **Tests required:** extend `PlanChangeTests` with trial-upgrade and downgrade billing assertions. They currently assert features only.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-013
@@ -1607,7 +1607,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** compliance blocker for charging Indian businesses. Weak reconciliation.
 - **Remediation:** add `invoice_number` (DB sequence per financial year), a tax breakdown (reuse `TaxBreakdown`), `paid_at`, `gateway_payment_id` and `payment_method` columns. Populate them from the webhook and sync. Generate PDFs through the existing invoice tooling (`db/patches/invoice_generation.sql` is the customer-side precedent).
 - **Tests required:** invoice numbering is gap-free and unique under concurrency; CGST+SGST vs IGST selection.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-014
@@ -1622,7 +1622,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** avoidable suspensions, and no evidentiary trail for disputes.
 - **Remediation:** emit an outbox notification event and an explicit `audit_logs` row (`IAuditWriter`) for each transition. Add a mandate or auto-collect for brands later.
 - **Tests required:** worker test asserting audit and outbox rows per transition.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-SUB-015
@@ -1637,7 +1637,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** customer-subscription revenue and churn risk. Shares the gateway and webhook infrastructure that SaaS billing would reuse.
 - **Remediation:** validate against the Razorpay sandbox; treat pending statuses as pending and finalise them by webhook; use `CreateWorkerAsyncScope` in the charger.
 - **Tests required:** gateway contract test against recorded sandbox responses.
-- **Dependencies / priority:** P1 for (b). Not a blocker for (a). · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P1 for (b). Not a blocker for (a). · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-API-021
@@ -1652,7 +1652,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** blocks the "one vertical per tenant" target for anything other than laundry or parcel.
 - **Remediation:** take currency, country, timezone and locale from signup input or the vertical template; emit vertical-neutral completion events (`order.completed`) from strategies; add an appointment booking slice before selling salon.
 - **Tests required:** signup with a non-IN template; loyalty earn on a salon completion.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-ARCH-001
@@ -1667,7 +1667,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Any schema or entity change forces coordinated redeploy of all hosts; no team/module can evolve independently; adding a vertical means editing the shared assembly every host loads (directly hurts Q7). Microservice-style operational cost (3 hosts, gateway, JWKS hops) without microservice-style independence.
 - **Remediation:** Stop treating the hosts as services. Declare module ownership per table (one writing module per table, documented and test-enforced), move cross-module writes behind in-process module APIs (e.g. `ICouponRedemptionService` owned by Commerce, called by Orders in the same transaction), and add architecture tests that fail when a module's Application assembly references another module's entities for writes. Do not split the database.
 - **Tests required:** Architecture tests (assembly dependency rules); existing order-placement tests must keep coupon/loyalty/package atomicity.
-- **Dependencies / priority:** P1 (precondition for vertical modules). · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1 (precondition for vertical modules). · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/01-architecture.md`](docs/audit/specialists/01-architecture.md)
 
 ### SA-AUTHZ-012
@@ -1682,7 +1682,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** a laundry tenant can call salon/logistics APIs (and vice versa) wherever the permission code is held and the feature is licensed or core. The target of exactly one primary vertical per tenant is a UI convention, not a server control.
 - **Remediation:** tag endpoint groups with a vertical and add a filter comparing it to the caller brand's `vertical_key` (cached), or fold the vertical into the entitlement feature map so licensing implies the vertical.
 - **Tests required:** laundry brand → salon endpoint → 403/402.
-- **Dependencies / priority:** P2 · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2 · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-DB-004
@@ -1698,7 +1698,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** RLS WITH CHECK only validates the row's own brand_id. A handler that trusts a client-supplied id creates cross-tenant links. Those links then leak through joins: the B-store name appears on an A invoice, and the B order is updated through the A payment.
 - **Remediation:** add `UNIQUE (brand_id, id)` on parents and composite FKs `(brand_id, x_id) REFERENCES parent(brand_id, id)` for the hot paths: orders↔customers/stores/franchises, payments↔orders, order_items↔orders, pickup_requests↔stores/customers. Use `NOT VALID` then `VALIDATE` for a zero-downtime rollout.
 - **Tests required:** a cross-brand FK insert must fail.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-DB-007
@@ -1714,7 +1714,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** - Tenant B cannot create expenses or batches whenever its count equals another tenant's on the same day. - The error reveals another tenant's activity. - COUNT+1 also races inside a tenant and costs O(n) per insert (E3: 384 ms for a 30k-row count under RLS, synthetic).
 - **Remediation:** brand-scoped uniques `(brand_id, number)`, plus per-brand counters using the existing `next_order_number` pattern (`INSERT … ON CONFLICT DO UPDATE … RETURNING`).
 - **Tests required:** two brands creating their first expense, batch and pickup on the same day; concurrent creates in one brand.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-DB-013
@@ -1730,7 +1730,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** isolation is app-only. Any new report endpoint that forgets `Where(BrandId)` leaks revenue and customer LTV across tenants.
 - **Remediation:** expose MVs only through `security_barrier` views filtering `brand_id = kernel.current_brand_id() OR kernel.rls_bypass()`, and revoke direct MV SELECT.
 - **Tests required:** an A session sees only A rows through the views.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-MOB-006
@@ -1745,7 +1745,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Configurable but non-functional dispatch mode, and misleading platform settings.
 - **Remediation:** - Either block enabling `offer_accept` until it ships, or add: an offer card in rider home/tasks (include `offered` in a separate query), accept/decline calls, and push on `assignment.offered`. - In both cases fix the race in SA-MOB-002.
 - **Tests required:** rider sees the offer; accept → task appears; decline → re-offered.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-MOB-007
@@ -1760,7 +1760,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Slow pickups and missed cancellations (compounds SA-MOB-001).
 - **Remediation:** Map `assignment.auto_assigned`, manual assign and leg cancellation to a notification for the rider's push tokens through the existing `ExpoPushChannelSender`.
 - **Tests required:** assign → notification row for the rider recipient.
-- **Dependencies / priority:** P1. Depends on SA-MOB-017 (FCM config) for Android delivery. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1. Depends on SA-MOB-017 (FCM config) for Android delivery. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-MOB-013
@@ -1775,7 +1775,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Unfulfillable orders and wrong-store routing. A multi-tenant region definition is missing.
 - **Remediation:** 1. Enforce `CheckServiceability(address.pincode)` server-side in pickup and parcel creation. 2. Resolve the store from the serviceable territory/store before slot selection, and filter slots by that store. 3. Later, add an optional `service_area GEOGRAPHY(POLYGON)` on stores/territories with `ST_Covers`.
 - **Tests required:** unserviceable pincode → 422; slots filtered by resolved store.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-MOB-014
@@ -1790,7 +1790,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Customer/rider/admin views diverge, generating support load.
 - **Remediation:** - Map leg `started→pickup rider_dispatched` and `arrived→arrived` in `UpdateMyTaskStatusHandler` and the geofence. - Later, expose a customer-scoped "rider approaching" endpoint, available only while the leg is `started`/`arrived` for the caller's own request, returning a coarse location and rider first name. Stop it on terminal states.
 - **Tests required:** started leg → pickup status `rider_dispatched`.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-MOB-016
@@ -1805,7 +1805,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Wasted trips and phantom deliveries.
 - **Remediation:** Reuse the pickup-cancel block: cancel active legs by `order_id`, decrement load, and notify the rider (SA-MOB-007).
 - **Tests required:** cancel order → legs cancelled.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-SOLID-006
@@ -1820,7 +1820,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** promotion leakage, and the shared coupon budget can be exhausted by one customer.
 - **Remediation:** extract `CouponEligibilityPolicy.Evaluate(coupon, customerStats, subtotal)` (pure, in commerce.Application or shared) and call it from all three. Implement first-order and eligibility checks. Make validate-apply load the order (brand, customer and subtotal from the DB), or remove the endpoint.
 - **Tests required:** unit tests of the policy (rounding, cap, minimum, first order, eligibility); an integration test that validate-apply rejects a foreign or mismatched order.
-- **Dependencies / priority:** P2. Related area: BUSINESS / API. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2. Related area: BUSINESS / API. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-SOLID-009
@@ -1836,7 +1836,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** every new vertical or rule copies field-level mutation code. Ownership of money ledgers is unclear. - Recommended remediation (proportionate, no rewrite): DB-first scaffolding is a reasonable trade-off, so keep it. Add small domain services, or entity partial-class methods (EF tolerates them), for the few high-value invariants: order transition (001), payment projection (002), coupon policy (006) and dispatch assignment (011). Narrow the …
 - **Remediation:** See source report.
 - **Tests required:** the ones listed under each dependent finding, plus an architecture test that handlers outside the owning context don't call `.Add` or `.Update` on a foreign context's sets.
-- **Dependencies / priority:** P2 (incremental). Trade-off: database-first is deliberate (`LaundryGharDbContext.cs:L17-L33`). The defect is that nothing compensates for the missing invariant owner. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2 (incremental). Trade-off: database-first is deliberate (`LaundryGharDbContext.cs:L17-L33`). The defect is that nothing compensates for the missing invariant owner. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-SOLID-010
@@ -1851,7 +1851,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** See source report.
 - **Remediation:** extract pure collaborators from CreateOrder: `IOrderPricingService` (lines and add-ons), `IDiscountPipeline` (coupon, loyalty, package, promotions), `IOrderFactory` (Order, history, outbox; also used by `CreateParcelOrderCommand.cs:L100-L200`). Unit-test them with the InMemory pattern already used (`tests/operations.Tests/Catalog/Import/ImportTestSupport.cs:L23-L27`). Add `tests/commerce.Tests`.
 - **Tests required:** golden-total tests for CreateOrder (express, add-ons, coupon, loyalty, GST, unregistered franchise); rider-flow state tests; webhook idempotency tests.
-- **Dependencies / priority:** P1 for tests, P2 for refactor. Related area: QA. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P1 for tests, P2 for refactor. Related area: QA. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-VERT-006
@@ -1866,7 +1866,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Every new vertical needs a code deploy for notifications, which contradicts "config, not code" (`PLATFORM_STRATEGY.md` §3).
 - **Remediation:** Have `ResolveTemplate` read the catalog (cached), keeping the switch as a fallback. Add salon/recurring rows.
 - **Tests required:** Template-resolution tests per mode, driven by catalog rows.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/04-verticals.md`](docs/audit/specialists/04-verticals.md)
 
 ### SA-VERT-007
@@ -1882,7 +1882,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Terminology leakage (the risk `PLATFORM_STRATEGY.md` §12 itself names), operator confusion, and failed actions. Every new vertical requires edits in four apps.
 - **Remediation:** Expose `fulfillmentMode` and `verticalKey` on `OrderDto`. Switch the admin drawer to `allowedTransitions`, as POS already does. Drive the customer FAB options from the brand's vertical and modes. Wire the server terminology pack into customer, rider and POS.
 - **Tests required:** Admin drawer test that a parcel order shows the backend-provided targets. Customer-mobile test that a logistics brand shows no laundry option.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/04-verticals.md`](docs/audit/specialists/04-verticals.md)
 
 ### SA-API-013
@@ -1898,7 +1898,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** brand leakage and loss of trust for every non-LaundryGhar tenant.
 - **Remediation:** render fallbacks with `{brand.name}` and the brand currency symbol, and source the email header from brand white-label settings.
 - **Tests required:** fallback body for a brand named "X" contains "X" and not "Laundry Ghar".
-- **Dependencies / priority:** P2. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-FE-009
@@ -1912,7 +1912,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** a salon or courier tenant sees laundry vocabulary, which the strategy doc names as a top product risk. The code looks vertical-ready only because it carries dead helper modules.
 - **Remediation:** add a `useTerminology()` hook (copy the admin version) to the three apps and route item nouns through `itemNoun()`. Move vertical-specific strings into terminology keys.
 - **Tests required:** render tests with a salon pack asserting no "garment" or "wash" text appears.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-ONB-001
@@ -1928,7 +1928,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** - Business: "live on a sub-domain in minutes" is reported as achieved when it is not. - Docs: `docs/TASKS.md` T-09 and T-17 are marked `Done`, and the T-17 acceptance item "brand reachable on its sub-domain" is contradicted by the code.
 - **Remediation:** 1. Add a YARP `RequestHeaderOriginalHost=true` transform, or add `ForwardedHeaders.XForwardedHost` with `AllowedHosts` tied to verified domains. 2. Use Host in `CustomerBrandResolver` as well. 3. Make CORS dynamic for verified domains. 4. Pick an option for OQ-6, preferably Cloudflare-for-SaaS or Caddy on-demand TLS with an `ask` endpoint backed by `resolve_brand_domain`. 5. Do not mark a brand "live" until a storefront exists and `ssl_status='active'`.
 - **Tests required:** Gateway-level integration test (Host header in → brand resolved upstream); a CORS test for a verified domain.
-- **Dependencies / priority:** P1. Depends on the OQ-6 decision and on a storefront. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P1. Depends on the OQ-6 decision and on a storefront. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/05-onboarding-whitelabel.md`](docs/audit/specialists/05-onboarding-whitelabel.md)
 
 ### SA-ONB-005
@@ -1944,7 +1944,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** There are two provisioning paths that produce different shapes. Sales-led onboarding is error-prone, and the vertical cannot be chosen.
 - **Remediation:** Make `CreateBrand` require a `TemplateKey` and reuse `TemplateProvisioner`, plus owner invite, franchise and trial, through a shared `BrandProvisioner` service. Keep a single code path.
 - **Tests required:** Admin-created brand has the template vertical, features and own franchise. A request without a template returns 422.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/05-onboarding-whitelabel.md`](docs/audit/specialists/05-onboarding-whitelabel.md)
 
 ### SA-ONB-008
@@ -1960,7 +1960,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Target steps 1, 3 and 6 are not deliverable to an end user.
 - **Remediation:** 1. Add an anonymous signup page in admin-web (or a small separate onboarding SPA) and a wizard panel that reads `/provider-onboarding`. 2. For T3, make `app.config.ts` read a JSON produced from `GetAppConfig` (`BRAND_CONFIG_PATH`) with per-brand EAS profiles. 3. Do not fork source per brand.
 - **Tests required:** e2e signup → OTP → login → wizard shows steps.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/05-onboarding-whitelabel.md`](docs/audit/specialists/05-onboarding-whitelabel.md)
 
 ### SA-OPS-016
@@ -1974,7 +1974,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** no OTA hotfix channel, no reproducible store builds, and per-tenant branded store apps would need a build matrix that does not exist.
 - **Remediation:** run `eas project:init` and commit the real UUIDs. Add `eas build`/`eas update` workflows gated on mobile CI. Decide between a single multi-brand app and a per-tenant build matrix.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P2. Related area: FE/MOB. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P2. Related area: FE/MOB. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-TEN-006
@@ -1989,7 +1989,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** a pre-login branded mobile experience (Q8) is empty whenever RLS is enforced. If it renders in some environment, that environment is not running as an RLS subject.
 - **Remediation:** add a narrowly scoped SECURITY DEFINER read function per public resource (the house pattern used by `brand_app_identity`), or add a `FOR SELECT` policy that permits `status='active' AND is_active` rows to anonymous sessions only when they carry a resolved brand GUC. In that case, publish the anonymous resolved brand into a dedicated GUC.
 - **Tests required:** an integration test calling the public endpoints as `app_user` with RLS on.
-- **Dependencies / priority:** P1. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/02-multitenancy.md`](docs/audit/specialists/02-multitenancy.md)
 
 ### SA-AUTHZ-008
@@ -2004,7 +2004,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** there is no central policy engine to enforce new ABAC rules. Each new resource depends on developers remembering checks, which is how SA-AUTHZ-002/003 arose.
 - **Remediation:** keep RBAC authoritative and turn on shadow mode for one module (commerce first, per the plan) to collect parity data. Change the handler's exception path to deny once in enforce mode.
 - **Tests required:** an endpoint with `AbacResource` in enforce mode denies on a policy deny and on an evaluator exception.
-- **Dependencies / priority:** P2 · **Roadmap phase:** P5
+- **Specialist's dependencies / priority note:** P2 · **Consolidated roadmap phase:** P5
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-DB-017
@@ -2019,7 +2019,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** reports, counts and number generation slow down linearly with tenant size.
 - **Remediation:** rewrite as an inlinable SQL expression over `(SELECT kernel.current_scope_nodes())`, e.g. `'platform' = ANY(nodes) OR ('store:'||store_id) = ANY(nodes) OR …`.
 - **Tests required:** plan test showing an InitPlan rather than a per-row function call.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P5
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P5
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-OPS-015
@@ -2033,7 +2033,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** replicas × 100 can exceed the managed PG `max_connections`. The obvious mitigation, transaction-mode PgBouncer, would break tenant isolation unless the GUC strategy changes. Revocation and suspension propagate per instance within TTL bounds, which is acceptable.
 - **Remediation:** set an explicit `Maximum Pool Size` per host and document the connection budget. If PgBouncer is adopted, use session pooling, or move to `set_config(...,true)` inside explicit transactions. Use Redis for OutputCache and rate limits before running more than one replica.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P2. Related area: DB. · **Roadmap phase:** P5
+- **Specialist's dependencies / priority note:** P2. Related area: DB. · **Consolidated roadmap phase:** P5
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-API-023
@@ -2047,7 +2047,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** low (localhost dev values), but reused passwords or a mis-set environment name would expose them.
 - **Remediation:** move dev values to user-secrets or `.env`, and extend the guard to every non-Development environment.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. Related area: SEC. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3. Related area: SEC. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-API-025
@@ -2061,7 +2061,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** PII in centralised logs (DPDP minimisation).
 - **Remediation:** mask with the same helper used for phones.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. Related area: SEC. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3. Related area: SEC. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-AUTHZ-013
@@ -2075,7 +2075,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** correctness depends on the DB backstop. The user_type gate already mis-fired once (A-2).
 - **Remediation:** replace `Forbidden()` with permission/`IsPlatformAdmin` checks. Make dispatch settings platform-only in the handler.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3 · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3 · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-FE-014
@@ -2089,7 +2089,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** in browsers that enable WebMCP, any agent (including one steered by prompt injection from page content) can read customer PII and change order states with the admin's privileges.
 - **Remediation:** gate behind `import.meta.env.DEV`, or behind an explicit opt-in setting plus a confirmation step for mutations.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-FE-015
@@ -2103,7 +2103,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** a render error, or a lazy-chunk 404 after a redeploy (all routes use `lazy()`), shows React Router's default "Unexpected Application Error" with no recovery.
 - **Remediation:** add a root `errorElement` with a reload button and handling for chunk-load errors.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-FE-016
@@ -2117,7 +2117,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** the next staff member sees the previous customer's details in the POS basket. Rider B's session replays rider A's queued status PATCHes; the server should reject them, but they are noise. Earlier users' cached lists flash briefly.
 - **Remediation:** clear the cart, offline queue and query cache in every logout path.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-MOB-020
@@ -2131,7 +2131,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** If RLS is not active for this connection, customers see other brands' store slots and IDs.
 - **Remediation:** Pass `u.BrandId` and filter `s.BrandId == brandId`.
 - **Tests required:** cross-brand slot not returned.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-MOB-021
@@ -2145,7 +2145,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** These are browser keys, intrinsically public once used, but without HTTP-referrer or URL restrictions (not verifiable from the repo) they can be abused for quota and billing.
 - **Remediation:** Document that keys must be referrer-restricted, and mask them in the GET except for `settings.manage`.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-OPS-011
@@ -2160,7 +2160,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** a DB outage still reports healthy, and service topology is disclosed publicly.
 - **Remediation:** add an Npgsql readiness check tagged `ready` on `/health`. Keep `/alive` for liveness only. Restrict `/health/services` to internal access.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-OPS-017
@@ -2174,7 +2174,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** See source report.
 - **Remediation:** pin digests and SHAs, add Trivy/Grype to release, exclude Dev JSONs, add a CSP.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-QA-002
@@ -2190,7 +2190,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** false assurance; the regression is locked in.
 - **Remediation:** replace them with negative tests (see the next section, T9). Mark the old ones as documenting the defect until the fix lands.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P1, with SA-API-002. (I considered two more candidates and did not raise them: the refund-cap trigger's apply path is covered by SA-API-009, SA-DB-006 and SA-DB-002; the residual fail-open on wallet and loyalty tables after 0031 is a correction to … · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1, with SA-API-002. (I considered two more candidates and did not raise them: the refund-cap trigger's apply path is covered by SA-API-009, SA-DB-006 and SA-DB-002; the residual fail-open on wallet and loyalty tables after 0031 is a correction to … · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/10a-qa-verification-security.md`](docs/audit/specialists/10a-qa-verification-security.md)
 
 ### SA-QB-003
@@ -2205,7 +2205,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** operators cannot follow the docs and end up safe.
 - **Remediation:** keep one documented setting. Enable it on the services with `KnownIPNetworks` set to the compose or cluster network, have the gateway overwrite `X-Forwarded-For`, and remove the conflicting text.
 - **Tests required:** an integration test with two clients through a YARP hop gives two independent buckets; a spoofed `X-Forwarded-For` from an untrusted peer is ignored.
-- **Dependencies / priority:** P1, before the SA-API-001 fix. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P1, before the SA-API-001 fix. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/10b-qa-verification-platform.md`](docs/audit/specialists/10b-qa-verification-platform.md)
 
 ### SA-SOLID-014
@@ -2219,7 +2219,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** the pickup-stage minimum can be bypassed (send a large estimate), and the rider COD expectation is client-controlled. Final billing is still computed server-side, which limits the damage.
 - **Remediation:** re-price cart lines server-side with `PriceResolver` when item IDs are present, and treat the client estimate as display-only.
 - **Tests required:** a pickup with an inflated `EstimatedAmount` against a server-priced cart below the minimum is rejected.
-- **Dependencies / priority:** P3. Related area: BUSINESS. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3. Related area: BUSINESS. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-SUB-016
@@ -2234,7 +2234,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** low for brand invoices (idempotent end state); possible double side effects downstream of the customer outbox.
 - **Remediation:** a `webhook_events(event_id PK, received_at)` insert-first dedupe, or a conditional `UPDATE … WHERE status='pending'` with a row-count check. Verify `amount_paid` on the paylink.
 - **Tests required:** two concurrent identical webhooks produce one outbox event.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ### SA-FE-012
@@ -2248,7 +2248,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** customers can pay only by wallet or COD; prepaid packages exist in admin but cannot be bought.
 - **Remediation:** wire the existing initiate/verify APIs behind the Razorpay SDK, and add a packages screen.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-API-022
@@ -2262,7 +2262,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** clients must handle three error shapes, and breaking changes cannot be versioned per tenant.
 - **Remediation:** adopt `AddProblemDetails` with the envelope as an extension, return typed errors consistently, and map concurrency to 409.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/08-backend-api.md`](docs/audit/specialists/08-backend-api.md)
 
 ### SA-ARCH-009
@@ -2276,7 +2276,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Each new vertical module would copy another ~150 lines of host wiring; cross-cutting changes (e.g. a new middleware) must be made three times.
 - **Remediation:** Split Utilities into `Platform.Abstractions` (CQRS interfaces, Result, ICurrentUser — no ASP.NET) and `Platform.Web` (middlewares, auth handlers, OpenAPI); add one `AddPlatformWebDefaults()/UsePlatformPipeline()` extension used by every host; add NetArchTest rules.
 - **Tests required:** Architecture tests; a middleware-order test per host.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/01-architecture.md`](docs/audit/specialists/01-architecture.md)
 
 ### SA-ARCH-011
@@ -2291,7 +2291,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** The only synchronous inter-service dependency is broken-by-default; it also shows the MCP feature is laundry-specific (`LaundryTools`, `core.WebApi/Mcp/Tools/LaundryTools.cs`) code living in the platform-core host.
 - **Remediation:** Inject `DownstreamServices__*` in AppHost and compose (point at the gateway or operations), or call the operations Application handlers in-process if hosts are consolidated.
 - **Tests required:** Startup config test asserting non-default downstream URLs outside Development.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/01-architecture.md`](docs/audit/specialists/01-architecture.md)
 
 ### SA-AUTHZ-015
@@ -2305,7 +2305,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** See source report.
 - **Remediation:** add explicit `PartnerId ==` predicates from `ICurrentUser`/claims.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3 · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3 · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
 
 ### SA-DB-019
@@ -2319,7 +2319,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** deleted coupon, service or store codes and deleted customers' phones block reuse.
 - **Remediation:** partial uniques where reuse is a product requirement.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-DB-020
@@ -2333,7 +2333,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** a consultant or franchisee cannot hold accounts in two independent tenants.
 - **Remediation:** product decision. Either a global person with per-brand memberships (the current model, which then needs cross-brand membership support) or a brand-scoped unique.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-FE-013
@@ -2347,7 +2347,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** a custom role granted `settings.manage` is blocked by the UI; the stale comments contradict R3-SEC-3, which is fixed server-side. The security impact is nil because the server is authoritative.
 - **Remediation:** gate on `hasPermission('settings.read')`. Add `requiredPermission` to `NavItemDto` and derive route gates from it.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
 ### SA-MOB-019
@@ -2361,7 +2361,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Ex-customer contact details are available to partners long after service, contrary to DPDP minimisation.
 - **Remediation:** Mask phone and address for completed or failed legs older than N hours in `RiderTaskMapper` (earnings needs only order number, amount and time).
 - **Tests required:** past-date task DTO has masked PII.
-- **Dependencies / priority:** P2. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
 ### SA-SOLID-011
@@ -2375,7 +2375,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** drift in expected cash between assignment and collection for auto-dispatched pickups. Assignment rules live in a commerce worker, away from the logistics code.
 - **Remediation:** a single `PickupAssignmentService` in operations.Application, invoked by both the handler and the worker (the worker can resolve it from a scope). Delete `RiderLoadHelper` and the duplicate COD helper.
 - **Tests required:** auto and manual assignment produce identical `DeliveryAssignment` fields and events.
-- **Dependencies / priority:** P3. Related area: LOGISTICS. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. Related area: LOGISTICS. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-SOLID-012
@@ -2389,7 +2389,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** low today. Handlers don't misuse the concrete context. But nothing prevents erosion, and Application can't be reused outside ASP.NET.
 - **Remediation:** add NetArchTest rules: Application must not depend on `*.Infrastructure`, `LaundryGharDbContext` or `Microsoft.AspNetCore.Http`. Replace `IFormFile` with a `(Stream, contentType, fileName)` value object at the endpoint. Move the unique-violation detection behind `IOperationsDbContext.IsUniqueViolation(ex)`. Delete `ICurrentUserService`.
 - **Tests required:** the architecture tests themselves.
-- **Dependencies / priority:** P3. Trade-off: largely acceptable. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. Trade-off: largely acceptable. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-SOLID-013
@@ -2404,7 +2404,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** See source report.
 - **Remediation:** inject `ILoggerFactory` and call `CreateLogger<RazorpayPaymentGateway>()`.
 - **Tests required:** a unit test that the built inner gateway receives a non-null logger.
-- **Dependencies / priority:** P3. Related area: OBSERVABILITY. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. Related area: OBSERVABILITY. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/07-oop-solid.md`](docs/audit/specialists/07-oop-solid.md)
 
 ### SA-VERT-008
@@ -2419,7 +2419,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Data quality; future per-kind logic would misbehave on existing rows.
 - **Remediation:** Use one `CatalogKind.DefaultFor` (add tiffin), call it from `ItemCommands` using the brand's vertical, and delete the duplicate in `TemplateProvisioner`.
 - **Tests required:** Unit test of `DefaultFor` for all four verticals. Item creation on a salon brand yields `service`.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P3
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/04-verticals.md`](docs/audit/specialists/04-verticals.md)
 
 ### SA-ONB-009
@@ -2434,7 +2434,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** A low risk today, because there is no API. It becomes a hazard once support tooling is built.
 - **Remediation:** A platform-only `ChangeBrandVertical` command that is allowed only before the first order and re-runs feature expansion. Document it as a platform-admin action, with an audit row.
 - **Tests required:** a change after orders exist returns 409; a change before orders re-expands features.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/05-onboarding-whitelabel.md`](docs/audit/specialists/05-onboarding-whitelabel.md)
 
 ### SA-ONB-011
@@ -2442,13 +2442,13 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 
 - **Area / category:** Onboarding/white-label — Provisioning correctness
 - **Severity:** Low
-- **Status:** - Prerequisite bypass: Verified (code) - Primary-demotion collision: Suspected (SQL reasoning; not executed)
+- **Status:** Partially Verified (prerequisite bypass Verified by code read; primary-domain demotion collision Suspected, SQL reasoning only)
 - **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
 - **Evidence:** - `OnboardingCommands.cs:L148-159`: `GoLive` does not consult `brand_onboarding_facts`, so it succeeds with zero locations or items despite `TASKS.md` T-17 stating "two steps cannot be skipped". - The catalogue step is "done" with seeded unpriced items (`GetOnboardingState.cs:L53-58`). - `AddBrandDomain.cs:L60-73` demotes the existing (verified) primary when an unverified domain is added as primary. That drops `PrimaryDomain` (the facts query requires a verified primary). - A later `ensure_brand_subdomain` takes the `ON CONFLICT … SET is_primary=true` path (`0017:L154-159`), which would collide with `idx_brand_domains_one_primary` (`0002:L58-60`).
 - **Impact:** A brand can be shown as "live" while unable to take a priced order. Re-going-live can error.
 - **Remediation:** 1. In `GoLive`, require the location and catalogue facts, plus at least one priced item. 2. In `AddBrandDomain`, never demote a verified primary in favour of an unverified domain. Promote only after verification.
 - **Tests required:** go-live with no location → 422; add an unverified primary → the existing verified primary is kept.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/05-onboarding-whitelabel.md`](docs/audit/specialists/05-onboarding-whitelabel.md)
 
 ### SA-ONB-012
@@ -2462,7 +2462,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** Two tenants could get the same bundle id. Store bundle ids are immutable after first submission.
 - **Remediation:** Persist a per-brand `app_identifier` with a UNIQUE constraint, allocated once (with a suffix on collision) instead of being derived on every call.
 - **Tests required:** two colliding codes → distinct identifiers.
-- **Dependencies / priority:** P3 (before T-22 ships). · **Roadmap phase:** P4
+- **Specialist's dependencies / priority note:** P3 (before T-22 ships). · **Consolidated roadmap phase:** P4
 - **Source:** [`docs/audit/specialists/05-onboarding-whitelabel.md`](docs/audit/specialists/05-onboarding-whitelabel.md)
 
 ### SA-DB-016
@@ -2477,7 +2477,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** - Raw `NpgsqlDataSource` paths (ABAC) do not set GUCs. That is safe today because they fail closed (SA-DB-014). - A transaction-pooling PgBouncer would break the model: no session affinity, and `DISCARD ALL` is unavailable. - Setting `No Reset On Close=true` in a connection string would make leakage depend solely on the interceptor.
 - **Remediation:** document "session pooling only" for any pooler. Consider `set_config(…, true)` inside an EF transaction for write paths. Add a startup assertion that `No Reset On Close` is not set.
 - **Tests required:** pool-reuse test across two tenants.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P5
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P5
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-DB-021
@@ -2491,7 +2491,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** the salon vertical is DB-only and not usable. When it is wired, appointment overlap must be prevented at the DB.
 - **Remediation:** `CREATE EXTENSION btree_gist; ALTER TABLE salon_fulfillment.resource_bookings ADD EXCLUDE USING gist (resource_id WITH =, tstzrange(start_at,end_at) WITH &&) WHERE (status <> 'cancelled')`, plus grants and kernel-helper policies.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3 (before salon GA). · **Roadmap phase:** P5
+- **Specialist's dependencies / priority note:** P3 (before salon GA). · **Consolidated roadmap phase:** P5
 - **Source:** [`docs/audit/specialists/08b-database.md`](docs/audit/specialists/08b-database.md)
 
 ### SA-OPS-018
@@ -2506,7 +2506,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** readiness assessments based on the spec overstate capability.
 - **Remediation:** update the spec to "DB-polled outbox, no broker" until a broker is introduced. Nothing currently requires one.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P1
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
 ### SA-SUB-019
@@ -2520,7 +2520,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** bounded lag of 15 minutes or less. A DB outage disables suspension (documented trade-off).
 - **Remediation:** bump every member whose scope resolves to the brand (join franchises and stores). This is acceptable to defer.
 - **Tests required:** See source report and docs/audit/08-test-strategy.md.
-- **Dependencies / priority:** P3. · **Roadmap phase:** P2
+- **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P2
 - **Source:** [`docs/audit/specialists/03-subscription.md`](docs/audit/specialists/03-subscription.md)
 
 ## 3. Duplicate IDs (preserved, pointing to canonical)
