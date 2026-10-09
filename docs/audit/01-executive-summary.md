@@ -36,9 +36,9 @@ Multi-vertical support is **scaffolding, not product**. Salon and tiffin templat
 
 | | Count |
 |---|---|
-| Finding IDs raised by all agents | 211 |
-| Canonical findings after de-duplication | 156 (55 duplicates preserved and cross-referenced) |
-| Critical / High / Medium / Low / Info (canonical) | 3 / 40 / 79 / 32 / 2 |
+| Finding IDs raised (211 by agents + 2 registered during consolidation, SA-ORC-001/002) | 213 |
+| Canonical findings after de-duplication | 158 (55 duplicates preserved and cross-referenced) |
+| Critical / High / Medium / Low / Info (canonical) | 3 / 40 / 79 / 34 / 2 |
 | Scheduled in Phase 0 (verified critical risks) | 27 |
 | QA outcome on re-verified findings (122 rows: 44 in 10a, 50 in 10b, 28 in 10c) | 0 rejected outright; 1 partial false positive (SA-MOB-011, scope corrected); 14 severity corrections (10 lowered, 4 raised to match a duplicate); 25 duplicate identifications. The orchestrator then raised SA-TEN-002 to High on QA-C's reproduction. |
 

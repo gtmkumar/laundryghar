@@ -26,7 +26,7 @@ The audit ran in three stages.
    - DevOps
    - mobile / delivery / maps
 2. **Independent verification.** Three QA agents re-traced every Critical and High finding and a sample of Mediums. They rebuilt the schema on throwaway PostgreSQL 16 clusters to reproduce SQL-level claims, ran the client test suites on scratch copies, and read CI logs. The Principal Architect separately challenged material conclusions across all reports and resolved disputes with repository evidence.
-3. **Consolidation.** All 211 finding IDs were merged into one registry. That gives 156 canonical findings and 55 duplicates, with every ID preserved. Severities were reconciled, every verdict question was re-keyed to one canonical list, and the reports below were produced from the registry.
+3. **Consolidation.** All 211 agent finding IDs, plus 2 registered during consolidation (SA-ORC-001/002), were merged into one registry. That gives 158 canonical findings and 55 duplicates, with every ID preserved. Severities were reconciled, every verdict question was re-keyed to one canonical list, and the reports below were produced from the registry.
 
 **Execution limits.** These apply to every report:
 - There was no .NET SDK or Docker in the audit container, so no HTTP request or xUnit test was run locally. Backend test results come from GitHub CI.
