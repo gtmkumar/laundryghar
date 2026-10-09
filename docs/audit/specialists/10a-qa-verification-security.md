@@ -149,9 +149,9 @@ Severity abbreviations: C = Critical, H = High, M = Medium. Status abbreviations
 
 | Verdict | Count |
 |---|---|
-| Confirmed | 30 (including 3 with a status correction and 3 with a minor correction) |
+| Confirmed | 36. Three of these had their status corrected (AUTHZ-004 and API-008 to Verified, TEN-001 to Verified at SQL level). Two had minor text corrections (SUB-002 line citation, SUB-005 "undocumented"). |
 | Confirmed – severity corrected | 0 standalone. Severity corrections were applied through duplicates: SA-AUTHZ-006 → Critical; SA-TEN-005 and SA-AUTHZ-010 → High |
-| Duplicate | 9 (TEN-004, AUTHZ-006, API-010, API-011, AUTHZ-005, TEN-005, AUTHZ-010, SUB-010, plus TEN-004's AUTHZ-002 part) |
+| Duplicate | 8 (TEN-004, AUTHZ-006, API-010, API-011, AUTHZ-005, TEN-005, AUTHZ-010, SUB-010) |
 | Not reproduced | 0 |
 | Rejected – false positive | 0 |
 
