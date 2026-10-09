@@ -458,7 +458,7 @@ These are not new findings with IDs. I noticed them while confirming details for
 
 1. **Developer scripts drift from the documented topology.** `scripts/run-stack.sh` manages ports 5056, 5015, 5242 and 5174, which are not the AppHost's fixed 5300–5303 or the gateway clusters' 5301–5303 (`laundryghar.Gateway/appsettings.json:13-22`). Its header assumes a pre-migrated, pre-seeded local DB and an Android emulator under `~/Library`. This is the same class as the stale rider dev port noted in [12](specialists/12-mobile-delivery-maps.md) §1. Impact: developer-only. Likely Low or Informational.
 2. **`scripts/smoke.sh` hard-codes a demo brand id and a local admin email/password pair.** These are local demo credentials; I have not reproduced the values here. If the same seeded credentials exist in any shared or staging database, this is a credential exposure. The seed source was not traced.
-3. **The registry marks SA-DB-001 as a duplicate of SA-TEN-001.** Several specialist and QA reports, and 01b's roadmap, still cite SA-DB-001 as primary. Final reports should cite it as "SA-DB-001 (dup of SA-TEN-001)". This is a citation-consistency note, not a data error.
+3. **The registry marks SA-DB-001 as a duplicate of SA-TEN-001.** Several specialist and QA reports, and 01b's roadmap, still cite SA-DB-001 as primary. Final reports should cite it as "SA-DB-001 (dup of SA-TEN-001)". The same applies to the vertical-boundary group: 10b named SA-ONB-003 canonical (G9), but the registry makes [SA-AUTHZ-012](../../FINDINGS.md#sa-authz-012) canonical. These are citation-consistency notes, not data errors.
 
 ## 15. Not verified
 
