@@ -73,7 +73,7 @@ All of these attributes come from **server-signed claims** (trusted). None come 
 
 | Host | Endpoints | Permission policy (`permission:*`) | Lane policy (Customer/Rider/Partner/PartnerAdmin, apiscope) | Authenticated-only | Anonymous (explicit) | No metadata |
 |---|---|---|---|---|---|---|
-| core.WebApi | 172 | ~133 | 6 | 3 (`/auth/step-up/verify`, `/auth/logout`, `/admin/navigator`) | 30 (auth/OTP/OAuth/signup/terminology/public CMS/jwks/paylink webhook) | 0 |
+| core.WebApi | 172 | ~131 | 6 | 3 (`/auth/step-up/verify`, `/auth/logout`, `/admin/navigator`) | 32 (auth/OTP/OAuth/signup/terminology/public CMS/jwks+openid-configuration/paylink webhook) | 0 |
 | operations.WebApi | 232 | ~165 | 65 | 2 (`/fulfillment-config`, cached static config) | 0 | 0 |
 | commerce.WebApi | 110 | 80 | 28 | 0 | 2 (Razorpay webhooks) | 0 |
 
