@@ -314,7 +314,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Impact:** outages (SA-DB-001), fail-open customer RLS on commerce (SA-TEN-002), silent worker no-ops (SA-SUB-004).
 - **Remediation:** one `TenantContextResolver` mapping every token type (user, customer, partner, api_key, worker) to the same GUC set, with an explicit customer scope node. Add a test matrix (lane × host × restrictive-policy table) run against a migrated schema in CI (depends on SA-ARCH-008).
 - **Tests required:** the lane matrix above.
-- **Specialist's dependencies / priority note:** P0 for the customer/commerce lanes; P1 for consolidation. --- · **Consolidated roadmap phase:** P0
+- **Specialist's dependencies / priority note:** P0 for the customer/commerce lanes; P1 for consolidation. · **Consolidated roadmap phase:** P0
 - **Source:** [`docs/audit/specialists/01b-architect-challenge-review.md`](docs/audit/specialists/01b-architect-challenge-review.md)
 
 ### SA-AUTHZ-002

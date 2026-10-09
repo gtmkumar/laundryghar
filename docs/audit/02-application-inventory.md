@@ -212,7 +212,7 @@ The ABAC store (`NpgsqlAbacStore`) opens raw connections from a separate `Npgsql
 | `identity_access.audit_logs` | `occurred_at`, monthly | same | same; `identity_access.ensure_audit_partitions` has no caller ([10b](specialists/10b-qa-verification-platform.md) cmd 7) |
 | `laundry_fulfillment.process_logs` | `occurred_at`, monthly | same, then moved by `phase1_slice_c_laundry_fulfillment.sql` | **The stale `partman.part_config` row (`order_lifecycle.process_logs`) makes `run_maintenance_proc()` abort for every table** ([SA-QC-003](../../FINDINGS.md#sa-qc-003), Medium; reproduced) |
 | `engagement_cms.notifications_log` | `sent_at`, monthly (premake 3) | same | partman (same issue) |
-| `logistics.rider_location_pings` | `pinged_at`, daily; 14-day retention configured | same | `PartitionMaintenanceService` creates partitions; retention depends on partman ([SA-MOB-012](../../FINDINGS.md#sa-mob-012), dup of SA-OPS-004) |
+| `logistics.rider_location_pings` | `pinged_at`, daily; 14-day retention configured | same | `PartitionMaintenanceService` creates partitions; retention depends on partman ([SA-MOB-012](../../FINDINGS.md#sa-ops-004), dup of SA-OPS-004) |
 | `authz.decision_log` | `occurred_at`, monthly | `db/migrations/0024_authz_abac_foundation.up.sql:144-149` | partman |
 
 Partitioned parents enforce RLS correctly (live, [08b](specialists/08b-database.md) positive controls). Because `orders` has PK `(id, created_at)`, every FK to orders is composite on `(order_id, order_created_at)`. The documented partition runway ends **2026-12-01** (`db/HANDOFF.md:175-181`; doc figure, not measured).

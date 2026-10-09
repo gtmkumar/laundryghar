@@ -318,7 +318,7 @@
   "impact": "outages (SA-DB-001), fail-open customer RLS on commerce (SA-TEN-002), silent worker no-ops (SA-SUB-004).",
   "remediation": "one `TenantContextResolver` mapping every token type (user, customer, partner, api_key, worker) to the same GUC set, with an explicit customer scope node. Add a test matrix (lane \u00d7 host \u00d7 restrictive-policy table) run against a migrated schema in CI (depends on SA-ARCH-008).",
   "tests": "the lane matrix above.",
-  "priority": "P0 for the customer/commerce lanes; P1 for consolidation. ---",
+  "priority": "P0 for the customer/commerce lanes; P1 for consolidation.",
   "duplicates": []
  },
  "SA-TEN-001": {
