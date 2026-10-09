@@ -2,11 +2,11 @@
 
 This registry consolidates every finding from the multi-agent audit in [`docs/audit/`](docs/audit/README.md). It was generated from the specialist reports in `docs/audit/specialists/` after independent verification by three QA agents (`10a`, `10b`, `10c`) and the Principal Architect's challenge review (`01b`). The machine-readable copy is [`docs/audit/findings-registry.json`](docs/audit/findings-registry.json).
 
-**ID convention.** `SA-<AREA>-NNN` (SaaS Audit). It does not collide with earlier IDs in `docs/AUDIT_REPORT.md` (A-n, F-n), `docs/ABAC_AUDIT_2026-08-31.md` (F-n) or `docs/QA-BUG-REPORT-2026-07-18.md` (BUG-n). No earlier root `FINDINGS.md` existed. Every ID raised by any agent is preserved. Where two agents reported the same defect, one ID is **canonical** and the others are listed as **duplicates** pointing to it. Distinct issues that share a theme are cross-referenced as *related*, not merged.
+**ID convention.** `SA-<AREA>-NNN` (SaaS Audit). It does not collide with earlier IDs in `docs/AUDIT_REPORT.md` (A-n, F-n), `docs/ABAC_AUDIT_2026-08-31.md` (F-n) or `docs/QA-BUG-REPORT-2026-07-18.md` (BUG-n). No earlier root `FINDINGS.md` existed. `SA-ORC-*` IDs were registered by the orchestrator during consolidation for verified gaps that report writers surfaced without an ID. Every ID raised by any agent is preserved. Where two agents reported the same defect, one ID is **canonical** and the others are listed as **duplicates** pointing to it. Distinct issues that share a theme are cross-referenced as *related*, not merged.
 
 **Severity** is the consolidated value after QA. Where it differs from the specialist's original rating, both are shown with the reason. **Status** uses Verified / Partially Verified / Suspected / Not Tested. "Verified" means the code path was read end to end and, where stated, reproduced; no HTTP-level or .NET test execution was possible in the audit environment (no .NET SDK, no Docker). SQL-level claims were reproduced on throwaway PostgreSQL 16 clusters built from the repository. **Phase** is the consolidated roadmap phase and takes precedence over the specialist's original priority note (shown verbatim in each entry; they can differ, e.g. where QA raised severity or the architect re-sequenced dependencies). It refers to the remediation roadmap in [`docs/audit/07-remediation-roadmap.md`](docs/audit/07-remediation-roadmap.md) (0 = verified critical risks … 5 = new verticals / hardening at scale).
 
-**Totals.** 211 IDs raised; 156 canonical findings after de-duplication (55 duplicates). Canonical by severity: Critical 3, High 40, Medium 79, Low 32, Informational 2. Canonical by phase: P0 27, P1 58, P2 21, P3 33, P4 11, P5 6.
+**Totals.** 213 IDs raised; 158 canonical findings after de-duplication (55 duplicates). Canonical by severity: Critical 3, High 40, Medium 79, Low 34, Informational 2. Canonical by phase: P0 27, P1 60, P2 21, P3 33, P4 11, P5 6.
 
 ## 1. Index of canonical findings
 
@@ -79,6 +79,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 | [SA-FE-005](#sa-fe-005) | Medium | Verified | P1 | Frontend/clients | Brand switching and logout do not scope or clear the client cache, so data from one brand shows under another |  |
 | [SA-FE-010](#sa-fe-010) | Medium | Verified | P1 | Frontend/clients | Customer booking falls back to hardcoded demo garments and prices in production |  |
 | [SA-FE-011](#sa-fe-011) | Medium | Verified | P1 | Frontend/clients | Client quality gates: mobile CI is red, pos-web is outside CI/CD, web apps have no unit tests | SA-MOB-017 |
+| [SA-MOB-007](#sa-mob-007) | Medium | Verified | P1 | Mobile/delivery/maps | Riders get no push notification for new or changed assignments; the app learns of work only by 30 s polling … |  |
 | [SA-MOB-008](#sa-mob-008) | Medium | Verified | P1 | Mobile/delivery/maps | Rider offline queue treats server rejections as "offline", poisons itself, and drops failure reasons; … |  |
 | [SA-MOB-009](#sa-mob-009) | Medium | Suspected | P1 | Mobile/delivery/maps | Background location task may run without hydrated auth and trigger `logout()`, wiping stored tokens |  |
 | [SA-MOB-010](#sa-mob-010) | Medium | Verified | P1 | Mobile/delivery/maps | Location ping ingestion is unvalidated and not gated by duty/assignment; client timestamps drive staleness … |  |
@@ -115,7 +116,6 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 | [SA-DB-007](#sa-db-007) | Medium | Verified | P3 | Database (index/idempotency/RLS) | Globally unique business numbers generated per tenant: cross-tenant unique violations and an existence oracle | SA-TEN-012 |
 | [SA-DB-013](#sa-db-013) | Medium | Verified | P3 | Database (index/idempotency/RLS) | Tables with tenant data that RLS cannot protect: analytics materialized views | SA-TEN-013 |
 | [SA-MOB-006](#sa-mob-006) | Medium | Verified | P3 | Mobile/delivery/maps | Offer→accept dispatch mode is not wired end-to-end (no rider UI, offers hidden from the task list, no … |  |
-| [SA-MOB-007](#sa-mob-007) | Medium | Verified | P3 | Mobile/delivery/maps | Riders get no push notification for new or changed assignments; the app learns of work only by 30 s polling … |  |
 | [SA-MOB-013](#sa-mob-013) | Medium | Verified | P3 | Mobile/delivery/maps | Serviceability, zones and service areas are not enforced anywhere in the booking or dispatch path |  |
 | [SA-MOB-014](#sa-mob-014) | Medium | Verified | P3 | Mobile/delivery/maps | Customer tracking is a status timeline only, and pickup progress never reflects rider start or arrival |  |
 | [SA-MOB-016](#sa-mob-016) | Medium | Verified | P3 | Mobile/delivery/maps | Customer order cancellation does not cancel or release the order's delivery legs |  |
@@ -144,6 +144,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 | [SA-MOB-021](#sa-mob-021) | Low | Verified | P1 | Mobile/delivery/maps | Map provider keys stored unencrypted and echoed to every settings reader |  |
 | [SA-OPS-011](#sa-ops-011) | Low | Verified | P1 | DevOps/production | Health checks never check the database | SA-API-024 |
 | [SA-OPS-017](#sa-ops-017) | Low | Verified | P1 | DevOps/production | Container and supply-chain hygiene |  |
+| [SA-ORC-002](#sa-orc-002) | Low | Verified | P1 | Consolidation (orchestrator) | No default-deny authorization FallbackPolicy on any host; endpoint coverage depends on per-endpoint discipline |  |
 | [SA-QA-002](#sa-qa-002) | Low | Verified | P1 | QA (security) | Gateway rate-limit unit tests assert the vulnerable behaviour |  |
 | [SA-QB-003](#sa-qb-003) | Low | Partially Verified | P1 | QA (platform) | Production guidance for ForwardedHeaders contradicts itself, and both options are unsafe as coded |  |
 | [SA-SOLID-014](#sa-solid-014) | Low | Verified | P1 | OOP/SOLID | The pickup flow enforces minimum order value and sets the expected COD from client-supplied prices |  |
@@ -157,6 +158,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 | [SA-DB-020](#sa-db-020) | Low | Verified | P3 | Database (index/idempotency/RLS) | Staff identity is globally unique by email and phone |  |
 | [SA-FE-013](#sa-fe-013) | Low | Verified | P3 | Frontend/clients | admin-web `/settings` gate drifts from server authorization; the route map is hand-synced |  |
 | [SA-MOB-019](#sa-mob-019) | Low | Verified | P3 | Mobile/delivery/maps | Riders retain indefinite access to customer PII for historical tasks |  |
+| [SA-ORC-001](#sa-orc-001) | Low | Verified | P3 | Consolidation (orchestrator) | Admin rider-track and live-location reads are franchise-scoped, not store-scoped |  |
 | [SA-SOLID-011](#sa-solid-011) | Low | Verified | P3 | OOP/SOLID | Dispatch and assignment logic is duplicated across bounded contexts and has drifted |  |
 | [SA-SOLID-012](#sa-solid-012) | Low | Verified | P3 | OOP/SOLID | Dependency inversion holds by convention only. Application reaches ASP.NET Core and Npgsql through a … |  |
 | [SA-SOLID-013](#sa-solid-013) | Low | Verified | P3 | OOP/SOLID | Settings-resolved providers lose their logger (`_logger as ILogger<OtherType>` always evaluates to null) |  |
@@ -1207,6 +1209,21 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/09-frontend-mobile.md`](docs/audit/specialists/09-frontend-mobile.md)
 
+### SA-MOB-007
+**Riders get no push notification for new or changed assignments; the app learns of work only by 30 s polling while foregrounded**
+
+- **Area / category:** Mobile/delivery/maps — Real-time / notifications.
+- **Severity:** Medium
+- **Status:** Verified (code search).
+- **Independent verification:** QA-C: Not re-verified
+- **Evidence:** - Riders register push tokens (`RiderSelfEndpoints.cs:58,147-156`; `RiderPushToken.cs:32-62`). - No notification is enqueued for a rider recipient on assign/auto-assign/cancel (grep of `RecipientType` "rider"; `AutoDispatchService.cs:354-371` writes an outbox event with no consumer; `PickupCommands.cs:259-264` writes no notification). - Polling: `rider-mobile/src/hooks/useRiderTasks.ts:57`.
+- **Observed behaviour:** A newly assigned or cancelled job is invisible until the rider opens the app.
+- **Impact:** Slow pickups and missed cancellations (compounds SA-MOB-001).
+- **Remediation:** Map `assignment.auto_assigned`, manual assign and leg cancellation to a notification for the rider's push tokens through the existing `ExpoPushChannelSender`.
+- **Tests required:** assign → notification row for the rider recipient.
+- **Specialist's dependencies / priority note:** P1. Depends on SA-MOB-017 (FCM config) for Android delivery. · **Consolidated roadmap phase:** P1
+- **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
+
 ### SA-MOB-008
 **Rider offline queue treats server rejections as "offline", poisons itself, and drops failure reasons; location pings are not queued**
 
@@ -1259,7 +1276,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Severity:** Medium
 - **Status:** Verified — scope corrected by QA-C: deactivate path is a false positive (soft-delete filter); gap exists only for UpdateRider suspend/terminate
 - **Independent verification:** QA-C: Confirmed – evidence corrected
-- **QA correction to the specialist text:** QA-C: DeactivateRider soft-deletes and the global filter blocks rider self-service; the gap is only via UpdateRider suspend/terminate.
+- **QA correction to the specialist text:** QA-C: DeactivateRider soft-deletes and the global query filter blocks rider self-service, so the title's "deactivating" case is a false positive; the gap exists only for UpdateRider with Status=suspended|terminated (UpdateRider.cs:53,87-89).
 - **Evidence:** - `operations.Application/Logistics/Riders/Commands/DeactivateRider/*.cs:40` sets only `rider.Status = Terminated`, leaving `IsOnDuty` and open legs untouched. - `laundryghar.Utilities/Auth/RiderOnlyRequirement.cs` checks claims only (`token_use`, `user_type`). - Rider-self handlers resolve by `UserId+BrandId` with no status filter (`BatchLocationPing.cs:43-46`, `UpdateMyTaskStatus.cs:44-47`).
 - **Observed behaviour:** Until the access token expires (and longer, if refresh is not revoked), a terminated rider can ping, view tasks and complete legs with COD side-effects.
 - **Impact:** Ex-partner retains operational access and customer PII.
@@ -1755,21 +1772,6 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
 
-### SA-MOB-007
-**Riders get no push notification for new or changed assignments; the app learns of work only by 30 s polling while foregrounded**
-
-- **Area / category:** Mobile/delivery/maps — Real-time / notifications.
-- **Severity:** Medium
-- **Status:** Verified (code search).
-- **Independent verification:** QA-C: Not re-verified
-- **Evidence:** - Riders register push tokens (`RiderSelfEndpoints.cs:58,147-156`; `RiderPushToken.cs:32-62`). - No notification is enqueued for a rider recipient on assign/auto-assign/cancel (grep of `RecipientType` "rider"; `AutoDispatchService.cs:354-371` writes an outbox event with no consumer; `PickupCommands.cs:259-264` writes no notification). - Polling: `rider-mobile/src/hooks/useRiderTasks.ts:57`.
-- **Observed behaviour:** A newly assigned or cancelled job is invisible until the rider opens the app.
-- **Impact:** Slow pickups and missed cancellations (compounds SA-MOB-001).
-- **Remediation:** Map `assignment.auto_assigned`, manual assign and leg cancellation to a notification for the rider's push tokens through the existing `ExpoPushChannelSender`.
-- **Tests required:** assign → notification row for the rider recipient.
-- **Specialist's dependencies / priority note:** P1. Depends on SA-MOB-017 (FCM config) for Android delivery. · **Consolidated roadmap phase:** P3
-- **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
-
 ### SA-MOB-013
 **Serviceability, zones and service areas are not enforced anywhere in the booking or dispatch path**
 
@@ -2184,6 +2186,21 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Specialist's dependencies / priority note:** P3. · **Consolidated roadmap phase:** P1
 - **Source:** [`docs/audit/specialists/11-devops.md`](docs/audit/specialists/11-devops.md)
 
+### SA-ORC-002
+**No default-deny authorization FallbackPolicy on any host; endpoint coverage depends on per-endpoint discipline**
+
+- **Area / category:** Consolidation (orchestrator) — Authorization / defence in depth
+- **Severity:** Low
+- **Status:** Verified (grep: no FallbackPolicy configured; PermissionPolicyProvider delegates GetFallbackPolicyAsync to the default provider)
+- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Evidence:** laundryghar.Utilities/Auth/PermissionPolicyProvider.cs:32-33 delegates default/fallback policy to the framework provider; no AddAuthorization(o => o.FallbackPolicy = ...) in core/operations/commerce Program.cs (grep). 06 Table 1 found 0 of 514 endpoints without metadata today.
+- **Observed behaviour:** All current endpoints are annotated, but a future endpoint mapped without RequireAuthorization/AllowAnonymous would be anonymous.
+- **Impact:** Latent risk of accidentally public endpoints as the API grows with new verticals.
+- **Remediation:** Set FallbackPolicy = authenticated-user policy on all hosts and mark intended public endpoints AllowAnonymous explicitly; add a contract test enumerating endpoints (06-T11).
+- **Tests required:** Endpoint-metadata contract test: every endpoint has an authorization policy or explicit AllowAnonymous.
+- **Specialist's dependencies / priority note:** P1. · **Consolidated roadmap phase:** P1
+- **Source:** [`docs/audit/specialists/06-abac-rbac.md`](docs/audit/specialists/06-abac-rbac.md)
+
 ### SA-QA-002
 **Gateway rate-limit unit tests assert the vulnerable behaviour**
 
@@ -2370,6 +2387,21 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Tests required:** past-date task DTO has masked PII.
 - **Specialist's dependencies / priority note:** P2. · **Consolidated roadmap phase:** P3
 - **Source:** [`docs/audit/specialists/12-mobile-delivery-maps.md`](docs/audit/specialists/12-mobile-delivery-maps.md)
+
+### SA-ORC-001
+**Admin rider-track and live-location reads are franchise-scoped, not store-scoped**
+
+- **Area / category:** Consolidation (orchestrator) — Authorization / location privacy
+- **Severity:** Low
+- **Status:** Verified (code read by QA-C and orchestrator; not executed)
+- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Evidence:** operations.Application/Logistics/RiderOps/Queries/GetRiderTrack/GetRiderTrack.cs:25-33 filters by brand and, when the caller has a franchise, by franchise only; store-level tokens carry franchise (ScopeResolver.cs:74-84 per 10c). riders has primary_store_id, not store_id, so the 0031 restrictive policy cannot narrow by store either (10c location-authz table). Endpoint: RidersAdmin.cs (permission:rider.read).
+- **Observed behaviour:** A store-scoped staff user with rider.read can read the GPS track of any rider in the same franchise, including riders attached to other stores.
+- **Impact:** Over-broad access to rider location history within a franchise (DPDP data-minimisation concern). No cross-brand exposure.
+- **Remediation:** Add a store-scope check (rider.primary_store_id within caller scope via IsWithinScope) to GetRiderTrack/GetRidersLive; consider a store column usable by the restrictive policy.
+- **Tests required:** Store-A staff requesting the track of a store-B rider in the same franchise -> 404; franchise owner -> allowed.
+- **Specialist's dependencies / priority note:** P3 with the Dispatch/Tracking module. · **Consolidated roadmap phase:** P3
+- **Source:** [`docs/audit/specialists/10c-qa-verification-db-mobile.md`](docs/audit/specialists/10c-qa-verification-db-mobile.md)
 
 ### SA-SOLID-011
 **Dispatch and assignment logic is duplicated across bounded contexts and has drifted**
@@ -2561,7 +2593,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 | SA-FE-007 | [SA-ONB-008](#sa-onb-008) | Medium | No business self-signup UI and no brand management UI, although the backend endpoints exist |  | `09-frontend-mobile.md` |
 | SA-FE-008 | [SA-ONB-008](#sa-onb-008) | Medium | Branding and white-label: brand is fixed per build, theme is hardcoded, custom domains have no consumer (Q8) |  | `09-frontend-mobile.md` |
 | SA-MOB-012 | [SA-OPS-004](#sa-ops-004) | Medium | 14-day location retention is not reliably enforced | QA-C: partman 14-day retention is configured and works per table; it fails because maintenance is unscheduled (SA-OPS-004) and aborts on a stale part_config row (SA-QC-003). | `12-mobile-delivery-maps.md` |
-| SA-MOB-015 | [SA-AUTHZ-012](#sa-authz-012) | Medium | Tenant and business type are build-time constants in the mobile apps; vertical does not drive mobile flows or … |  | `12-mobile-delivery-maps.md` |
+| SA-MOB-015 | [SA-AUTHZ-012](#sa-authz-012) | Medium | Tenant and business type are build-time constants in the mobile apps; vertical does not drive mobile flows or … | Report-writer check (10-mobile-delivery-maps): mobile terminology is NOT server-driven — no importer of terminology.ts in either app — consistent with SA-FE-009. | `12-mobile-delivery-maps.md` |
 | SA-MOB-017 | [SA-FE-011](#sa-fe-011) | Medium | Mobile release/CI readiness: rider `npm ci` fails, both typechecks fail, EAS/OTA/submit and FCM are … |  | `12-mobile-delivery-maps.md` |
 | SA-MOB-018 | [SA-API-018](#sa-api-018) | Low | Customer app creates pickups without an Idempotency-Key despite server support |  | `12-mobile-delivery-maps.md` |
 | SA-ONB-003 | [SA-AUTHZ-012](#sa-authz-012) | High | Business-type (vertical) restrictions fail open for tenant users and are not enforced in API authorization |  | `05-onboarding-whitelabel.md` |
