@@ -210,6 +210,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Status:** Verified (SQL-level reproduction by DB, QA-A and QA-C; HTTP not executed)
 - **Independent verification:** QA-A: Confirmed
 - **Duplicates (same defect, other reports):** SA-AUTHZ-006, SA-DB-001
+- **QA correction to the specialist text:** QA-A: wallet, loyalty and refund tables are not in the 0031 list (their reads stay brand-wide, not denied). QA-C: also blocks non-platform staff on the commerce host.
 - **Evidence:** - `db/migrations/0031_subbrand_scope_rls.up.sql:L82` makes `IF v_nodes IS NULL THEN RETURN NULL` the result for an unresolved `scope_nodes`. L198 creates the policy `AS RESTRICTIVE … FOR ALL`. L140-178 list 39 tables, including `commerce.payments`, `identity_access.audit_logs`, `kernel.system_settings`, `order_lifecycle.orders`, `order_items`, `pickup_requests`, `delivery_slots` and `tenancy_org.stores`. - `db/migrations/0025…up.sql:L49-68`: `kernel.split_setting` maps `'?'` to NULL. - `RlsConnectionInterceptor.cs:L85-90, L103` writes `"?"` when `ICurrentTenant.ScopeNodes` is null. - `JwtTokenService.cs:L98-119` (customer tokens) and `L122-145` (OAuth customer tokens) emit no `scope_nodes`; …
 - **Observed behaviour:** the SQL reproduction (`repro_scen.sql`, run after applying 0031 verbatim) gave: - S1, operations-host customer: orders 2→0, payments 1→0; - S2, commerce-host customer: payments 2→0; - S3, commerce-host brand admin: payments 2→0, orders 2→0; - S4, operations-host brand admin with `scope_nodes=brand:A`: unchanged at 2/2. The same NULL makes the `WITH CHECK` fail, so every audited insert or update by these principals raises a policy violation.
 - **Impact:** if 0031 is applied and services run as `app_user`, all of the following break: - customer order history, pickups and slots; - every commerce-host read and write for staff and customers (payments, wallets, finance, analytics, partner billing); - API-key integrations. Conversely, if these flows "work" somewhere, RLS is not actually enforced in that environment. Either way the documented isolation model and the runtime disagree. The existing test …
@@ -257,6 +258,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Status:** Verified (code read)
 - **Independent verification:** QA-A: Confirmed
 - **Duplicates (same defect, other reports):** SA-DB-006
+- **QA correction to the specialist text:** QA-A: a DB trigger caps refunds, but it is racy, fires after the Razorpay call, and no setup script applies it.
 - **Evidence:** `AdminPaymentHandlers.cs:111-118` (cap computed outside any lock); `:148-220` (`ExecuteInTransactionAsync` → `_gateway.InitiateRefundAsync(...)` inside the lambda); `CommerceDbContext.cs:103-115` (the execution strategy re-runs the whole lambda on transient failure); `RazorpayPaymentGateway.cs:117-150` (no idempotency header or receipt on the refund call).
 - **Observed behaviour:** a transient DB error at `SaveChanges` or commit re-executes the lambda and calls Razorpay a second time, giving a double refund. A gateway success followed by a DB failure leaves a refund at Razorpay with no record. Two concurrent refunds with different or no idempotency keys can together exceed the captured amount; wallet refunds then over-credit.
 - **Impact:** direct money loss.
@@ -665,6 +667,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Status:** Verified (code read; not executed)
 - **Independent verification:** QA-A: Confirmed
 - **Duplicates (same defect, other reports):** SA-API-011
+- **QA correction to the specialist text:** QA-A: the status check is at ProcessPaylinkWebhook.cs:71-72 (not L109-115).
 - **Evidence:** - `commerce.Infrastructure/Worker/Services/BrandPlatformBillingService.cs:L186-L195`: dunning sets every overdue invoice to `status='past_due'`. - `core.Application/Identity/Entitlements/Commands/ProcessPaylinkWebhook.cs:L109-L115`: the webhook marks the invoice paid only if `Status == "issued"`; otherwise it returns `"invoice already past_due"` with 200 OK, so Razorpay does not retry. - `core.Application/Identity/Entitlements/Commands/CollectBrandPlatformInvoice.cs:L25-L27`: a payment link can only be created for an `issued` invoice. A link that already exists is returned, but a `past_due` invoice without one cannot get one. - Reinstatement requires no `issued`/`past_due` invoices due …
 - **Observed behaviour:** - Suspension only ever follows `past_due` invoices, so every suspended brand's invoices are `past_due`. - A brand that pays one of those links through Razorpay is acknowledged but not credited, and stays suspended. - Recovery needs a platform admin to run `sync-payment` (`CollectBrandPlatformInvoice.cs:L58-L73`, which does accept any non-paid status) or to mark the invoice paid manually.
 - **Impact:** paying customers stay locked out. Support load rises, and payment is lost silently, because Razorpay receives 200.
@@ -849,6 +852,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Status:** Verified
 - **Independent verification:** QA-C: Confirmed – severity corrected (to Medium)
 - **Related:** SA-TEN-007 — kept distinct: grant on SECURITY DEFINER purge/export functions; revoke must be sequenced with a maintenance role (RetentionSweepService needs it)
+- **QA correction to the specialist text:** QA-C: revoking from app_user must be sequenced with a dedicated maintenance role (RetentionSweepService.cs:241 calls purge).
 - **Evidence:** - `db/migrations/0015_brand_cancellation.up.sql:143-165` (`export_brand`, granted to app_user, "trusts its argument"), `:175-250` (`purge_brand`; `:248-250` "REVOKE ALL … FROM PUBLIC — NOT granted to app_user"). - `harden_app_user_and_rls_bypass.sql:59-67` sets `ALTER DEFAULT PRIVILEGES IN SCHEMA kernel GRANT EXECUTE ON FUNCTIONS TO app_user`. Every later kernel function therefore gets an explicit app_user grant, which `REVOKE … FROM PUBLIC` does not remove. - Live: 22 SECURITY DEFINER functions, all owned by superuser, all executable by app_user.
 - **Observed behaviour:** from a brand-A session, `kernel.export_brand('B')` returned all of B's rows (7 tables). `kernel.purge_brand('B')` deleted every B row (rolled back). Neither function compares its argument with `kernel.current_brand_id()`.
 - **Impact:** any SQL execution as app_user (an injection, or a single unchecked handler argument) can exfiltrate or destroy another tenant. `RetentionSweepService.cs:241` actually *depends* on this accidental grant, because it runs on the app_user connection.
@@ -926,6 +930,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Status:** Verified (code read + type-set diff)
 - **Independent verification:** QA-A: Confirmed; QA-B: Confirmed – severity corrected to Medium (canonical, G4)
 - **Duplicates (same defect, other reports):** SA-ARCH-005, SA-SOLID-005
+- **QA correction to the specialist text:** QA-B: 39 validators are dead, not 40 (PartnerBookingLocation runs via SetValidator).
 - **Evidence:** `laundryghar.Utilities/CQRS/Extensions/ServiceCollectionExtensions.cs:14` registers only `Dispatcher`; `CQRS/Dispatcher/Dispatcher.cs:15-45` calls handlers directly; `CQRS/Registration/BehaviorRegistrar.cs:13-25` has no callers. The only validation path is `Validation/ValidationFilter.cs:13-52`. Orphaned validators include `CreateOrderValidator` (`operations.Application/Orders/Orders/Commands/CreateOrderCommand.cs:886-925`), `CustomerSchedulePickupValidator` (`Pickup/Commands/PickupCommands.cs:773-814`), `UpdateOrderStatusValidator` (`UpdateOrderStatusCommand.cs:160-175`), `UploadInspectionPhotoValidator` (`UploadInspectionPhoto.cs:84-115`, MIME allowlist + 10 MB), rider document validator …
 - **Observed behaviour:** rules such as "Quantity > 0", "channel in list", "≤ 50 cart items", "Amount > 0", "image/jpeg|png|webp only" and "≤ 5 MB KYC" are never enforced on these paths. DB CHECKs backstop some of them (for example `order_items.quantity > 0`, `database_scripts/04_bc4_order_lifecycle.sql:154`), returning 422 through `ExceptionHandler`, but many have no backstop: cart size, upload MIME and size limits for KYC, string lengths stored in jsonb.
 - **Impact:** unbounded payloads, wrong data stored, and security-relevant upload restrictions missing. Existing unit tests that exercise validators directly give false assurance.
@@ -1254,6 +1259,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Severity:** Medium
 - **Status:** Verified — scope corrected by QA-C: deactivate path is a false positive (soft-delete filter); gap exists only for UpdateRider suspend/terminate
 - **Independent verification:** QA-C: Confirmed – evidence corrected
+- **QA correction to the specialist text:** QA-C: DeactivateRider soft-deletes and the global filter blocks rider self-service; the gap is only via UpdateRider suspend/terminate.
 - **Evidence:** - `operations.Application/Logistics/Riders/Commands/DeactivateRider/*.cs:40` sets only `rider.Status = Terminated`, leaving `IsOnDuty` and open legs untouched. - `laundryghar.Utilities/Auth/RiderOnlyRequirement.cs` checks claims only (`token_use`, `user_type`). - Rider-self handlers resolve by `UserId+BrandId` with no status filter (`BatchLocationPing.cs:43-46`, `UpdateMyTaskStatus.cs:44-47`).
 - **Observed behaviour:** Until the access token expires (and longer, if refresh is not revoked), a terminated rider can ping, view tasks and complete legs with COD side-effects.
 - **Impact:** Ex-partner retains operational access and customer PII.
@@ -1527,6 +1533,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Severity:** Medium
 - **Status:** Verified
 - **Independent verification:** QA-A: Confirmed – minor correction
+- **QA correction to the specialist text:** QA-A: the opt-in flag is named in docs/SAAS_PLATFORM_ARCHITECTURE.md:324 (so not wholly undocumented).
 - **Evidence:** - `commerce.Infrastructure/Worker/Options/WorkerOptions.cs:L140` sets `BrandPlatformBillingEnabled = false`. - `commerce.WebApi/appsettings.json` and `.Development.json` have no `Worker` section. - `PRODUCTION_ENV.md` documents `Worker__SubscriptionBillingEnabled` (`L325`) but not `Worker__BrandPlatformBillingEnabled`. - `BrandPlatformBillingService.cs:L40-L45` returns immediately when the flag is off.
 - **Observed behaviour:** by default no renewals, no dunning and no automatic suspension happen in any environment.
 - **Impact:** suspension-on-nonpayment, which `0021` describes as shipped, is inert unless an operator knows an undocumented flag.
@@ -2525,61 +2532,61 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 
 ## 3. Duplicate IDs (preserved, pointing to canonical)
 
-| Duplicate ID | Canonical | Original severity | Title (as reported) | Source |
-|---|---|---|---|---|
-| SA-API-006 | [SA-SOLID-001](#sa-solid-001) | High | Order state machine is not enforced atomically, and the rider delivery path bypasses it | `08-backend-api.md` |
-| SA-API-010 | [SA-SUB-004](#sa-sub-004) | High | Platform (tenant) subscription renewals run without the worker RLS bypass, so renewal invoices are never … | `08-backend-api.md` |
-| SA-API-011 | [SA-SUB-002](#sa-sub-002) | High | Paylink webhook ignores `past_due` invoices, so a late-paying tenant is never reinstated | `08-backend-api.md` |
-| SA-API-014 | [SA-OPS-005](#sa-ops-005) | Medium | Workers have no claim locking or leader election; stuck rows are never recovered; there is no real event … | `08-backend-api.md` |
-| SA-API-017 | [SA-OPS-003](#sa-ops-003) | Medium | File storage is local-disk only and upload content checks are unenforced | `08-backend-api.md` |
-| SA-API-024 | [SA-OPS-011](#sa-ops-011) | Low | Health checks are shallow and the gateway aggregate probe cannot reach services in the compose topology | `08-backend-api.md` |
-| SA-ARCH-002 | [SA-SOLID-009](#sa-solid-009) | Medium | Domain layer is empty; business rules live in large transaction scripts and are duplicated across hosts | `01-architecture.md` |
-| SA-ARCH-003 | [SA-VERT-001](#sa-vert-001) | High | Brand vertical is never applied when an order is created; salon/tiffin brands get laundry orders labelled … | `01-architecture.md` |
-| SA-ARCH-004 | [SA-VERT-002](#sa-vert-002) | High | Salon and tiffin verticals are scaffolding (strategy + SQL), not operable modules | `01-architecture.md` |
-| SA-ARCH-005 | [SA-API-003](#sa-api-003) | Medium | CQRS pipeline behaviours (validation, transaction, audit, caching, exception) are dead code | `01-architecture.md` |
-| SA-ARCH-007 | [SA-OPS-005](#sa-ops-005) | Medium | Background workers run in-process in the commerce API host with no leader election; host cannot be scaled out … | `01-architecture.md` |
-| SA-ARCH-008 | [SA-DB-002](#sa-db-002) | High | No reproducible schema source of truth: the documented bootstrap does not create columns/schemas the EF model … | `01-architecture.md` |
-| SA-ARCH-012 | [SA-OPS-018](#sa-ops-018) | Low | Architecture documents materially out of date with the code | `01-architecture.md` |
-| SA-AUTHZ-005 | [SA-TEN-002](#sa-ten-002) | Medium | Commerce host never publishes `customer_id` (A0.6 fail-open persists) or the subject GUCs | `06-abac-rbac.md` |
-| SA-AUTHZ-006 | [SA-TEN-001](#sa-ten-001) | High | 0031 RESTRICTIVE sub-brand policy denies every customer request and every non-platform commerce-host request … | `06-abac-rbac.md` |
-| SA-AUTHZ-010 | [SA-API-002](#sa-api-002) | Medium | Gateway rate-limit partition keyed on client-controlled `X-Brand-Id` / unverified JWT | `06-abac-rbac.md` |
-| SA-AUTHZ-014 | [SA-TEN-008](#sa-ten-008) | Low | Suspension gate fails open and skips the partner lane | `06-abac-rbac.md` |
-| SA-DB-001 | [SA-TEN-001](#sa-ten-001) | Critical | Customer sessions blocked by RESTRICTIVE `rls_subbrand_scope`: customers cannot read or create orders, … | `08b-database.md` |
-| SA-DB-006 | [SA-API-009](#sa-api-009) | High | The refund cap (trigger + app check) is not concurrency-safe: over-refund reproduced | `08b-database.md` |
-| SA-DB-008 | [SA-API-005](#sa-api-005) | High | Wallet and other balance/counter mutations are read-modify-write with no lock or concurrency token | `08b-database.md` |
-| SA-DB-011 | [SA-API-004](#sa-api-004) | Medium | Order-creation idempotency and payment capture are check-then-act; the webhook lookup is an unindexed … | `08b-database.md` |
-| SA-DB-015 | [SA-TEN-007](#sa-ten-007) | Medium | RLS is defence-in-depth only: the bypass GUC is self-settable and platform admins bypass on every request | `08b-database.md` |
-| SA-DB-022 | [SA-MOB-002](#sa-mob-002) | Low | Rider offer acceptance has no DB uniqueness for the active assignment | `08b-database.md` |
-| SA-FE-006 | [SA-AUTHZ-012](#sa-authz-012) | Medium | Vertical restrictions are client/navigation-only; the API does not enforce them (Q13) | `09-frontend-mobile.md` |
-| SA-FE-007 | [SA-ONB-008](#sa-onb-008) | Medium | No business self-signup UI and no brand management UI, although the backend endpoints exist | `09-frontend-mobile.md` |
-| SA-FE-008 | [SA-ONB-008](#sa-onb-008) | Medium | Branding and white-label: brand is fixed per build, theme is hardcoded, custom domains have no consumer (Q8) | `09-frontend-mobile.md` |
-| SA-MOB-012 | [SA-OPS-004](#sa-ops-004) | Medium | 14-day location retention is not reliably enforced | `12-mobile-delivery-maps.md` |
-| SA-MOB-015 | [SA-AUTHZ-012](#sa-authz-012) | Medium | Tenant and business type are build-time constants in the mobile apps; vertical does not drive mobile flows or … | `12-mobile-delivery-maps.md` |
-| SA-MOB-017 | [SA-FE-011](#sa-fe-011) | Medium | Mobile release/CI readiness: rider `npm ci` fails, both typechecks fail, EAS/OTA/submit and FCM are … | `12-mobile-delivery-maps.md` |
-| SA-MOB-018 | [SA-API-018](#sa-api-018) | Low | Customer app creates pickups without an Idempotency-Key despite server support | `12-mobile-delivery-maps.md` |
-| SA-ONB-003 | [SA-AUTHZ-012](#sa-authz-012) | High | Business-type (vertical) restrictions fail open for tenant users and are not enforced in API authorization | `05-onboarding-whitelabel.md` |
-| SA-ONB-004 | [SA-VERT-001](#sa-vert-001) | High | The salon template is public, but orders always run the laundry pipeline (template fulfilment mode is never … | `05-onboarding-whitelabel.md` |
-| SA-ONB-006 | [SA-API-013](#sa-api-013) | Medium | New tenants' customer notifications and invoices carry LaundryGhar/laundry branding (white-label leak) | `05-onboarding-whitelabel.md` |
-| SA-OPS-001 | [SA-API-001](#sa-api-001) | High | Core's `auth` rate limiter collapses every user onto the gateway's IP | `11-devops.md` |
-| SA-OPS-002 | [SA-API-002](#sa-api-002) | High | Gateway rate limit is bypassable and lets one tenant's budget be burned by anyone | `11-devops.md` |
-| SA-OPS-013 | [SA-ONB-001](#sa-onb-001) | Medium | Custom-domain brand resolution does not survive the gateway hop, and has no TLS automation | `11-devops.md` |
-| SA-SOLID-002 | [SA-API-007](#sa-api-007) | High | Online payment capture never updates the order's `AmountPaid` or `PaymentStatus`, so riders are told to … | `07-oop-solid.md` |
-| SA-SOLID-004 | [SA-VERT-001](#sa-vert-001) | High | The vertical extension seam exists but is bypassed. New verticals still need core edits on the server and in … | `07-oop-solid.md` |
-| SA-SOLID-005 | [SA-API-003](#sa-api-003) | Medium | The CQRS pipeline behaviours are dead code, and 40 validators never run (including `CreateOrderValidator` and … | `07-oop-solid.md` |
-| SA-SOLID-007 | [SA-API-012](#sa-api-012) | High | The notification worker uses another brand's WhatsApp or SMS credentials for every tenant | `07-oop-solid.md` |
-| SA-SUB-010 | [SA-AUTHZ-011](#sa-authz-011) | Medium | Entitlements are enforced only on staff-JWT permission checks; customer-facing APIs, workers and API-key … | `03-subscription.md` |
-| SA-SUB-017 | [SA-TEN-008](#sa-ten-008) | Low | Suspension gate does not apply to API-key principals | `03-subscription.md` |
-| SA-SUB-018 | [SA-TEN-008](#sa-ten-008) | Low | Background workers ignore brand suspension and cancellation | `03-subscription.md` |
-| SA-SUB-020 | [SA-DB-002](#sa-db-002) | Medium | SaaS billing schema lives only in `db/patches/` behind a separate script; migrations 0008/0021 depend on it | `03-subscription.md` |
-| SA-TEN-004 | [SA-AUTHZ-003](#sa-authz-003) | High | Global staff identities plus unscoped membership writes allow cross-tenant tampering and account takeover | `02-multitenancy.md` |
-| SA-TEN-005 | [SA-API-002](#sa-api-002) | Medium | Gateway per-tenant rate limiting is keyed on a client-controlled brand id | `02-multitenancy.md` |
-| SA-TEN-009 | [SA-ONB-001](#sa-onb-001) | Medium | Custom-domain (Host) tenant resolution is unreachable in the shipped topology | `02-multitenancy.md` |
-| SA-TEN-011 | [SA-DB-004](#sa-db-004) | Low | No composite tenant foreign keys; cross-tenant references are prevented only in handlers | `02-multitenancy.md` |
-| SA-TEN-012 | [SA-DB-007](#sa-db-007) | Low | Globally unique columns on tenant data leak existence and allow cross-tenant blocking | `02-multitenancy.md` |
-| SA-TEN-013 | [SA-DB-013](#sa-db-013) | Low | Analytics: app-only isolation over materialized views, global refresh by any tenant | `02-multitenancy.md` |
-| SA-TEN-014 | [SA-OPS-008](#sa-ops-008) | Informational | Observability and caches are not tenant-aware | `02-multitenancy.md` |
-| SA-VERT-005 | [SA-AUTHZ-012](#sa-authz-012) | Medium | The vertical boundary is enforced only in navigation and bundle application, not at the API or aggregate level | `04-verticals.md` |
-| SA-VERT-009 | [SA-ONB-005](#sa-onb-005) | Low | Only self-signup can set a brand's vertical; platform-admin brand creation always yields a laundry brand with … | `04-verticals.md` |
-| SA-VERT-010 | [SA-DB-002](#sa-db-002) | Medium | Multi-vertical schema lives only in `db/patches/phase*.sql`, which the documented fresh-build path does not … | `04-verticals.md` |
-| SA-VERT-011 | [SA-OPS-018](#sa-ops-018) | Informational | Documentation contradicts code on multi-vertical status | `04-verticals.md` |
+| Duplicate ID | Canonical | Original severity | Title (as reported) | QA correction | Source |
+|---|---|---|---|---|---|
+| SA-API-006 | [SA-SOLID-001](#sa-solid-001) | High | Order state machine is not enforced atomically, and the rider delivery path bypasses it |  | `08-backend-api.md` |
+| SA-API-010 | [SA-SUB-004](#sa-sub-004) | High | Platform (tenant) subscription renewals run without the worker RLS bypass, so renewal invoices are never … |  | `08-backend-api.md` |
+| SA-API-011 | [SA-SUB-002](#sa-sub-002) | High | Paylink webhook ignores `past_due` invoices, so a late-paying tenant is never reinstated |  | `08-backend-api.md` |
+| SA-API-014 | [SA-OPS-005](#sa-ops-005) | Medium | Workers have no claim locking or leader election; stuck rows are never recovered; there is no real event … |  | `08-backend-api.md` |
+| SA-API-017 | [SA-OPS-003](#sa-ops-003) | Medium | File storage is local-disk only and upload content checks are unenforced |  | `08-backend-api.md` |
+| SA-API-024 | [SA-OPS-011](#sa-ops-011) | Low | Health checks are shallow and the gateway aggregate probe cannot reach services in the compose topology |  | `08-backend-api.md` |
+| SA-ARCH-002 | [SA-SOLID-009](#sa-solid-009) | Medium | Domain layer is empty; business rules live in large transaction scripts and are duplicated across hosts |  | `01-architecture.md` |
+| SA-ARCH-003 | [SA-VERT-001](#sa-vert-001) | High | Brand vertical is never applied when an order is created; salon/tiffin brands get laundry orders labelled … |  | `01-architecture.md` |
+| SA-ARCH-004 | [SA-VERT-002](#sa-vert-002) | High | Salon and tiffin verticals are scaffolding (strategy + SQL), not operable modules |  | `01-architecture.md` |
+| SA-ARCH-005 | [SA-API-003](#sa-api-003) | Medium | CQRS pipeline behaviours (validation, transaction, audit, caching, exception) are dead code | QA-B: 39 dead validators, not 40. | `01-architecture.md` |
+| SA-ARCH-007 | [SA-OPS-005](#sa-ops-005) | Medium | Background workers run in-process in the commerce API host with no leader election; host cannot be scaled out … |  | `01-architecture.md` |
+| SA-ARCH-008 | [SA-DB-002](#sa-db-002) | High | No reproducible schema source of truth: the documented bootstrap does not create columns/schemas the EF model … | QA-B/DB: understated — migrate.sh up fails at 0005; the documented bootstrap cannot complete. | `01-architecture.md` |
+| SA-ARCH-012 | [SA-OPS-018](#sa-ops-018) | Low | Architecture documents materially out of date with the code |  | `01-architecture.md` |
+| SA-AUTHZ-005 | [SA-TEN-002](#sa-ten-002) | Medium | Commerce host never publishes `customer_id` (A0.6 fail-open persists) or the subject GUCs |  | `06-abac-rbac.md` |
+| SA-AUTHZ-006 | [SA-TEN-001](#sa-ten-001) | High | 0031 RESTRICTIVE sub-brand policy denies every customer request and every non-platform commerce-host request … |  | `06-abac-rbac.md` |
+| SA-AUTHZ-010 | [SA-API-002](#sa-api-002) | Medium | Gateway rate-limit partition keyed on client-controlled `X-Brand-Id` / unverified JWT |  | `06-abac-rbac.md` |
+| SA-AUTHZ-014 | [SA-TEN-008](#sa-ten-008) | Low | Suspension gate fails open and skips the partner lane |  | `06-abac-rbac.md` |
+| SA-DB-001 | [SA-TEN-001](#sa-ten-001) | Critical | Customer sessions blocked by RESTRICTIVE `rls_subbrand_scope`: customers cannot read or create orders, … | QA-C: scope broader — commerce-host non-platform staff are also denied. | `08b-database.md` |
+| SA-DB-006 | [SA-API-009](#sa-api-009) | High | The refund cap (trigger + app check) is not concurrency-safe: over-refund reproduced |  | `08b-database.md` |
+| SA-DB-008 | [SA-API-005](#sa-api-005) | High | Wallet and other balance/counter mutations are read-modify-write with no lock or concurrency token |  | `08b-database.md` |
+| SA-DB-011 | [SA-API-004](#sa-api-004) | Medium | Order-creation idempotency and payment capture are check-then-act; the webhook lookup is an unindexed … |  | `08b-database.md` |
+| SA-DB-015 | [SA-TEN-007](#sa-ten-007) | Medium | RLS is defence-in-depth only: the bypass GUC is self-settable and platform admins bypass on every request |  | `08b-database.md` |
+| SA-DB-022 | [SA-MOB-002](#sa-mob-002) | Low | Rider offer acceptance has no DB uniqueness for the active assignment |  | `08b-database.md` |
+| SA-FE-006 | [SA-AUTHZ-012](#sa-authz-012) | Medium | Vertical restrictions are client/navigation-only; the API does not enforce them (Q13) |  | `09-frontend-mobile.md` |
+| SA-FE-007 | [SA-ONB-008](#sa-onb-008) | Medium | No business self-signup UI and no brand management UI, although the backend endpoints exist |  | `09-frontend-mobile.md` |
+| SA-FE-008 | [SA-ONB-008](#sa-onb-008) | Medium | Branding and white-label: brand is fixed per build, theme is hardcoded, custom domains have no consumer (Q8) |  | `09-frontend-mobile.md` |
+| SA-MOB-012 | [SA-OPS-004](#sa-ops-004) | Medium | 14-day location retention is not reliably enforced | QA-C: partman 14-day retention is configured and works per table; it fails because maintenance is unscheduled (SA-OPS-004) and aborts on a stale part_config row (SA-QC-003). | `12-mobile-delivery-maps.md` |
+| SA-MOB-015 | [SA-AUTHZ-012](#sa-authz-012) | Medium | Tenant and business type are build-time constants in the mobile apps; vertical does not drive mobile flows or … |  | `12-mobile-delivery-maps.md` |
+| SA-MOB-017 | [SA-FE-011](#sa-fe-011) | Medium | Mobile release/CI readiness: rider `npm ci` fails, both typechecks fail, EAS/OTA/submit and FCM are … |  | `12-mobile-delivery-maps.md` |
+| SA-MOB-018 | [SA-API-018](#sa-api-018) | Low | Customer app creates pickups without an Idempotency-Key despite server support |  | `12-mobile-delivery-maps.md` |
+| SA-ONB-003 | [SA-AUTHZ-012](#sa-authz-012) | High | Business-type (vertical) restrictions fail open for tenant users and are not enforced in API authorization |  | `05-onboarding-whitelabel.md` |
+| SA-ONB-004 | [SA-VERT-001](#sa-vert-001) | High | The salon template is public, but orders always run the laundry pipeline (template fulfilment mode is never … |  | `05-onboarding-whitelabel.md` |
+| SA-ONB-006 | [SA-API-013](#sa-api-013) | Medium | New tenants' customer notifications and invoices carry LaundryGhar/laundry branding (white-label leak) |  | `05-onboarding-whitelabel.md` |
+| SA-OPS-001 | [SA-API-001](#sa-api-001) | High | Core's `auth` rate limiter collapses every user onto the gateway's IP |  | `11-devops.md` |
+| SA-OPS-002 | [SA-API-002](#sa-api-002) | High | Gateway rate limit is bypassable and lets one tenant's budget be burned by anyone |  | `11-devops.md` |
+| SA-OPS-013 | [SA-ONB-001](#sa-onb-001) | Medium | Custom-domain brand resolution does not survive the gateway hop, and has no TLS automation | QA-B: status should be Partially Verified (same evidence as SA-ONB-001). | `11-devops.md` |
+| SA-SOLID-002 | [SA-API-007](#sa-api-007) | High | Online payment capture never updates the order's `AmountPaid` or `PaymentStatus`, so riders are told to … | QA-B: latent today because no client calls payment initiate/verify; orchestrator keeps High because it blocks enabling online payment. | `07-oop-solid.md` |
+| SA-SOLID-004 | [SA-VERT-001](#sa-vert-001) | High | The vertical extension seam exists but is bypassed. New verticals still need core edits on the server and in … |  | `07-oop-solid.md` |
+| SA-SOLID-005 | [SA-API-003](#sa-api-003) | Medium | The CQRS pipeline behaviours are dead code, and 40 validators never run (including `CreateOrderValidator` and … | QA-B: 39 dead validators, not 40; the channel whitelist DOES have a DB CHECK (04_bc4_order_lifecycle.sql:38). Dispatcher evidence is Dispatcher.cs:15-45 and ServiceCollectionExtensions.cs:14. | `07-oop-solid.md` |
+| SA-SOLID-007 | [SA-API-012](#sa-api-012) | High | The notification worker uses another brand's WhatsApp or SMS credentials for every tenant | QA-B: the NotificationSettingsCache TTL is 60 s, not 5 minutes. | `07-oop-solid.md` |
+| SA-SUB-010 | [SA-AUTHZ-011](#sa-authz-011) | Medium | Entitlements are enforced only on staff-JWT permission checks; customer-facing APIs, workers and API-key … |  | `03-subscription.md` |
+| SA-SUB-017 | [SA-TEN-008](#sa-ten-008) | Low | Suspension gate does not apply to API-key principals |  | `03-subscription.md` |
+| SA-SUB-018 | [SA-TEN-008](#sa-ten-008) | Low | Background workers ignore brand suspension and cancellation |  | `03-subscription.md` |
+| SA-SUB-020 | [SA-DB-002](#sa-db-002) | Medium | SaaS billing schema lives only in `db/patches/` behind a separate script; migrations 0008/0021 depend on it |  | `03-subscription.md` |
+| SA-TEN-004 | [SA-AUTHZ-003](#sa-authz-003) | High | Global staff identities plus unscoped membership writes allow cross-tenant tampering and account takeover |  | `02-multitenancy.md` |
+| SA-TEN-005 | [SA-API-002](#sa-api-002) | Medium | Gateway per-tenant rate limiting is keyed on a client-controlled brand id |  | `02-multitenancy.md` |
+| SA-TEN-009 | [SA-ONB-001](#sa-onb-001) | Medium | Custom-domain (Host) tenant resolution is unreachable in the shipped topology |  | `02-multitenancy.md` |
+| SA-TEN-011 | [SA-DB-004](#sa-db-004) | Low | No composite tenant foreign keys; cross-tenant references are prevented only in handlers |  | `02-multitenancy.md` |
+| SA-TEN-012 | [SA-DB-007](#sa-db-007) | Low | Globally unique columns on tenant data leak existence and allow cross-tenant blocking |  | `02-multitenancy.md` |
+| SA-TEN-013 | [SA-DB-013](#sa-db-013) | Low | Analytics: app-only isolation over materialized views, global refresh by any tenant |  | `02-multitenancy.md` |
+| SA-TEN-014 | [SA-OPS-008](#sa-ops-008) | Informational | Observability and caches are not tenant-aware |  | `02-multitenancy.md` |
+| SA-VERT-005 | [SA-AUTHZ-012](#sa-authz-012) | Medium | The vertical boundary is enforced only in navigation and bundle application, not at the API or aggregate level |  | `04-verticals.md` |
+| SA-VERT-009 | [SA-ONB-005](#sa-onb-005) | Low | Only self-signup can set a brand's vertical; platform-admin brand creation always yields a laundry brand with … |  | `04-verticals.md` |
+| SA-VERT-010 | [SA-DB-002](#sa-db-002) | Medium | Multi-vertical schema lives only in `db/patches/phase*.sql`, which the documented fresh-build path does not … |  | `04-verticals.md` |
+| SA-VERT-011 | [SA-OPS-018](#sa-ops-018) | Informational | Documentation contradicts code on multi-vertical status |  | `04-verticals.md` |
 
