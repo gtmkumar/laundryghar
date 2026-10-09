@@ -464,7 +464,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** QA (DB/mobile) — Financial integrity / API–DB contract
 - **Severity:** High
 - **Status:** Partially Verified (DB constraint reproduced T7d; handler traced; HTTP not executed)
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Raised by the QA agent itself during verification (see status)
 - **Related:** SA-API-009
 - **Evidence:** - `commerce.Application/Commerce/Common/Dtos/CommerceDtos.cs:438-449`: `IssueRefundRequest.RefundType // "gateway" or "wallet"`. - `AdminPaymentHandlers.cs:132` copies `req.RefundType` into the row. `:150` branches on `"wallet"`. `:217-221` calls `_gateway.InitiateRefundAsync` (the real `RazorpayPaymentGateway.cs:117` via `SettingsFirstPaymentGateway`) before `_db.PaymentRefunds.Add` + `SaveChangesAsync` (`:227-230`). - `database_scripts/06_bc6_commerce.sql:418-419`: `refund_type CHECK IN ('full','partial','goodwill','dispute_loss')`, unchanged by any patch or migration (grep). It matches `SharedDataModel/Enums/RefundType.cs`. - No validator constrains `RefundType` (grep), and validators do …
 - **Observed behaviour:** - Any caller that follows the documented contract gets a 23514 CHECK violation at SaveChanges: - `"gateway"` → Razorpay has already refunded the money; the DB transaction rolls back, leaving no refund row and no audit row, and a retry refunds again; - `"wallet"` → the wallet credit rolls back, so the wallet-refund feature can never persist. - A caller that sends a DB-valid value such as `"full"` always takes the gateway branch, so wallet refunds …
@@ -898,7 +898,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** QA (security) — Privilege escalation / workflow integrity. Related area: AUTHZ.
 - **Severity:** Medium
 - **Status:** Verified (code read; not executed)
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Raised by the QA agent itself during verification (see status)
 - **Related:** SA-AUTHZ-001
 - **Evidence:** - `core.Application/Identity/AccessControl/Commands/InviteUser/InviteUser.cs:29-35` dispatches `CreateUserCommand`, then `GrantMembershipCommand`. - `CreateUser.cs:72` calls `SaveChangesAsync` itself. - `laundryghar.Utilities/CQRS/Dispatcher/Dispatcher.cs:15-29` has no transaction behaviour, and `TransactionBehavior` is never registered (`ServiceCollectionExtensions.cs:14`). - `GrantMembership.cs:144-185` throws on scope or rank violations only *after* the user row exists.
 - **Observed behaviour:** `POST /api/v1/admin/access-control/invite` with a role or scope the actor may not grant returns 403. The account with the requested `user_type` and password (`Status=Active`) is nonetheless already committed. Because `user_type=platform_admin` needs no membership to receive full authority (`PermissionHandler.cs:32-33`, `ScopeResolver.cs:27-49`), GrantMembership's H2a, H2b and H2c guards give the invite path no protection at all. In the benign …
@@ -914,7 +914,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** QA (DB/mobile) — Database operations / data retention
 - **Severity:** Medium
 - **Status:** Verified on the rebuilt schema (T12). The production `part_config` state is unknown.
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Raised by the QA agent itself during verification (see status)
 - **Related:** SA-OPS-004
 - **Evidence:** - `99_cross_cutting_schema_qualified.sql` registers `order_lifecycle.process_logs` with partman. - `db/patches/phase1_slice_c_laundry_fulfillment.sql:24-28,56-90` moves `process_logs` and its partitions to `laundry_fulfillment` but never updates `partman.part_config` (grep: the only part_config writer outside the base scripts is `0024…down.sql:8`). - The only scheduled entry point, `db/tools/run_partman_maintenance.sh` (and the plist), runs `CALL partman.run_maintenance_proc()`.
 - **Observed behaviour:** - `CALL partman.run_maintenance_proc()` → `ERROR: Given parent table not found in system catalogs: order_lifecycle.process_logs`; a 38-day-old ping partition survived. - `SELECT partman.run_maintenance('logistics.rider_location_pings')` dropped it. - `part_config` lists `order_lifecycle.process_logs` with 0 children.
@@ -1381,7 +1381,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** QA (platform) — Test integrity / QA
 - **Severity:** Medium
 - **Status:** Verified (code read; CI log read)
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Raised by the QA agent itself during verification (see status)
 - **Evidence:** - `tests/operations.IntegrationTests/Phase4SalonSchemaTests.cs:15-20,49-51`: `catch (Exception) { _dockerAvailable = false; }` and then `if (!_dockerAvailable) return;`. The same pattern appears 60 times across 17 files (grep). - Only 13 of the 33 `.up.sql` migrations are applied by any test, each onto a minimal fixture (`RepoPaths.Migration(...)` grep). No test executes a `.down.sql`, and no test runs `build_from_scratch.sh` + `migrate.sh up`. - There are no tests for `CreateOrderHandler`, `UpdateMyTaskStatusHandler`, `RazorpayWebhookHandler`, royalty or `NotificationSettingsCache` (grep of `tests/`). - There are no booking or slot concurrency tests (grep for `WhenAll`/`concurren` finds …
 - **Observed behaviour:** on any runner without Docker, the whole integration suite goes green without asserting anything. On GitHub it did execute (284 passed in 2 min 39 s, job 108549585458). The suites that exist would not catch G1, G3, SA-SOLID-001/002/003 or SA-QB-001.
 - **Impact:** false assurance, and migration regressions (like the 0005 bootstrap failure) reach operators.
@@ -1396,7 +1396,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** QA (DB/mobile) — Integrity / RLS side-effect
 - **Severity:** Medium
 - **Status:** Verified (DB, T8) for warehouse batches; Partially Verified (code) for expenses
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Raised by the QA agent itself during verification (see status)
 - **Related:** SA-DB-007 / SA-TEN-001
 - **Evidence:** - `CreateWarehouseBatch.cs:48-49` (`COUNT(b.BrandId==brandId)+1`, `WB-{date}-{n}`) and `ExpenseCommands.cs:204-205` (`EXP-{date}-{n}`) assume the count sees the whole brand. - Under the 0031 RESTRICTIVE policy (`0031…up.sql:144-200`; both tables are in the list and carry `warehouse_id` / `franchise_id`), a warehouse- or franchise-scoped user sees only its own rows. - The uniques are global (`UNIQUE (batch_number)`, `UNIQUE (expense_number)`).
 - **Observed behaviour:** the brand had 1 batch (W1). W2-scoped staff counted 0 and generated `WB-20261009-0001`, which raised `duplicate key … warehouse_batches_batch_number_key`. Because the count does not change when the insert fails, W2 stays blocked for the rest of the day.
@@ -1533,7 +1533,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** QA (platform) — Finance correctness / data model (Related area: PAY, FINANCE)
 - **Severity:** Medium
 - **Status:** Verified (static)
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Raised by the QA agent itself during verification (see status)
 - **Related:** SA-SOLID-003
 - **Evidence:** - `operations.Application/Logistics/RiderSelf/Commands/UpdateMyTaskStatus/UpdateMyTaskStatus.cs:196-222`: the COD `Payment` sets `BrandId`, `CustomerId` and `OrderId`, but no `FranchiseId`. - `commerce.Application/Commerce/Customer/Payments/CustomerPaymentHandlers.cs:54-81`: online payments also have no `FranchiseId`. - Only `RecordOfflinePaymentCommand.cs:147` sets it. - `SharedDataModel/Entities/Commerce/Payment.cs:17` (`Guid? FranchiseId`). No DB trigger populates it (grep of `db/` and `database_scripts/`). - Royalty filters on `p.FranchiseId == …` (`RoyaltyCommands.cs:98-107`; `RoyaltyGenerationService.cs:195-203`).
 - **Observed behaviour:** once the `"completed"` literal is fixed, royalty revenue will include only staff-recorded offline payments. Rider-collected COD and online payments will still be excluded.
@@ -2192,7 +2192,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** Consolidation (orchestrator) — Authorization / defence in depth
 - **Severity:** Low
 - **Status:** Verified (grep: no FallbackPolicy configured; PermissionPolicyProvider delegates GetFallbackPolicyAsync to the default provider)
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Registered by the orchestrator from a report-writer cross-check; evidence re-read by the orchestrator
 - **Evidence:** laundryghar.Utilities/Auth/PermissionPolicyProvider.cs:32-33 delegates default/fallback policy to the framework provider; no AddAuthorization(o => o.FallbackPolicy = ...) in core/operations/commerce Program.cs (grep). 06 Table 1 found 0 of 514 endpoints without metadata today.
 - **Observed behaviour:** All current endpoints are annotated, but a future endpoint mapped without RequireAuthorization/AllowAnonymous would be anonymous.
 - **Impact:** Latent risk of accidentally public endpoints as the API grows with new verticals.
@@ -2207,7 +2207,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** QA (security) — Test quality / regression lock-in. Related area: OPS, TEN.
 - **Severity:** Low
 - **Status:** Verified (read)
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Raised by the QA agent itself during verification (see status)
 - **Related:** SA-API-002
 - **Evidence:** `backend/laundryghar/tests/operations.Tests/Auth/RateLimitPartitioningTests.cs`: - `:63-69` `the_x_brand_id_header_takes_precedence` - `:71-77` `the_forwarded_client_ip_is_used_when_present` (leftmost XFF trusted) - `:27-37` `two_brands_on_the_same_ip_do_not_share_a_budget`
 - **Observed behaviour:** the suite encodes exactly the bypass and tenant-DoS properties in SA-API-002. A correct fix will turn these tests red, which invites someone to "fix the fix" back.
@@ -2223,7 +2223,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** QA (platform) — Configuration / documentation (Related area: OPS, SEC)
 - **Severity:** Low
 - **Status:** Partially Verified (config and code read; not executed)
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Raised by the QA agent itself during verification (see status)
 - **Evidence:** - `backend/laundryghar/PRODUCTION_ENV.md:135-150` says to enable `ForwardedHeaders__Enabled=true` on all services. - `deploy/docker-compose.yml:25` says it "stays OFF on the services". - `deploy/README.md:55` says to set it on the gateway only. - `ServiceDefaults/Extensions.cs:273-283`: when it is enabled, `KnownIPNetworks` and `KnownProxies` are cleared, so `X-Forwarded-For` is trusted from any peer.
 - **Observed behaviour:** with it OFF, SA-API-001 applies (one auth bucket for the whole platform). With it ON, the services trust any forwarded IP header without a proxy allow-list, and per-IP limits then rely on header handling at the gateway that is not proven.
 - **Impact:** operators cannot follow the docs and end up safe.
@@ -2394,7 +2394,7 @@ This registry consolidates every finding from the multi-agent audit in [`docs/au
 - **Area / category:** Consolidation (orchestrator) — Authorization / location privacy
 - **Severity:** Low
 - **Status:** Verified (code read by QA-C and orchestrator; not executed)
-- **Independent verification:** Not independently re-verified by QA (specialist evidence accepted; see report)
+- **Independent verification:** Registered by the orchestrator from a report-writer cross-check; evidence re-read by the orchestrator
 - **Evidence:** operations.Application/Logistics/RiderOps/Queries/GetRiderTrack/GetRiderTrack.cs:25-33 filters by brand and, when the caller has a franchise, by franchise only; store-level tokens carry franchise (ScopeResolver.cs:74-84 per 10c). riders has primary_store_id, not store_id, so the 0031 restrictive policy cannot narrow by store either (10c location-authz table). Endpoint: RidersAdmin.cs (permission:rider.read).
 - **Observed behaviour:** A store-scoped staff user with rider.read can read the GPS track of any rider in the same franchise, including riders attached to other stores.
 - **Impact:** Over-broad access to rider location history within a franchise (DPDP data-minimisation concern). No cross-brand exposure.
